@@ -7,10 +7,13 @@ interface CollectionState {
   genres: Genre[]
   subgenres: Subgenre[]
   moods: Mood[]
+  searchText: string
   loadAll: () => Promise<void>
   setTrackGenres: (trackId: number, genreIds: number[]) => Promise<void>
   setTrackSubgenres: (trackId: number, subgenreIds: number[]) => Promise<void>
   setTrackMoods: (trackId: number, moodIds: number[]) => Promise<void>
+  setSearchText: (text: string) => void
+  runScan: () => Promise<void>
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -18,6 +21,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   genres: [],
   subgenres: [],
   moods: [],
+  searchText: '',
 
   loadAll: async () => {
     const [tracks, genres, subgenres, moods] = await Promise.all([
@@ -41,6 +45,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setTrackMoods: async (trackId, moodIds) => {
     await window.api.setTrackMoods(trackId, moodIds)
+    await get().loadAll()
+  },
+
+  setSearchText: (text) => set({ searchText: text }),
+
+  runScan: async () => {
+    await window.api.scanCollection()
     await get().loadAll()
   },
 }))
