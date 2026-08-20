@@ -62,7 +62,7 @@ function createWindow(): void {
     }
   })
 
-  registerIpcHandlers(db, mainWindow)
+  registerIpcHandlers(db, mainWindow, getBackupFolder(app.getPath('userData')))
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

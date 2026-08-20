@@ -1,6 +1,7 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import type { AppDatabase } from './db'
-import { getCollectionFolder, setCollectionFolder } from './config'
+import { getCollectionFolder, setCollectionFolder, getLastBackupAt } from './config'
+import { getBackupFolder } from './backup'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { runAnalysisQueue } from './analysis/queue'
@@ -13,7 +14,7 @@ import {
   setTrackMoods,
   getTrackTagIds,
 } from './tags'
-import type { Track, Genre, Subgenre, Mood } from '../../src/types'
+import type { Track, Genre, Subgenre, Mood, BackupInfo } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
 interface TrackRow {
@@ -76,8 +77,13 @@ function rowToTrack(row: TrackRow): Track {
   }
 }
 
-export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow) {
+export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, backupFolder: string) {
   ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
+
+  ipcMain.handle('backup:getInfo', (): BackupInfo => ({
+    backupFolder,
+    lastBackupAt: getLastBackupAt(),
+  }))
 
   ipcMain.handle('config:chooseCollectionFolder', async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] })

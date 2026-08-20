@@ -34,3 +34,8 @@ export interface Mood {
   id: number
   name: string
 }
+
+export interface BackupInfo {
+  backupFolder: string
+  lastBackupAt: string | null
+}

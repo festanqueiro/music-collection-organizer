@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Track, Genre, Subgenre, Mood } from '../../src/types'
+import type { Track, Genre, Subgenre, Mood, BackupInfo } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
 
@@ -24,6 +24,7 @@ const api = {
     ipcRenderer.invoke('tags:setTrackMoods', trackId, moodIds),
   downloadTrack: (trackId: number, path: string): Promise<void> =>
     ipcRenderer.invoke('tracks:download', trackId, path),
+  getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('scan:progress', listener)
