@@ -3,40 +3,38 @@
 ## Next up
 
 All 22 tasks of the v1 plan are implemented and individually reviewed
-(approved). The final whole-branch review found the app is **not yet
-functionally complete** — two Critical gaps mean it doesn't do its two
-headline jobs yet, plus several Important issues. Fix these before merging.
+(approved). The final whole-branch review found two Critical gaps and
+several Important issues; **the two Critical ones are now fixed**
+(commit `71987b5`) so the app should actually do its two headline jobs —
+scanning + analyzing tracks, and tagging them. The Important issues below
+are still open.
 
-To resume: tell Claude to fix the items below (findings already written up
-in detail at `.superpowers/sdd/2026-08-20-v1-library-organizer/final-review-findings.md`
-in this worktree — read that file first, it has exact fix guidance per item),
-then re-run the SDD final-review scoped re-review + adjudication, then
-finish the branch via superpowers:finishing-a-development-branch.
+To resume: read `.superpowers/sdd/2026-08-20-v1-library-organizer/final-review-findings.md`
+for exact fix guidance on the remaining items, fix what's needed, then
+re-run the SDD final-review scoped re-review + adjudication, then finish
+the branch via superpowers:finishing-a-development-branch.
 
-### Critical (must fix before this is usable)
+### Fixed
 
-1. **Analysis pipeline never runs.** `runScan` (`electron/main/scan.ts`)
-   never calls `runAnalysisQueue` — every track stays `pending` forever,
-   so BPM/key/waveform/metadata never populate. Wire it into the
-   `scan:run` IPC handler.
-2. **No way to create Genre/Sub-Genre/Mood tags.** The CRUD functions and
-   IPC exist, but no store action or UI calls them — tagging and tag
-   filtering are fully built and tested underneath but unreachable.
+1. ~~Analysis pipeline never runs~~ — `scan:run` (`electron/main/ipc.ts`)
+   now runs `runAnalysisQueue` over newly-pending local tracks after a
+   scan, streaming `scan:progress` events the renderer reloads on.
+2. ~~No way to create Genre/Sub-Genre/Mood tags~~ — `DetailPanel.tsx` now
+   has inline "+ New" inputs per tag type, backed by new
+   `createGenre`/`createSubgenre`/`createMood` store actions.
 
-### Important
+### Important (still open)
 
 3. Player can't load audio — CSP blocks `file://` URLs (needs a custom
    `media://` protocol handler, scoped to the collection folder).
-4. Scan progress events are never emitted/consumed — no incremental
-   table updates during a scan.
-5. A scan against a temporarily-unavailable folder silently deletes the
+4. A scan against a temporarily-unavailable folder silently deletes the
    entire library + all tags (files missing from the walk get hard-deleted
    with cascading tag rows). Needs a guard against mass-deletion, or a
    soft-delete instead of hard `DELETE`.
-6. IPC/preload boundary is untyped (`Promise<any>` everywhere) — `tsc
+5. IPC/preload boundary is untyped (`Promise<any>` everywhere) — `tsc
    --noEmit` passing doesn't actually catch main/renderer drift.
-7. Cloud download button has no await/error handling/refresh.
-8. Every tag edit reloads the entire collection (perf concern at scale).
+6. Cloud download button has no await/error handling/refresh.
+7. Every tag edit reloads the entire collection (perf concern at scale).
 
 ### Also noted (lower priority, see findings doc for full list)
 
@@ -53,15 +51,19 @@ Player edge cases, stale README).
 
 ## Status
 
-Implementation complete (22/22 tasks, individually reviewed/approved,
-38/38 tests passing, `tsc --noEmit` clean) on branch
-`worktree-v1-library-organizer`, but the final whole-branch review found
-it's not functionally usable yet — see Critical items above. Fix wave was
-paused before dispatch to conserve budget; nothing has been fixed yet.
+Implementation complete (22/22 tasks) plus the two Critical fixes above,
+on branch `worktree-v1-library-organizer`. `tsc --noEmit` clean, 38/38
+tests passing, `npm run build` succeeds (main/preload/renderer all bundle
+cleanly). Important-severity items above are still open — not blocking
+basic usability but worth fixing before shipping.
 
 Known sandbox-only limitation throughout: this environment can't fully
-launch the packaged Electron app (native-module ABI mismatch between
-better-sqlite3's build and Electron's bundled runtime) or run
-`electron-rebuild` cleanly (broken Xcode CLT toolchain here), so nothing
-in this branch has been visually verified in a real running window —
-worth doing that pass in a normal dev machine before shipping.
+launch the packaged Electron app or run `electron-rebuild` cleanly —
+attempted it directly and hit a real toolchain incompatibility (this
+sandbox's Xcode Command Line Tools ships a newer libc++ than Electron
+43's bundled Node/V8 headers expect: a `std::is_convertible_v` template
+specialization conflict in `v8-internal.h`, unrelated to this app's code).
+So nothing in this branch has been visually verified in a real running
+window — verification here relied on `tsc --noEmit`, the test suite, and
+a full `electron-vite build` (which does succeed). Do a real `npm run dev`
+visual pass on a normal dev machine before shipping.
