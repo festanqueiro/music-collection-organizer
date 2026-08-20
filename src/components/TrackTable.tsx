@@ -4,6 +4,15 @@ import type { Track } from '../types'
 
 type SortKey = 'title' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
 
+function formatDuration(totalSeconds: number): string {
+  const total = Math.round(totalSeconds)
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const seconds = total % 60
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
+}
+
 export function TrackTable({
   onSelect,
   selectedFolder,
@@ -70,7 +79,7 @@ export function TrackTable({
               <td style={cellStyle}>{track.bpm?.toFixed(0) ?? '—'}</td>
               <td style={cellStyle}>{track.musicalKey ?? '—'}</td>
               <td style={cellStyle}>{track.format}</td>
-              <td style={cellStyle}>{track.duration ? `${Math.round(track.duration)}s` : '—'}</td>
+              <td style={cellStyle}>{track.duration ? formatDuration(track.duration) : '—'}</td>
               <td style={cellStyle}>
                 {track.cloudStatus === 'cloud_only' ? <span className="material-symbols-outlined">cloud</span> : null}
               </td>
