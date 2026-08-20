@@ -6,7 +6,7 @@ v1 is implemented (all 22 plan tasks) and has been live-tested by hand:
 scanned a real folder of ~50 tracks, analysis ran, the app stayed
 responsive throughout, and the UI renders correctly (dark theme,
 three-pane layout, Jost font, sortable single-line track table).
-`tsc --noEmit` clean, 38/38 tests passing, `npm run build` succeeds.
+`tsc --noEmit` clean, 39/39 tests passing, `npm run build` succeeds.
 
 ## Fixed during hands-on testing
 
@@ -35,16 +35,27 @@ three-pane layout, Jost font, sortable single-line track table).
 - Track table UI polish: rows no longer wrap to two lines (cells are
   `white-space: nowrap`, table scrolls horizontally instead); Duration
   column now shows `MM:SS` (`HH:MM:SS` once a track passes an hour).
+- Suggested Genre tags: the raw ID3 genre tag captured during analysis
+  now surfaces as a one-click "Suggested: X [+ Add]" chip in the tag
+  picker instead of being invisible/unused.
+- Waveform doubles as a seek bar: click anywhere on it to jump there;
+  shows played/unplayed with a playhead line.
+- Collection folder is now visible in the toolbar (with a "Change…"
+  button) — previously there was no way to see it, or to change it once
+  set.
+- **Data loss on folder change / temporarily-missing drive** — a scan
+  no longer deletes tracks it can't find; they're flagged `present = 0`
+  (hidden from the table) and revived with all tags intact if found
+  again at the same path later. Also fixed a real latent `node:sqlite`
+  bug this surfaced: the "file changed on disk" update path would have
+  thrown (node:sqlite rejects unused bound parameters; better-sqlite3
+  silently ignored them), never previously exercised by a test.
 
 ## Still open (Important, not blocking basic use)
 
 - Player can't load audio — CSP blocks `file://` URLs. Needs a custom
   `media://` protocol handler, scoped to the collection folder, plus
   `encodeURIComponent` on the path.
-- A scan against a temporarily-unavailable folder silently deletes the
-  entire library + all tags (files missing from the walk get
-  hard-deleted with cascading tag rows). Needs a guard against
-  mass-deletion, or a soft-delete instead of hard `DELETE`.
 - IPC/preload boundary is untyped (`Promise<any>` everywhere) — `tsc
   --noEmit` passing doesn't actually catch main/renderer drift. Fix:
   annotate return types on every preload method and a proper `TrackRow`
