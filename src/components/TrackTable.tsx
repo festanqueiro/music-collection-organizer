@@ -43,33 +43,41 @@ export function TrackTable({
     { key: 'duration', label: 'Duration' },
   ]
 
+  const cellStyle = { padding: '8px', whiteSpace: 'nowrap' as const }
+
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-      <thead>
-        <tr>
-          {columns.map((col) => (
-            <th key={col.key} onClick={() => setSortKey(col.key)} style={{ cursor: 'pointer', textAlign: 'left', padding: '8px' }}>
-              {col.label}
-            </th>
-          ))}
-          <th>Cloud</th>
-        </tr>
-      </thead>
-      <tbody>
-        {visibleTracks.map((track) => (
-          <tr key={track.id} onClick={() => onSelect(track)} style={{ cursor: 'pointer' }}>
-            <td style={{ padding: '8px' }}>{track.title ?? track.filename}</td>
-            <td>{track.artist ?? '—'}</td>
-            <td>{track.bpm?.toFixed(0) ?? '—'}</td>
-            <td>{track.musicalKey ?? '—'}</td>
-            <td>{track.format}</td>
-            <td>{track.duration ? `${Math.round(track.duration)}s` : '—'}</td>
-            <td>
-              {track.cloudStatus === 'cloud_only' ? <span className="material-symbols-outlined">cloud</span> : null}
-            </td>
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
+        <thead>
+          <tr>
+            {columns.map((col) => (
+              <th
+                key={col.key}
+                onClick={() => setSortKey(col.key)}
+                style={{ ...cellStyle, cursor: 'pointer', textAlign: 'left' }}
+              >
+                {col.label}
+              </th>
+            ))}
+            <th style={cellStyle}>Cloud</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {visibleTracks.map((track) => (
+            <tr key={track.id} onClick={() => onSelect(track)} style={{ cursor: 'pointer' }}>
+              <td style={cellStyle}>{track.title ?? track.filename}</td>
+              <td style={cellStyle}>{track.artist ?? '—'}</td>
+              <td style={cellStyle}>{track.bpm?.toFixed(0) ?? '—'}</td>
+              <td style={cellStyle}>{track.musicalKey ?? '—'}</td>
+              <td style={cellStyle}>{track.format}</td>
+              <td style={cellStyle}>{track.duration ? `${Math.round(track.duration)}s` : '—'}</td>
+              <td style={cellStyle}>
+                {track.cloudStatus === 'cloud_only' ? <span className="material-symbols-outlined">cloud</span> : null}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
