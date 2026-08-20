@@ -10,6 +10,7 @@ export interface Track {
   title: string | null
   artist: string | null
   album: string | null
+  genreTag: string | null
   year: number | null
   bpm: number | null
   musicalKey: string | null

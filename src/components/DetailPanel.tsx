@@ -87,6 +87,27 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
     return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
   }
 
+  // The raw ID3 genre tag (e.g. "House") is captured during analysis but
+  // isn't a curated Genre until a user applies it — offer it as a one-click
+  // suggestion rather than requiring it to be retyped by hand.
+  const suggestedGenreName = track.genreTag?.trim() || null
+  const suggestedGenreAlreadyApplied =
+    !!suggestedGenreName &&
+    genres.some(
+      (g) => tags.genreIds.includes(g.id) && g.name.toLowerCase() === suggestedGenreName.toLowerCase()
+    )
+
+  async function applySuggestedGenre(name: string) {
+    let genre = useCollectionStore.getState().genres.find((g) => g.name.toLowerCase() === name.toLowerCase())
+    if (!genre) {
+      await createGenre(name)
+      genre = useCollectionStore.getState().genres.find((g) => g.name.toLowerCase() === name.toLowerCase())
+    }
+    if (genre) {
+      await setTrackGenres(track.id, toggleInList(tags.genreIds, genre.id))
+    }
+  }
+
   async function handleDownload() {
     setDownloading(true)
     setDownloadError(null)
@@ -122,18 +143,18 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
       <h3>{track.title ?? track.filename}</h3>
       <p>{track.artist}</p>
 
-      {track.waveformPeaks && (
-        <svg width="100%" height="60" viewBox={`0 0 ${track.waveformPeaks.length} 100`} preserveAspectRatio="none">
-          {track.waveformPeaks.map((peak, i) => (
-            <rect key={i} x={i} y={50 - peak * 50} width={1} height={peak * 100} fill="var(--color-accent)" />
-          ))}
-        </svg>
-      )}
-
-      <Player src={track.path} />
+      <Player src={track.path} peaks={track.waveformPeaks} />
 
       <div style={{ marginTop: '16px' }}>
         <div style={{ fontWeight: 600 }}>Genre</div>
+        {suggestedGenreName && !suggestedGenreAlreadyApplied && (
+          <div style={{ marginBottom: '4px' }}>
+            <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>Suggested: {suggestedGenreName}</span>{' '}
+            <button style={{ fontSize: '11px' }} onClick={() => applySuggestedGenre(suggestedGenreName)}>
+              + Add
+            </button>
+          </div>
+        )}
         {genres.map((g) => (
           <label key={g.id} style={{ display: 'block' }}>
             <input

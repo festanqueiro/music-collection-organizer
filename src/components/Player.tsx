@@ -1,9 +1,10 @@
 // src/components/Player.tsx
 import { useRef, useState } from 'react'
 
-export function Player({ src }: { src: string }) {
+export function Player({ src, peaks }: { src: string; peaks: number[] | null }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
+  const [progress, setProgress] = useState(0) // 0..1 fraction of duration played
 
   function toggle() {
     const audio = audioRef.current
@@ -16,21 +17,52 @@ export function Player({ src }: { src: string }) {
     setPlaying(!playing)
   }
 
+  function seekToClientX(clientX: number, target: HTMLElement | SVGSVGElement) {
+    const audio = audioRef.current
+    if (!audio || !audio.duration || !isFinite(audio.duration)) return
+    const rect = target.getBoundingClientRect()
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+    audio.currentTime = ratio * audio.duration
+    setProgress(ratio)
+  }
+
   return (
     <div>
-      <audio ref={audioRef} src={`file://${src}`} onEnded={() => setPlaying(false)} />
+      <audio
+        ref={audioRef}
+        src={`file://${src}`}
+        onEnded={() => setPlaying(false)}
+        onTimeUpdate={(e) => {
+          const audio = e.currentTarget
+          if (audio.duration && isFinite(audio.duration)) setProgress(audio.currentTime / audio.duration)
+        }}
+      />
       <button onClick={toggle}>
         <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
       </button>
-      <input
-        type="range"
-        min={0}
-        max={100}
-        onChange={(e) => {
-          const audio = audioRef.current
-          if (audio && audio.duration) audio.currentTime = (Number(e.target.value) / 100) * audio.duration
-        }}
-      />
+
+      {peaks && peaks.length > 0 && (
+        <svg
+          width="100%"
+          height="60"
+          viewBox={`0 0 ${peaks.length} 100`}
+          preserveAspectRatio="none"
+          onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
+          style={{ cursor: 'pointer', display: 'block', marginTop: '8px' }}
+        >
+          {peaks.map((peak, i) => (
+            <rect
+              key={i}
+              x={i}
+              y={50 - peak * 50}
+              width={1}
+              height={peak * 100}
+              fill={i / peaks.length <= progress ? 'var(--color-accent)' : 'var(--color-border)'}
+            />
+          ))}
+          <rect x={progress * peaks.length} y={0} width={Math.max(1, peaks.length / 400)} height={100} fill="var(--color-secondary)" />
+        </svg>
+      )}
     </div>
   )
 }

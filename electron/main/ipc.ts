@@ -26,6 +26,7 @@ function rowToTrack(row: any) {
     title: row.title,
     artist: row.artist,
     album: row.album,
+    genreTag: row.genre_tag,
     year: row.year,
     bpm: row.bpm,
     musicalKey: row.musical_key,
