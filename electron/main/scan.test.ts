@@ -28,15 +28,48 @@ describe('runScan', () => {
     expect(row.filename).toBe('a.wav')
   })
 
-  it('marks removed files gone from the DB on rescan', () => {
+  it('flags missing files present = 0 instead of deleting them, preserving tags', () => {
     const filePath = join(root, 'b.wav')
     writeFileSync(filePath, 'x'.repeat(1000))
     runScan(db, root)
+    const trackId = (db.prepare('SELECT id FROM tracks').get() as any).id
+    db.prepare('INSERT INTO genres (name) VALUES (?)').run('House')
+    const genreId = (db.prepare('SELECT id FROM genres').get() as any).id
+    db.prepare('INSERT INTO track_genres (track_id, genre_id) VALUES (?, ?)').run(trackId, genreId)
+
     unlinkSync(filePath)
     const result = runScan(db, root)
-    expect(result.removed).toBe(1)
-    const row = db.prepare('SELECT * FROM tracks').get()
-    expect(row).toBeUndefined()
+    expect(result.missing).toBe(1)
+
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as any
+    expect(row).toBeDefined()
+    expect(row.present).toBe(0)
+    const tags = db.prepare('SELECT * FROM track_genres WHERE track_id = ?').all(trackId)
+    expect(tags).toHaveLength(1)
+  })
+
+  it('revives a previously-missing file (and its tags) when it reappears at the same path', () => {
+    const filePath = join(root, 'd.wav')
+    writeFileSync(filePath, 'x'.repeat(1000))
+    runScan(db, root)
+    const trackId = (db.prepare('SELECT id FROM tracks').get() as any).id
+    db.prepare('INSERT INTO moods (name) VALUES (?)').run('Energetic')
+    const moodId = (db.prepare('SELECT id FROM moods').get() as any).id
+    db.prepare('INSERT INTO track_moods (track_id, mood_id) VALUES (?, ?)').run(trackId, moodId)
+
+    unlinkSync(filePath)
+    runScan(db, root)
+    expect((db.prepare('SELECT present FROM tracks WHERE id = ?').get(trackId) as any).present).toBe(0)
+
+    writeFileSync(filePath, 'x'.repeat(1000))
+    const result = runScan(db, root)
+    expect(result.inserted).toBe(0)
+    expect(result.updated).toBe(0)
+
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as any
+    expect(row.present).toBe(1)
+    const tags = db.prepare('SELECT * FROM track_moods WHERE track_id = ?').all(trackId)
+    expect(tags).toHaveLength(1)
   })
 
   it('does not reprocess unchanged files on rescan', () => {

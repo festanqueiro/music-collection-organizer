@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS tracks (
   waveform_peaks TEXT,
   cloud_status TEXT NOT NULL DEFAULT 'local',
   analysis_status TEXT NOT NULL DEFAULT 'pending',
-  analyzed_at INTEGER
+  analyzed_at INTEGER,
+  present INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS genres (

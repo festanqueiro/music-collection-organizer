@@ -75,7 +75,10 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow) 
   })
 
   ipcMain.handle('tracks:getAll', () => {
-    return (db.prepare('SELECT * FROM tracks').all() as any[]).map(rowToTrack)
+    // present = 0 tracks are ones runScan couldn't find on disk in the most
+    // recent scan (moved, temporarily unmounted, or the collection folder
+    // changed) — hidden here, but never deleted, so their tags survive.
+    return (db.prepare('SELECT * FROM tracks WHERE present = 1').all() as any[]).map(rowToTrack)
   })
 
   ipcMain.handle('tags:getGenres', () => db.prepare('SELECT * FROM genres').all())
