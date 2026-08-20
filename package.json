@@ -14,16 +14,19 @@
   "license": "ISC",
   "type": "module",
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^4.7.0",
     "electron": "^43.4.1",
+    "electron-rebuild": "^3.2.9",
     "electron-vite": "^5.0.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "better-sqlite3": "^11.7.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }
