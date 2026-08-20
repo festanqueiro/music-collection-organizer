@@ -56,25 +56,48 @@ function NewTagInput({
   )
 }
 
-export function DetailPanel({ track }: { track: Track | null }) {
+export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
+  const tracks = useCollectionStore((s) => s.tracks)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
   const moods = useCollectionStore((s) => s.moods)
   const trackTags = useCollectionStore((s) => s.trackTags)
+  const loadAll = useCollectionStore((s) => s.loadAll)
   const setTrackGenres = useCollectionStore((s) => s.setTrackGenres)
   const setTrackSubgenres = useCollectionStore((s) => s.setTrackSubgenres)
   const setTrackMoods = useCollectionStore((s) => s.setTrackMoods)
   const createGenre = useCollectionStore((s) => s.createGenre)
   const createSubgenre = useCollectionStore((s) => s.createSubgenre)
   const createMood = useCollectionStore((s) => s.createMood)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  if (!track) return <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>Select a track</div>
+  if (!selectedTrack) return <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>Select a track</div>
+
+  // Re-derive from the live store on every render so this panel reflects
+  // updates (e.g. after a download+analyze, or a tag edit) without needing
+  // the caller to re-select the row. Falls back to the prop in case the
+  // track briefly isn't in `tracks` yet (e.g. mid-reload).
+  const track = tracks.find((t) => t.id === selectedTrack.id) ?? selectedTrack
 
   const tags = trackTags.get(track.id) ?? { trackId: track.id, genreIds: [], subgenreIds: [], moodIds: [] }
   const availableSubgenres = subgenres.filter((sg) => tags.genreIds.includes(sg.genreId))
 
   function toggleInList(list: number[], id: number): number[] {
     return list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
+  }
+
+  async function handleDownload() {
+    setDownloading(true)
+    setDownloadError(null)
+    try {
+      await window.api.downloadTrack(track.id, track.path)
+      await loadAll()
+    } catch {
+      setDownloadError('Download failed — check the file is still reachable and try again.')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   if (track.cloudStatus === 'cloud_only') {
@@ -84,7 +107,12 @@ export function DetailPanel({ track }: { track: Track | null }) {
         <p>
           <span className="material-symbols-outlined">cloud</span> This file is not downloaded locally.
         </p>
-        <button onClick={() => window.api.downloadTrack(track.id, track.path)}>Download</button>
+        <button onClick={handleDownload} disabled={downloading}>
+          {downloading ? 'Downloading…' : 'Download'}
+        </button>
+        {downloadError && (
+          <p style={{ color: 'var(--color-secondary)', fontSize: '12px' }}>{downloadError}</p>
+        )}
       </div>
     )
   }
