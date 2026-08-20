@@ -1,25 +1,76 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useCollectionStore } from './state/store'
 import { Toolbar } from './components/Toolbar'
 import { ScanPrompt } from './components/ScanPrompt'
+import { FolderTree } from './components/FolderTree'
+import { TagTree } from './components/TagTree'
+import { TrackTable } from './components/TrackTable'
+import { DetailPanel } from './components/DetailPanel'
+import type { Track } from './types'
+
+type LeftView = 'folders' | 'tags'
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
+  const [leftView, setLeftView] = useState<LeftView>('folders')
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+  const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
+  const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
+  const [collectionFolder, setCollectionFolder] = useState<string | null>(null)
 
   useEffect(() => {
     loadAll()
+    window.api.getCollectionFolder().then(setCollectionFolder)
   }, [loadAll])
+
+  async function pickFolder() {
+    const folder = await window.api.chooseCollectionFolder()
+    if (folder) setCollectionFolder(folder)
+  }
 
   return (
     <>
       <ScanPrompt />
-      <div className="app-layout" style={{ gridTemplateRows: 'auto 1fr', gridTemplateAreas: "'toolbar toolbar toolbar' 'left center right'" }}>
+      <div
+        className="app-layout"
+        style={{
+          gridTemplateRows: 'auto 1fr',
+          gridTemplateAreas: "'toolbar toolbar toolbar' 'left center right'",
+        }}
+      >
         <div style={{ gridArea: 'toolbar' }}>
           <Toolbar />
         </div>
-        <div className="pane">Left pane (Task 19/20)</div>
-        <div className="pane">Center pane (Task 19)</div>
-        <div className="pane">Right pane (Task 21)</div>
+
+        <div className="pane" style={{ gridArea: 'left', padding: '12px' }}>
+          {!collectionFolder ? (
+            <button onClick={pickFolder}>Choose collection folder…</button>
+          ) : (
+            <>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                <button onClick={() => setLeftView('folders')} disabled={leftView === 'folders'}>
+                  Folders
+                </button>
+                <button onClick={() => setLeftView('tags')} disabled={leftView === 'tags'}>
+                  Tags
+                </button>
+              </div>
+              {leftView === 'folders' ? (
+                <FolderTree rootPath={collectionFolder} onSelect={setSelectedFolder} />
+              ) : (
+                <TagTree onFilterChange={(filter) => setTagFilter(() => filter)} />
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="pane" style={{ gridArea: 'center' }}>
+          <TrackTable onSelect={setSelectedTrack} selectedFolder={selectedFolder} activeFilter={tagFilter} />
+        </div>
+
+        <div className="pane" style={{ gridArea: 'right' }}>
+          <DetailPanel track={selectedTrack} />
+        </div>
       </div>
     </>
   )
