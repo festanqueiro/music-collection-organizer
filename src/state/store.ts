@@ -28,9 +28,12 @@ interface CollectionState {
   trackTags: Map<number, TrackTagIds>
   searchText: string
   collectionFolder: string | null
+  analysisProgress: { done: number; total: number } | null
   loadCollectionFolder: () => Promise<void>
   pickCollectionFolder: () => Promise<void>
   loadAll: () => Promise<void>
+  setAnalysisProgress: (progress: { done: number; total: number } | null) => void
+  refreshTracks: () => Promise<void>
   setTrackGenres: (trackId: number, genreIds: number[]) => Promise<void>
   setTrackSubgenres: (trackId: number, subgenreIds: number[]) => Promise<void>
   setTrackMoods: (trackId: number, moodIds: number[]) => Promise<void>
@@ -49,6 +52,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   trackTags: new Map(),
   searchText: '',
   collectionFolder: null,
+  analysisProgress: null,
 
   loadCollectionFolder: async () => {
     const folder = await window.api.getCollectionFolder()
@@ -75,6 +79,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     ])
     const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
     set({ tracks, genres, subgenres, moods, trackTags })
+  },
+
+  setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
+
+  refreshTracks: async () => {
+    const tracks = await window.api.getTracks()
+    set({ tracks })
   },
 
   setTrackGenres: async (trackId, genreIds) => {
