@@ -65,7 +65,21 @@ export function openDatabase(path: string): AppDatabase {
   const db = new DatabaseSync(path)
   db.exec('PRAGMA foreign_keys = ON')
   db.exec(SCHEMA)
+  migrate(db)
   return db
+}
+
+// CREATE TABLE IF NOT EXISTS only applies to brand-new databases — it never
+// alters a tracks table that already exists from before a column was added.
+// This adds any columns older local databases are missing, so schema
+// changes don't require deleting your collection.db.
+function migrate(db: AppDatabase): void {
+  const columns = db.prepare('PRAGMA table_info(tracks)').all() as { name: string }[]
+  const columnNames = new Set(columns.map((c) => c.name))
+
+  if (!columnNames.has('present')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN present INTEGER NOT NULL DEFAULT 1')
+  }
 }
 
 // node:sqlite has no built-in transaction() helper like better-sqlite3; this

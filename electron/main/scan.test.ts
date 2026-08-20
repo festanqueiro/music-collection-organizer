@@ -64,7 +64,11 @@ describe('runScan', () => {
     writeFileSync(filePath, 'x'.repeat(1000))
     const result = runScan(db, root)
     expect(result.inserted).toBe(0)
-    expect(result.updated).toBe(0)
+    // Whether this lands as "unchanged, just revived" or "updated" (present
+    // is set either way) depends on filesystem mtime resolution — recreating
+    // the file may or may not produce a new mtime within the test's window.
+    // Both are correct; what matters is it's never re-inserted, and present
+    // + tags end up right either way (asserted below).
 
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as any
     expect(row.present).toBe(1)
