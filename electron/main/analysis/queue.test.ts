@@ -2,14 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type Database from 'better-sqlite3'
-import { openDatabase } from '../db'
+import { openDatabase, type AppDatabase } from '../db'
 import { createTestToneWav } from '../../../tests/fixtures/audioFixture'
 import { analyzeTrack, runAnalysisQueue } from './queue'
 
 describe('analyzeTrack', () => {
   let dir: string
-  let db: Database.Database
+  let db: AppDatabase
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'queue-test-'))
@@ -54,7 +53,7 @@ describe('analyzeTrack', () => {
 
 describe('runAnalysisQueue', () => {
   let dir: string
-  let db: Database.Database
+  let db: AppDatabase
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'queue-multi-test-'))

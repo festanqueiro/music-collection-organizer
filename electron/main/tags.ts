@@ -1,25 +1,25 @@
-import type Database from 'better-sqlite3'
+import { runInTransaction, type AppDatabase } from './db'
 
-export function createGenre(db: Database.Database, name: string): number {
+export function createGenre(db: AppDatabase, name: string): number {
   return db.prepare('INSERT INTO genres (name) VALUES (?)').run(name).lastInsertRowid as number
 }
 
-export function createSubgenre(db: Database.Database, name: string, genreId: number): number {
+export function createSubgenre(db: AppDatabase, name: string, genreId: number): number {
   return db
     .prepare('INSERT INTO subgenres (name, genre_id) VALUES (?, ?)')
     .run(name, genreId).lastInsertRowid as number
 }
 
-export function createMood(db: Database.Database, name: string): number {
+export function createMood(db: AppDatabase, name: string): number {
   return db.prepare('INSERT INTO moods (name) VALUES (?)').run(name).lastInsertRowid as number
 }
 
-export function deleteGenre(db: Database.Database, genreId: number): void {
+export function deleteGenre(db: AppDatabase, genreId: number): void {
   db.prepare('DELETE FROM genres WHERE id = ?').run(genreId)
 }
 
-export function setTrackGenres(db: Database.Database, trackId: number, genreIds: number[]): void {
-  const transaction = db.transaction(() => {
+export function setTrackGenres(db: AppDatabase, trackId: number, genreIds: number[]): void {
+  runInTransaction(db, () => {
     db.prepare('DELETE FROM track_genres WHERE track_id = ?').run(trackId)
     for (const genreId of genreIds) {
       db.prepare('INSERT INTO track_genres (track_id, genre_id) VALUES (?, ?)').run(trackId, genreId)
@@ -43,31 +43,28 @@ export function setTrackGenres(db: Database.Database, trackId: number, genreIds:
       }
     }
   })
-  transaction()
 }
 
-export function setTrackSubgenres(db: Database.Database, trackId: number, subgenreIds: number[]): void {
-  const transaction = db.transaction(() => {
+export function setTrackSubgenres(db: AppDatabase, trackId: number, subgenreIds: number[]): void {
+  runInTransaction(db, () => {
     db.prepare('DELETE FROM track_subgenres WHERE track_id = ?').run(trackId)
     for (const subgenreId of subgenreIds) {
       db.prepare('INSERT INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(trackId, subgenreId)
     }
   })
-  transaction()
 }
 
-export function setTrackMoods(db: Database.Database, trackId: number, moodIds: number[]): void {
-  const transaction = db.transaction(() => {
+export function setTrackMoods(db: AppDatabase, trackId: number, moodIds: number[]): void {
+  runInTransaction(db, () => {
     db.prepare('DELETE FROM track_moods WHERE track_id = ?').run(trackId)
     for (const moodId of moodIds) {
       db.prepare('INSERT INTO track_moods (track_id, mood_id) VALUES (?, ?)').run(trackId, moodId)
     }
   })
-  transaction()
 }
 
 export function getTrackTagIds(
-  db: Database.Database,
+  db: AppDatabase,
   trackId: number
 ): { genreIds: number[]; subgenreIds: number[]; moodIds: number[] } {
   const genreIds = (db.prepare('SELECT genre_id FROM track_genres WHERE track_id = ?').all(trackId) as any[]).map(

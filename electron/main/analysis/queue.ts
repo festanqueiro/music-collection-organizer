@@ -1,10 +1,10 @@
-import type Database from 'better-sqlite3'
+import type { AppDatabase } from '../db'
 import { decodeToPcm } from './decode'
 import { extractMetadata } from './metadata'
 import { detectBpmAndKey } from './bpmKey'
 import { computeWaveformPeaks } from './waveform'
 
-export async function analyzeTrack(db: Database.Database, track: { id: number; path: string }): Promise<void> {
+export async function analyzeTrack(db: AppDatabase, track: { id: number; path: string }): Promise<void> {
   db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
   try {
     const [metadata, pcm] = await Promise.all([extractMetadata(track.path), decodeToPcm(track.path)])
@@ -36,7 +36,7 @@ export async function analyzeTrack(db: Database.Database, track: { id: number; p
 }
 
 export async function runAnalysisQueue(
-  db: Database.Database,
+  db: AppDatabase,
   tracks: { id: number; path: string }[],
   options: { concurrency: number; onProgress?: (progress: { done: number; total: number }) => void }
 ): Promise<void> {

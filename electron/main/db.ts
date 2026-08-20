@@ -1,4 +1,6 @@
-import Database from 'better-sqlite3'
+import { DatabaseSync } from 'node:sqlite'
+
+export type AppDatabase = DatabaseSync
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS tracks (
@@ -58,9 +60,23 @@ CREATE TABLE IF NOT EXISTS track_moods (
 );
 `
 
-export function openDatabase(path: string): Database.Database {
-  const db = new Database(path)
-  db.pragma('foreign_keys = ON')
+export function openDatabase(path: string): AppDatabase {
+  const db = new DatabaseSync(path)
+  db.exec('PRAGMA foreign_keys = ON')
   db.exec(SCHEMA)
   return db
+}
+
+// node:sqlite has no built-in transaction() helper like better-sqlite3; this
+// wraps a block of statements in a manual BEGIN/COMMIT/ROLLBACK.
+export function runInTransaction<T>(db: AppDatabase, fn: () => T): T {
+  db.exec('BEGIN')
+  try {
+    const result = fn()
+    db.exec('COMMIT')
+    return result
+  } catch (err) {
+    db.exec('ROLLBACK')
+    throw err
+  }
 }

@@ -2,14 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type Database from 'better-sqlite3'
-import { openDatabase } from './db'
+import { openDatabase, type AppDatabase } from './db'
 import { createTestToneWav } from '../../tests/fixtures/audioFixture'
 import { downloadTrack } from './cloudDownload'
 
 describe('downloadTrack', () => {
   let dir: string
-  let db: Database.Database
+  let db: AppDatabase
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'download-test-'))

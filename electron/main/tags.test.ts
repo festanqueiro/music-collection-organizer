@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import type Database from 'better-sqlite3'
-import { openDatabase } from './db'
+import { openDatabase, type AppDatabase } from './db'
 import {
   createGenre,
   createSubgenre,
@@ -13,7 +12,7 @@ import {
 } from './tags'
 
 describe('tags', () => {
-  let db: Database.Database
+  let db: AppDatabase
   let trackId: number
 
   beforeEach(() => {

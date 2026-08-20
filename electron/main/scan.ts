@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs'
 import { dirname, basename, extname } from 'node:path'
-import type Database from 'better-sqlite3'
+import { runInTransaction, type AppDatabase } from './db'
 import { walkAudioFiles } from './folderWalk'
 import { diffScan, type DbTrackRow } from './scanDiff'
 import { isCloudOnly } from './cloudDetect'
@@ -11,7 +11,7 @@ export interface ScanResult {
   removed: number
 }
 
-export function runScan(db: Database.Database, rootPath: string): ScanResult {
+export function runScan(db: AppDatabase, rootPath: string): ScanResult {
   const diskFiles = walkAudioFiles(rootPath)
   const dbRows = db.prepare('SELECT path, size, mtime FROM tracks').all() as DbTrackRow[]
   const diff = diffScan(diskFiles, dbRows)
@@ -42,12 +42,11 @@ export function runScan(db: Database.Database, rootPath: string): ScanResult {
     }
   }
 
-  const transaction = db.transaction(() => {
+  runInTransaction(db, () => {
     for (const file of diff.toInsert) insertStmt.run(toRow(file))
     for (const file of diff.toUpdate) updateStmt.run(toRow(file))
     for (const path of diff.toRemove) removeStmt.run(path)
   })
-  transaction()
 
   return { inserted: diff.toInsert.length, updated: diff.toUpdate.length, removed: diff.toRemove.length }
 }

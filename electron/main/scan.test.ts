@@ -2,13 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, writeFileSync, rmSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import Database from 'better-sqlite3'
-import { openDatabase } from './db'
+import { openDatabase, type AppDatabase } from './db'
 import { runScan } from './scan'
 
 describe('runScan', () => {
   let root: string
-  let db: Database.Database
+  let db: AppDatabase
 
   beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), 'scan-test-'))

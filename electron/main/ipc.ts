@@ -1,5 +1,5 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
-import type Database from 'better-sqlite3'
+import type { AppDatabase } from './db'
 import { getCollectionFolder, setCollectionFolder } from './config'
 import { runScan } from './scan'
 import { downloadTrack } from './cloudDownload'
@@ -35,7 +35,7 @@ function rowToTrack(row: any) {
   }
 }
 
-export function registerIpcHandlers(db: Database.Database, mainWindow: BrowserWindow) {
+export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow) {
   ipcMain.handle('config:getCollectionFolder', () => getCollectionFolder())
 
   ipcMain.handle('config:chooseCollectionFolder', async () => {
