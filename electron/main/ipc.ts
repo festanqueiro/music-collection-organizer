@@ -1,7 +1,6 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import type { AppDatabase } from './db'
 import { getCollectionFolder, setCollectionFolder, getLastBackupAt } from './config'
-import { getBackupFolder } from './backup'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { runAnalysisQueue } from './analysis/queue'
