@@ -12,25 +12,22 @@ type LeftView = 'folders' | 'tags'
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
+  const collectionFolder = useCollectionStore((s) => s.collectionFolder)
+  const loadCollectionFolder = useCollectionStore((s) => s.loadCollectionFolder)
+  const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
-  const [collectionFolder, setCollectionFolder] = useState<string | null>(null)
 
   useEffect(() => {
     loadAll()
-    window.api.getCollectionFolder().then(setCollectionFolder)
+    loadCollectionFolder()
     const unsubscribe = window.api.onScanProgress(() => {
       loadAll()
     })
     return unsubscribe
-  }, [loadAll])
-
-  async function pickFolder() {
-    const folder = await window.api.chooseCollectionFolder()
-    if (folder) setCollectionFolder(folder)
-  }
+  }, [loadAll, loadCollectionFolder])
 
   return (
     <>
@@ -48,7 +45,7 @@ export default function App() {
 
         <div className="pane" style={{ gridArea: 'left', padding: '12px' }}>
           {!collectionFolder ? (
-            <button onClick={pickFolder}>Choose collection folder…</button>
+            <button onClick={() => pickCollectionFolder()}>Choose collection folder…</button>
           ) : (
             <>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>

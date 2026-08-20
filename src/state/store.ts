@@ -10,6 +10,9 @@ interface CollectionState {
   moods: Mood[]
   trackTags: Map<number, TrackTagIds>
   searchText: string
+  collectionFolder: string | null
+  loadCollectionFolder: () => Promise<void>
+  pickCollectionFolder: () => Promise<void>
   loadAll: () => Promise<void>
   setTrackGenres: (trackId: number, genreIds: number[]) => Promise<void>
   setTrackSubgenres: (trackId: number, subgenreIds: number[]) => Promise<void>
@@ -28,6 +31,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   moods: [],
   trackTags: new Map(),
   searchText: '',
+  collectionFolder: null,
+
+  loadCollectionFolder: async () => {
+    const folder = await window.api.getCollectionFolder()
+    set({ collectionFolder: folder })
+  },
+
+  pickCollectionFolder: async () => {
+    const folder = await window.api.chooseCollectionFolder()
+    if (folder) set({ collectionFolder: folder })
+  },
 
   loadAll: async () => {
     const [tracks, genres, subgenres, moods, tagIdRows] = await Promise.all([
