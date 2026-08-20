@@ -3,19 +3,20 @@ import { create, type StoreApi } from 'zustand'
 import type { Track, Genre, Subgenre, Mood } from '../types'
 import type { TrackTagIds } from './tagFilter'
 
-// Applies a tag-set change to one track's entry in the trackTags map without
-// reloading the whole collection — tag edits are frequent and loadAll() was
-// re-fetching every track/genre/subgenre/mood/tag-id on every single edit.
-function patchTrackTags(
+// Applies a tag IPC call's returned (server-authoritative) TrackTagIds to one
+// track's entry in the trackTags map, without reloading the whole collection
+// — tag edits are frequent and loadAll() was re-fetching every
+// track/genre/subgenre/mood/tag-id on every single edit. Using the server's
+// answer (rather than recomputing it here) also avoids duplicating tags.ts's
+// subgenre-cascade rule against a client-side cache that could be stale if
+// two edits on the same track race.
+function setTrackTags(
   set: StoreApi<CollectionState>['setState'],
   get: StoreApi<CollectionState>['getState'],
-  trackId: number,
-  patch: (prev: TrackTagIds) => Partial<Omit<TrackTagIds, 'trackId'>>
+  updated: TrackTagIds
 ): void {
-  const prev = get().trackTags.get(trackId) ?? { trackId, genreIds: [], subgenreIds: [], moodIds: [] }
-  const next: TrackTagIds = { ...prev, ...patch(prev) }
   const trackTags = new Map(get().trackTags)
-  trackTags.set(trackId, next)
+  trackTags.set(updated.trackId, updated)
   set({ trackTags })
 }
 
@@ -56,7 +57,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   pickCollectionFolder: async () => {
     const folder = await window.api.chooseCollectionFolder()
-    if (folder) set({ collectionFolder: folder })
+    if (!folder) return
+    set({ collectionFolder: folder })
+    // Without this, switching folders leaves the previous folder's tracks
+    // showing (and unplayable, since media:// is scoped to the new folder)
+    // until the user happens to trigger a scan some other way.
+    await get().runScan()
   },
 
   loadAll: async () => {
@@ -72,28 +78,18 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setTrackGenres: async (trackId, genreIds) => {
-    await window.api.setTrackGenres(trackId, genreIds)
-    // Mirrors tags.ts's server-side cascade: unassigning a genre also drops
-    // any of the track's subgenre tags whose parent genre is no longer kept.
-    const keptGenreIds = new Set(genreIds)
-    const subgenresById = new Map(get().subgenres.map((s) => [s.id, s]))
-    patchTrackTags(set, get, trackId, (prev) => ({
-      genreIds,
-      subgenreIds: prev.subgenreIds.filter((id) => {
-        const subgenre = subgenresById.get(id)
-        return subgenre ? keptGenreIds.has(subgenre.genreId) : false
-      }),
-    }))
+    const updated = await window.api.setTrackGenres(trackId, genreIds)
+    setTrackTags(set, get, updated)
   },
 
   setTrackSubgenres: async (trackId, subgenreIds) => {
-    await window.api.setTrackSubgenres(trackId, subgenreIds)
-    patchTrackTags(set, get, trackId, () => ({ subgenreIds }))
+    const updated = await window.api.setTrackSubgenres(trackId, subgenreIds)
+    setTrackTags(set, get, updated)
   },
 
   setTrackMoods: async (trackId, moodIds) => {
-    await window.api.setTrackMoods(trackId, moodIds)
-    patchTrackTags(set, get, trackId, () => ({ moodIds }))
+    const updated = await window.api.setTrackMoods(trackId, moodIds)
+    setTrackTags(set, get, updated)
   },
 
   setSearchText: (text) => set({ searchText: text }),

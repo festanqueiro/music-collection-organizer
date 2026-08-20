@@ -11,6 +11,7 @@ import {
   setTrackGenres,
   setTrackSubgenres,
   setTrackMoods,
+  getTrackTagIds,
 } from './tags'
 import type { Track, Genre, Subgenre, Mood } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
@@ -136,15 +137,22 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow) 
   )
   ipcMain.handle('tags:createMood', (_e, name: string): number => createMood(db, name))
 
-  ipcMain.handle('tags:setTrackGenres', (_e, trackId: number, genreIds: number[]): void =>
+  // These return the post-write tag state (read back from the DB) rather
+  // than void, so the renderer store can apply the server's answer directly
+  // instead of reimplementing setTrackGenres's subgenre-cascade rule
+  // client-side against a possibly-stale cache.
+  ipcMain.handle('tags:setTrackGenres', (_e, trackId: number, genreIds: number[]): TrackTagIds => {
     setTrackGenres(db, trackId, genreIds)
-  )
-  ipcMain.handle('tags:setTrackSubgenres', (_e, trackId: number, subgenreIds: number[]): void =>
+    return { trackId, ...getTrackTagIds(db, trackId) }
+  })
+  ipcMain.handle('tags:setTrackSubgenres', (_e, trackId: number, subgenreIds: number[]): TrackTagIds => {
     setTrackSubgenres(db, trackId, subgenreIds)
-  )
-  ipcMain.handle('tags:setTrackMoods', (_e, trackId: number, moodIds: number[]): void =>
+    return { trackId, ...getTrackTagIds(db, trackId) }
+  })
+  ipcMain.handle('tags:setTrackMoods', (_e, trackId: number, moodIds: number[]): TrackTagIds => {
     setTrackMoods(db, trackId, moodIds)
-  )
+    return { trackId, ...getTrackTagIds(db, trackId) }
+  })
 
   ipcMain.handle('tracks:download', async (_e, trackId: number, path: string): Promise<void> => {
     await downloadTrack(db, { id: trackId, path })

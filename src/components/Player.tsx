@@ -1,5 +1,6 @@
 // src/components/Player.tsx
 import { useRef, useState } from 'react'
+import { trackPathToMediaUrl } from '../media'
 
 export function Player({ src, peaks }: { src: string; peaks: number[] | null }) {
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -11,10 +12,16 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
     if (!audio) return
     if (playing) {
       audio.pause()
+      setPlaying(false)
     } else {
-      audio.play()
+      // audio.play() can reject (missing/blocked file, unsupported format) —
+      // only flip to "playing" once it actually starts, so a failed play
+      // doesn't leave the button showing pause while nothing plays.
+      audio.play().then(
+        () => setPlaying(true),
+        () => setPlaying(false)
+      )
     }
-    setPlaying(!playing)
   }
 
   function seekToClientX(clientX: number, target: HTMLElement | SVGSVGElement) {
@@ -30,8 +37,9 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
     <div>
       <audio
         ref={audioRef}
-        src={`media://track/${encodeURIComponent(src)}`}
+        src={trackPathToMediaUrl(src)}
         onEnded={() => setPlaying(false)}
+        onError={() => setPlaying(false)}
         onTimeUpdate={(e) => {
           const audio = e.currentTarget
           if (audio.duration && isFinite(audio.duration)) setProgress(audio.currentTime / audio.duration)

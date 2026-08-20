@@ -16,11 +16,11 @@ const api = {
   createSubgenre: (name: string, genreId: number): Promise<number> =>
     ipcRenderer.invoke('tags:createSubgenre', name, genreId),
   createMood: (name: string): Promise<number> => ipcRenderer.invoke('tags:createMood', name),
-  setTrackGenres: (trackId: number, genreIds: number[]): Promise<void> =>
+  setTrackGenres: (trackId: number, genreIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackGenres', trackId, genreIds),
-  setTrackSubgenres: (trackId: number, subgenreIds: number[]): Promise<void> =>
+  setTrackSubgenres: (trackId: number, subgenreIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackSubgenres', trackId, subgenreIds),
-  setTrackMoods: (trackId: number, moodIds: number[]): Promise<void> =>
+  setTrackMoods: (trackId: number, moodIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackMoods', trackId, moodIds),
   downloadTrack: (trackId: number, path: string): Promise<void> =>
     ipcRenderer.invoke('tracks:download', trackId, path),

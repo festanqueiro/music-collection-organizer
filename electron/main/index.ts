@@ -22,7 +22,10 @@ function registerMediaProtocol(): void {
   protocol.handle('media', async (request) => {
     const filePath = mediaUrlToFilePath(request.url, getCollectionFolder())
     if (!filePath) return new Response('Not found', { status: 404 })
-    return net.fetch(pathToFileURL(filePath).toString())
+    // Forward the incoming Range header so seeking in the <audio> element
+    // gets a 206 Partial Content response instead of re-fetching the whole
+    // file from byte 0 on every seek — matters for large lossless tracks.
+    return net.fetch(pathToFileURL(filePath).toString(), { headers: request.headers })
   })
 }
 

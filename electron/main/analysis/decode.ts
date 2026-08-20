@@ -3,8 +3,12 @@ import ffmpegPath from 'ffmpeg-static'
 
 export function decodeToPcm(filePath: string, sampleRate = 44100): Promise<Float32Array> {
   return new Promise((resolve, reject) => {
+    if (!ffmpegPath) {
+      reject(new Error('ffmpeg-static did not resolve a binary path for this platform/arch'))
+      return
+    }
     const args = ['-i', filePath, '-f', 'f32le', '-ac', '1', '-ar', String(sampleRate), '-loglevel', 'error', 'pipe:1']
-    const proc = spawn(ffmpegPath as string, args)
+    const proc = spawn(ffmpegPath, args)
 
     const chunks: Buffer[] = []
     let stderr = ''

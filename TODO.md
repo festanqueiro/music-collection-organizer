@@ -8,7 +8,7 @@ responsive throughout, and the UI renders correctly (dark theme,
 three-pane layout, Jost font, sortable single-line track table).
 `npx tsc -b --noEmit` (the correct project-references invocation — plain
 `tsc --noEmit` was silently a no-op against this solution-style
-`tsconfig.json`) is clean, 47/47 tests passing, `npm run build` succeeds.
+`tsconfig.json`) is clean, 50/50 tests passing, `npm run build` succeeds.
 
 ## Fixed during hands-on testing
 
@@ -58,10 +58,10 @@ three-pane layout, Jost font, sortable single-line track table).
 - **Player couldn't load audio** — CSP blocked `file://` URLs. Added a
   privileged `media://` custom protocol (`electron/main/mediaProtocol.ts`,
   registered in `electron/main/index.ts`), scoped to the current
-  collection folder — `mediaUrlToFilePath` rejects any resolved path
-  outside it (path traversal, sibling-folder-name-prefix, etc. all
-  tested). `Player.tsx` now sources `media://track/<encoded path>`
-  instead of `file://`; `index.html`'s CSP grants `media-src media:`.
+  collection folder. `Player.tsx` now sources `media://track/<encoded
+  path>` instead of `file://`; `index.html`'s CSP grants `media-src
+  media:`. Range requests are forwarded to `net.fetch` so seeking gets a
+  206 response instead of re-downloading the whole file from byte 0.
 - **IPC/preload boundary was untyped** (`Promise<any>` everywhere, so
   `tsc` couldn't catch main/renderer drift) — every `window.api` method
   in `electron/preload/index.ts` now has an explicit return type sourced
@@ -73,12 +73,40 @@ three-pane layout, Jost font, sortable single-line track table).
   clean including a couple of small pre-existing type errors it caught
   (`scan.ts`/`queue.ts`/`decode.ts`).
 - **Every tag edit reloaded the entire collection** — `setTrackGenres`/
-  `setTrackSubgenres`/`setTrackMoods` in `src/state/store.ts` now patch
-  the edited track's entry in `trackTags` locally instead of calling
-  `loadAll()`. The genre-unassign case also replicates the backend's
-  subgenre-cascade locally (dropping subgenre tags whose parent genre was
-  just removed) so the UI doesn't show a stale subgenre tag after
-  unchecking its genre.
+  `setTrackSubgenres`/`setTrackMoods` in `src/state/store.ts` now apply
+  the tag IPC call's returned (server-authoritative) `TrackTagIds`
+  directly to the edited track's `trackTags` entry, instead of calling
+  `loadAll()`. `electron/main/ipc.ts`'s `tags:setTrackGenres` etc. now
+  return the post-write state (read back via `getTrackTagIds`) rather
+  than `void`, so the store applies the DB's actual answer instead of
+  reimplementing `tags.ts`'s subgenre-cascade rule against a client-side
+  cache that a second rapid edit on the same track could race.
+
+### Caught by an independent review pass on the above three fixes
+
+- **`media://`'s containment check was symlink-blind** — it used
+  `path.resolve` (lexical only), so a symlink placed inside the
+  collection folder pointing outside it would pass. Now uses
+  `fs.realpathSync` on both sides of the comparison before checking
+  containment (tested: a symlink escaping the folder is rejected, one
+  pointing to another in-folder file is allowed).
+- `Player.tsx`'s `toggle()` called `audio.play()` without handling
+  rejection, so a failed/blocked load left the button showing "pause"
+  with nothing actually playing. Now only flips to playing once
+  `play()` resolves, and an `onError` handler resets it too.
+- `decodeToPcm` cast `ffmpegPath as string` past its real `string |
+  null` type — a packaged build missing the bundled ffmpeg binary would
+  throw an undiagnosable generic `TypeError` from `spawn(null, ...)`.
+  Now throws a clear error instead.
+- Switching the collection folder (`pickCollectionFolder`) never
+  triggered a rescan, so the previous folder's tracks stayed listed and
+  clicking one now 404s against the new folder's `media://` scope
+  instead of silently doing nothing. Now runs a scan right after the
+  folder changes.
+- `Player.tsx` duplicated `media://track/<encoded path>` inline instead
+  of using `mediaProtocol.ts`'s `trackPathToMediaUrl` (now shared via
+  `src/media.ts`, importable from both main and renderer) — the two
+  could have silently drifted apart.
 
 ## Lower priority
 
