@@ -4,8 +4,9 @@ import { pathToFileURL } from 'node:url'
 import { fileURLToPath } from 'node:url'
 import { openDatabase } from './db'
 import { registerIpcHandlers } from './ipc'
-import { getCollectionFolder } from './config'
+import { getCollectionFolder, getConfigFilePath } from './config'
 import { mediaUrlToFilePath } from './mediaProtocol'
+import { runBackupIfNeeded, getBackupFolder } from './backup'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
@@ -29,8 +30,25 @@ function registerMediaProtocol(): void {
   })
 }
 
+let backupIntervalStarted = false
+
+function performBackupCheck(db: ReturnType<typeof openDatabase>): void {
+  try {
+    runBackupIfNeeded(db, getConfigFilePath(), getBackupFolder(app.getPath('userData')), new Date())
+  } catch (err) {
+    console.error('backup failed', err)
+  }
+}
+
 function createWindow(): void {
   const db = openDatabase(join(app.getPath('userData'), 'collection.db'))
+
+  performBackupCheck(db)
+
+  if (!backupIntervalStarted) {
+    backupIntervalStarted = true
+    setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
+  }
 
   const mainWindow = new BrowserWindow({
     width: 1200,
