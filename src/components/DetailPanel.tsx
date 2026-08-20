@@ -143,7 +143,10 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
       <h3>{track.title ?? track.filename}</h3>
       <p>{track.artist}</p>
 
-      <Player src={track.path} peaks={track.waveformPeaks} />
+      {/* key forces a full remount on track change — otherwise the
+          playing/progress state (and the underlying <audio> element)
+          carries over from the previous track instead of resetting. */}
+      <Player key={track.id} src={track.path} peaks={track.waveformPeaks} />
 
       <div style={{ marginTop: '16px' }}>
         <div style={{ fontWeight: 600 }}>Genre</div>
