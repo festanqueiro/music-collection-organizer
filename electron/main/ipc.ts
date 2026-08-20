@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3'
 import { getCollectionFolder, setCollectionFolder } from './config'
 import { runScan } from './scan'
 import { downloadTrack } from './cloudDownload'
+import { runAnalysisQueue } from './analysis/queue'
 import {
   createGenre,
   createSubgenre,
@@ -45,10 +46,31 @@ export function registerIpcHandlers(db: Database.Database, mainWindow: BrowserWi
     return folder
   })
 
-  ipcMain.handle('scan:run', () => {
+  ipcMain.handle('scan:run', async () => {
     const folder = getCollectionFolder()
     if (!folder) throw new Error('No collection folder configured')
-    return runScan(db, folder)
+    const result = runScan(db, folder)
+
+    const pending = db
+      .prepare(`SELECT id, path FROM tracks WHERE analysis_status = 'pending' AND cloud_status = 'local'`)
+      .all() as { id: number; path: string }[]
+
+    if (pending.length > 0) {
+      runAnalysisQueue(db, pending, {
+        concurrency: 4,
+        onProgress: (progress) => {
+          mainWindow.webContents.send('scan:progress', progress)
+        },
+      })
+        .catch((err) => {
+          console.error('analysis queue failed', err)
+        })
+        .finally(() => {
+          mainWindow.webContents.send('scan:progress', { done: pending.length, total: pending.length })
+        })
+    }
+
+    return result
   })
 
   ipcMain.handle('tracks:getAll', () => {

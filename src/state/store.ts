@@ -16,6 +16,9 @@ interface CollectionState {
   setTrackMoods: (trackId: number, moodIds: number[]) => Promise<void>
   setSearchText: (text: string) => void
   runScan: () => Promise<void>
+  createGenre: (name: string) => Promise<void>
+  createSubgenre: (name: string, genreId: number) => Promise<void>
+  createMood: (name: string) => Promise<void>
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -57,6 +60,24 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   runScan: async () => {
     await window.api.scanCollection()
+    await get().loadAll()
+  },
+
+  createGenre: async (name) => {
+    if (!name.trim()) return
+    await window.api.createGenre(name.trim())
+    await get().loadAll()
+  },
+
+  createSubgenre: async (name, genreId) => {
+    if (!name.trim()) return
+    await window.api.createSubgenre(name.trim(), genreId)
+    await get().loadAll()
+  },
+
+  createMood: async (name) => {
+    if (!name.trim()) return
+    await window.api.createMood(name.trim())
     await get().loadAll()
   },
 }))

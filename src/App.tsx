@@ -21,6 +21,10 @@ export default function App() {
   useEffect(() => {
     loadAll()
     window.api.getCollectionFolder().then(setCollectionFolder)
+    const unsubscribe = window.api.onScanProgress(() => {
+      loadAll()
+    })
+    return unsubscribe
   }, [loadAll])
 
   async function pickFolder() {
