@@ -2,6 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import type Database from 'better-sqlite3'
 import { getCollectionFolder, setCollectionFolder } from './config'
 import { runScan } from './scan'
+import { downloadTrack } from './cloudDownload'
 import {
   createGenre,
   createSubgenre,
@@ -77,4 +78,8 @@ export function registerIpcHandlers(db: Database.Database, mainWindow: BrowserWi
   ipcMain.handle('tags:setTrackMoods', (_e, trackId: number, moodIds: number[]) =>
     setTrackMoods(db, trackId, moodIds)
   )
+
+  ipcMain.handle('tracks:download', async (_e, trackId: number, path: string) => {
+    await downloadTrack(db, { id: trackId, path })
+  })
 }

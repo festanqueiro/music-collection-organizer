@@ -17,6 +17,7 @@ const api = {
     ipcRenderer.invoke('tags:setTrackSubgenres', trackId, subgenreIds),
   setTrackMoods: (trackId: number, moodIds: number[]) =>
     ipcRenderer.invoke('tags:setTrackMoods', trackId, moodIds),
+  downloadTrack: (trackId: number, path: string) => ipcRenderer.invoke('tracks:download', trackId, path),
   onScanProgress: (cb: (progress: { done: number; total: number }) => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('scan:progress', listener)
