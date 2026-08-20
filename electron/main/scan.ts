@@ -20,7 +20,7 @@ export interface ScanResult {
 // with all of its tags intact, whether or not anything else about it changed.
 export function runScan(db: AppDatabase, rootPath: string): ScanResult {
   const diskFiles = walkAudioFiles(rootPath)
-  const dbRows = db.prepare('SELECT path, size, mtime FROM tracks').all() as DbTrackRow[]
+  const dbRows = db.prepare('SELECT path, size, mtime FROM tracks').all() as unknown as DbTrackRow[]
   const presentByPath = new Map(
     (db.prepare('SELECT path, present FROM tracks').all() as { path: string; present: number }[]).map((r) => [
       r.path,

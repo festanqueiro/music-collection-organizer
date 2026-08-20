@@ -1,7 +1,7 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import type { AppDatabase } from './db'
 import { getCollectionFolder, setCollectionFolder } from './config'
-import { runScan } from './scan'
+import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { runAnalysisQueue } from './analysis/queue'
 import {
@@ -12,8 +12,47 @@ import {
   setTrackSubgenres,
   setTrackMoods,
 } from './tags'
+import type { Track, Genre, Subgenre, Mood } from '../../src/types'
+import type { TrackTagIds } from '../../src/state/tagFilter'
 
-function rowToTrack(row: any) {
+interface TrackRow {
+  id: number
+  path: string
+  filename: string
+  folder: string
+  format: string
+  size: number
+  mtime: number
+  duration: number | null
+  title: string | null
+  artist: string | null
+  album: string | null
+  genre_tag: string | null
+  year: number | null
+  bpm: number | null
+  musical_key: string | null
+  waveform_peaks: string | null
+  cloud_status: 'local' | 'cloud_only'
+  analysis_status: 'pending' | 'analyzing' | 'done' | 'error'
+}
+
+interface GenreRow {
+  id: number
+  name: string
+}
+
+interface SubgenreRow {
+  id: number
+  name: string
+  genre_id: number
+}
+
+interface MoodRow {
+  id: number
+  name: string
+}
+
+function rowToTrack(row: TrackRow): Track {
   return {
     id: row.id,
     path: row.path,
@@ -37,9 +76,9 @@ function rowToTrack(row: any) {
 }
 
 export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow) {
-  ipcMain.handle('config:getCollectionFolder', () => getCollectionFolder())
+  ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
 
-  ipcMain.handle('config:chooseCollectionFolder', async () => {
+  ipcMain.handle('config:chooseCollectionFolder', async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] })
     if (result.canceled || result.filePaths.length === 0) return null
     const folder = result.filePaths[0]
@@ -47,7 +86,7 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow) 
     return folder
   })
 
-  ipcMain.handle('scan:run', async () => {
+  ipcMain.handle('scan:run', async (): Promise<ScanResult> => {
     const folder = getCollectionFolder()
     if (!folder) throw new Error('No collection folder configured')
     const result = runScan(db, folder)
@@ -74,42 +113,44 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow) 
     return result
   })
 
-  ipcMain.handle('tracks:getAll', () => {
+  ipcMain.handle('tracks:getAll', (): Track[] => {
     // present = 0 tracks are ones runScan couldn't find on disk in the most
     // recent scan (moved, temporarily unmounted, or the collection folder
     // changed) — hidden here, but never deleted, so their tags survive.
-    return (db.prepare('SELECT * FROM tracks WHERE present = 1').all() as any[]).map(rowToTrack)
+    return (db.prepare('SELECT * FROM tracks WHERE present = 1').all() as unknown as TrackRow[]).map(rowToTrack)
   })
 
-  ipcMain.handle('tags:getGenres', () => db.prepare('SELECT * FROM genres').all())
-  ipcMain.handle('tags:getSubgenres', () =>
-    (db.prepare('SELECT * FROM subgenres').all() as any[]).map((r) => ({
+  ipcMain.handle('tags:getGenres', (): Genre[] => db.prepare('SELECT * FROM genres').all() as unknown as GenreRow[])
+  ipcMain.handle('tags:getSubgenres', (): Subgenre[] =>
+    (db.prepare('SELECT * FROM subgenres').all() as unknown as SubgenreRow[]).map((r) => ({
       id: r.id,
       name: r.name,
       genreId: r.genre_id,
     }))
   )
-  ipcMain.handle('tags:getMoods', () => db.prepare('SELECT * FROM moods').all())
+  ipcMain.handle('tags:getMoods', (): Mood[] => db.prepare('SELECT * FROM moods').all() as unknown as MoodRow[])
 
-  ipcMain.handle('tags:createGenre', (_e, name: string) => createGenre(db, name))
-  ipcMain.handle('tags:createSubgenre', (_e, name: string, genreId: number) => createSubgenre(db, name, genreId))
-  ipcMain.handle('tags:createMood', (_e, name: string) => createMood(db, name))
+  ipcMain.handle('tags:createGenre', (_e, name: string): number => createGenre(db, name))
+  ipcMain.handle('tags:createSubgenre', (_e, name: string, genreId: number): number =>
+    createSubgenre(db, name, genreId)
+  )
+  ipcMain.handle('tags:createMood', (_e, name: string): number => createMood(db, name))
 
-  ipcMain.handle('tags:setTrackGenres', (_e, trackId: number, genreIds: number[]) =>
+  ipcMain.handle('tags:setTrackGenres', (_e, trackId: number, genreIds: number[]): void =>
     setTrackGenres(db, trackId, genreIds)
   )
-  ipcMain.handle('tags:setTrackSubgenres', (_e, trackId: number, subgenreIds: number[]) =>
+  ipcMain.handle('tags:setTrackSubgenres', (_e, trackId: number, subgenreIds: number[]): void =>
     setTrackSubgenres(db, trackId, subgenreIds)
   )
-  ipcMain.handle('tags:setTrackMoods', (_e, trackId: number, moodIds: number[]) =>
+  ipcMain.handle('tags:setTrackMoods', (_e, trackId: number, moodIds: number[]): void =>
     setTrackMoods(db, trackId, moodIds)
   )
 
-  ipcMain.handle('tracks:download', async (_e, trackId: number, path: string) => {
+  ipcMain.handle('tracks:download', async (_e, trackId: number, path: string): Promise<void> => {
     await downloadTrack(db, { id: trackId, path })
   })
 
-  ipcMain.handle('tracks:getAllTagIds', () => {
+  ipcMain.handle('tracks:getAllTagIds', (): TrackTagIds[] => {
     const rows = db
       .prepare(
         `SELECT track_id, genre_id, NULL as subgenre_id, NULL as mood_id FROM track_genres
@@ -118,7 +159,7 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow) 
          UNION ALL
          SELECT track_id, NULL, NULL, mood_id FROM track_moods`
       )
-      .all() as any[]
+      .all() as { track_id: number; genre_id: number | null; subgenre_id: number | null; mood_id: number | null }[]
     const byTrack = new Map<number, { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }>()
     for (const row of rows) {
       if (!byTrack.has(row.track_id)) byTrack.set(row.track_id, { genreIds: [], subgenreIds: [], moodIds: [] })

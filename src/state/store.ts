@@ -1,7 +1,23 @@
 // src/state/store.ts
-import { create } from 'zustand'
+import { create, type StoreApi } from 'zustand'
 import type { Track, Genre, Subgenre, Mood } from '../types'
 import type { TrackTagIds } from './tagFilter'
+
+// Applies a tag-set change to one track's entry in the trackTags map without
+// reloading the whole collection — tag edits are frequent and loadAll() was
+// re-fetching every track/genre/subgenre/mood/tag-id on every single edit.
+function patchTrackTags(
+  set: StoreApi<CollectionState>['setState'],
+  get: StoreApi<CollectionState>['getState'],
+  trackId: number,
+  patch: (prev: TrackTagIds) => Partial<Omit<TrackTagIds, 'trackId'>>
+): void {
+  const prev = get().trackTags.get(trackId) ?? { trackId, genreIds: [], subgenreIds: [], moodIds: [] }
+  const next: TrackTagIds = { ...prev, ...patch(prev) }
+  const trackTags = new Map(get().trackTags)
+  trackTags.set(trackId, next)
+  set({ trackTags })
+}
 
 interface CollectionState {
   tracks: Track[]
@@ -51,23 +67,33 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       window.api.getMoods(),
       window.api.getAllTagIds(),
     ])
-    const trackTags = new Map(tagIdRows.map((r: any) => [r.trackId, r]))
+    const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
     set({ tracks, genres, subgenres, moods, trackTags })
   },
 
   setTrackGenres: async (trackId, genreIds) => {
     await window.api.setTrackGenres(trackId, genreIds)
-    await get().loadAll()
+    // Mirrors tags.ts's server-side cascade: unassigning a genre also drops
+    // any of the track's subgenre tags whose parent genre is no longer kept.
+    const keptGenreIds = new Set(genreIds)
+    const subgenresById = new Map(get().subgenres.map((s) => [s.id, s]))
+    patchTrackTags(set, get, trackId, (prev) => ({
+      genreIds,
+      subgenreIds: prev.subgenreIds.filter((id) => {
+        const subgenre = subgenresById.get(id)
+        return subgenre ? keptGenreIds.has(subgenre.genreId) : false
+      }),
+    }))
   },
 
   setTrackSubgenres: async (trackId, subgenreIds) => {
     await window.api.setTrackSubgenres(trackId, subgenreIds)
-    await get().loadAll()
+    patchTrackTags(set, get, trackId, () => ({ subgenreIds }))
   },
 
   setTrackMoods: async (trackId, moodIds) => {
     await window.api.setTrackMoods(trackId, moodIds)
-    await get().loadAll()
+    patchTrackTags(set, get, trackId, () => ({ moodIds }))
   },
 
   setSearchText: (text) => set({ searchText: text }),

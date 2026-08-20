@@ -6,7 +6,9 @@ v1 is implemented (all 22 plan tasks) and has been live-tested by hand:
 scanned a real folder of ~50 tracks, analysis ran, the app stayed
 responsive throughout, and the UI renders correctly (dark theme,
 three-pane layout, Jost font, sortable single-line track table).
-`tsc --noEmit` clean, 39/39 tests passing, `npm run build` succeeds.
+`npx tsc -b --noEmit` (the correct project-references invocation — plain
+`tsc --noEmit` was silently a no-op against this solution-style
+`tsconfig.json`) is clean, 47/47 tests passing, `npm run build` succeeds.
 
 ## Fixed during hands-on testing
 
@@ -51,19 +53,32 @@ three-pane layout, Jost font, sortable single-line track table).
   thrown (node:sqlite rejects unused bound parameters; better-sqlite3
   silently ignored them), never previously exercised by a test.
 
-## Still open (Important, not blocking basic use)
+## Fixed after a second pass (typed IPC boundary, playback, tag-edit perf)
 
-- Player can't load audio — CSP blocks `file://` URLs. Needs a custom
-  `media://` protocol handler, scoped to the collection folder, plus
-  `encodeURIComponent` on the path.
-- IPC/preload boundary is untyped (`Promise<any>` everywhere) — `tsc
-  --noEmit` passing doesn't actually catch main/renderer drift. Fix:
-  annotate return types on every preload method and a proper `TrackRow`
-  type for `rowToTrack`.
-- Every tag edit reloads the entire collection (perf concern at scale —
-  the spec targets 10,000+ track collections). The three `setTrack*`
-  store actions should patch `trackTags` locally instead of a full
-  `loadAll()`.
+- **Player couldn't load audio** — CSP blocked `file://` URLs. Added a
+  privileged `media://` custom protocol (`electron/main/mediaProtocol.ts`,
+  registered in `electron/main/index.ts`), scoped to the current
+  collection folder — `mediaUrlToFilePath` rejects any resolved path
+  outside it (path traversal, sibling-folder-name-prefix, etc. all
+  tested). `Player.tsx` now sources `media://track/<encoded path>`
+  instead of `file://`; `index.html`'s CSP grants `media-src media:`.
+- **IPC/preload boundary was untyped** (`Promise<any>` everywhere, so
+  `tsc` couldn't catch main/renderer drift) — every `window.api` method
+  in `electron/preload/index.ts` now has an explicit return type sourced
+  from `src/types.ts`/`src/state/tagFilter.ts`, and `electron/main/ipc.ts`
+  types its SQLite rows (`TrackRow`/`GenreRow`/`SubgenreRow`/`MoodRow`)
+  instead of casting to `any`. This also surfaced (and fixed) that plain
+  `tsc --noEmit` was a silent no-op against the solution-style
+  `tsconfig.json` — the real check is `tsc -b --noEmit`, which now runs
+  clean including a couple of small pre-existing type errors it caught
+  (`scan.ts`/`queue.ts`/`decode.ts`).
+- **Every tag edit reloaded the entire collection** — `setTrackGenres`/
+  `setTrackSubgenres`/`setTrackMoods` in `src/state/store.ts` now patch
+  the edited track's entry in `trackTags` locally instead of calling
+  `loadAll()`. The genre-unassign case also replicates the backend's
+  subgenre-cascade locally (dropping subgenre tags whose parent genre was
+  just removed) so the UI doesn't show a stale subgenre tag after
+  unchecking its genre.
 
 ## Lower priority
 

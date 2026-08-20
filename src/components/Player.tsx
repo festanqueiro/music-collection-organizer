@@ -30,7 +30,7 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
     <div>
       <audio
         ref={audioRef}
-        src={`file://${src}`}
+        src={`media://track/${encodeURIComponent(src)}`}
         onEnded={() => setPlaying(false)}
         onTimeUpdate={(e) => {
           const audio = e.currentTarget

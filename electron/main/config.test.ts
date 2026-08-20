@@ -4,7 +4,11 @@ import { getCollectionFolder, setCollectionFolder, __setStoreForTests } from './
 
 describe('config store', () => {
   beforeEach(() => {
-    __setStoreForTests(new Store({ name: `test-${Math.random()}`, projectName: 'v1-library-organizer' }))
+    __setStoreForTests(
+      new Store({ name: `test-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+        typeof Store
+      >[0])
+    )
   })
 
   it('returns null when unset', () => {

@@ -131,7 +131,7 @@ export async function runAnalysisQueue(
         }
       })
 
-      worker.on('error', (err) => finish(err))
+      worker.on('error', (err: Error) => finish(err))
 
       assignNext(worker)
     }

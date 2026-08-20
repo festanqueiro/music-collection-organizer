@@ -1,10 +1,30 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, net, protocol } from 'electron'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { fileURLToPath } from 'node:url'
 import { openDatabase } from './db'
 import { registerIpcHandlers } from './ipc'
+import { getCollectionFolder } from './config'
+import { mediaUrlToFilePath } from './mediaProtocol'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
+
+// Must run before app.whenReady() — Electron only honors privileged-scheme
+// registration at module load time.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'media',
+    privileges: { standard: true, secure: true, stream: true, bypassCSP: true, supportFetchAPI: true }
+  }
+])
+
+function registerMediaProtocol(): void {
+  protocol.handle('media', async (request) => {
+    const filePath = mediaUrlToFilePath(request.url, getCollectionFolder())
+    if (!filePath) return new Response('Not found', { status: 404 })
+    return net.fetch(pathToFileURL(filePath).toString())
+  })
+}
 
 function createWindow(): void {
   const db = openDatabase(join(app.getPath('userData'), 'collection.db'))
@@ -35,6 +55,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerMediaProtocol()
   createWindow()
 
   app.on('activate', () => {

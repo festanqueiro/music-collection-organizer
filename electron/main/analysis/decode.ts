@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process'
-// @ts-expect-error ffmpeg-static has no types
 import ffmpegPath from 'ffmpeg-static'
 
 export function decodeToPcm(filePath: string, sampleRate = 44100): Promise<Float32Array> {
