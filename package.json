@@ -28,6 +28,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
+    "electron-store": "^11.0.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   }
