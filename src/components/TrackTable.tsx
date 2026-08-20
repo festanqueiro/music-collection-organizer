@@ -68,6 +68,7 @@ export function TrackTable({
                 {col.label}
               </th>
             ))}
+            <th style={cellStyle}>Status</th>
             <th style={cellStyle}>Cloud</th>
           </tr>
         </thead>
@@ -80,6 +81,21 @@ export function TrackTable({
               <td style={cellStyle}>{track.musicalKey ?? '—'}</td>
               <td style={cellStyle}>{track.format}</td>
               <td style={cellStyle}>{track.duration ? formatDuration(track.duration) : '—'}</td>
+              <td style={cellStyle}>
+                {track.analysisStatus === 'analyzing' ? (
+                  <span className="material-symbols-outlined spin" style={{ fontSize: '16px' }} title="Analyzing…">
+                    progress_activity
+                  </span>
+                ) : track.analysisStatus === 'error' ? (
+                  <span
+                    className="material-symbols-outlined"
+                    style={{ fontSize: '16px', color: '#f87171' }}
+                    title="Analysis failed"
+                  >
+                    error
+                  </span>
+                ) : null}
+              </td>
               <td style={cellStyle}>
                 {track.cloudStatus === 'cloud_only' ? <span className="material-symbols-outlined">cloud</span> : null}
               </td>
