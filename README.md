@@ -21,10 +21,27 @@ Vitest.
 
 ```bash
 npm install
-npm run dev     # launch the app in dev mode
+npm run dev     # launch the app in dev mode (hot reload)
 npm test        # run the test suite
-npm run build   # production build (out/main, out/preload, out/renderer)
 ```
+
+### Build and run right now
+
+```bash
+npm run build              # production build → out/main, out/preload, out/renderer
+npx electron out/main/index.js   # launch the built app
+```
+
+`npm run dev` is the normal day-to-day way to run it (hot reload, DevTools
+open). Use the build-and-run steps above when you want to launch exactly
+what a production build produces — e.g. to sanity-check a release, or on
+a machine where `npm run dev`'s dev server isn't available.
+
+The app's data lives outside the repo, under Electron's per-app userData
+directory (on macOS: `~/Library/Application Support/<app name>/`) —
+`collection.db` (the SQLite database) and the config store (collection
+folder path, window state). Deleting that directory resets the app to a
+clean state.
 
 ## Project layout
 
