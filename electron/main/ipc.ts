@@ -82,4 +82,25 @@ export function registerIpcHandlers(db: Database.Database, mainWindow: BrowserWi
   ipcMain.handle('tracks:download', async (_e, trackId: number, path: string) => {
     await downloadTrack(db, { id: trackId, path })
   })
+
+  ipcMain.handle('tracks:getAllTagIds', () => {
+    const rows = db
+      .prepare(
+        `SELECT track_id, genre_id, NULL as subgenre_id, NULL as mood_id FROM track_genres
+         UNION ALL
+         SELECT track_id, NULL, subgenre_id, NULL FROM track_subgenres
+         UNION ALL
+         SELECT track_id, NULL, NULL, mood_id FROM track_moods`
+      )
+      .all() as any[]
+    const byTrack = new Map<number, { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }>()
+    for (const row of rows) {
+      if (!byTrack.has(row.track_id)) byTrack.set(row.track_id, { genreIds: [], subgenreIds: [], moodIds: [] })
+      const entry = byTrack.get(row.track_id)!
+      if (row.genre_id) entry.genreIds.push(row.genre_id)
+      if (row.subgenre_id) entry.subgenreIds.push(row.subgenre_id)
+      if (row.mood_id) entry.moodIds.push(row.mood_id)
+    }
+    return Array.from(byTrack.entries()).map(([trackId, tags]) => ({ trackId, ...tags }))
+  })
 }

@@ -8,6 +8,7 @@ const api = {
   getGenres: () => ipcRenderer.invoke('tags:getGenres'),
   getSubgenres: () => ipcRenderer.invoke('tags:getSubgenres'),
   getMoods: () => ipcRenderer.invoke('tags:getMoods'),
+  getAllTagIds: () => ipcRenderer.invoke('tracks:getAllTagIds'),
   createGenre: (name: string) => ipcRenderer.invoke('tags:createGenre', name),
   createSubgenre: (name: string, genreId: number) => ipcRenderer.invoke('tags:createSubgenre', name, genreId),
   createMood: (name: string) => ipcRenderer.invoke('tags:createMood', name),

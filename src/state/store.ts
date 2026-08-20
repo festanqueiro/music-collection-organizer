@@ -1,12 +1,14 @@
 // src/state/store.ts
 import { create } from 'zustand'
 import type { Track, Genre, Subgenre, Mood } from '../types'
+import type { TrackTagIds } from './tagFilter'
 
 interface CollectionState {
   tracks: Track[]
   genres: Genre[]
   subgenres: Subgenre[]
   moods: Mood[]
+  trackTags: Map<number, TrackTagIds>
   searchText: string
   loadAll: () => Promise<void>
   setTrackGenres: (trackId: number, genreIds: number[]) => Promise<void>
@@ -21,16 +23,19 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   genres: [],
   subgenres: [],
   moods: [],
+  trackTags: new Map(),
   searchText: '',
 
   loadAll: async () => {
-    const [tracks, genres, subgenres, moods] = await Promise.all([
+    const [tracks, genres, subgenres, moods, tagIdRows] = await Promise.all([
       window.api.getTracks(),
       window.api.getGenres(),
       window.api.getSubgenres(),
       window.api.getMoods(),
+      window.api.getAllTagIds(),
     ])
-    set({ tracks, genres, subgenres, moods })
+    const trackTags = new Map(tagIdRows.map((r: any) => [r.trackId, r]))
+    set({ tracks, genres, subgenres, moods, trackTags })
   },
 
   setTrackGenres: async (trackId, genreIds) => {
