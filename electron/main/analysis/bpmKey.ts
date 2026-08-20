@@ -20,12 +20,16 @@ export function detectBpmAndKey(pcm: Float32Array): BpmKeyResult {
   const essentia = getEssentia()
   const vector = essentia.arrayToVector(pcm)
 
-  const rhythm = essentia.RhythmExtractor2013(vector)
-  const keyResult = essentia.KeyExtractor(vector)
+  try {
+    const rhythm = essentia.RhythmExtractor2013(vector)
+    const keyResult = essentia.KeyExtractor(vector)
 
-  return {
-    bpm: rhythm.bpm,
-    key: keyResult.key,
-    scale: keyResult.scale,
+    return {
+      bpm: rhythm.bpm,
+      key: keyResult.key,
+      scale: keyResult.scale,
+    }
+  } finally {
+    vector.delete()
   }
 }

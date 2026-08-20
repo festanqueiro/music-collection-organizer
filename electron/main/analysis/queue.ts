@@ -1,58 +1,139 @@
+import { Worker } from 'node:worker_threads'
+import { fileURLToPath } from 'node:url'
+import { existsSync } from 'node:fs'
 import type { AppDatabase } from '../db'
-import { decodeToPcm } from './decode'
-import { extractMetadata } from './metadata'
-import { detectBpmAndKey } from './bpmKey'
-import { computeWaveformPeaks } from './waveform'
+import { runAnalysisPipeline } from './pipeline'
+import type { WorkerResult, WorkerTask } from './worker'
 
+function writeAnalysisResult(
+  db: AppDatabase,
+  track: { id: number; path: string },
+  result: Awaited<ReturnType<typeof runAnalysisPipeline>>
+): void {
+  db.prepare(
+    `UPDATE tracks SET
+      title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration,
+      bpm = @bpm, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
+      analysis_status = 'done', analyzed_at = @analyzed_at
+    WHERE id = @id`
+  ).run({
+    id: track.id,
+    title: result.title,
+    artist: result.artist,
+    album: result.album,
+    genre: result.genre,
+    year: result.year,
+    duration: result.duration,
+    bpm: result.bpm,
+    musical_key: result.musicalKey,
+    waveform_peaks: JSON.stringify(result.waveformPeaks),
+    analyzed_at: Date.now(),
+  })
+}
+
+// Single-track analysis, run in-process. Used by the cloud-download flow,
+// where one file is analyzed right after being materialized locally — a
+// brief main-thread block for one track is an acceptable tradeoff there,
+// unlike a bulk scan of a whole collection (see runAnalysisQueue below).
 export async function analyzeTrack(db: AppDatabase, track: { id: number; path: string }): Promise<void> {
   db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
   try {
-    const [metadata, pcm] = await Promise.all([extractMetadata(track.path), decodeToPcm(track.path)])
-    const { bpm, key, scale } = detectBpmAndKey(pcm)
-    const peaks = computeWaveformPeaks(pcm)
-
-    db.prepare(
-      `UPDATE tracks SET
-        title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration,
-        bpm = @bpm, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
-        analysis_status = 'done', analyzed_at = @analyzed_at
-      WHERE id = @id`
-    ).run({
-      id: track.id,
-      title: metadata.title,
-      artist: metadata.artist,
-      album: metadata.album,
-      genre: metadata.genre,
-      year: metadata.year,
-      duration: metadata.duration,
-      bpm,
-      musical_key: `${key} ${scale}`,
-      waveform_peaks: JSON.stringify(peaks),
-      analyzed_at: Date.now(),
-    })
+    const result = await runAnalysisPipeline(track.path)
+    writeAnalysisResult(db, track, result)
   } catch {
     db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
   }
 }
 
+// This module's compiled code is bundled into out/main/index.js (via
+// index.ts's import graph), not into its own file — so this path is
+// relative to index.js's location, not to this source file's location.
+const WORKER_ENTRY = fileURLToPath(new URL('./analysis/worker.js', import.meta.url))
+
+// Sequential in-process fallback, used when the built worker chunk isn't
+// present (e.g. under Vitest, which runs this module's TS source directly
+// rather than the bundled out/main/ output). Functionally correct — just
+// not off the main thread.
+async function runAnalysisQueueInProcess(
+  db: AppDatabase,
+  tracks: { id: number; path: string }[],
+  options: { onProgress?: (progress: { done: number; total: number }) => void }
+): Promise<void> {
+  const total = tracks.length
+  let done = 0
+  for (const track of tracks) {
+    await analyzeTrack(db, track)
+    done++
+    options.onProgress?.({ done, total })
+  }
+}
+
+// Bulk analysis over many tracks (e.g. after a folder scan). The CPU-bound
+// essentia.js work is synchronous, so this runs it inside a pool of
+// worker_threads rather than the main process — otherwise it blocks the
+// whole app's event loop (IPC, window paint) for the duration of the scan.
+// DB writes stay on the main thread (better-sqlite3/node:sqlite must only
+// be touched there).
 export async function runAnalysisQueue(
   db: AppDatabase,
   tracks: { id: number; path: string }[],
   options: { concurrency: number; onProgress?: (progress: { done: number; total: number }) => void }
 ): Promise<void> {
   const total = tracks.length
-  let done = 0
-  let nextIndex = 0
+  if (total === 0) return
 
-  async function worker() {
-    while (nextIndex < tracks.length) {
-      const track = tracks[nextIndex++]
-      await analyzeTrack(db, track)
-      done++
-      options.onProgress?.({ done, total })
-    }
+  if (!existsSync(WORKER_ENTRY)) {
+    return runAnalysisQueueInProcess(db, tracks, options)
   }
 
-  const workers = Array.from({ length: Math.min(options.concurrency, tracks.length) }, () => worker())
-  await Promise.all(workers)
+  let done = 0
+  let nextIndex = 0
+  const workerCount = Math.max(1, Math.min(options.concurrency, tracks.length))
+
+  await new Promise<void>((resolve, reject) => {
+    const workers: Worker[] = []
+    let settled = false
+
+    function finish(err?: Error) {
+      if (settled) return
+      settled = true
+      for (const w of workers) w.terminate()
+      if (err) reject(err)
+      else resolve()
+    }
+
+    function assignNext(worker: Worker) {
+      if (nextIndex >= tracks.length) return
+      const track = tracks[nextIndex++]
+      db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
+      const task: WorkerTask = { id: track.id, path: track.path }
+      worker.postMessage(task)
+    }
+
+    for (let i = 0; i < workerCount; i++) {
+      const worker = new Worker(WORKER_ENTRY)
+      workers.push(worker)
+
+      worker.on('message', (msg: WorkerResult) => {
+        const track = tracks.find((t) => t.id === msg.id)!
+        if (msg.status === 'done') {
+          writeAnalysisResult(db, track, msg.result)
+        } else {
+          db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
+        }
+        done++
+        options.onProgress?.({ done, total })
+
+        if (nextIndex < tracks.length) {
+          assignNext(worker)
+        } else if (done >= total) {
+          finish()
+        }
+      })
+
+      worker.on('error', (err) => finish(err))
+
+      assignNext(worker)
+    }
+  })
 }
