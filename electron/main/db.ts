@@ -84,7 +84,27 @@ function migrate(db: AppDatabase): void {
 
 // node:sqlite has no built-in transaction() helper like better-sqlite3; this
 // wraps a block of statements in a manual BEGIN/COMMIT/ROLLBACK.
+//
+// Reentrant: a nested call (e.g. importTagData wrapping calls to
+// addGenresToTracks, which itself calls runInTransaction) joins the
+// already-open outer transaction instead of trying to BEGIN again, which
+// SQLite would reject. Only the outermost call issues BEGIN/COMMIT/ROLLBACK;
+// an error inside a nested call still propagates out and rolls back the
+// whole outer transaction.
+const transactionDepth = new WeakMap<AppDatabase, number>()
+
 export function runInTransaction<T>(db: AppDatabase, fn: () => T): T {
+  const depth = transactionDepth.get(db) ?? 0
+  if (depth > 0) {
+    transactionDepth.set(db, depth + 1)
+    try {
+      return fn()
+    } finally {
+      transactionDepth.set(db, depth)
+    }
+  }
+
+  transactionDepth.set(db, 1)
   db.exec('BEGIN')
   try {
     const result = fn()
@@ -93,5 +113,7 @@ export function runInTransaction<T>(db: AppDatabase, fn: () => T): T {
   } catch (err) {
     db.exec('ROLLBACK')
     throw err
+  } finally {
+    transactionDepth.set(db, 0)
   }
 }
