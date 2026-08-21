@@ -45,10 +45,14 @@ interface CollectionState {
   trackTags: Map<number, TrackTagIds>
   checkedTrackIds: Set<number>
   pendingGenreDeletion: { snapshot: GenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
+  loadedTrackId: number | null
+  loadTrackInPlayer: (trackId: number) => void
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
   modalOpen: boolean
+  appVersion: string | null
+  loadAppVersion: () => Promise<void>
   effectsSettings: EffectsSettings
   loadEffectsSettings: () => Promise<void>
   setEffectsSettings: (settings: EffectsSettings) => void
@@ -94,10 +98,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   trackTags: new Map(),
   checkedTrackIds: new Set(),
   pendingGenreDeletion: null,
+  loadedTrackId: null,
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
   modalOpen: false,
+  appVersion: null,
   effectsSettings: DEFAULT_EFFECTS_SETTINGS,
   playerVolume: 1,
   midiMappings: {},
@@ -211,6 +217,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
 
   setModalOpen: (open) => set({ modalOpen: open }),
+
+  // Deliberately separate from row selection (which only drives
+  // DetailPanel) — the player is independent, so browsing/checking
+  // details on other tracks doesn't interrupt whatever's currently
+  // loaded and playing. Only this explicit action changes it.
+  loadTrackInPlayer: (trackId) => set({ loadedTrackId: trackId }),
+
+  loadAppVersion: async () => {
+    const version = await window.api.getAppVersion()
+    set({ appVersion: version })
+  },
 
   refreshTracks: async () => {
     const tracks = await window.api.getTracks()

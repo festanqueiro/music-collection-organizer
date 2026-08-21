@@ -16,6 +16,7 @@ import type { ScanResult } from '../main/scan'
 
 const api = {
   getCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:getCollectionFolder'),
+  getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
   getEffectsSettings: (): Promise<EffectsSettings> => ipcRenderer.invoke('config:getEffectsSettings'),
   setEffectsSettings: (settings: EffectsSettings): Promise<void> =>
     ipcRenderer.invoke('config:setEffectsSettings', settings),
@@ -49,6 +50,10 @@ const api = {
   // Only a trackId — the main process looks up the actual path from its
   // own DB row rather than trusting one supplied over IPC.
   downloadTrack: (trackId: number): Promise<void> => ipcRenderer.invoke('tracks:download', trackId),
+  // Fire-and-forget: kicks off the OS's native file-drag session for this
+  // track's row, same mechanism as dragging a file out of Finder — no
+  // response is awaited.
+  startTrackDrag: (trackId: number): void => ipcRenderer.send('tracks:startDrag', trackId),
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
   listBackups: (): Promise<BackupEntry[]> => ipcRenderer.invoke('backup:list'),
   restoreBackup: (timestamp: string): Promise<void> => ipcRenderer.invoke('backup:restore', timestamp),

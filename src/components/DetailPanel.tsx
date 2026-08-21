@@ -2,7 +2,68 @@
 import { useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
-import { Player } from './Player'
+
+function formatDuration(totalSeconds: number): string {
+  const total = Math.round(totalSeconds)
+  const minutes = Math.floor(total / 60)
+  const seconds = total % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
+// The full set of ID3-derived metadata fields this app extracts — collapsed
+// by default since Genre/Sub-Genre/Mood management above is the primary,
+// frequently-used surface; this is reference info for when you need it.
+function FullId3Section({ track }: { track: Track }) {
+  const [open, setOpen] = useState(false)
+  const fields: [string, string | number | null][] = [
+    ['Title', track.title],
+    ['Artist', track.artist],
+    ['Album', track.album],
+    ['Genre (ID3)', track.genreTag],
+    ['Year', track.year],
+    ['BPM', track.bpm ? Math.round(track.bpm) : null],
+    ['Key', track.musicalKey],
+    ['Format', track.format],
+    ['Duration', track.duration ? formatDuration(track.duration) : null],
+  ]
+
+  return (
+    <div style={{ marginTop: '16px', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          color: 'var(--color-text-dim)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+          {open ? 'expand_less' : 'expand_more'}
+        </span>
+        Full ID3 tags
+      </button>
+      {open && (
+        <table style={{ marginTop: '8px', fontSize: '12px', borderCollapse: 'collapse' }}>
+          <tbody>
+            {fields.map(([label, value]) => (
+              <tr key={label}>
+                <td style={{ color: 'var(--color-text-dim)', padding: '2px 12px 2px 0', verticalAlign: 'top' }}>
+                  {label}
+                </td>
+                <td style={{ padding: '2px 0' }}>{value ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
 
 function NewTagInput({
   placeholder,
@@ -143,11 +204,6 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
       <h3>{track.title ?? track.filename}</h3>
       <p>{track.artist}</p>
 
-      {/* key forces a full remount on track change — otherwise the
-          playing/progress state (and the underlying <audio> element)
-          carries over from the previous track instead of resetting. */}
-      <Player key={track.id} src={track.path} peaks={track.waveformPeaks} />
-
       <div style={{ marginTop: '16px' }}>
         <div style={{ fontWeight: 600 }}>Genre</div>
         {suggestedGenreName && !suggestedGenreAlreadyApplied && (
@@ -200,6 +256,8 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
         ))}
         <NewTagInput placeholder="New mood…" onCreate={createMood} />
       </div>
+
+      <FullId3Section track={track} />
     </div>
   )
 }

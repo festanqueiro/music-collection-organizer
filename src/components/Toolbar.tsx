@@ -7,6 +7,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const runScan = useCollectionStore((s) => s.runScan)
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
+  const appVersion = useCollectionStore((s) => s.appVersion)
 
   return (
     <div
@@ -18,11 +19,12 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         alignItems: 'flex-start',
       }}
     >
-      <img
-        src={logo}
-        alt="MCO"
-        style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%' }}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
+        <img src={logo} alt="MCO" style={{ width: '32px', height: '32px', borderRadius: '50%' }} />
+        {appVersion && (
+          <span style={{ fontSize: '10px', color: 'var(--color-text-dim)', marginTop: '2px' }}>v{appVersion}</span>
+        )}
+      </div>
       <input
         type="text"
         placeholder="Search title, artist, album..."

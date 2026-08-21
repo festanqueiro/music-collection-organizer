@@ -15,6 +15,7 @@ import {
 } from './config'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
+import { getDragIcon } from './dragIcon'
 import { runAnalysisQueue } from './analysis/queue'
 import { listBackups, restoreBackup } from './backup'
 import {
@@ -120,6 +121,8 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   let scanInProgress = false
 
   ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
+
+  ipcMain.handle('app:getVersion', (): string => app.getVersion())
 
   ipcMain.handle('config:getEffectsSettings', (): EffectsSettings => getEffectsSettings())
   ipcMain.handle('config:setEffectsSettings', (_e, settings: EffectsSettings): void =>
@@ -258,6 +261,19 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
   ipcMain.handle('tracks:download', async (_e, trackId: number): Promise<void> => {
     await downloadTrack(db, trackId)
+  })
+
+  // Native OS file drag (e.g. dragging a row out to Finder, a DAW, or any
+  // other app) — this hands the OS the track's existing on-disk path, the
+  // same as dragging a file out of Finder itself. Nothing is copied or
+  // moved by this app; the receiving app/Finder decides what happens next,
+  // exactly like any other native file drag. `ipcMain.on` (not `handle`)
+  // matches Electron's own recipe for startDrag: fire-and-forget, no
+  // renderer-side await needed.
+  ipcMain.on('tracks:startDrag', (event, trackId: number) => {
+    const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
+    if (!row) return
+    event.sender.startDrag({ file: row.path, icon: getDragIcon() })
   })
 
   ipcMain.handle('tracks:getAllTagIds', (): TrackTagIds[] => {
