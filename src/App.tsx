@@ -13,6 +13,7 @@ import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
 import { subscribeToMidiCc } from './audio/midi'
+import { getDubSirenEngine } from './audio/sirenEngine'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags'
@@ -37,12 +38,16 @@ export default function App() {
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const playlist = useCollectionStore((s) => s.playlist)
   const playerExpanded = useCollectionStore((s) => s.playerExpanded)
+  const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
+  const effectsSettings = useCollectionStore((s) => s.effectsSettings)
+  const modalOpen = useCollectionStore((s) => s.modalOpen)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [scrollToTrack, setScrollToTrack] = useState<{ trackId: number; nonce: number } | null>(null)
 
   // Mounted once here (not inside Player, which remounts per track) so a
   // MIDI binding keeps working regardless of which track is currently
@@ -52,6 +57,52 @@ export default function App() {
       handleMidiControlChange(channel, controller, value, kind)
     })
   }, [handleMidiControlChange])
+
+  // The siren is a global module singleton (its own AudioContext, not
+  // per-track like EffectsChain) — pushing settings here, not from inside
+  // Player (which remounts per track and unmounts entirely when the queue
+  // is empty), keeps it in sync regardless of what's playing.
+  useEffect(() => {
+    getDubSirenEngine().update(effectsSettings.siren)
+  }, [effectsSettings.siren])
+
+  // Hold-S keyboard trigger, mirroring the FxPanel button. Lives here
+  // (not in Player) for the same reason as the effect above — it must
+  // keep working even when nothing is queued.
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      const el = target as HTMLElement
+      return ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(el?.tagName)
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (modalOpen || isTypingTarget(e.target) || e.key !== 's' || e.repeat) return
+      const { siren } = useCollectionStore.getState().effectsSettings
+      if (!siren.enabled || siren.beat !== 'off') return
+      const engine = getDubSirenEngine()
+      engine.resume()
+      engine.triggerDown()
+      useCollectionStore.getState().setSirenTriggered(true)
+    }
+    function handleKeyUp(e: KeyboardEvent) {
+      if (e.key !== 's') return
+      getDubSirenEngine().triggerUp()
+      useCollectionStore.getState().setSirenTriggered(false)
+    }
+    // Holding S and Cmd-Tabbing away means keyup never arrives — without
+    // this, the siren would sound forever behind another app.
+    function handleBlur() {
+      getDubSirenEngine().triggerUp()
+      useCollectionStore.getState().setSirenTriggered(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [modalOpen])
 
   useEffect(() => {
     loadAll()
@@ -172,11 +223,16 @@ export default function App() {
             selectedFolder={selectedFolder}
             activeFilter={tagFilter}
             selectedTrackId={selectedTrack?.id ?? null}
+            scrollToTrack={scrollToTrack}
           />
         </div>
 
         <div className="pane" style={{ gridArea: 'right', borderRight: 'none', overflowX: 'hidden' }}>
-          <DetailPanel track={selectedTrack} onClose={() => setSelectedTrack(null)} />
+          <DetailPanel
+            track={selectedTrack}
+            onClose={() => setSelectedTrack(null)}
+            onLocateInTable={(trackId) => setScrollToTrack({ trackId, nonce: Date.now() })}
+          />
         </div>
 
         <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)' }}>
@@ -195,7 +251,25 @@ export default function App() {
             return currentTrack ? (
               <Player key={currentTrack.id} track={currentTrack} />
             ) : (
-              <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>Nothing queued</div>
+              <div
+                style={{
+                  padding: '16px',
+                  color: 'var(--color-text-dim)',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                Nothing queued
+                <button
+                  onClick={() => setPlayerExpanded(!playerExpanded)}
+                  title={playerExpanded ? 'Collapse queue' : 'Expand queue'}
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined">
+                    {playerExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_up'}
+                  </span>
+                </button>
+              </div>
             )
           })()}
           {analysisProgress && <AnalysisProgressBar progress={analysisProgress} />}

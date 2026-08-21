@@ -1,4 +1,4 @@
-import type { MidiBinding, MidiControlKey } from '../types'
+import { SIREN_MODES, SIREN_BEATS, type MidiBinding, type MidiControlKey } from '../types'
 
 // Minimal local typings for the parts of the Web MIDI API this app uses.
 // Not relying on lib.dom's (optional, version-dependent) WebMidi types
@@ -150,10 +150,30 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'delay.mix': { min: 0, max: 1 },
   'reverb.enabled': { min: 0, max: 1 },
   'reverb.mix': { min: 0, max: 1 },
+  // siren.mode/siren.beat are never read through scaleMidiValue (they go
+  // through scaleMidiValueToOption instead) — entries exist only because
+  // the Record above is total; the range is the index bounds.
+  'siren.mode': { min: 0, max: SIREN_MODES.length - 1 },
+  'siren.pitchHz': { min: 90, max: 520 },
+  'siren.speedHz': { min: 0.5, max: 12 },
+  'siren.level': { min: 0, max: 1 },
+  'siren.echoFeedback': { min: 0, max: 0.85 },
+  'siren.beat': { min: 0, max: SIREN_BEATS.length - 1 },
+  // Never read through scaleMidiValue either — a momentary button, not a
+  // range. Present only because the Record above is total.
+  'siren.trigger': { min: 0, max: 1 },
 }
 
 // Scales a 7-bit MIDI CC value (0-127) to a control's real-world range.
 export function scaleMidiValue(control: MidiControlKey, ccValue: number): number {
   const { min, max } = MIDI_CONTROL_RANGES[control]
   return min + (ccValue / 127) * (max - min)
+}
+
+// Quantizes a 7-bit CC value into one of `options`, in even bands. A knob
+// bound to a control using this sweeps through the options in order.
+// min() guards the top band: ccValue 127 would otherwise land on
+// options.length.
+export function scaleMidiValueToOption<T extends string>(options: readonly T[], ccValue: number): T {
+  return options[Math.min(options.length - 1, Math.floor((ccValue / 127) * options.length))]
 }

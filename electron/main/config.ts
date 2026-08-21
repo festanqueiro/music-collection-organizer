@@ -1,5 +1,5 @@
 import Store from 'electron-store'
-import { DEFAULT_EFFECTS_SETTINGS, type EffectsSettings, type MidiMappings } from '../../src/types'
+import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_SIREN_SETTINGS, type EffectsSettings, type MidiMappings } from '../../src/types'
 
 interface ConfigSchema {
   collectionFolder?: string
@@ -54,8 +54,20 @@ export function clearLastBackupError(): void {
   getStore().delete('lastBackupError')
 }
 
+// A config written before the siren module existed has no `siren` key —
+// settings.siren.mode would throw in the renderer without this merge.
+// Depth-one is enough: delay/reverb/siren are each flat objects of
+// primitives, so a stored sub-object's own fields always take precedence
+// over defaults, and only a genuinely missing sub-object falls back
+// wholesale.
 export function getEffectsSettings(): EffectsSettings {
-  return getStore().get('effectsSettings') ?? DEFAULT_EFFECTS_SETTINGS
+  const stored = getStore().get('effectsSettings')
+  if (!stored) return DEFAULT_EFFECTS_SETTINGS
+  return {
+    ...DEFAULT_EFFECTS_SETTINGS,
+    ...stored,
+    siren: { ...DEFAULT_SIREN_SETTINGS, ...stored.siren },
+  }
 }
 
 export function setEffectsSettings(settings: EffectsSettings): void {

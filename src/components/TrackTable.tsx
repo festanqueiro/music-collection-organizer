@@ -25,11 +25,16 @@ export function TrackTable({
   selectedFolder,
   activeFilter,
   selectedTrackId,
+  scrollToTrack,
 }: {
   onSelect: (track: Track) => void
   selectedFolder: string | null
   activeFilter: (track: Track) => boolean
   selectedTrackId: number | null
+  // A new object each time (even for the same trackId) so clicking the
+  // detail panel's title twice in a row re-triggers the scroll — a plain
+  // trackId prop wouldn't change identity on a second click.
+  scrollToTrack?: { trackId: number; nonce: number } | null
 }) {
   const tracks = useCollectionStore((s) => s.tracks)
   const searchText = useCollectionStore((s) => s.searchText)
@@ -93,6 +98,15 @@ export function TrackTable({
       })
   }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir])
 
+  // Re-analysing a track changes its BPM/Key, which can shift its sort
+  // position out of the visible scroll area — clicking the track's title
+  // in the detail panel scrolls it back into view.
+  useEffect(() => {
+    if (!scrollToTrack) return
+    const row = document.querySelector(`tr[data-track-id="${scrollToTrack.trackId}"]`)
+    row?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [scrollToTrack])
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (modalOpen) return
@@ -155,6 +169,7 @@ export function TrackTable({
           {visibleTracks.map((track) => (
             <tr
               key={track.id}
+              data-track-id={track.id}
               className={`track-row${track.id === selectedTrackId ? ' selected' : ''}`}
               onClick={() => onSelect(track)}
               onContextMenu={(e) => {

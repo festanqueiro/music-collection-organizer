@@ -12,8 +12,9 @@ import type {
   MidiControlKey,
   MidiBinding,
 } from '../types'
-import { DEFAULT_EFFECTS_SETTINGS } from '../types'
-import { scaleMidiValue, sendMidiFeedback } from '../audio/midi'
+import { DEFAULT_EFFECTS_SETTINGS, SIREN_MODES, SIREN_BEATS } from '../types'
+import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
+import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import {
   playTrackNow as playTrackNowPure,
@@ -127,6 +128,12 @@ interface CollectionState {
   // Player) can render a progress line under the currently-playing row.
   playbackProgress: number
   setPlaybackProgress: (progress: number) => void
+  // Whether the dub siren's trigger is currently held down — shared here
+  // (not local component state) since mouse, the hold-S key, and a bound
+  // MIDI button all sound the trigger from three different places, and
+  // the FX panel button's pressed styling should reflect all of them.
+  sirenTriggered: boolean
+  setSirenTriggered: (triggered: boolean) => void
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
@@ -180,12 +187,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   effectsSettings: DEFAULT_EFFECTS_SETTINGS,
   playerVolume: 1,
   playbackProgress: 0,
+  sirenTriggered: false,
   midiMappings: {},
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
     const settings = await window.api.getEffectsSettings()
-    set({ effectsSettings: settings })
+    // Never resume auto-firing a siren on launch, whatever was persisted.
+    set({ effectsSettings: { ...settings, siren: { ...settings.siren, beat: 'off' } } })
   },
 
   setEffectsSettings: (settings) => {
@@ -212,6 +221,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setPlayerVolume: (volume) => set({ playerVolume: volume }),
 
   setPlaybackProgress: (progress) => set({ playbackProgress: progress }),
+
+  setSirenTriggered: (triggered) => set({ sirenTriggered: triggered }),
 
   loadMidiMappings: async () => {
     const mappings = await window.api.getMidiMappings()
@@ -255,6 +266,46 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     })
     if (!match) return
 
+    // Discrete controls (a fixed option list, not a continuous range) are
+    // handled before scaleMidiValue — a knob bound to one of these sweeps
+    // through the options in order rather than producing a raw number.
+    if (match === 'siren.mode' || match === 'siren.beat') {
+      const effectsSettings = get().effectsSettings
+      if (match === 'siren.mode') {
+        get().setEffectsSettings({
+          ...effectsSettings,
+          siren: { ...effectsSettings.siren, mode: scaleMidiValueToOption(SIREN_MODES, value) },
+        })
+      } else {
+        get().setEffectsSettings({
+          ...effectsSettings,
+          siren: { ...effectsSettings.siren, beat: scaleMidiValueToOption(SIREN_BEATS, value) },
+        })
+      }
+      return
+    }
+
+    // Momentary trigger, not a toggle like delay.enabled/reverb.enabled —
+    // press (nonzero) sounds the siren for as long as it's held, release
+    // (0) stops it, mirroring the on-screen button and the hold-S
+    // keyboard shortcut exactly (same enabled/beat guard, same engine
+    // calls) rather than flipping a persisted setting.
+    if (match === 'siren.trigger') {
+      const { siren } = get().effectsSettings
+      const engine = getDubSirenEngine()
+      if (value !== 0) {
+        if (siren.enabled && siren.beat === 'off') {
+          engine.resume()
+          engine.triggerDown()
+          set({ sirenTriggered: true })
+        }
+      } else {
+        engine.triggerUp()
+        set({ sirenTriggered: false })
+      }
+      return
+    }
+
     const scaled = scaleMidiValue(match, value)
     if (match === 'volume') {
       get().setPlayerVolume(scaled)
@@ -288,6 +339,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       })
     } else if (match === 'reverb.mix') {
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, mix: scaled } })
+    } else if (match === 'siren.pitchHz') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, pitchHz: scaled } })
+    } else if (match === 'siren.speedHz') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, speedHz: scaled } })
+    } else if (match === 'siren.level') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, level: scaled } })
+    } else if (match === 'siren.echoFeedback') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, echoFeedback: scaled } })
     }
   },
 
