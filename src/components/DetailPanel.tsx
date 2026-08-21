@@ -117,7 +117,7 @@ function NewTagInput({
   )
 }
 
-export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
+export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | null; onClose: () => void }) {
   const tracks = useCollectionStore((s) => s.tracks)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
@@ -188,7 +188,12 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
   if (track.cloudStatus === 'cloud_only') {
     return (
       <div style={{ padding: '16px' }}>
-        <h3>{track.filename}</h3>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 style={{ margin: 0 }}>{track.filename}</h3>
+          <button onClick={onClose} title="Close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
         <p>
           <span className="material-symbols-outlined">cloud</span> This file is not downloaded locally.
         </p>
@@ -210,7 +215,12 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
             {track.id === currentTrackId ? 'graphic_eq' : 'play_arrow'}
           </span>
         </button>
-        <h3 style={{ margin: 0 }}>{track.title ?? track.filename}</h3>
+        <h3 style={{ margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {track.title ?? track.filename}
+        </h3>
+        <button onClick={onClose} title="Close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+          <span className="material-symbols-outlined">close</span>
+        </button>
       </div>
       <p>{track.artist}</p>
 

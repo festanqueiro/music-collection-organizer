@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
 
-type SortKey = 'title' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
+type SortKey = 'title' | 'filename' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
 
 function formatDuration(totalSeconds: number): string {
   const total = Math.round(totalSeconds)
@@ -107,6 +107,7 @@ export function TrackTable({
 
   const columns: { key: SortKey; label: string }[] = [
     { key: 'title', label: 'Title' },
+    { key: 'filename', label: 'Filename' },
     { key: 'artist', label: 'Artist' },
     { key: 'bpm', label: 'BPM' },
     { key: 'musicalKey', label: 'Key' },
@@ -115,6 +116,7 @@ export function TrackTable({
   ]
 
   const cellStyle = { padding: '8px', whiteSpace: 'nowrap' as const }
+  const titleCellStyle = { ...cellStyle, maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' as const }
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -171,7 +173,7 @@ export function TrackTable({
                   onChange={() => toggleTrackChecked(track.id)}
                 />
               </td>
-              <td style={cellStyle}>
+              <td style={titleCellStyle}>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
@@ -191,8 +193,18 @@ export function TrackTable({
                     play_circle
                   </span>
                 </button>
+                {track.analysisStatus === 'analyzing' && (
+                  <span
+                    className="material-symbols-outlined spin"
+                    style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
+                    title="Analyzing…"
+                  >
+                    progress_activity
+                  </span>
+                )}
                 {track.title ?? track.filename}
               </td>
+              <td style={titleCellStyle}>{track.filename}</td>
               <td style={cellStyle}>{track.artist ?? '—'}</td>
               <td style={cellStyle}>{track.bpm?.toFixed(0) ?? '—'}</td>
               <td style={cellStyle}>{track.musicalKey ?? '—'}</td>

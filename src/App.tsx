@@ -48,8 +48,8 @@ export default function App() {
   // MIDI binding keeps working regardless of which track is currently
   // loaded.
   useEffect(() => {
-    return subscribeToMidiCc(({ channel, controller, value }) => {
-      handleMidiControlChange(channel, controller, value)
+    return subscribeToMidiCc(({ channel, controller, value, kind }) => {
+      handleMidiControlChange(channel, controller, value, kind)
     })
   }, [handleMidiControlChange])
 
@@ -103,6 +103,7 @@ export default function App() {
         style={{
           gridTemplateRows: 'auto 1fr auto',
           gridTemplateAreas: "'toolbar toolbar toolbar' 'left center right' 'footer footer footer'",
+          gridTemplateColumns: selectedTrack ? undefined : '260px 1fr 0px',
         }}
       >
         {playerExpanded && (
@@ -173,8 +174,8 @@ export default function App() {
           />
         </div>
 
-        <div className="pane" style={{ gridArea: 'right', borderRight: 'none' }}>
-          <DetailPanel track={selectedTrack} />
+        <div className="pane" style={{ gridArea: 'right', borderRight: 'none', overflowX: 'hidden' }}>
+          <DetailPanel track={selectedTrack} onClose={() => setSelectedTrack(null)} />
         </div>
 
         <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)' }}>

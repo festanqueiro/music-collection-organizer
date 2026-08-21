@@ -10,9 +10,10 @@ import type {
   EffectsSettings,
   MidiMappings,
   MidiControlKey,
+  MidiBinding,
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS } from '../types'
-import { scaleMidiValue } from '../audio/midi'
+import { scaleMidiValue, sendMidiFeedback } from '../audio/midi'
 import type { TrackTagIds } from './tagFilter'
 import {
   playTrackNow as playTrackNowPure,
@@ -48,10 +49,12 @@ function setTrackTags(
 // A cloud-only track has no local audio to stream yet, so it's downloaded
 // first (blocking — nothing to play until it lands). A pending/error track
 // still plays immediately (analysis isn't needed for playback), but kicks
-// off a background analysis run for just that track so BPM/waveform show
-// up without a separate manual step. Called only by actions that make a
-// track the one actively playing (playTrackNow/advanceToNext) — queueing
-// actions (addToPlaylist/playNext) don't touch a track until it's current.
+// off a background analysis run for just that track — loading a track into
+// the player is itself an explicit user action, so triggering analysis as
+// its consequence is fine; this is distinct from analysing the whole
+// collection silently on its own. Called only by actions that make a track
+// the one actively playing (playTrackNow/advanceToNext) — queueing actions
+// (addToPlaylist/playNext) don't touch a track until it's current.
 async function ensureTrackReady(
   set: StoreApi<CollectionState>['setState'],
   get: StoreApi<CollectionState>['getState'],
@@ -114,7 +117,7 @@ interface CollectionState {
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
-  handleMidiControlChange: (channel: number, controller: number, value: number) => void
+  handleMidiControlChange: (channel: number, controller: number, value: number, kind: 'cc' | 'note') => void
   loadCollectionFolder: () => Promise<void>
   pickCollectionFolder: () => Promise<boolean>
   loadAll: () => Promise<void>
@@ -169,6 +172,19 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setEffectsSettings: (settings) => {
+    // Single choke point for every delay.enabled/reverb.enabled change,
+    // whichever triggered it (the FxPanel checkbox or a MIDI toggle) — so
+    // a bound button's LED always mirrors the app's actual enabled state,
+    // not just the state changes that happened to originate from MIDI.
+    const previous = get().effectsSettings
+    const mappings = get().midiMappings
+    if (settings.delay.enabled !== previous.delay.enabled && mappings['delay.enabled']) {
+      sendMidiFeedback(mappings['delay.enabled'], settings.delay.enabled)
+    }
+    if (settings.reverb.enabled !== previous.reverb.enabled && mappings['reverb.enabled']) {
+      sendMidiFeedback(mappings['reverb.enabled'], settings.reverb.enabled)
+    }
+
     set({ effectsSettings: settings })
     if (effectsSettingsSaveTimeout) clearTimeout(effectsSettingsSaveTimeout)
     effectsSettingsSaveTimeout = setTimeout(() => {
@@ -198,12 +214,18 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // binds the incoming CC to whichever control is in "learn" mode, or (if
   // nothing is learning) looks up a matching existing binding and applies
   // the scaled value to the corresponding piece of state.
-  handleMidiControlChange: (channel, controller, value) => {
+  handleMidiControlChange: (channel, controller, value, kind) => {
     const learning = get().midiLearningControl
     if (learning) {
-      const mappings = { ...get().midiMappings, [learning]: { channel, controller } }
+      const binding: MidiBinding = { channel, controller, kind }
+      const mappings = { ...get().midiMappings, [learning]: binding }
       set({ midiMappings: mappings, midiLearningControl: null })
       window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
+      // Sync the LED to the control's current state right away, rather
+      // than leaving it showing whatever it happened to be at (e.g. lit
+      // from a previous binding) until the next toggle.
+      if (learning === 'delay.enabled') sendMidiFeedback(binding, get().effectsSettings.delay.enabled)
+      else if (learning === 'reverb.enabled') sendMidiFeedback(binding, get().effectsSettings.reverb.enabled)
       return
     }
 
@@ -221,12 +243,30 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }
 
     const effectsSettings = get().effectsSettings
-    if (match === 'delay.timeMs') {
+    // delay.enabled/reverb.enabled are bound to a MIDI Mix mute-style
+    // button, confirmed momentary (sends a nonzero message on press and a
+    // 0 on release, rather than a hardware-latched on/off state) — mirroring
+    // the raw value directly made the effect only stay on while physically
+    // held. Toggle once on the press edge instead, and ignore the release
+    // message entirely, so one tap flips the state and it stays there.
+    if (match === 'delay.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        delay: { ...effectsSettings.delay, enabled: !effectsSettings.delay.enabled },
+      })
+    } else if (match === 'delay.timeMs') {
       get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, timeMs: scaled } })
     } else if (match === 'delay.feedback') {
       get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, feedback: scaled } })
     } else if (match === 'delay.mix') {
       get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, mix: scaled } })
+    } else if (match === 'reverb.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        reverb: { ...effectsSettings.reverb, enabled: !effectsSettings.reverb.enabled },
+      })
     } else if (match === 'reverb.mix') {
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, mix: scaled } })
     }

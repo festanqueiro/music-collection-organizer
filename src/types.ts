@@ -69,11 +69,24 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   reverb: { enabled: false, mix: 0.3 },
 }
 
-export type MidiControlKey = 'volume' | 'delay.timeMs' | 'delay.feedback' | 'delay.mix' | 'reverb.mix'
+export type MidiControlKey =
+  | 'volume'
+  | 'delay.enabled'
+  | 'delay.timeMs'
+  | 'delay.feedback'
+  | 'delay.mix'
+  | 'reverb.enabled'
+  | 'reverb.mix'
 
 export interface MidiBinding {
   channel: number
   controller: number
+  // Which status byte the binding was learned from — needed to send LED
+  // feedback back to the device in the same message format it sent
+  // (Control Change vs Note On/Off), since a CC message won't light an
+  // LED bound via Note messages or vice versa. Optional so bindings saved
+  // before this field existed still load without crashing.
+  kind?: 'cc' | 'note'
 }
 
 export type MidiMappings = Partial<Record<MidiControlKey, MidiBinding>>
