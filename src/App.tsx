@@ -118,10 +118,20 @@ export default function App() {
           ) : (
             <>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                <button onClick={() => setLeftView('folders')} disabled={leftView === 'folders'}>
+                <button
+                  onClick={() => setLeftView('folders')}
+                  style={{
+                    border: leftView === 'folders' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                  }}
+                >
                   Folders
                 </button>
-                <button onClick={() => setLeftView('tags')} disabled={leftView === 'tags'}>
+                <button
+                  onClick={() => setLeftView('tags')}
+                  style={{
+                    border: leftView === 'tags' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                  }}
+                >
                   Tags
                 </button>
               </div>

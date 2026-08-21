@@ -125,16 +125,16 @@ export function Player({ track }: { track: Track }) {
         }}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ minWidth: '160px', maxWidth: '260px', overflow: 'hidden' }}>
-          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-            {track.title ?? track.filename}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
-            {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
-          </div>
-        </div>
+      <div style={{ overflow: 'hidden' }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+          {track.title ?? track.filename}
+        </span>
+        <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px' }}>
+          {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
+        </span>
+      </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
