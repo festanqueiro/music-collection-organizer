@@ -46,3 +46,8 @@ export interface BackupEntry {
   dbPath: string
   configPath: string
 }
+
+export interface ImportResult {
+  matchedTracks: number
+  skippedTracks: number
+}

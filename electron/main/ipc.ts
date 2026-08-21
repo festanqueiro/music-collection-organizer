@@ -1,5 +1,6 @@
 import { app, ipcMain, dialog, BrowserWindow } from 'electron'
 import { join } from 'node:path'
+import { writeFileSync, readFileSync } from 'node:fs'
 import type { AppDatabase } from './db'
 import {
   getCollectionFolder,
@@ -25,7 +26,8 @@ import {
   addSubgenresToTracks,
   addMoodsToTracks,
 } from './tags'
-import type { Track, Genre, Subgenre, Mood, BackupInfo, BackupEntry } from '../../src/types'
+import { exportTagData, importTagData, type TagExportData } from './tagExport'
+import type { Track, Genre, Subgenre, Mood, BackupInfo, BackupEntry, ImportResult } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
 interface TrackRow {
@@ -245,5 +247,25 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
       if (row.mood_id) entry.moodIds.push(row.mood_id)
     }
     return Array.from(byTrack.entries()).map(([trackId, tags]) => ({ trackId, ...tags }))
+  })
+
+  ipcMain.handle('tags:exportData', async (): Promise<{ path: string } | null> => {
+    const result = await dialog.showSaveDialog(getMainWindow(), {
+      defaultPath: 'tag-export.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+    writeFileSync(result.filePath, JSON.stringify(exportTagData(db), null, 2))
+    return { path: result.filePath }
+  })
+
+  ipcMain.handle('tags:importData', async (): Promise<ImportResult | null> => {
+    const result = await dialog.showOpenDialog(getMainWindow(), {
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const data = JSON.parse(readFileSync(result.filePaths[0], 'utf-8')) as TagExportData
+    return importTagData(db, data)
   })
 }

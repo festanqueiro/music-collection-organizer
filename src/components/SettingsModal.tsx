@@ -14,8 +14,11 @@ function parseBackupTimestamp(timestamp: string): Date {
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
+  const exportTagData = useCollectionStore((s) => s.exportTagData)
+  const importTagData = useCollectionStore((s) => s.importTagData)
   const [backupInfo, setBackupInfo] = useState<BackupInfo | null>(null)
   const [backups, setBackups] = useState<BackupEntry[]>([])
+  const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
@@ -126,6 +129,31 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 </div>
               ))}
             </div>
+          )}
+        </section>
+
+        <section style={{ marginTop: '20px' }}>
+          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Tag data</h3>
+          <button
+            onClick={async () => {
+              const result = await exportTagData()
+              setTagDataMessage(result ? `Exported to ${result.path}` : null)
+            }}
+          >
+            Export…
+          </button>{' '}
+          <button
+            onClick={async () => {
+              const result = await importTagData()
+              setTagDataMessage(
+                result ? `Imported: ${result.matchedTracks} matched, ${result.skippedTracks} skipped` : null
+              )
+            }}
+          >
+            Import…
+          </button>
+          {tagDataMessage && (
+            <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{tagDataMessage}</p>
           )}
         </section>
       </div>

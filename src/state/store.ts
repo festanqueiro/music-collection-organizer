@@ -1,6 +1,6 @@
 // src/state/store.ts
 import { create, type StoreApi } from 'zustand'
-import type { Track, Genre, Subgenre, Mood } from '../types'
+import type { Track, Genre, Subgenre, Mood, ImportResult } from '../types'
 import type { TrackTagIds } from './tagFilter'
 
 // Applies a tag IPC call's returned (server-authoritative) TrackTagIds to one
@@ -48,6 +48,8 @@ interface CollectionState {
   setTracksChecked: (trackIds: number[], checked: boolean) => void
   clearCheckedTracks: () => void
   addTagsToCheckedTracks: (tagIds: { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }) => Promise<void>
+  exportTagData: () => Promise<{ path: string } | null>
+  importTagData: () => Promise<ImportResult | null>
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -174,5 +176,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const trackTags = new Map(get().trackTags)
     for (const u of updated) trackTags.set(u.trackId, u)
     set({ trackTags })
+  },
+
+  exportTagData: () => window.api.exportTagData(),
+
+  importTagData: async () => {
+    const result = await window.api.importTagData()
+    if (result) await get().loadAll()
+    return result
   },
 }))

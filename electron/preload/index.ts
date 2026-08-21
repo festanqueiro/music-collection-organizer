@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Track, Genre, Subgenre, Mood, BackupInfo, BackupEntry } from '../../src/types'
+import type { Track, Genre, Subgenre, Mood, BackupInfo, BackupEntry, ImportResult } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
 
@@ -33,6 +33,8 @@ const api = {
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
   listBackups: (): Promise<BackupEntry[]> => ipcRenderer.invoke('backup:list'),
   restoreBackup: (timestamp: string): Promise<void> => ipcRenderer.invoke('backup:restore', timestamp),
+  exportTagData: (): Promise<{ path: string } | null> => ipcRenderer.invoke('tags:exportData'),
+  importTagData: (): Promise<ImportResult | null> => ipcRenderer.invoke('tags:importData'),
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('scan:progress', listener)
