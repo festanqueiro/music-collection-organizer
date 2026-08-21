@@ -49,11 +49,27 @@ export function Player({ track }: { track: Track }) {
     if (!audio) return
     const chain = new EffectsChain(audio)
     chain.update(effectsSettings)
+    chain.setVolume(playerVolume)
     effectsChainRef.current = chain
     return () => {
       chain.close()
       effectsChainRef.current = null
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Player only ever mounts fresh when a track is explicitly loaded (the
+  // play-circle icon or "Load track in Player") — so autoplaying on mount
+  // is exactly "click play in the track list plays instantly", not a
+  // surprise autoplay on some unrelated re-render.
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    effectsChainRef.current?.resume()
+    audio.play().then(
+      () => setPlaying(true),
+      () => setPlaying(false)
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -63,11 +79,13 @@ export function Player({ track }: { track: Track }) {
 
   // playerVolume lives in the global store (not local state) so a MIDI
   // binding can drive it regardless of which track's Player is currently
-  // mounted — this effect is what applies it to the actual <audio> element,
-  // including on every fresh mount (new track) and on every external change.
+  // mounted — this effect applies it to the master gain node (see
+  // effectsChain.ts) on every external change after mount. Setting
+  // HTMLMediaElement.volume directly doesn't reliably work once the
+  // element's output is captured by the Web Audio graph — the master
+  // gain is the only thing that actually controls the final signal.
   useEffect(() => {
-    const audio = audioRef.current
-    if (audio) audio.volume = playerVolume
+    effectsChainRef.current?.setVolume(playerVolume)
   }, [playerVolume])
 
   function updateDelay(partial: Partial<EffectsSettings['delay']>) {
@@ -117,6 +135,12 @@ export function Player({ track }: { track: Track }) {
       <audio
         ref={audioRef}
         src={trackPathToMediaUrl(track.path)}
+        // Without this, the media load is a "no-cors" request and its
+        // response is unconditionally opaque/tainted for Web Audio
+        // purposes regardless of the media:// scheme's own corsEnabled
+        // registration or any response headers — createMediaElementSource
+        // (the delay/reverb FX graph) would silently output silence.
+        crossOrigin="anonymous"
         onEnded={() => setPlaying(false)}
         onError={() => setPlaying(false)}
         onTimeUpdate={(e) => {
@@ -125,16 +149,24 @@ export function Player({ track }: { track: Track }) {
         }}
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ minWidth: '160px', maxWidth: '260px', overflow: 'hidden' }}>
-          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-            {track.title ?? track.filename}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
-            {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
-          </div>
-        </div>
+      <div style={{ overflow: 'hidden' }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+          {track.title ?? track.filename}
+        </span>
+        <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px' }}>
+          {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
+        </span>
+        {track.cloudStatus === 'local' && (
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px' }}>
+            Synced locally
+          </span>
+        )}
+        {track.analysisStatus === 'done' && (
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px' }}>Analysed</span>
+        )}
+      </div>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
@@ -147,7 +179,13 @@ export function Player({ track }: { track: Track }) {
               viewBox={`0 0 ${peaks.length} 100`}
               preserveAspectRatio="none"
               onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
-              style={{ cursor: 'pointer', display: 'block' }}
+              // Short/quiet-passage bars leave plenty of transparent gaps
+              // in the waveform — without this, clicks landing in those
+              // gaps (rather than exactly on a painted bar) are silently
+              // dropped, since SVG only hit-tests painted areas by
+              // default. pointerEvents: 'all' makes the whole box
+              // clickable regardless of what's actually drawn there.
+              style={{ cursor: 'pointer', display: 'block', pointerEvents: 'all' }}
             >
               {peaks.map((peak, i) => (
                 <rect
@@ -168,7 +206,12 @@ export function Player({ track }: { track: Track }) {
               />
             </svg>
           ) : (
-            <div style={{ height: '40px', borderBottom: '1px solid var(--color-border)' }} />
+            // No waveform data yet (track not analyzed) — still seekable,
+            // just without the visualization.
+            <div
+              onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
+              style={{ height: '40px', borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
+            />
           )}
         </div>
 

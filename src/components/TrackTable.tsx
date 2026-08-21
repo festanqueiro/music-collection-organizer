@@ -32,6 +32,7 @@ export function TrackTable({
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const loadedTrackId = useCollectionStore((s) => s.loadedTrackId)
   const loadTrackInPlayer = useCollectionStore((s) => s.loadTrackInPlayer)
+  const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const [sortKey, setSortKey] = useState<SortKey>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
@@ -142,6 +143,7 @@ export function TrackTable({
           {visibleTracks.map((track) => (
             <tr
               key={track.id}
+              className={`track-row${track.id === selectedTrackId ? ' selected' : ''}`}
               onClick={() => onSelect(track)}
               onContextMenu={(e) => {
                 e.preventDefault()
@@ -234,9 +236,38 @@ export function TrackTable({
               loadTrackInPlayer(contextMenu.trackId)
               setContextMenu(null)
             }}
-            style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              background: 'none',
+              border: 'none',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
           >
             Load track in Player
+          </button>
+          <button
+            onClick={() => {
+              runAnalysis([contextMenu.trackId])
+              setContextMenu(null)
+            }}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              background: 'none',
+              border: 'none',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {tracks.find((t) => t.id === contextMenu.trackId)?.analysisStatus === 'done'
+              ? 'Re-analyse track'
+              : 'Analyse track'}
           </button>
         </div>
       )}

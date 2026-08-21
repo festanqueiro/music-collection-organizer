@@ -68,6 +68,18 @@ h6 {
   border-right: none;
 }
 
+.track-row:hover {
+  background: var(--color-surface-raised);
+}
+
+.track-row.selected {
+  background: rgba(45, 212, 191, 0.14);
+}
+
+.track-row.selected:hover {
+  background: rgba(45, 212, 191, 0.22);
+}
+
 .spin {
   animation: spin 1s linear infinite;
 }

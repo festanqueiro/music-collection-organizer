@@ -43,6 +43,14 @@ not a commitment list.
   sub-genres and every track's tag assignment with only a confirm() dialog
   as a safety net; an undo (even a short-lived one) would be friendlier.
 
+## Player features
+
+- **Playlist management on the player.** A queue the player draws from
+  beyond just the one currently-loaded track — "Add to playlist" from a
+  track's right-click context menu (alongside the existing "Load track in
+  Player"), and a "Play next" action. Needs playlist state (ordered track
+  list + a cursor) and next/previous controls on the player bar itself.
+
 ## Platform/infra
 
 - **Windows/Linux support.** v1 is explicitly macOS-only (the cloud-only

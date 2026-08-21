@@ -25,6 +25,8 @@ const api = {
     ipcRenderer.invoke('config:setMidiMappings', mappings),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
   scanCollection: (): Promise<ScanResult> => ipcRenderer.invoke('scan:run'),
+  analyzeCollection: (trackIds?: number[]): Promise<void> => ipcRenderer.invoke('analysis:run', trackIds),
+  stopAnalysis: (): Promise<void> => ipcRenderer.invoke('analysis:stop'),
   getTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getAll'),
   getGenres: (): Promise<Genre[]> => ipcRenderer.invoke('tags:getGenres'),
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),

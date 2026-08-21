@@ -26,8 +26,16 @@ function createSyntheticImpulseResponse(context: BaseAudioContext): AudioBuffer 
 // createMediaElementSource can only be called once per media element), and
 // calls close() on unmount.
 //
+// masterGain sits downstream of the dry/delay/reverb mix, like a DJ
+// mixer's channel fader — it's the only thing setVolume() controls, so
+// turning the volume down brings down the FX along with the dry signal,
+// not just the dry path. (HTMLMediaElement.volume was tried first, but
+// once a media element's output is captured by createMediaElementSource,
+// that property no longer reliably governs what actually reaches
+// destination — only nodes inside the graph itself do.)
+//
 //              ┌─> dryGain ──────────────────────┐
-// source ──────┼─> delayNode <-> feedbackGain     ├─> destination
+// source ──────┼─> delayNode <-> feedbackGain     ├─> masterGain -> destination
 //              │      └────────> delayWetGain ────┤
 //              └─> convolver ───> reverbWetGain ───┘
 export class EffectsChain {
@@ -37,15 +45,20 @@ export class EffectsChain {
   private delayFeedbackGain: GainNode
   private delayWetGain: GainNode
   private reverbWetGain: GainNode
+  private masterGain: GainNode
 
   constructor(audioElement: HTMLAudioElement) {
     this.context = new AudioContext()
     const source = this.context.createMediaElementSource(audioElement)
 
+    this.masterGain = this.context.createGain()
+    this.masterGain.gain.value = 1
+    this.masterGain.connect(this.context.destination)
+
     this.dryGain = this.context.createGain()
     this.dryGain.gain.value = 1
     source.connect(this.dryGain)
-    this.dryGain.connect(this.context.destination)
+    this.dryGain.connect(this.masterGain)
 
     this.delayNode = this.context.createDelay(MAX_DELAY_SECONDS)
     this.delayFeedbackGain = this.context.createGain()
@@ -55,7 +68,7 @@ export class EffectsChain {
     this.delayNode.connect(this.delayFeedbackGain)
     this.delayFeedbackGain.connect(this.delayNode)
     this.delayNode.connect(this.delayWetGain)
-    this.delayWetGain.connect(this.context.destination)
+    this.delayWetGain.connect(this.masterGain)
 
     const convolver = this.context.createConvolver()
     convolver.buffer = createSyntheticImpulseResponse(this.context)
@@ -63,7 +76,7 @@ export class EffectsChain {
     this.reverbWetGain.gain.value = 0
     source.connect(convolver)
     convolver.connect(this.reverbWetGain)
-    this.reverbWetGain.connect(this.context.destination)
+    this.reverbWetGain.connect(this.masterGain)
   }
 
   update(settings: EffectsSettings): void {
@@ -71,6 +84,10 @@ export class EffectsChain {
     this.delayFeedbackGain.gain.value = settings.delay.enabled ? settings.delay.feedback : 0
     this.delayWetGain.gain.value = settings.delay.enabled ? settings.delay.mix : 0
     this.reverbWetGain.gain.value = settings.reverb.enabled ? settings.reverb.mix : 0
+  }
+
+  setVolume(value: number): void {
+    this.masterGain.gain.value = value
   }
 
   // AudioContexts start suspended until a user gesture resumes them — call

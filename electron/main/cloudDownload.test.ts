@@ -28,7 +28,7 @@ describe('downloadTrack', () => {
       )
       .run(filePath, dir).lastInsertRowid as number
 
-    await downloadTrack(db, id)
+    await downloadTrack(db, id, dir)
 
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
     expect(row.cloud_status).toBe('local')
@@ -36,6 +36,6 @@ describe('downloadTrack', () => {
   })
 
   it('throws for an id with no matching track, without touching the filesystem', async () => {
-    await expect(downloadTrack(db, 999)).rejects.toThrow('No track with id 999')
+    await expect(downloadTrack(db, 999, dir)).rejects.toThrow('No track with id 999')
   })
 })
