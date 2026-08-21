@@ -26,20 +26,24 @@ function createSyntheticImpulseResponse(context: BaseAudioContext): AudioBuffer 
 // createMediaElementSource can only be called once per media element), and
 // calls close() on unmount.
 //
-// setVolume() controls only dryGain — like an FX return bus on a real
-// mixer, the delay/reverb wet paths tap the source directly and are NOT
-// downstream of the volume knob, so pulling the volume down mutes the dry
-// track while any already-decaying delay/reverb tail keeps ringing out
-// and decaying naturally instead of cutting off with it. (A single
-// downstream "master" gain covering everything was tried first, but that
-// makes the volume knob behave like a hard mute on the whole channel —
-// FX tails included — which isn't how a DJ mixer's channel fader usually
-// interacts with its FX return.)
+// setVolume() controls dryGain, and the delay/reverb sends are tapped
+// FROM dryGain's output (post-fader), not from the raw source — so
+// pulling volume to 0 stops any NEW signal from entering the delay line
+// or convolver. This matters: tapping the raw source directly (tried
+// first) meant the delay kept receiving and re-echoing the live track
+// forever regardless of volume, so muting didn't actually mute anything
+// with delay/feedback turned up — you'd just keep hearing the whole
+// track, quietly, through the echo. Post-fader sends fix that while
+// still preserving the desired "FX tail rings out after muting" behavior:
+// the delay's own feedback loop and the convolver's in-flight
+// convolution are self-contained once fed, so whatever's already inside
+// them keeps decaying on its own after the input goes silent — it just
+// can't be topped up with fresh signal anymore.
 //
-//              ┌─> dryGain ────────────────────────┐
-// source ──────┼─> delayNode <-> feedbackGain       ├─> destination
-//              │      └────────> delayWetGain ──────┤
-//              └─> convolver ───> reverbWetGain ─────┘
+//              ┌─────────────────────────────────────┐
+// source ──────> dryGain ─┼─> delayNode <-> feedbackGain ├─> destination
+//                         │      └────────> delayWetGain ─┤
+//                         └─> convolver ───> reverbWetGain ┘
 export class EffectsChain {
   private context: AudioContext
   private dryGain: GainNode
@@ -61,7 +65,7 @@ export class EffectsChain {
     this.delayFeedbackGain = this.context.createGain()
     this.delayWetGain = this.context.createGain()
     this.delayWetGain.gain.value = 0
-    source.connect(this.delayNode)
+    this.dryGain.connect(this.delayNode)
     this.delayNode.connect(this.delayFeedbackGain)
     this.delayFeedbackGain.connect(this.delayNode)
     this.delayNode.connect(this.delayWetGain)
@@ -71,7 +75,7 @@ export class EffectsChain {
     convolver.buffer = createSyntheticImpulseResponse(this.context)
     this.reverbWetGain = this.context.createGain()
     this.reverbWetGain.gain.value = 0
-    source.connect(convolver)
+    this.dryGain.connect(convolver)
     convolver.connect(this.reverbWetGain)
     this.reverbWetGain.connect(this.context.destination)
   }
