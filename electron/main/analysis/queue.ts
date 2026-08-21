@@ -57,11 +57,12 @@ const WORKER_ENTRY = fileURLToPath(new URL('./analysis/worker.js', import.meta.u
 async function runAnalysisQueueInProcess(
   db: AppDatabase,
   tracks: { id: number; path: string }[],
-  options: { onProgress?: (progress: { done: number; total: number }) => void }
+  options: { onProgress?: (progress: { done: number; total: number }) => void; signal?: AbortSignal }
 ): Promise<void> {
   const total = tracks.length
   let done = 0
   for (const track of tracks) {
+    if (options.signal?.aborted) break
     await analyzeTrack(db, track)
     done++
     options.onProgress?.({ done, total })
@@ -77,7 +78,11 @@ async function runAnalysisQueueInProcess(
 export async function runAnalysisQueue(
   db: AppDatabase,
   tracks: { id: number; path: string }[],
-  options: { concurrency: number; onProgress?: (progress: { done: number; total: number }) => void }
+  options: {
+    concurrency: number
+    onProgress?: (progress: { done: number; total: number }) => void
+    signal?: AbortSignal
+  }
 ): Promise<void> {
   const total = tracks.length
   if (total === 0) return
@@ -104,12 +109,18 @@ export async function runAnalysisQueue(
     // 'analyzing' in the UI forever, since nothing else ever updates it.
     const inFlightTrackIds = new Set<number>()
 
-    function finish(err?: Error) {
+    // On a real failure in-flight tracks are marked 'error' (they were
+    // actually attempted and something went wrong); on a deliberate
+    // cancellation they're reset to 'pending' instead, since nothing
+    // actually went wrong with them — they just didn't get a chance to
+    // run, and should be picked up again by a future analysis run.
+    function finish(err?: Error, cancelled = false) {
       if (settled) return
       settled = true
-      if (err) {
+      if (err || cancelled) {
+        const resetStatus = cancelled ? 'pending' : 'error'
         for (const id of inFlightTrackIds) {
-          db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(id)
+          db.prepare('UPDATE tracks SET analysis_status = ? WHERE id = ?').run(resetStatus, id)
         }
         inFlightTrackIds.clear()
       }
@@ -118,8 +129,16 @@ export async function runAnalysisQueue(
       else resolve()
     }
 
+    if (options.signal) {
+      if (options.signal.aborted) {
+        finish(undefined, true)
+      } else {
+        options.signal.addEventListener('abort', () => finish(undefined, true), { once: true })
+      }
+    }
+
     function assignNext(worker: Worker) {
-      if (nextIndex >= tracks.length) return
+      if (settled || nextIndex >= tracks.length) return
       const track = tracks[nextIndex++]
       db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
       inFlightTrackIds.add(track.id)

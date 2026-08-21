@@ -5,6 +5,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const searchText = useCollectionStore((s) => s.searchText)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const runScan = useCollectionStore((s) => s.runScan)
+  const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
   const appVersion = useCollectionStore((s) => s.appVersion)
@@ -43,10 +44,16 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         <span className="material-symbols-outlined">settings</span>
       </button>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
-        <button onClick={() => runScan()} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <span className="material-symbols-outlined">refresh</span>
-          Update Collection
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={() => runScan()} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span className="material-symbols-outlined">refresh</span>
+            Update Collection
+          </button>
+          <button onClick={() => runAnalysis()} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span className="material-symbols-outlined">graphic_eq</span>
+            Analyse Collection
+          </button>
+        </div>
         {collectionFolder && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span

@@ -8,6 +8,7 @@ export function BatchTagBar() {
   const moods = useCollectionStore((s) => s.moods)
   const addTagsToCheckedTracks = useCollectionStore((s) => s.addTagsToCheckedTracks)
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
+  const runAnalysis = useCollectionStore((s) => s.runAnalysis)
 
   if (checkedTrackIds.size === 0) return null
 
@@ -65,6 +66,7 @@ export function BatchTagBar() {
           </option>
         ))}
       </select>
+      <button onClick={() => runAnalysis(Array.from(checkedTrackIds))}>Analyse</button>
       <button onClick={clearCheckedTracks}>Clear selection</button>
     </div>
   )

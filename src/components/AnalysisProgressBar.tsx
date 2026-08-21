@@ -1,5 +1,8 @@
+import { useCollectionStore } from '../state/store'
+
 export function AnalysisProgressBar({ progress }: { progress: { done: number; total: number } }) {
   const percent = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
+  const stopAnalysis = useCollectionStore((s) => s.stopAnalysis)
 
   return (
     <div
@@ -11,8 +14,13 @@ export function AnalysisProgressBar({ progress }: { progress: { done: number; to
         color: 'var(--color-text-dim)',
       }}
     >
-      <div>
-        Analyzing {progress.done} of {progress.total}…
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>
+          Analyzing {progress.done} of {progress.total}…
+        </span>
+        <button onClick={() => stopAnalysis()} style={{ padding: '2px 8px' }}>
+          Stop
+        </button>
       </div>
       <div
         style={{

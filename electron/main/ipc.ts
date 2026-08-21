@@ -113,12 +113,11 @@ function rowToTrack(row: TrackRow): Track {
 // always the one dialogs/events target — a captured reference to the
 // original window would be a destroyed BrowserWindow after that point.
 export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => BrowserWindow, backupFolder: string) {
-  // Guards scan:run against overlapping runs — without this, clicking
-  // "Update Collection" twice in quick succession could start two
-  // concurrent analysis queues both picking up the same still-pending
-  // tracks, racing to write the same rows and interleaving two different
-  // scan:progress totals.
+  // Guards scan:run against overlapping runs.
   let scanInProgress = false
+  // Guards analysis:run against overlapping runs, and gives analysis:stop
+  // something to abort — non-null exactly while an analysis is in flight.
+  let analysisAbortController: AbortController | null = null
 
   ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
 
@@ -158,49 +157,64 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     return folder
   })
 
+  // File discovery/diff only — does NOT trigger analysis. Analysis is a
+  // separate, explicit action (analysis:run below) so picking a folder or
+  // clicking "Update Collection" never kicks off a bulk BPM/waveform run
+  // the user didn't ask for.
   ipcMain.handle('scan:run', async (): Promise<ScanResult> => {
     if (scanInProgress) throw new Error('A scan is already in progress')
     scanInProgress = true
-
     try {
       const folder = getCollectionFolder()
       if (!folder) throw new Error('No collection folder configured')
-
-      const result = runScan(db, folder)
-
-      // Retries 'error' rows too, not just 'pending' — a track that failed
-      // analysis (e.g. from a since-fixed bug, or a file that was
-      // temporarily locked/unreadable) would otherwise stay stuck in
-      // 'error' forever, since nothing else ever re-queues it.
-      const pending = db
-        .prepare(
-          `SELECT id, path FROM tracks WHERE analysis_status IN ('pending', 'error') AND cloud_status = 'local'`
-        )
-        .all() as { id: number; path: string }[]
-
-      if (pending.length > 0) {
-        runAnalysisQueue(db, pending, {
-          concurrency: 4,
-          onProgress: (progress) => {
-            getMainWindow().webContents.send('scan:progress', progress)
-          },
-        })
-          .catch((err) => {
-            console.error('analysis queue failed', err)
-          })
-          .finally(() => {
-            getMainWindow().webContents.send('scan:progress', { done: pending.length, total: pending.length })
-            scanInProgress = false
-          })
-      } else {
-        scanInProgress = false
-      }
-
-      return result
-    } catch (err) {
+      return runScan(db, folder)
+    } finally {
       scanInProgress = false
-      throw err
     }
+  })
+
+  // trackIds: analyze exactly these tracks (e.g. a batch selection in the
+  // UI), regardless of their current analysis_status — an explicit
+  // "analyze this" request always re-runs, since the user asked for it
+  // directly. Omitted: analyze every 'pending'/'error' track in the
+  // collection (also retries past failures, e.g. from a since-fixed bug).
+  // Either way, only 'local' tracks — a cloud-only placeholder has no
+  // real audio to analyze yet.
+  ipcMain.handle('analysis:run', async (_e, trackIds?: number[]): Promise<void> => {
+    if (analysisAbortController) throw new Error('Analysis is already in progress')
+
+    const tracks =
+      trackIds && trackIds.length > 0
+        ? (db
+            .prepare(
+              `SELECT id, path FROM tracks WHERE cloud_status = 'local' AND id IN (${trackIds.map(() => '?').join(',')})`
+            )
+            .all(...trackIds) as { id: number; path: string }[])
+        : (db
+            .prepare(
+              `SELECT id, path FROM tracks WHERE analysis_status IN ('pending', 'error') AND cloud_status = 'local'`
+            )
+            .all() as { id: number; path: string }[])
+
+    if (tracks.length === 0) return
+
+    analysisAbortController = new AbortController()
+    try {
+      await runAnalysisQueue(db, tracks, {
+        concurrency: 4,
+        onProgress: (progress) => {
+          getMainWindow().webContents.send('scan:progress', progress)
+        },
+        signal: analysisAbortController.signal,
+      })
+    } finally {
+      getMainWindow().webContents.send('scan:progress', { done: tracks.length, total: tracks.length })
+      analysisAbortController = null
+    }
+  })
+
+  ipcMain.handle('analysis:stop', (): void => {
+    analysisAbortController?.abort()
   })
 
   ipcMain.handle('tracks:getAll', (): Track[] => {

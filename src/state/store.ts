@@ -76,6 +76,8 @@ interface CollectionState {
   setTrackMoods: (trackId: number, moodIds: number[]) => Promise<void>
   setSearchText: (text: string) => void
   runScan: () => Promise<void>
+  runAnalysis: (trackIds?: number[]) => Promise<void>
+  stopAnalysis: () => Promise<void>
   createGenre: (name: string) => Promise<void>
   createSubgenre: (name: string, genreId: number) => Promise<void>
   createMood: (name: string) => Promise<void>
@@ -196,6 +198,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // rejection or stop the caller from treating the pick as successful.
     try {
       await get().runScan()
+      // Analysis is a separate, explicit step (never automatic) — but
+      // right after picking a brand-new folder, the whole collection is
+      // unanalyzed, so it's worth asking once rather than making the user
+      // discover the separate "Analyse Collection" button on their own.
+      const hasUnanalyzed = get().tracks.some(
+        (t) => t.analysisStatus === 'pending' || t.analysisStatus === 'error'
+      )
+      if (hasUnanalyzed && window.confirm('Do you want to analyse all tracks?')) {
+        await get().runAnalysis()
+      }
     } catch (err) {
       console.error('scan after folder change failed', err)
     }
@@ -254,6 +266,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   runScan: async () => {
     await window.api.scanCollection()
     await get().loadAll()
+  },
+
+  // Progress is picked up via the existing scan:progress listener/
+  // refreshTracks (wired once, globally, in App.tsx) — no separate
+  // polling needed here.
+  runAnalysis: async (trackIds) => {
+    await window.api.analyzeCollection(trackIds)
+  },
+
+  stopAnalysis: async () => {
+    await window.api.stopAnalysis()
   },
 
   createGenre: async (name) => {
