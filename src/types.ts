@@ -38,4 +38,5 @@ export interface Mood {
 export interface BackupInfo {
   backupFolder: string
   lastBackupAt: string | null
+  lastBackupError: string | null
 }

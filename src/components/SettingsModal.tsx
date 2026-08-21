@@ -76,6 +76,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 Last backup:{' '}
                 {backupInfo.lastBackupAt ? new Date(backupInfo.lastBackupAt).toLocaleString() : 'Never yet'}
               </p>
+              {backupInfo.lastBackupError && (
+                <p style={{ margin: '4px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
+                  ⚠ Last backup failed: {backupInfo.lastBackupError}
+                </p>
+              )}
             </>
           ) : (
             <p style={{ margin: 0, color: 'var(--color-text-dim)' }}>Loading…</p>

@@ -1,6 +1,6 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import type { AppDatabase } from './db'
-import { getCollectionFolder, setCollectionFolder, getLastBackupAt } from './config'
+import { getCollectionFolder, setCollectionFolder, getLastBackupAt, getLastBackupError } from './config'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { runAnalysisQueue } from './analysis/queue'
@@ -94,6 +94,7 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({
     backupFolder,
     lastBackupAt: getLastBackupAt(),
+    lastBackupError: getLastBackupError(),
   }))
 
   ipcMain.handle('config:chooseCollectionFolder', async (): Promise<string | null> => {
