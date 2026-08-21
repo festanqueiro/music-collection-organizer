@@ -147,6 +147,7 @@ export default function App() {
               {leftView === 'folders' ? (
                 <FolderTree
                   rootPath={collectionFolder}
+                  selectedFolder={selectedFolder}
                   onSelect={(folder) => {
                     setSelectedFolder(folder)
                     clearCheckedTracks()

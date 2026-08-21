@@ -1,20 +1,16 @@
 // src/components/DetailPanel.tsx
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { formatDuration } from '../format'
 import type { Track } from '../types'
 
-function formatDuration(totalSeconds: number): string {
-  const total = Math.round(totalSeconds)
-  const minutes = Math.floor(total / 60)
-  const seconds = total % 60
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`
-}
-
-// The full set of ID3-derived metadata fields this app extracts — collapsed
-// by default since Genre/Sub-Genre/Mood management above is the primary,
-// frequently-used surface; this is reference info for when you need it.
+// The full set of ID3-derived metadata fields this app extracts — expanded
+// by default: checking a track's details is exactly the moment this
+// reference info is wanted, so making the user open it every time added
+// friction without protecting anything. Still collapsible for anyone who
+// wants it out of the way.
 function FullId3Section({ track }: { track: Track }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const fields: [string, string | number | null][] = [
     ['Title', track.title],
     ['Artist', track.artist],
@@ -124,9 +120,6 @@ export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | 
   const moods = useCollectionStore((s) => s.moods)
   const trackTags = useCollectionStore((s) => s.trackTags)
   const loadAll = useCollectionStore((s) => s.loadAll)
-  const playlist = useCollectionStore((s) => s.playlist)
-  const playTrackNow = useCollectionStore((s) => s.playTrackNow)
-  const currentTrackId = playlist[0] ?? null
   const setTrackGenres = useCollectionStore((s) => s.setTrackGenres)
   const setTrackSubgenres = useCollectionStore((s) => s.setTrackSubgenres)
   const setTrackMoods = useCollectionStore((s) => s.setTrackMoods)
@@ -135,6 +128,24 @@ export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | 
   const createMood = useCollectionStore((s) => s.createMood)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [artworkUrl, setArtworkUrl] = useState<string | null>(null)
+
+  // Fetched on demand per selected track, not bulk-loaded with the rest of
+  // the collection — see extractArtwork's own comment in the main process
+  // for why. Re-fetches whenever the selected track changes; a stale
+  // result from a track the user has since navigated away from is
+  // discarded rather than applied.
+  useEffect(() => {
+    if (!selectedTrack) return
+    let cancelled = false
+    setArtworkUrl(null)
+    window.api.getTrackArtwork(selectedTrack.id).then((url) => {
+      if (!cancelled) setArtworkUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedTrack?.id])
 
   if (!selectedTrack) return <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>Select a track</div>
 
@@ -210,11 +221,6 @@ export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | 
   return (
     <div style={{ padding: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <button onClick={() => playTrackNow(track.id)} title="Play track now">
-          <span className="material-symbols-outlined">
-            {track.id === currentTrackId ? 'graphic_eq' : 'play_arrow'}
-          </span>
-        </button>
         <h3 style={{ margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {track.title ?? track.filename}
         </h3>
@@ -222,6 +228,19 @@ export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | 
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
+      {artworkUrl && (
+        <img
+          src={artworkUrl}
+          alt="Album artwork"
+          style={{
+            width: '100%',
+            aspectRatio: '1 / 1',
+            objectFit: 'cover',
+            borderRadius: '6px',
+            marginTop: '8px',
+          }}
+        />
+      )}
       <p>{track.artist}</p>
 
       <div style={{ marginTop: '16px' }}>

@@ -1,17 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { formatDuration } from '../format'
 import type { Track } from '../types'
 
 type SortKey = 'title' | 'filename' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
 
-function formatDuration(totalSeconds: number): string {
-  const total = Math.round(totalSeconds)
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const seconds = total % 60
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
+const contextMenuItemStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  width: '100%',
+  textAlign: 'left' as const,
+  background: 'none',
+  border: 'none',
+  padding: '4px 8px',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap' as const,
 }
+
+const contextMenuIconStyle = { fontSize: '16px' }
 
 export function TrackTable({
   onSelect,
@@ -251,17 +258,11 @@ export function TrackTable({
               playTrackNow(contextMenu.trackId)
               setContextMenu(null)
             }}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'none',
-              border: 'none',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
+            style={contextMenuItemStyle}
           >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              play_arrow
+            </span>
             Play track now
           </button>
           <button
@@ -269,35 +270,23 @@ export function TrackTable({
               addToPlaylist(contextMenu.trackId)
               setContextMenu(null)
             }}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'none',
-              border: 'none',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
+            style={contextMenuItemStyle}
           >
-            Add to playlist
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              playlist_add
+            </span>
+            Add to queue
           </button>
           <button
             onClick={() => {
               playNext(contextMenu.trackId)
               setContextMenu(null)
             }}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'none',
-              border: 'none',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
+            style={contextMenuItemStyle}
           >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              skip_next
+            </span>
             Play next
           </button>
           <button
@@ -305,20 +294,26 @@ export function TrackTable({
               runAnalysis([contextMenu.trackId])
               setContextMenu(null)
             }}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'none',
-              border: 'none',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
+            style={contextMenuItemStyle}
           >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              graphic_eq
+            </span>
             {tracks.find((t) => t.id === contextMenu.trackId)?.analysisStatus === 'done'
               ? 'Re-analyse track'
               : 'Analyse track'}
+          </button>
+          <button
+            onClick={() => {
+              window.api.showTrackInFolder(contextMenu.trackId)
+              setContextMenu(null)
+            }}
+            style={contextMenuItemStyle}
+          >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              folder_open
+            </span>
+            Show in File Explorer
           </button>
         </div>
       )}

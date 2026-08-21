@@ -1,4 +1,5 @@
 // src/components/FxPanel.tsx
+import { useRef } from 'react'
 import { useCollectionStore } from '../state/store'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import type { EffectsSettings, Track } from '../types'
@@ -13,6 +14,26 @@ export function FxPanel({ track }: { track: Track | null }) {
 
   function updateDelay(partial: Partial<EffectsSettings['delay']>) {
     setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, ...partial } })
+  }
+
+  // Dragging the Time slider fires a native input event on every pixel of
+  // movement — each one used to trigger a full store update, re-render,
+  // and a fresh DelayNode.delayTime automation call. Coalescing to at most
+  // one commit per animation frame cuts that churn dramatically without
+  // adding any perceptible input lag, and reduces how often the delay
+  // line's read position gets nudged, which is what caused the glitch.
+  const pendingTimeMs = useRef<number | null>(null)
+  const rafId = useRef<number | null>(null)
+  function handleTimeChange(value: number) {
+    pendingTimeMs.current = value
+    if (rafId.current !== null) return
+    rafId.current = requestAnimationFrame(() => {
+      rafId.current = null
+      if (pendingTimeMs.current !== null) {
+        updateDelay({ timeMs: pendingTimeMs.current })
+        pendingTimeMs.current = null
+      }
+    })
   }
 
   function updateReverb(partial: Partial<EffectsSettings['reverb']>) {
@@ -49,7 +70,7 @@ export function FxPanel({ track }: { track: Track | null }) {
               max={1000}
               step={10}
               value={effectsSettings.delay.timeMs}
-              onChange={(e) => updateDelay({ timeMs: Number(e.target.value) })}
+              onChange={(e) => handleTimeChange(Number(e.target.value))}
               style={{ width: '100px' }}
             />
             <MidiLearnBadge control="delay.timeMs" />

@@ -46,6 +46,23 @@ function setTrackTags(
   set({ trackTags })
 }
 
+// Kicks off analysis for one track in the background if it needs it —
+// shared by ensureTrackReady (the track becoming current) and the queueing
+// actions below (a track landing in the queue at all, even before it's
+// current, per the same "explicit user action" reasoning: adding it to
+// the queue is itself deliberate). A cloud-only track has no local file
+// yet — analysis:run's own query already excludes those, but checking
+// here too avoids a pointless IPC round-trip for one that obviously can't
+// run.
+function triggerBackgroundAnalysis(get: StoreApi<CollectionState>['getState'], trackId: number): void {
+  const track = get().tracks.find((t) => t.id === trackId)
+  if (track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')) {
+    get()
+      .runAnalysis([trackId])
+      .catch((err) => console.error('background analysis of queued track failed', err))
+  }
+}
+
 // A cloud-only track has no local audio to stream yet, so it's downloaded
 // first (blocking — nothing to play until it lands). A pending/error track
 // still plays immediately (analysis isn't needed for playback), but kicks
@@ -53,8 +70,7 @@ function setTrackTags(
 // the player is itself an explicit user action, so triggering analysis as
 // its consequence is fine; this is distinct from analysing the whole
 // collection silently on its own. Called only by actions that make a track
-// the one actively playing (playTrackNow/advanceToNext) — queueing actions
-// (addToPlaylist/playNext) don't touch a track until it's current.
+// the one actively playing (playTrackNow/advanceToNext).
 async function ensureTrackReady(
   set: StoreApi<CollectionState>['setState'],
   get: StoreApi<CollectionState>['getState'],
@@ -73,12 +89,7 @@ async function ensureTrackReady(
     }
   }
 
-  const current = get().tracks.find((t) => t.id === trackId)
-  if (current && (current.analysisStatus === 'pending' || current.analysisStatus === 'error')) {
-    get()
-      .runAnalysis([trackId])
-      .catch((err) => console.error('background analysis of playing track failed', err))
-  }
+  triggerBackgroundAnalysis(get, trackId)
 }
 
 interface CollectionState {
@@ -111,6 +122,11 @@ interface CollectionState {
   setEffectsSettings: (settings: EffectsSettings) => void
   playerVolume: number
   setPlayerVolume: (volume: number) => void
+  // 0..1 fraction of the current track played — Player.tsx pushes this on
+  // every timeupdate so the queue view (a sibling, not a descendant of
+  // Player) can render a progress line under the currently-playing row.
+  playbackProgress: number
+  setPlaybackProgress: (progress: number) => void
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
@@ -163,6 +179,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   appVersion: null,
   effectsSettings: DEFAULT_EFFECTS_SETTINGS,
   playerVolume: 1,
+  playbackProgress: 0,
   midiMappings: {},
   midiLearningControl: null,
 
@@ -193,6 +210,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setPlayerVolume: (volume) => set({ playerVolume: volume }),
+
+  setPlaybackProgress: (progress) => set({ playbackProgress: progress }),
 
   loadMidiMappings: async () => {
     const mappings = await window.api.getMidiMappings()
@@ -331,9 +350,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     await ensureTrackReady(set, get, trackId)
   },
 
-  addToPlaylist: (trackId) => set({ playlist: addToPlaylistPure(get().playlist, trackId) }),
+  addToPlaylist: (trackId) => {
+    set({ playlist: addToPlaylistPure(get().playlist, trackId) })
+    triggerBackgroundAnalysis(get, trackId)
+  },
 
-  playNext: (trackId) => set({ playlist: playNextPure(get().playlist, trackId) }),
+  playNext: (trackId) => {
+    set({ playlist: playNextPure(get().playlist, trackId) })
+    triggerBackgroundAnalysis(get, trackId)
+  },
 
   removeFromPlaylist: (index) => set({ playlist: removeFromPlaylistPure(get().playlist, index) }),
 

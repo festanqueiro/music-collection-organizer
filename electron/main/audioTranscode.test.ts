@@ -65,4 +65,22 @@ describe('getPlayableFilePath', () => {
     expect(second).toBe(first)
     expect(statSync(second).mtimeMs).toBe(firstMtime)
   })
+
+  // Regression test: playback (main thread) and analysis (a worker_thread)
+  // can both hit the same not-yet-cached AIFF at the same moment — e.g.
+  // playing a pending track now auto-triggers its analysis. Both used to
+  // write to the exact same .tmp filename, so whichever rename ran second
+  // crashed with ENOENT because its source had already been moved by the
+  // first. Two concurrent calls in the same process is as close as a test
+  // can get to that cross-thread race without actually spinning up a
+  // worker_thread.
+  it('does not crash when two concurrent calls race on the same uncached file', async () => {
+    const aiffPath = createTestToneAiff(dir)
+    const [first, second] = await Promise.all([
+      getPlayableFilePath(aiffPath, cacheDir),
+      getPlayableFilePath(aiffPath, cacheDir),
+    ])
+    expect(first).toBe(second)
+    expect(statSync(first).size).toBeGreaterThan(0)
+  })
 })

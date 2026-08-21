@@ -4,6 +4,7 @@ import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
 import { MidiLearnBadge } from './MidiLearnBadge'
+import { formatDuration } from '../format'
 import type { Track } from '../types'
 
 // Renders as the app's footer player bar: track name + BPM, play/pause,
@@ -18,6 +19,9 @@ export function Player({ track }: { track: Track }) {
   const effectsChainRef = useRef<EffectsChain | null>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0) // 0..1 fraction of duration played
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [showTimeLeft, setShowTimeLeft] = useState(false)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const playerVolume = useCollectionStore((s) => s.playerVolume)
@@ -26,6 +30,18 @@ export function Player({ track }: { track: Track }) {
   const advanceToNext = useCollectionStore((s) => s.advanceToNext)
   const playerExpanded = useCollectionStore((s) => s.playerExpanded)
   const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
+  const setPlaybackProgress = useCollectionStore((s) => s.setPlaybackProgress)
+  const playlist = useCollectionStore((s) => s.playlist)
+  const hasNext = playlist.length > 1
+
+  // Player remounts fresh per track, so this also resets the shared
+  // progress back to 0 as soon as a new track takes over, rather than
+  // leaving the previous track's leftover fraction showing in the queue.
+  useEffect(() => {
+    setPlaybackProgress(0)
+    return () => setPlaybackProgress(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function toggle() {
     const audio = audioRef.current
@@ -116,6 +132,8 @@ export function Player({ track }: { track: Track }) {
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
     audio.currentTime = ratio * audio.duration
     setProgress(ratio)
+    setCurrentTime(audio.currentTime)
+    setPlaybackProgress(ratio)
   }
 
   const peaks = track.waveformPeaks
@@ -138,11 +156,26 @@ export function Player({ track }: { track: Track }) {
         onError={() => setPlaying(false)}
         onTimeUpdate={(e) => {
           const audio = e.currentTarget
-          if (audio.duration && isFinite(audio.duration)) setProgress(audio.currentTime / audio.duration)
+          setCurrentTime(audio.currentTime)
+          if (audio.duration && isFinite(audio.duration)) {
+            const ratio = audio.currentTime / audio.duration
+            setProgress(ratio)
+            setPlaybackProgress(ratio)
+            setDuration(audio.duration)
+          }
         }}
       />
 
       <div style={{ display: 'flex', alignItems: 'center' }}>
+        {track.analysisStatus === 'analyzing' && (
+          <span
+            className="material-symbols-outlined spin"
+            style={{ fontSize: '16px', marginRight: '4px', color: 'var(--color-text-dim)', flexShrink: 0 }}
+            title="Analyzing…"
+          >
+            progress_activity
+          </span>
+        )}
         <span
           style={{
             overflow: 'hidden',
@@ -154,10 +187,28 @@ export function Player({ track }: { track: Track }) {
           }}
         >
           {track.title ?? track.filename}
+          {track.artist && <span style={{ fontWeight: 400, color: 'var(--color-text-dim)' }}> — {track.artist}</span>}
         </span>
         <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px', flexShrink: 0 }}>
           {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
         </span>
+        {(duration || track.duration) && (
+          <span
+            onClick={() => setShowTimeLeft((v) => !v)}
+            title={showTimeLeft ? 'Showing time left — click to show elapsed / total' : 'Click to show time left'}
+            style={{
+              fontSize: '11px',
+              color: 'var(--color-text-dim)',
+              marginLeft: '8px',
+              flexShrink: 0,
+              cursor: 'pointer',
+            }}
+          >
+            {showTimeLeft
+              ? `-${formatDuration(Math.max(0, (duration || track.duration!) - currentTime))} / ${formatDuration(duration || track.duration!)}`
+              : `${formatDuration(currentTime)} / ${formatDuration(duration || track.duration!)}`}
+          </span>
+        )}
         {track.cloudStatus === 'local' && (
           <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px', flexShrink: 0 }}>
             Synced locally
@@ -170,7 +221,7 @@ export function Player({ track }: { track: Track }) {
         )}
         <button
           onClick={() => setPlayerExpanded(!playerExpanded)}
-          title={playerExpanded ? 'Collapse playlist' : 'Expand playlist'}
+          title={playerExpanded ? 'Collapse queue' : 'Expand queue'}
           style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
         >
           <span className="material-symbols-outlined">
@@ -182,6 +233,10 @@ export function Player({ track }: { track: Track }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
+        </button>
+
+        <button onClick={() => advanceToNext()} disabled={!hasNext} title="Play next">
+          <span className="material-symbols-outlined">skip_next</span>
         </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -226,6 +281,9 @@ export function Player({ track }: { track: Track }) {
               style={{ height: '40px', borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
             />
           )}
+          <div style={{ marginTop: '4px', height: '2px', background: 'var(--color-border)', borderRadius: '1px' }}>
+            <div style={{ width: `${progress * 100}%`, height: '100%', background: 'var(--color-accent)' }} />
+          </div>
         </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Volume">

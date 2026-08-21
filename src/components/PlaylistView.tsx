@@ -1,7 +1,8 @@
 // src/components/PlaylistView.tsx
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { FxPanel } from './FxPanel'
+import { formatDuration } from '../format'
 
 // Full-screen overlay above the toolbar/left/center/right grid areas while
 // the footer Player (with its own compact transport strip and
@@ -20,9 +21,14 @@ export function PlaylistView() {
   const removeFromPlaylist = useCollectionStore((s) => s.removeFromPlaylist)
   const movePlaylistItem = useCollectionStore((s) => s.movePlaylistItem)
   const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
+  const playbackProgress = useCollectionStore((s) => s.playbackProgress)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
 
   const currentTrack = playlist[0] != null ? (tracks.find((t) => t.id === playlist[0]) ?? null) : null
+
+  const totalDuration = useMemo(() => {
+    return playlist.reduce((sum, trackId) => sum + (tracks.find((t) => t.id === trackId)?.duration ?? 0), 0)
+  }, [playlist, tracks])
 
   return (
     <div
@@ -44,7 +50,7 @@ export function PlaylistView() {
           borderBottom: '1px solid var(--color-border)',
         }}
       >
-        <h3 style={{ margin: 0 }}>Playlist</h3>
+        <h3 style={{ margin: 0 }}>Queue</h3>
         <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', marginLeft: '12px' }}>
           <input
             type="checkbox"
@@ -56,9 +62,14 @@ export function PlaylistView() {
         <button onClick={() => advanceToNext()} disabled={playlist.length === 0} style={{ fontSize: '12px' }}>
           Play next
         </button>
+        {playlist.length > 0 && (
+          <span style={{ fontSize: '12px', color: 'var(--color-text-dim)' }}>
+            {playlist.length} track{playlist.length === 1 ? '' : 's'} · {formatDuration(totalDuration)} total
+          </span>
+        )}
         <button
           onClick={() => setPlayerExpanded(false)}
-          title="Collapse playlist"
+          title="Collapse queue"
           style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}
         >
           <span className="material-symbols-outlined">keyboard_arrow_down</span>
@@ -69,7 +80,7 @@ export function PlaylistView() {
         <div style={{ width: '50%', overflowY: 'auto', borderRight: '1px solid var(--color-border)' }}>
           {playlist.length === 0 ? (
             <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>
-              Playlist is empty. Add tracks from the collection view via right-click.
+              Queue is empty. Add tracks from the collection view via right-click.
             </div>
           ) : (
             playlist.map((trackId, index) => {
@@ -88,38 +99,59 @@ export function PlaylistView() {
                   }}
                   onDoubleClick={() => playTrackNow(trackId)}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
                     padding: '8px 16px',
                     borderBottom: '1px solid var(--color-border)',
                     cursor: 'grab',
                     background: isCurrent ? 'var(--color-surface-raised)' : undefined,
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--color-text-dim)' }}>
-                    drag_indicator
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--color-text-dim)' }}>
+                      drag_indicator
+                    </span>
+                    {isCurrent && (
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--color-accent)' }}>
+                        graphic_eq
+                      </span>
+                    )}
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {track ? (track.title ?? track.filename) : `Track ${trackId}`}
+                      {track?.artist && (
+                        <span style={{ fontWeight: 400, color: 'var(--color-text-dim)' }}> — {track.artist}</span>
+                      )}
+                    </span>
+                    {track?.musicalKey && (
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>{track.musicalKey}</span>
+                    )}
+                    {track?.bpm && (
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>{Math.round(track.bpm)} BPM</span>
+                    )}
+                    {track?.duration && (
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
+                        {formatDuration(track.duration)}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => removeFromPlaylist(index)}
+                      title="Remove from queue"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                        close
+                      </span>
+                    </button>
+                  </div>
                   {isCurrent && (
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--color-accent)' }}>
-                      graphic_eq
-                    </span>
+                    <div style={{ marginTop: '6px', height: '2px', background: 'var(--color-border)', borderRadius: '1px' }}>
+                      <div
+                        style={{
+                          width: `${playbackProgress * 100}%`,
+                          height: '100%',
+                          background: 'var(--color-accent)',
+                        }}
+                      />
+                    </div>
                   )}
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {track ? (track.title ?? track.filename) : `Track ${trackId}`}
-                  </span>
-                  {track?.bpm && (
-                    <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>{Math.round(track.bpm)} BPM</span>
-                  )}
-                  <button
-                    onClick={() => removeFromPlaylist(index)}
-                    title="Remove from playlist"
-                    style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                      close
-                    </span>
-                  </button>
                 </div>
               )
             })
