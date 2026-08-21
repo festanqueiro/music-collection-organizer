@@ -12,6 +12,8 @@ import { SIREN_MODES, SIREN_BEATS, type EffectsSettings, type SirenSettings, typ
 export function FxPanel({ track }: { track: Track | null }) {
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const setEffectsSettings = useCollectionStore((s) => s.setEffectsSettings)
+  const sirenTriggered = useCollectionStore((s) => s.sirenTriggered)
+  const setSirenTriggered = useCollectionStore((s) => s.setSirenTriggered)
 
   function updateDelay(partial: Partial<EffectsSettings['delay']>) {
     setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, ...partial } })
@@ -234,30 +236,44 @@ export function FxPanel({ track }: { track: Track | null }) {
             </select>
             <MidiLearnBadge control="siren.beat" />
           </label>
-          <button
-            disabled={!effectsSettings.siren.enabled || effectsSettings.siren.beat !== 'off'}
-            title={
-              !effectsSettings.siren.enabled
-                ? 'Enable the siren first'
-                : effectsSettings.siren.beat !== 'off'
-                  ? 'Manual trigger is disabled while Beat is auto-firing'
-                  : 'Hold to sound'
-            }
-            style={{ marginTop: '4px', alignSelf: 'flex-start' }}
-            // Pointer capture so the pointerup always lands on this button
-            // even if the mouse drags off it mid-hold — without it,
-            // dragging off and releasing leaves the siren stuck on.
-            onPointerDown={(e) => {
-              e.currentTarget.setPointerCapture(e.pointerId)
-              const engine = getDubSirenEngine()
-              engine.resume()
-              engine.triggerDown()
-            }}
-            onPointerUp={() => getDubSirenEngine().triggerUp()}
-            onLostPointerCapture={() => getDubSirenEngine().triggerUp()}
-          >
-            SIREN
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
+            <button
+              disabled={!effectsSettings.siren.enabled || effectsSettings.siren.beat !== 'off'}
+              title={
+                !effectsSettings.siren.enabled
+                  ? 'Enable the siren first'
+                  : effectsSettings.siren.beat !== 'off'
+                    ? 'Manual trigger is disabled while Beat is auto-firing'
+                    : 'Hold to sound'
+              }
+              style={
+                sirenTriggered
+                  ? { background: 'var(--color-accent)', color: 'var(--color-bg)', borderColor: 'var(--color-accent)' }
+                  : undefined
+              }
+              // Pointer capture so the pointerup always lands on this button
+              // even if the mouse drags off it mid-hold — without it,
+              // dragging off and releasing leaves the siren stuck on.
+              onPointerDown={(e) => {
+                e.currentTarget.setPointerCapture(e.pointerId)
+                const engine = getDubSirenEngine()
+                engine.resume()
+                engine.triggerDown()
+                setSirenTriggered(true)
+              }}
+              onPointerUp={() => {
+                getDubSirenEngine().triggerUp()
+                setSirenTriggered(false)
+              }}
+              onLostPointerCapture={() => {
+                getDubSirenEngine().triggerUp()
+                setSirenTriggered(false)
+              }}
+            >
+              SIREN
+            </button>
+            <MidiLearnBadge control="siren.trigger" />
+          </div>
         </div>
       </div>
     </div>

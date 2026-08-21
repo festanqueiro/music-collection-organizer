@@ -79,15 +79,18 @@ export default function App() {
       const engine = getDubSirenEngine()
       engine.resume()
       engine.triggerDown()
+      useCollectionStore.getState().setSirenTriggered(true)
     }
     function handleKeyUp(e: KeyboardEvent) {
       if (e.key !== 's') return
       getDubSirenEngine().triggerUp()
+      useCollectionStore.getState().setSirenTriggered(false)
     }
     // Holding S and Cmd-Tabbing away means keyup never arrives — without
     // this, the siren would sound forever behind another app.
     function handleBlur() {
       getDubSirenEngine().triggerUp()
+      useCollectionStore.getState().setSirenTriggered(false)
     }
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('keyup', handleKeyUp)

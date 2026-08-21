@@ -14,6 +14,7 @@ import type {
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS, SIREN_MODES, SIREN_BEATS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
+import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import {
   playTrackNow as playTrackNowPure,
@@ -127,6 +128,12 @@ interface CollectionState {
   // Player) can render a progress line under the currently-playing row.
   playbackProgress: number
   setPlaybackProgress: (progress: number) => void
+  // Whether the dub siren's trigger is currently held down — shared here
+  // (not local component state) since mouse, the hold-S key, and a bound
+  // MIDI button all sound the trigger from three different places, and
+  // the FX panel button's pressed styling should reflect all of them.
+  sirenTriggered: boolean
+  setSirenTriggered: (triggered: boolean) => void
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
@@ -180,6 +187,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   effectsSettings: DEFAULT_EFFECTS_SETTINGS,
   playerVolume: 1,
   playbackProgress: 0,
+  sirenTriggered: false,
   midiMappings: {},
   midiLearningControl: null,
 
@@ -213,6 +221,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setPlayerVolume: (volume) => set({ playerVolume: volume }),
 
   setPlaybackProgress: (progress) => set({ playbackProgress: progress }),
+
+  setSirenTriggered: (triggered) => set({ sirenTriggered: triggered }),
 
   loadMidiMappings: async () => {
     const mappings = await window.api.getMidiMappings()
@@ -271,6 +281,27 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
           ...effectsSettings,
           siren: { ...effectsSettings.siren, beat: scaleMidiValueToOption(SIREN_BEATS, value) },
         })
+      }
+      return
+    }
+
+    // Momentary trigger, not a toggle like delay.enabled/reverb.enabled —
+    // press (nonzero) sounds the siren for as long as it's held, release
+    // (0) stops it, mirroring the on-screen button and the hold-S
+    // keyboard shortcut exactly (same enabled/beat guard, same engine
+    // calls) rather than flipping a persisted setting.
+    if (match === 'siren.trigger') {
+      const { siren } = get().effectsSettings
+      const engine = getDubSirenEngine()
+      if (value !== 0) {
+        if (siren.enabled && siren.beat === 'off') {
+          engine.resume()
+          engine.triggerDown()
+          set({ sirenTriggered: true })
+        }
+      } else {
+        engine.triggerUp()
+        set({ sirenTriggered: false })
       }
       return
     }

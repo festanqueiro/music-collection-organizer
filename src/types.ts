@@ -116,6 +116,7 @@ export type MidiControlKey =
   | 'siren.level'
   | 'siren.echoFeedback'
   | 'siren.beat'
+  | 'siren.trigger'
 
 export interface MidiBinding {
   channel: number

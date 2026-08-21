@@ -159,6 +159,9 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'siren.level': { min: 0, max: 1 },
   'siren.echoFeedback': { min: 0, max: 0.85 },
   'siren.beat': { min: 0, max: SIREN_BEATS.length - 1 },
+  // Never read through scaleMidiValue either — a momentary button, not a
+  // range. Present only because the Record above is total.
+  'siren.trigger': { min: 0, max: 1 },
 }
 
 // Scales a 7-bit MIDI CC value (0-127) to a control's real-world range.
