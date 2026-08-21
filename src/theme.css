@@ -1,0 +1,82 @@
+/* src/theme.css */
+@import '@fontsource/jost/400.css';
+@import '@fontsource/jost/500.css';
+@import '@fontsource/jost/600.css';
+@import 'material-symbols/outlined.css';
+
+:root {
+  --color-bg: #12151a;
+  --color-surface: #1b1f26;
+  --color-surface-raised: #232833;
+  --color-border: #2b3140;
+  --color-text: #e6e9ef;
+  --color-text-dim: #9aa3b2;
+  --color-accent: #2dd4bf;
+  --color-accent-strong: #14b8a6;
+  --color-secondary: #a78bfa;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: 'Jost', sans-serif;
+  font-size: 12px;
+}
+
+/* Form controls and headings don't inherit body's font-size by default
+   (browsers give them their own UA-stylesheet sizes) — without this,
+   "12px everywhere" would miss buttons/inputs and every <h1>-<h6>. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
+}
+
+.material-symbols-outlined {
+  font-size: 20px;
+  vertical-align: middle;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr 320px;
+  height: 100vh;
+}
+
+.pane {
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+}
+
+.pane:last-child {
+  border-right: none;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
