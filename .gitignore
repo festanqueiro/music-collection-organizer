@@ -6,3 +6,5 @@ build/
 *.log
 .env
 .env.local
+.superpowers/
+*.tsbuildinfo
