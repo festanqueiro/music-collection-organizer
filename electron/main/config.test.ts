@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import Store from 'electron-store'
-import { DEFAULT_EFFECTS_SETTINGS } from '../../src/types'
+import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_SIREN_SETTINGS } from '../../src/types'
 import {
   getCollectionFolder,
   setCollectionFolder,
@@ -68,9 +68,38 @@ describe('config store', () => {
   })
 
   it('persists a set effects settings', () => {
-    const settings = { delay: { enabled: true, timeMs: 500, feedback: 0.5, mix: 0.6 }, reverb: { enabled: true, mix: 0.4 } }
+    const settings = {
+      delay: { enabled: true, timeMs: 500, feedback: 0.5, mix: 0.6 },
+      reverb: { enabled: true, mix: 0.4 },
+      siren: { ...DEFAULT_SIREN_SETTINGS, enabled: true, mode: 'bomb' as const },
+    }
     setEffectsSettings(settings)
     expect(getEffectsSettings()).toEqual(settings)
+  })
+
+  it('merges in full siren defaults for a stored blob with no siren key at all (pre-siren config)', () => {
+    // Bypasses setEffectsSettings (which always writes a valid, current-
+    // shape EffectsSettings) to simulate a config file saved before the
+    // siren module existed.
+    const store = new Store({ name: `test-presiren-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    store.set('effectsSettings', { delay: DEFAULT_EFFECTS_SETTINGS.delay, reverb: DEFAULT_EFFECTS_SETTINGS.reverb })
+    __setStoreForTests(store)
+    expect(getEffectsSettings().siren).toEqual(DEFAULT_SIREN_SETTINGS)
+  })
+
+  it('keeps a partial stored siren object\'s own values, filling only what is missing', () => {
+    const store = new Store({ name: `test-partial-siren-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    store.set('effectsSettings', {
+      delay: DEFAULT_EFFECTS_SETTINGS.delay,
+      reverb: DEFAULT_EFFECTS_SETTINGS.reverb,
+      siren: { enabled: true, mode: 'laser' },
+    })
+    __setStoreForTests(store)
+    expect(getEffectsSettings().siren).toEqual({ ...DEFAULT_SIREN_SETTINGS, enabled: true, mode: 'laser' })
   })
 
   it('returns an empty object for midi mappings when unset', () => {

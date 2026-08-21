@@ -13,6 +13,7 @@ import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
 import { subscribeToMidiCc } from './audio/midi'
+import { getDubSirenEngine } from './audio/sirenEngine'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags'
@@ -37,6 +38,8 @@ export default function App() {
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const playlist = useCollectionStore((s) => s.playlist)
   const playerExpanded = useCollectionStore((s) => s.playerExpanded)
+  const effectsSettings = useCollectionStore((s) => s.effectsSettings)
+  const modalOpen = useCollectionStore((s) => s.modalOpen)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -52,6 +55,49 @@ export default function App() {
       handleMidiControlChange(channel, controller, value, kind)
     })
   }, [handleMidiControlChange])
+
+  // The siren is a global module singleton (its own AudioContext, not
+  // per-track like EffectsChain) — pushing settings here, not from inside
+  // Player (which remounts per track and unmounts entirely when the queue
+  // is empty), keeps it in sync regardless of what's playing.
+  useEffect(() => {
+    getDubSirenEngine().update(effectsSettings.siren)
+  }, [effectsSettings.siren])
+
+  // Hold-S keyboard trigger, mirroring the FxPanel button. Lives here
+  // (not in Player) for the same reason as the effect above — it must
+  // keep working even when nothing is queued.
+  useEffect(() => {
+    function isTypingTarget(target: EventTarget | null): boolean {
+      const el = target as HTMLElement
+      return ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(el?.tagName)
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (modalOpen || isTypingTarget(e.target) || e.key !== 's' || e.repeat) return
+      const { siren } = useCollectionStore.getState().effectsSettings
+      if (!siren.enabled || siren.beat !== 'off') return
+      const engine = getDubSirenEngine()
+      engine.resume()
+      engine.triggerDown()
+    }
+    function handleKeyUp(e: KeyboardEvent) {
+      if (e.key !== 's') return
+      getDubSirenEngine().triggerUp()
+    }
+    // Holding S and Cmd-Tabbing away means keyup never arrives — without
+    // this, the siren would sound forever behind another app.
+    function handleBlur() {
+      getDubSirenEngine().triggerUp()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [modalOpen])
 
   useEffect(() => {
     loadAll()

@@ -12,8 +12,8 @@ import type {
   MidiControlKey,
   MidiBinding,
 } from '../types'
-import { DEFAULT_EFFECTS_SETTINGS } from '../types'
-import { scaleMidiValue, sendMidiFeedback } from '../audio/midi'
+import { DEFAULT_EFFECTS_SETTINGS, SIREN_MODES, SIREN_BEATS } from '../types'
+import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import type { TrackTagIds } from './tagFilter'
 import {
   playTrackNow as playTrackNowPure,
@@ -185,7 +185,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   loadEffectsSettings: async () => {
     const settings = await window.api.getEffectsSettings()
-    set({ effectsSettings: settings })
+    // Never resume auto-firing a siren on launch, whatever was persisted.
+    set({ effectsSettings: { ...settings, siren: { ...settings.siren, beat: 'off' } } })
   },
 
   setEffectsSettings: (settings) => {
@@ -255,6 +256,25 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     })
     if (!match) return
 
+    // Discrete controls (a fixed option list, not a continuous range) are
+    // handled before scaleMidiValue — a knob bound to one of these sweeps
+    // through the options in order rather than producing a raw number.
+    if (match === 'siren.mode' || match === 'siren.beat') {
+      const effectsSettings = get().effectsSettings
+      if (match === 'siren.mode') {
+        get().setEffectsSettings({
+          ...effectsSettings,
+          siren: { ...effectsSettings.siren, mode: scaleMidiValueToOption(SIREN_MODES, value) },
+        })
+      } else {
+        get().setEffectsSettings({
+          ...effectsSettings,
+          siren: { ...effectsSettings.siren, beat: scaleMidiValueToOption(SIREN_BEATS, value) },
+        })
+      }
+      return
+    }
+
     const scaled = scaleMidiValue(match, value)
     if (match === 'volume') {
       get().setPlayerVolume(scaled)
@@ -288,6 +308,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       })
     } else if (match === 'reverb.mix') {
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, mix: scaled } })
+    } else if (match === 'siren.pitchHz') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, pitchHz: scaled } })
+    } else if (match === 'siren.speedHz') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, speedHz: scaled } })
+    } else if (match === 'siren.level') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, level: scaled } })
+    } else if (match === 'siren.echoFeedback') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, echoFeedback: scaled } })
     }
   },
 
