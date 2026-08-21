@@ -1,13 +1,15 @@
-import { app, BrowserWindow, net, protocol } from 'electron'
-import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { app, BrowserWindow, protocol } from 'electron'
+import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createReadStream, statSync } from 'node:fs'
+import { Readable } from 'node:stream'
 import { openDatabase } from './db'
 import { registerIpcHandlers } from './ipc'
 import { getCollectionFolder, getConfigFilePath, setLastBackupError, clearLastBackupError } from './config'
 import { mediaUrlToFilePath } from './mediaProtocol'
 import { getPlayableFilePath } from './audioTranscode'
 import { getMediaCacheDir } from './mediaCacheDir'
+import { parseRangeHeader } from './rangeHeader'
 import { runBackupIfNeeded, getBackupFolder } from './backup'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -34,6 +36,19 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
+const MEDIA_MIME_TYPES: Record<string, string> = {
+  '.wav': 'audio/wav',
+  '.flac': 'audio/flac',
+  '.mp3': 'audio/mpeg',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg',
+}
+
+function mimeTypeFor(filePath: string): string {
+  return MEDIA_MIME_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
+}
+
 function registerMediaProtocol(): void {
   protocol.handle('media', async (request) => {
     const filePath = mediaUrlToFilePath(request.url, getCollectionFolder())
@@ -41,8 +56,7 @@ function registerMediaProtocol(): void {
 
     // Chromium's <audio> element can't decode AIFF — transcode (and cache)
     // to a playable format first. Every other format passes through
-    // unchanged. Range-request/seeking support still works afterward since
-    // the cached file is a normal file on disk, same as the original.
+    // unchanged.
     let playablePath: string
     try {
       playablePath = await getPlayableFilePath(filePath, getMediaCacheDir())
@@ -51,10 +65,55 @@ function registerMediaProtocol(): void {
       return new Response('Transcode failed', { status: 500 })
     }
 
-    // Forward the incoming Range header so seeking in the <audio> element
-    // gets a 206 Partial Content response instead of re-fetching the whole
-    // file from byte 0 on every seek — matters for large lossless tracks.
-    return net.fetch(pathToFileURL(playablePath).toString(), { headers: request.headers })
+    let fileSize: number
+    try {
+      fileSize = statSync(playablePath).size
+    } catch {
+      return new Response('Not found', { status: 404 })
+    }
+
+    // net.fetch(pathToFileURL(...)) was tried first, forwarding the
+    // incoming Range header along — but Chromium's file:// loader doesn't
+    // reliably honor Range on a forwarded request the way an http(s)
+    // origin server would, so every seek came back as a fresh 200 OK from
+    // byte 0 instead of a 206 Partial Content at the requested offset.
+    // The <audio> element interprets that as "seeking isn't supported":
+    // duration can get stuck at Infinity (so the progress bar/waveform
+    // never animates) and any currentTime assignment effectively resets
+    // to the start. Serving Range requests manually — reading exactly the
+    // requested byte span off disk and returning a real 206 — is what
+    // actually makes seeking (and duration/progress) work correctly.
+    const rangeHeader = request.headers.get('range')
+    const contentType = mimeTypeFor(playablePath)
+
+    if (!rangeHeader) {
+      const stream = createReadStream(playablePath)
+      return new Response(Readable.toWeb(stream) as ReadableStream, {
+        status: 200,
+        headers: {
+          'Content-Length': String(fileSize),
+          'Content-Type': contentType,
+          'Accept-Ranges': 'bytes',
+        },
+      })
+    }
+
+    const range = parseRangeHeader(rangeHeader, fileSize)
+    if (!range) {
+      return new Response('Invalid Range', { status: 416, headers: { 'Content-Range': `bytes */${fileSize}` } })
+    }
+    const { start, end } = range
+
+    const stream = createReadStream(playablePath, { start, end })
+    return new Response(Readable.toWeb(stream) as ReadableStream, {
+      status: 206,
+      headers: {
+        'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': String(end - start + 1),
+        'Content-Type': contentType,
+      },
+    })
   })
 }
 
