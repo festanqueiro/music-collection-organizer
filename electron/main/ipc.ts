@@ -168,8 +168,14 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
       const result = runScan(db, folder)
 
+      // Retries 'error' rows too, not just 'pending' — a track that failed
+      // analysis (e.g. from a since-fixed bug, or a file that was
+      // temporarily locked/unreadable) would otherwise stay stuck in
+      // 'error' forever, since nothing else ever re-queues it.
       const pending = db
-        .prepare(`SELECT id, path FROM tracks WHERE analysis_status = 'pending' AND cloud_status = 'local'`)
+        .prepare(
+          `SELECT id, path FROM tracks WHERE analysis_status IN ('pending', 'error') AND cloud_status = 'local'`
+        )
         .all() as { id: number; path: string }[]
 
       if (pending.length > 0) {
