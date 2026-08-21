@@ -40,7 +40,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
           Update Collection
         </button>
         {collectionFolder && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span
               title={collectionFolder}
               style={{
@@ -56,7 +56,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
               </span>{' '}
               {collectionFolder}
             </span>
-            <button onClick={() => pickCollectionFolder()} style={{ fontSize: '11px', padding: '2px 6px' }}>
+            <button onClick={() => pickCollectionFolder()} style={{ padding: '2px 6px' }}>
               Change…
             </button>
           </div>

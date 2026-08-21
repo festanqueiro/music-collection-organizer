@@ -87,7 +87,7 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
                 }
               }}
               title={`Delete genre "${genre.name}"`}
-              style={{ padding: '0 4px', fontSize: '11px' }}
+              style={{ padding: '0 4px' }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
                 delete

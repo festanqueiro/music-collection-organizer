@@ -51,7 +51,7 @@ function NewTagInput({
       <button onClick={submit} disabled={disabled || !value.trim()}>
         + Add
       </button>
-      {error && <div style={{ color: 'var(--color-secondary)', fontSize: '11px' }}>{error}</div>}
+      {error && <div style={{ color: 'var(--color-secondary)' }}>{error}</div>}
     </div>
   )
 }
@@ -153,7 +153,7 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
         {suggestedGenreName && !suggestedGenreAlreadyApplied && (
           <div style={{ marginBottom: '4px' }}>
             <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>Suggested: {suggestedGenreName}</span>{' '}
-            <button style={{ fontSize: '11px' }} onClick={() => applySuggestedGenre(suggestedGenreName)}>
+            <button onClick={() => applySuggestedGenre(suggestedGenreName)}>
               + Add
             </button>
           </div>

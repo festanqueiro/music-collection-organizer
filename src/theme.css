@@ -25,6 +25,27 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: 'Jost', sans-serif;
+  font-size: 12px;
+}
+
+/* Form controls and headings don't inherit body's font-size by default
+   (browsers give them their own UA-stylesheet sizes) — without this,
+   "12px everywhere" would miss buttons/inputs and every <h1>-<h6>. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-size: inherit;
 }
 
 .material-symbols-outlined {

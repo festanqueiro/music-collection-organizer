@@ -48,14 +48,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h2 style={{ margin: 0, fontSize: '16px' }}>Settings</h2>
+          <h2 style={{ margin: 0 }}>Settings</h2>
           <button onClick={onClose}>
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
         <section style={{ marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '13px', color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Collection folder</h3>
+          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Collection folder</h3>
           <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{collectionFolder ?? 'Not set'}</p>
           <button
             onClick={async () => {
@@ -68,7 +68,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         </section>
 
         <section>
-          <h3 style={{ fontSize: '13px', color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Backups</h3>
+          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Backups</h3>
           {backupInfo ? (
             <>
               <p style={{ margin: '0 0 4px', wordBreak: 'break-all' }}>{backupInfo.backupFolder}</p>
