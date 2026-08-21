@@ -1,4 +1,4 @@
-import { mkdirSync, copyFileSync } from 'node:fs'
+import { mkdirSync, copyFileSync, readdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { AppDatabase } from './db'
 import { getLastBackupAt, setLastBackupAt } from './config'
@@ -49,13 +49,55 @@ export function runBackup(
   return { dbBackupPath, configBackupPath }
 }
 
+export function pruneOldBackups(backupFolder: string, keep: number): void {
+  let files: string[]
+  try {
+    files = readdirSync(backupFolder)
+  } catch {
+    return // backup folder doesn't exist yet — nothing to prune
+  }
+
+  const timestamps = new Set<string>()
+  for (const file of files) {
+    const match = file.match(/^collection-(.+)\.db$/)
+    if (match) timestamps.add(match[1])
+  }
+
+  // ISO-derived timestamps (with : and . replaced by -) sort chronologically
+  // as plain strings, so lexicographic sort is correct here.
+  const sorted = [...timestamps].sort()
+  const toDelete = sorted.slice(0, Math.max(0, sorted.length - keep))
+
+  for (const timestamp of toDelete) {
+    for (const [prefix, ext] of [
+      ['collection', 'db'],
+      ['config', 'json'],
+    ] as const) {
+      try {
+        unlinkSync(join(backupFolder, `${prefix}-${timestamp}.${ext}`))
+      } catch {
+        // best effort — already gone is fine
+      }
+    }
+  }
+}
+
 export function runBackupIfNeeded(
   db: AppDatabase,
   configFilePath: string,
   backupFolder: string,
-  now: Date
+  now: Date,
+  keep = 30
 ): void {
   if (!shouldBackupToday(getLastBackupAt(), now)) return
   runBackup(db, configFilePath, backupFolder, now)
   setLastBackupAt(now.toISOString())
+  try {
+    pruneOldBackups(backupFolder, keep)
+  } catch (err) {
+    // A pruning failure must never mark an otherwise-successful backup as
+    // failed (index.ts's performBackupCheck would set lastBackupError from
+    // any exception this function throws).
+    console.error('pruneOldBackups failed', err)
+  }
 }

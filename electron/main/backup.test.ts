@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Store from 'electron-store'
 import { openDatabase, type AppDatabase } from './db'
 import { __setStoreForTests, getLastBackupAt } from './config'
-import { shouldBackupToday, runBackup, runBackupIfNeeded, getBackupFolder } from './backup'
+import { shouldBackupToday, runBackup, runBackupIfNeeded, getBackupFolder, pruneOldBackups } from './backup'
 
 describe('shouldBackupToday', () => {
   it('returns true when never backed up', () => {
@@ -104,5 +104,51 @@ describe('runBackup / runBackupIfNeeded', () => {
       const dbFiles = readdirSync(backupFolder).filter((f) => f.endsWith('.db'))
       expect(dbFiles).toEqual([])
     }
+  })
+})
+
+describe('pruneOldBackups', () => {
+  let dir: string
+  let backupFolder: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'prune-test-'))
+    backupFolder = join(dir, 'backups')
+    mkdirSync(backupFolder, { recursive: true })
+  })
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  function writeBackupPair(timestamp: string) {
+    writeFileSync(join(backupFolder, `collection-${timestamp}.db`), 'x')
+    writeFileSync(join(backupFolder, `config-${timestamp}.json`), '{}')
+  }
+
+  it('deletes both files of the oldest pairs beyond the keep count', () => {
+    const timestamps = ['2026-08-18T00-00-00-000Z', '2026-08-19T00-00-00-000Z', '2026-08-20T00-00-00-000Z']
+    for (const ts of timestamps) writeBackupPair(ts)
+
+    pruneOldBackups(backupFolder, 2)
+
+    const remaining = readdirSync(backupFolder).sort()
+    expect(remaining).toEqual([
+      'collection-2026-08-19T00-00-00-000Z.db',
+      'collection-2026-08-20T00-00-00-000Z.db',
+      'config-2026-08-19T00-00-00-000Z.json',
+      'config-2026-08-20T00-00-00-000Z.json',
+    ])
+  })
+
+  it('is a no-op when the count is within the keep limit', () => {
+    writeBackupPair('2026-08-20T00-00-00-000Z')
+    pruneOldBackups(backupFolder, 30)
+    expect(readdirSync(backupFolder)).toHaveLength(2)
+  })
+
+  it('does not throw when the backup folder does not exist', () => {
+    rmSync(backupFolder, { recursive: true, force: true })
+    expect(() => pruneOldBackups(backupFolder, 30)).not.toThrow()
   })
 })
