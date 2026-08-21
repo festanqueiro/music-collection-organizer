@@ -1,13 +1,14 @@
-import { useState } from 'react'
 import { useCollectionStore } from '../state/store'
 
+// Only prompts when there's no collection folder chosen yet. Scanning an
+// already-chosen folder for changes is a deliberate action now (the
+// toolbar's "Update Collection" button), not something to nag about on
+// every launch.
 export function ScanPrompt() {
-  const [dismissed, setDismissed] = useState(false)
-  const runScan = useCollectionStore((s) => s.runScan)
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
 
-  if (dismissed) return null
+  if (collectionFolder) return null
 
   const boxStyle = {
     position: 'fixed' as const,
@@ -20,29 +21,10 @@ export function ScanPrompt() {
     zIndex: 10,
   }
 
-  if (!collectionFolder) {
-    return (
-      <div style={boxStyle}>
-        <p style={{ margin: '0 0 12px' }}>Choose a collection folder to start</p>
-        <button onClick={() => pickCollectionFolder()}>Choose folder…</button>
-      </div>
-    )
-  }
-
   return (
     <div style={boxStyle}>
-      <p style={{ margin: '0 0 12px' }}>Scan folder for changes?</p>
-      <div style={{ display: 'flex', gap: '8px' }}>
-        <button
-          onClick={() => {
-            runScan()
-            setDismissed(true)
-          }}
-        >
-          Yes
-        </button>
-        <button onClick={() => setDismissed(true)}>No</button>
-      </div>
+      <p style={{ margin: '0 0 12px' }}>Choose a collection folder to start</p>
+      <button onClick={() => pickCollectionFolder()}>Choose folder…</button>
     </div>
   )
 }

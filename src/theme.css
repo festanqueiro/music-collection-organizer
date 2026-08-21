@@ -39,6 +39,28 @@ textarea {
   font-size: inherit;
 }
 
+/* Chromium's UA stylesheet gives <button> its own light "ButtonFace"
+   background and dark "buttontext" color, regardless of theme. Text-only
+   color: inherit isn't enough on its own — it leaves the light background,
+   so light theme text becomes unreadable on it the other way around.
+   Giving every button a real themed surface fixes both: icon-only buttons
+   that set their own background: 'none' inline are unaffected, since
+   inline styles win over this. */
+button {
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+button:disabled {
+  color: var(--color-text-dim);
+  cursor: default;
+  opacity: 0.6;
+}
+
 h1,
 h2,
 h3,

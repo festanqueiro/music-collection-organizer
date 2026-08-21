@@ -81,7 +81,14 @@ export class EffectsChain {
   }
 
   update(settings: EffectsSettings): void {
-    this.delayNode.delayTime.value = settings.delay.timeMs / 1000
+    // Reassigning delayTime.value directly jumps the delay line's read
+    // position discontinuously while audio is already flowing through it —
+    // audible as a click/glitch on every slider tick (worse while
+    // dragging, since it fires continuously). setTargetAtTime glides to
+    // the new value over a short time constant instead, keeping changes
+    // smooth while still tracking the slider closely enough to feel
+    // immediate.
+    this.delayNode.delayTime.setTargetAtTime(settings.delay.timeMs / 1000, this.context.currentTime, 0.08)
     this.delayFeedbackGain.gain.value = settings.delay.enabled ? settings.delay.feedback : 0
     this.delayWetGain.gain.value = settings.delay.enabled ? settings.delay.mix : 0
     this.reverbWetGain.gain.value = settings.reverb.enabled ? settings.reverb.mix : 0

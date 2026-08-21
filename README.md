@@ -18,24 +18,36 @@ analyzed on demand, one track at a time.
 - **Local-first collection**: scan a folder, extract ID3 tags + BPM/key/
   waveform, browse/search/filter, and organize with your own Genre/
   Sub-Genre/Mood tags (batch-editable, with export/import).
-- **Independent player**, in the footer: waveform (doubles as the seek
-  bar), play/pause, volume, and delay/reverb FX — separate from row
-  selection, so browsing track details doesn't interrupt playback.
-  Load a track into it via the play-circle icon next to its title, or
-  right-click a row → "Load track in Player".
+- **Play queue**: a FIFO queue, not a saved playlist — the track playing
+  is always at the head, and once it finishes it's gone, not just skipped
+  past. "Play track now" / "Add to queue" / "Play next" from a row's
+  right-click menu or its play-circle icon. Expand it to full screen from
+  the footer player's chevron for drag-to-reorder, remove, a continuous
+  vs. manual-advance toggle, and total queue duration.
+- **Independent footer player**: waveform (doubles as the seek bar) with
+  a live progress line, play/pause, skip to the next queued track,
+  volume, elapsed/remaining time (click the time to toggle between
+  them) — separate from row selection, so browsing track details doesn't
+  interrupt playback.
 - **Delay + reverb FX**, synthesized (no bundled assets), with a
-  BPM-sync button on the delay time. Settings persist across restarts.
-- **MIDI mapping**: click "MIDI" next to any FX knob or the volume
-  slider, twist a hardware controller, done — bindings persist too.
+  BPM-sync button on the delay time, in their own panel alongside the
+  full-screen queue (with room reserved for an upcoming Dub Siren
+  module). Settings persist across restarts.
+- **MIDI mapping**: click the piano icon next to any FX control or the
+  volume slider, twist or press a hardware knob/button, done — bindings
+  persist too. On/off controls (Delay, Reverb) bind to a hardware button
+  rather than a knob threshold, and light its LED to mirror the app's
+  state where the controller supports it.
 - **Native file drag-out**: drag a row straight to Finder, a DAW, or any
   other app — it hands off the file's existing path (a reference, like
-  any Finder drag), nothing is copied.
+  any Finder drag), nothing is copied. Right-click → "Show in File
+  Explorer" reveals it in Finder instead.
 - **AIFF playback**: transcoded to FLAC on demand and cached, since
   Chromium's `<audio>` element can't decode AIFF natively.
 - **Backups**: automatic daily backups with pruning and restore, and a
   Settings modal showing backup health.
-- Full ID3 metadata is available per track (collapsible, below tag
-  management) alongside your own curated tags.
+- The detail panel shows embedded cover art (when present) and full ID3
+  metadata (collapsible) alongside your own curated tags.
 
 ## Stack
 

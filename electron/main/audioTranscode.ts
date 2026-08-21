@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { createHash } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { resolveFfmpegPath } from './ffmpegPath'
 
 // Chromium's <audio> element has no built-in AIFF decoder (it only supports
@@ -57,11 +57,17 @@ export function getPlayableFilePath(filePath: string, cacheDir: string): Promise
     mkdirSync(cacheDir, { recursive: true })
     // Transcode to a .tmp path and rename into place once ffmpeg exits
     // successfully — a concurrent request for the same track (e.g. a fast
-    // seek right after playback starts) must never see a half-written file.
-    // The tmp path ends in .tmp, not .flac, so ffmpeg can't infer the muxer
-    // from the output filename the way it could for the final cachePath —
-    // -f flac makes that explicit.
-    const tmpPath = `${cachePath}.tmp`
+    // seek right after playback starts, or playback and analysis both
+    // hitting an unanalyzed AIFF at the same moment — playback runs on the
+    // main thread, analysis in a worker_thread, so they can't share an
+    // in-memory dedup lock) must never see a half-written file. The tmp
+    // path includes the PID and a random suffix so two concurrent callers
+    // never write to the *same* tmp file — with a shared tmp name, whichever
+    // rename ran second found its source already moved by the first and
+    // crashed with ENOENT. Each caller now transcodes independently and
+    // races only on the final rename, which is a plain overwrite on POSIX,
+    // not a missing-source error, regardless of which one wins.
+    const tmpPath = `${cachePath}.${process.pid}-${randomBytes(4).toString('hex')}.tmp`
     const proc = spawn(ffmpegPath, ['-y', '-i', filePath, '-f', 'flac', '-loglevel', 'error', tmpPath])
 
     let stderr = ''
@@ -74,7 +80,12 @@ export function getPlayableFilePath(filePath: string, cacheDir: string): Promise
         reject(new Error(`ffmpeg transcode exited with code ${code}: ${stderr}`))
         return
       }
-      renameSync(tmpPath, cachePath)
+      try {
+        renameSync(tmpPath, cachePath)
+      } catch (err) {
+        reject(err)
+        return
+      }
       resolve(cachePath)
     })
   })

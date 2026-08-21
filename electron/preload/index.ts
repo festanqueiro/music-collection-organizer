@@ -56,6 +56,8 @@ const api = {
   // track's row, same mechanism as dragging a file out of Finder — no
   // response is awaited.
   startTrackDrag: (trackId: number): void => ipcRenderer.send('tracks:startDrag', trackId),
+  showTrackInFolder: (trackId: number): void => ipcRenderer.send('tracks:showInFolder', trackId),
+  getTrackArtwork: (trackId: number): Promise<string | null> => ipcRenderer.invoke('tracks:getArtwork', trackId),
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
   listBackups: (): Promise<BackupEntry[]> => ipcRenderer.invoke('backup:list'),
   restoreBackup: (timestamp: string): Promise<void> => ipcRenderer.invoke('backup:restore', timestamp),

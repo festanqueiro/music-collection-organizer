@@ -10,10 +10,19 @@ import type {
   EffectsSettings,
   MidiMappings,
   MidiControlKey,
+  MidiBinding,
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS } from '../types'
-import { scaleMidiValue } from '../audio/midi'
+import { scaleMidiValue, sendMidiFeedback } from '../audio/midi'
 import type { TrackTagIds } from './tagFilter'
+import {
+  playTrackNow as playTrackNowPure,
+  addToPlaylist as addToPlaylistPure,
+  playNext as playNextPure,
+  removeFromPlaylist as removeFromPlaylistPure,
+  movePlaylistItem as movePlaylistItemPure,
+  advanceToNext as advanceToNextPure,
+} from './playlist'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
 // onChange continuously, and writing to electron-store on every tick would
@@ -37,6 +46,52 @@ function setTrackTags(
   set({ trackTags })
 }
 
+// Kicks off analysis for one track in the background if it needs it —
+// shared by ensureTrackReady (the track becoming current) and the queueing
+// actions below (a track landing in the queue at all, even before it's
+// current, per the same "explicit user action" reasoning: adding it to
+// the queue is itself deliberate). A cloud-only track has no local file
+// yet — analysis:run's own query already excludes those, but checking
+// here too avoids a pointless IPC round-trip for one that obviously can't
+// run.
+function triggerBackgroundAnalysis(get: StoreApi<CollectionState>['getState'], trackId: number): void {
+  const track = get().tracks.find((t) => t.id === trackId)
+  if (track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')) {
+    get()
+      .runAnalysis([trackId])
+      .catch((err) => console.error('background analysis of queued track failed', err))
+  }
+}
+
+// A cloud-only track has no local audio to stream yet, so it's downloaded
+// first (blocking — nothing to play until it lands). A pending/error track
+// still plays immediately (analysis isn't needed for playback), but kicks
+// off a background analysis run for just that track — loading a track into
+// the player is itself an explicit user action, so triggering analysis as
+// its consequence is fine; this is distinct from analysing the whole
+// collection silently on its own. Called only by actions that make a track
+// the one actively playing (playTrackNow/advanceToNext).
+async function ensureTrackReady(
+  set: StoreApi<CollectionState>['setState'],
+  get: StoreApi<CollectionState>['getState'],
+  trackId: number
+): Promise<void> {
+  const track = get().tracks.find((t) => t.id === trackId)
+  if (!track) return
+
+  if (track.cloudStatus === 'cloud_only') {
+    try {
+      await window.api.downloadTrack(trackId)
+      await get().loadAll()
+    } catch (err) {
+      console.error('failed to download track before playing it', err)
+      return
+    }
+  }
+
+  triggerBackgroundAnalysis(get, trackId)
+}
+
 interface CollectionState {
   tracks: Track[]
   genres: Genre[]
@@ -45,8 +100,17 @@ interface CollectionState {
   trackTags: Map<number, TrackTagIds>
   checkedTrackIds: Set<number>
   pendingGenreDeletion: { snapshot: GenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
-  loadedTrackId: number | null
-  loadTrackInPlayer: (trackId: number) => Promise<void>
+  playlist: number[]
+  continuousPlay: boolean
+  playerExpanded: boolean
+  playTrackNow: (trackId: number) => Promise<void>
+  addToPlaylist: (trackId: number) => void
+  playNext: (trackId: number) => void
+  removeFromPlaylist: (index: number) => void
+  movePlaylistItem: (fromIndex: number, toIndex: number) => void
+  advanceToNext: () => Promise<void>
+  setContinuousPlay: (value: boolean) => void
+  setPlayerExpanded: (value: boolean) => void
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
@@ -58,13 +122,18 @@ interface CollectionState {
   setEffectsSettings: (settings: EffectsSettings) => void
   playerVolume: number
   setPlayerVolume: (volume: number) => void
+  // 0..1 fraction of the current track played — Player.tsx pushes this on
+  // every timeupdate so the queue view (a sibling, not a descendant of
+  // Player) can render a progress line under the currently-playing row.
+  playbackProgress: number
+  setPlaybackProgress: (progress: number) => void
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
-  handleMidiControlChange: (channel: number, controller: number, value: number) => void
+  handleMidiControlChange: (channel: number, controller: number, value: number, kind: 'cc' | 'note') => void
   loadCollectionFolder: () => Promise<void>
   pickCollectionFolder: () => Promise<boolean>
   loadAll: () => Promise<void>
@@ -100,7 +169,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   trackTags: new Map(),
   checkedTrackIds: new Set(),
   pendingGenreDeletion: null,
-  loadedTrackId: null,
+  playlist: [],
+  continuousPlay: true,
+  playerExpanded: false,
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -108,6 +179,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   appVersion: null,
   effectsSettings: DEFAULT_EFFECTS_SETTINGS,
   playerVolume: 1,
+  playbackProgress: 0,
   midiMappings: {},
   midiLearningControl: null,
 
@@ -117,6 +189,19 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setEffectsSettings: (settings) => {
+    // Single choke point for every delay.enabled/reverb.enabled change,
+    // whichever triggered it (the FxPanel checkbox or a MIDI toggle) — so
+    // a bound button's LED always mirrors the app's actual enabled state,
+    // not just the state changes that happened to originate from MIDI.
+    const previous = get().effectsSettings
+    const mappings = get().midiMappings
+    if (settings.delay.enabled !== previous.delay.enabled && mappings['delay.enabled']) {
+      sendMidiFeedback(mappings['delay.enabled'], settings.delay.enabled)
+    }
+    if (settings.reverb.enabled !== previous.reverb.enabled && mappings['reverb.enabled']) {
+      sendMidiFeedback(mappings['reverb.enabled'], settings.reverb.enabled)
+    }
+
     set({ effectsSettings: settings })
     if (effectsSettingsSaveTimeout) clearTimeout(effectsSettingsSaveTimeout)
     effectsSettingsSaveTimeout = setTimeout(() => {
@@ -125,6 +210,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setPlayerVolume: (volume) => set({ playerVolume: volume }),
+
+  setPlaybackProgress: (progress) => set({ playbackProgress: progress }),
 
   loadMidiMappings: async () => {
     const mappings = await window.api.getMidiMappings()
@@ -146,12 +233,18 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // binds the incoming CC to whichever control is in "learn" mode, or (if
   // nothing is learning) looks up a matching existing binding and applies
   // the scaled value to the corresponding piece of state.
-  handleMidiControlChange: (channel, controller, value) => {
+  handleMidiControlChange: (channel, controller, value, kind) => {
     const learning = get().midiLearningControl
     if (learning) {
-      const mappings = { ...get().midiMappings, [learning]: { channel, controller } }
+      const binding: MidiBinding = { channel, controller, kind }
+      const mappings = { ...get().midiMappings, [learning]: binding }
       set({ midiMappings: mappings, midiLearningControl: null })
       window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
+      // Sync the LED to the control's current state right away, rather
+      // than leaving it showing whatever it happened to be at (e.g. lit
+      // from a previous binding) until the next toggle.
+      if (learning === 'delay.enabled') sendMidiFeedback(binding, get().effectsSettings.delay.enabled)
+      else if (learning === 'reverb.enabled') sendMidiFeedback(binding, get().effectsSettings.reverb.enabled)
       return
     }
 
@@ -169,12 +262,30 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }
 
     const effectsSettings = get().effectsSettings
-    if (match === 'delay.timeMs') {
+    // delay.enabled/reverb.enabled are bound to a MIDI Mix mute-style
+    // button, confirmed momentary (sends a nonzero message on press and a
+    // 0 on release, rather than a hardware-latched on/off state) — mirroring
+    // the raw value directly made the effect only stay on while physically
+    // held. Toggle once on the press edge instead, and ignore the release
+    // message entirely, so one tap flips the state and it stays there.
+    if (match === 'delay.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        delay: { ...effectsSettings.delay, enabled: !effectsSettings.delay.enabled },
+      })
+    } else if (match === 'delay.timeMs') {
       get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, timeMs: scaled } })
     } else if (match === 'delay.feedback') {
       get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, feedback: scaled } })
     } else if (match === 'delay.mix') {
       get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, mix: scaled } })
+    } else if (match === 'reverb.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        reverb: { ...effectsSettings.reverb, enabled: !effectsSettings.reverb.enabled },
+      })
     } else if (match === 'reverb.mix') {
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, mix: scaled } })
     }
@@ -233,37 +344,38 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // Deliberately separate from row selection (which only drives
   // DetailPanel) — the player is independent, so browsing/checking
   // details on other tracks doesn't interrupt whatever's currently
-  // loaded and playing. Only this explicit action changes it.
-  //
-  // A cloud-only track has no local audio to stream yet, so it's
-  // downloaded first (blocking — nothing to play until it lands). A
-  // pending/error track still loads and plays immediately (analysis
-  // isn't needed for playback), but kicks off a background analysis run
-  // for just that track so BPM/waveform show up without a separate
-  // manual step.
-  loadTrackInPlayer: async (trackId) => {
-    const track = get().tracks.find((t) => t.id === trackId)
-    if (!track) return
-
-    if (track.cloudStatus === 'cloud_only') {
-      try {
-        await window.api.downloadTrack(trackId)
-        await get().loadAll()
-      } catch (err) {
-        console.error('failed to download track before loading into player', err)
-        return
-      }
-    }
-
-    set({ loadedTrackId: trackId })
-
-    const current = get().tracks.find((t) => t.id === trackId)
-    if (current && (current.analysisStatus === 'pending' || current.analysisStatus === 'error')) {
-      get()
-        .runAnalysis([trackId])
-        .catch((err) => console.error('background analysis of loaded track failed', err))
-    }
+  // loaded and playing. Only these explicit actions change it.
+  playTrackNow: async (trackId) => {
+    set({ playlist: playTrackNowPure(get().playlist, trackId) })
+    await ensureTrackReady(set, get, trackId)
   },
+
+  addToPlaylist: (trackId) => {
+    set({ playlist: addToPlaylistPure(get().playlist, trackId) })
+    triggerBackgroundAnalysis(get, trackId)
+  },
+
+  playNext: (trackId) => {
+    set({ playlist: playNextPure(get().playlist, trackId) })
+    triggerBackgroundAnalysis(get, trackId)
+  },
+
+  removeFromPlaylist: (index) => set({ playlist: removeFromPlaylistPure(get().playlist, index) }),
+
+  movePlaylistItem: (fromIndex, toIndex) =>
+    set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),
+
+  advanceToNext: async () => {
+    const before = get().playlist
+    const after = advanceToNextPure(before)
+    if (after === before) return
+    set({ playlist: after })
+    if (after.length > 0) await ensureTrackReady(set, get, after[0])
+  },
+
+  setContinuousPlay: (value) => set({ continuousPlay: value }),
+
+  setPlayerExpanded: (value) => set({ playerExpanded: value }),
 
   loadAppVersion: async () => {
     const version = await window.api.getAppVersion()

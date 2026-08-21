@@ -1,17 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { formatDuration } from '../format'
 import type { Track } from '../types'
 
-type SortKey = 'title' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
+type SortKey = 'title' | 'filename' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
 
-function formatDuration(totalSeconds: number): string {
-  const total = Math.round(totalSeconds)
-  const hours = Math.floor(total / 3600)
-  const minutes = Math.floor((total % 3600) / 60)
-  const seconds = total % 60
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
+const contextMenuItemStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  width: '100%',
+  textAlign: 'left' as const,
+  background: 'none',
+  border: 'none',
+  padding: '4px 8px',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap' as const,
 }
+
+const contextMenuIconStyle = { fontSize: '16px' }
 
 export function TrackTable({
   onSelect,
@@ -30,9 +37,12 @@ export function TrackTable({
   const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
   const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
-  const loadedTrackId = useCollectionStore((s) => s.loadedTrackId)
-  const loadTrackInPlayer = useCollectionStore((s) => s.loadTrackInPlayer)
+  const playlist = useCollectionStore((s) => s.playlist)
+  const playTrackNow = useCollectionStore((s) => s.playTrackNow)
+  const addToPlaylist = useCollectionStore((s) => s.addToPlaylist)
+  const playNext = useCollectionStore((s) => s.playNext)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
+  const currentTrackId = playlist[0] ?? null
   const [sortKey, setSortKey] = useState<SortKey>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
@@ -104,6 +114,7 @@ export function TrackTable({
 
   const columns: { key: SortKey; label: string }[] = [
     { key: 'title', label: 'Title' },
+    { key: 'filename', label: 'Filename' },
     { key: 'artist', label: 'Artist' },
     { key: 'bpm', label: 'BPM' },
     { key: 'musicalKey', label: 'Key' },
@@ -112,6 +123,7 @@ export function TrackTable({
   ]
 
   const cellStyle = { padding: '8px', whiteSpace: 'nowrap' as const }
+  const titleCellStyle = { ...cellStyle, maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' as const }
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -168,28 +180,38 @@ export function TrackTable({
                   onChange={() => toggleTrackChecked(track.id)}
                 />
               </td>
-              <td style={cellStyle}>
+              <td style={titleCellStyle}>
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    loadTrackInPlayer(track.id)
+                    playTrackNow(track.id)
                   }}
-                  title="Load in Player"
+                  title="Play track now"
                   style={{
                     background: 'none',
                     border: 'none',
                     padding: '0 4px 0 0',
                     cursor: 'pointer',
                     verticalAlign: 'middle',
-                    color: track.id === loadedTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
+                    color: track.id === currentTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
                     play_circle
                   </span>
                 </button>
+                {track.analysisStatus === 'analyzing' && (
+                  <span
+                    className="material-symbols-outlined spin"
+                    style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
+                    title="Analyzing…"
+                  >
+                    progress_activity
+                  </span>
+                )}
                 {track.title ?? track.filename}
               </td>
+              <td style={titleCellStyle}>{track.filename}</td>
               <td style={cellStyle}>{track.artist ?? '—'}</td>
               <td style={cellStyle}>{track.bpm?.toFixed(0) ?? '—'}</td>
               <td style={cellStyle}>{track.musicalKey ?? '—'}</td>
@@ -233,41 +255,65 @@ export function TrackTable({
         >
           <button
             onClick={() => {
-              loadTrackInPlayer(contextMenu.trackId)
+              playTrackNow(contextMenu.trackId)
               setContextMenu(null)
             }}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'none',
-              border: 'none',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
+            style={contextMenuItemStyle}
           >
-            Load track in Player
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              play_arrow
+            </span>
+            Play track now
+          </button>
+          <button
+            onClick={() => {
+              addToPlaylist(contextMenu.trackId)
+              setContextMenu(null)
+            }}
+            style={contextMenuItemStyle}
+          >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              playlist_add
+            </span>
+            Add to queue
+          </button>
+          <button
+            onClick={() => {
+              playNext(contextMenu.trackId)
+              setContextMenu(null)
+            }}
+            style={contextMenuItemStyle}
+          >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              skip_next
+            </span>
+            Play next
           </button>
           <button
             onClick={() => {
               runAnalysis([contextMenu.trackId])
               setContextMenu(null)
             }}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'none',
-              border: 'none',
-              padding: '4px 8px',
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}
+            style={contextMenuItemStyle}
           >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              graphic_eq
+            </span>
             {tracks.find((t) => t.id === contextMenu.trackId)?.analysisStatus === 'done'
               ? 'Re-analyse track'
               : 'Analyse track'}
+          </button>
+          <button
+            onClick={() => {
+              window.api.showTrackInFolder(contextMenu.trackId)
+              setContextMenu(null)
+            }}
+            style={contextMenuItemStyle}
+          >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              folder_open
+            </span>
+            Show in File Explorer
           </button>
         </div>
       )}

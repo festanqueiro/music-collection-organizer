@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, BrowserWindow } from 'electron'
+import { app, ipcMain, dialog, shell, BrowserWindow } from 'electron'
 import { join } from 'node:path'
 import { writeFileSync, readFileSync } from 'node:fs'
 import type { AppDatabase } from './db'
@@ -17,6 +17,7 @@ import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { getDragIcon } from './dragIcon'
 import { runAnalysisQueue } from './analysis/queue'
+import { extractArtwork } from './analysis/metadata'
 import { getMediaCacheDir } from './mediaCacheDir'
 import { listBackups, restoreBackup } from './backup'
 import {
@@ -208,6 +209,15 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     // analysis:stop can abort all of them together.
     const controller = new AbortController()
     activeAnalysisControllers.add(controller)
+    // onProgress only fires once a track *finishes* — for a single-track
+    // background analysis (e.g. auto-triggered by loading it into the
+    // player) that can be the only tick there ever is, so the renderer
+    // never sees the 'analyzing' status in between and never shows the
+    // spinner. This tick fires immediately, right after the DB rows above
+    // flip to 'analyzing' inside runAnalysisQueue's dispatch, so the
+    // renderer refreshes and picks that up before the track (possibly)
+    // finishes fast enough to skip the visible window entirely.
+    getMainWindow().webContents.send('scan:progress', { done: 0, total: tracks.length })
     try {
       await runAnalysisQueue(db, tracks, {
         concurrency: 4,
@@ -304,6 +314,30 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
     if (!row) return
     event.sender.startDrag({ file: row.path, icon: getDragIcon() })
+  })
+
+  // Reveals the track's file in Finder (highlighted, folder already open)
+  // — same as macOS's own "Show in Finder". A cloud-only placeholder has
+  // no local file to reveal.
+  ipcMain.on('tracks:showInFolder', (_event, trackId: number) => {
+    const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
+    if (!row) return
+    shell.showItemInFolder(row.path)
+  })
+
+  // On-demand cover art for the detail panel — see extractArtwork's own
+  // comment for why this isn't bulk-loaded with the rest of getTracks().
+  ipcMain.handle('tracks:getArtwork', async (_e, trackId: number): Promise<string | null> => {
+    const row = db.prepare('SELECT path, cloud_status FROM tracks WHERE id = ?').get(trackId) as
+      | { path: string; cloud_status: string }
+      | undefined
+    if (!row || row.cloud_status === 'cloud_only') return null
+    try {
+      return await extractArtwork(row.path)
+    } catch (err) {
+      console.error('failed to extract artwork', err)
+      return null
+    }
   })
 
   ipcMain.handle('tracks:getAllTagIds', (): TrackTagIds[] => {
