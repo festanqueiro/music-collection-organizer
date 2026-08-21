@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import Store from 'electron-store'
 import { openDatabase, type AppDatabase } from './db'
 import { __setStoreForTests, getLastBackupAt } from './config'
-import { shouldBackupToday, runBackup, runBackupIfNeeded, getBackupFolder, pruneOldBackups } from './backup'
+import { shouldBackupToday, runBackup, runBackupIfNeeded, getBackupFolder, pruneOldBackups, listBackups, restoreBackup } from './backup'
 
 describe('shouldBackupToday', () => {
   it('returns true when never backed up', () => {
@@ -150,5 +150,54 @@ describe('pruneOldBackups', () => {
   it('does not throw when the backup folder does not exist', () => {
     rmSync(backupFolder, { recursive: true, force: true })
     expect(() => pruneOldBackups(backupFolder, 30)).not.toThrow()
+  })
+})
+
+describe('listBackups / restoreBackup', () => {
+  let dir: string
+  let backupFolder: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'restore-test-'))
+    backupFolder = join(dir, 'backups')
+    mkdirSync(backupFolder, { recursive: true })
+    writeFileSync(join(backupFolder, 'collection-2026-08-19T00-00-00-000Z.db'), 'old-db')
+    writeFileSync(join(backupFolder, 'config-2026-08-19T00-00-00-000Z.json'), '{"old":true}')
+    writeFileSync(join(backupFolder, 'collection-2026-08-20T00-00-00-000Z.db'), 'new-db')
+    writeFileSync(join(backupFolder, 'config-2026-08-20T00-00-00-000Z.json'), '{"new":true}')
+  })
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('lists backups newest first', () => {
+    const entries = listBackups(backupFolder)
+    expect(entries.map((e) => e.timestamp)).toEqual([
+      '2026-08-20T00-00-00-000Z',
+      '2026-08-19T00-00-00-000Z',
+    ])
+    expect(entries[0].dbPath).toBe(join(backupFolder, 'collection-2026-08-20T00-00-00-000Z.db'))
+    expect(entries[0].configPath).toBe(join(backupFolder, 'config-2026-08-20T00-00-00-000Z.json'))
+  })
+
+  it('returns an empty list when the backup folder does not exist', () => {
+    rmSync(backupFolder, { recursive: true, force: true })
+    expect(listBackups(backupFolder)).toEqual([])
+  })
+
+  it('restoreBackup copies the chosen snapshot over the live file paths', () => {
+    const entries = listBackups(backupFolder)
+    const oldEntry = entries.find((e) => e.timestamp === '2026-08-19T00-00-00-000Z')!
+
+    const liveDbPath = join(dir, 'collection.db')
+    const liveConfigPath = join(dir, 'config.json')
+    writeFileSync(liveDbPath, 'current-db')
+    writeFileSync(liveConfigPath, '{"current":true}')
+
+    restoreBackup(oldEntry, liveDbPath, liveConfigPath)
+
+    expect(readFileSync(liveDbPath, 'utf-8')).toBe('old-db')
+    expect(readFileSync(liveConfigPath, 'utf-8')).toBe('{"old":true}')
   })
 })

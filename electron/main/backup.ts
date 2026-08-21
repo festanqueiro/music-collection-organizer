@@ -101,3 +101,38 @@ export function runBackupIfNeeded(
     console.error('pruneOldBackups failed', err)
   }
 }
+
+export interface BackupEntry {
+  timestamp: string
+  dbPath: string
+  configPath: string
+}
+
+export function listBackups(backupFolder: string): BackupEntry[] {
+  let files: string[]
+  try {
+    files = readdirSync(backupFolder)
+  } catch {
+    return []
+  }
+
+  const timestamps = new Set<string>()
+  for (const file of files) {
+    const match = file.match(/^collection-(.+)\.db$/)
+    if (match) timestamps.add(match[1])
+  }
+
+  return [...timestamps]
+    .sort()
+    .reverse()
+    .map((timestamp) => ({
+      timestamp,
+      dbPath: join(backupFolder, `collection-${timestamp}.db`),
+      configPath: join(backupFolder, `config-${timestamp}.json`),
+    }))
+}
+
+export function restoreBackup(entry: BackupEntry, dbFilePath: string, configFilePath: string): void {
+  copyFileSync(entry.dbPath, dbFilePath)
+  copyFileSync(entry.configPath, configFilePath)
+}
