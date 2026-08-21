@@ -12,6 +12,8 @@ import {
   addGenresToTracks,
   addSubgenresToTracks,
   addMoodsToTracks,
+  captureGenreDeletionSnapshot,
+  undoGenreDeletion,
 } from './tags'
 
 describe('tags', () => {
@@ -114,5 +116,41 @@ describe('tags', () => {
 
     expect(getTrackTagIds(db, trackId).moodIds).toEqual([energeticId])
     expect(getTrackTagIds(db, track2Id).moodIds).toEqual([energeticId])
+  })
+
+  it('captureGenreDeletionSnapshot records the genre, its sub-genres, and every track association', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    setTrackGenres(db, trackId, [houseId])
+    setTrackSubgenres(db, trackId, [deepHouseId])
+
+    const snapshot = captureGenreDeletionSnapshot(db, houseId)
+
+    expect(snapshot.genreName).toBe('House')
+    expect(snapshot.subgenres).toEqual([{ name: 'Deep House' }])
+    expect(snapshot.trackGenreAssociations).toEqual([{ trackId }])
+    expect(snapshot.trackSubgenreAssociationsByName).toEqual({ 'Deep House': [trackId] })
+  })
+
+  it('undoGenreDeletion recreates the genre, sub-genres, and track associations after a real delete', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    setTrackGenres(db, trackId, [houseId])
+    setTrackSubgenres(db, trackId, [deepHouseId])
+
+    const snapshot = captureGenreDeletionSnapshot(db, houseId)
+    deleteGenre(db, houseId)
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([])
+
+    undoGenreDeletion(db, snapshot)
+
+    const genres = db.prepare('SELECT name FROM genres').all()
+    expect(genres).toEqual([{ name: 'House' }])
+    const restoredGenreId = (db.prepare('SELECT id FROM genres WHERE name = ?').get('House') as { id: number }).id
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([restoredGenreId])
+    const restoredSubgenreId = (
+      db.prepare('SELECT id FROM subgenres WHERE name = ?').get('Deep House') as { id: number }
+    ).id
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([restoredSubgenreId])
   })
 })

@@ -18,6 +18,63 @@ export function deleteGenre(db: AppDatabase, genreId: number): void {
   db.prepare('DELETE FROM genres WHERE id = ?').run(genreId)
 }
 
+export interface GenreDeletionSnapshot {
+  genreName: string
+  subgenres: { name: string }[]
+  trackGenreAssociations: { trackId: number }[]
+  trackSubgenreAssociationsByName: Record<string, number[]>
+}
+
+// Reads everything deleteGenre's cascade delete is about to destroy —
+// called before deleteGenre, not after.
+export function captureGenreDeletionSnapshot(db: AppDatabase, genreId: number): GenreDeletionSnapshot {
+  const genre = db.prepare('SELECT name FROM genres WHERE id = ?').get(genreId) as { name: string } | undefined
+  if (!genre) throw new Error(`No genre with id ${genreId}`)
+
+  const subgenreRows = db.prepare('SELECT id, name FROM subgenres WHERE genre_id = ?').all(genreId) as {
+    id: number
+    name: string
+  }[]
+
+  const trackGenreRows = db.prepare('SELECT track_id FROM track_genres WHERE genre_id = ?').all(genreId) as {
+    track_id: number
+  }[]
+
+  const trackSubgenreAssociationsByName: Record<string, number[]> = {}
+  for (const sg of subgenreRows) {
+    const rows = db.prepare('SELECT track_id FROM track_subgenres WHERE subgenre_id = ?').all(sg.id) as {
+      track_id: number
+    }[]
+    trackSubgenreAssociationsByName[sg.name] = rows.map((r) => r.track_id)
+  }
+
+  return {
+    genreName: genre.name,
+    subgenres: subgenreRows.map((s) => ({ name: s.name })),
+    trackGenreAssociations: trackGenreRows.map((r) => ({ trackId: r.track_id })),
+    trackSubgenreAssociationsByName,
+  }
+}
+
+// Recreates the genre and sub-genres with NEW ids (the old ones are gone —
+// nothing else references them) and re-applies the captured track
+// associations against those new ids.
+export function undoGenreDeletion(db: AppDatabase, snapshot: GenreDeletionSnapshot): void {
+  runInTransaction(db, () => {
+    const newGenreId = createGenre(db, snapshot.genreName)
+    for (const { trackId } of snapshot.trackGenreAssociations) {
+      db.prepare('INSERT INTO track_genres (track_id, genre_id) VALUES (?, ?)').run(trackId, newGenreId)
+    }
+    for (const sg of snapshot.subgenres) {
+      const newSubgenreId = createSubgenre(db, sg.name, newGenreId)
+      const trackIds = snapshot.trackSubgenreAssociationsByName[sg.name] ?? []
+      for (const trackId of trackIds) {
+        db.prepare('INSERT INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(trackId, newSubgenreId)
+      }
+    }
+  })
+}
+
 export function setTrackGenres(db: AppDatabase, trackId: number, genreIds: number[]): void {
   runInTransaction(db, () => {
     db.prepare('DELETE FROM track_genres WHERE track_id = ?').run(trackId)
