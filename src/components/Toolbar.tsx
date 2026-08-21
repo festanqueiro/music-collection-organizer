@@ -1,4 +1,5 @@
 import { useCollectionStore } from '../state/store'
+import logo from '../../resources/icon.png'
 
 export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const searchText = useCollectionStore((s) => s.searchText)
@@ -17,6 +18,11 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         alignItems: 'flex-start',
       }}
     >
+      <img
+        src={logo}
+        alt="MCO"
+        style={{ width: '32px', height: '32px', flexShrink: 0, borderRadius: '50%' }}
+      />
       <input
         type="text"
         placeholder="Search title, artist, album..."
