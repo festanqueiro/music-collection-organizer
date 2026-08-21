@@ -1,5 +1,5 @@
 // src/components/Player.tsx
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
 
 export function Player({ src, peaks }: { src: string; peaks: number[] | null }) {
@@ -23,6 +23,20 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
       )
     }
   }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if (e.key === ' ') {
+        e.preventDefault()
+        toggle()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing])
 
   function seekToClientX(clientX: number, target: HTMLElement | SVGSVGElement) {
     const audio = audioRef.current

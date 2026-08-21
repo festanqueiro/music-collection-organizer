@@ -84,7 +84,12 @@ export default function App() {
 
         <div className="pane" style={{ gridArea: 'center' }}>
           <BatchTagBar />
-          <TrackTable onSelect={setSelectedTrack} selectedFolder={selectedFolder} activeFilter={tagFilter} />
+          <TrackTable
+            onSelect={setSelectedTrack}
+            selectedFolder={selectedFolder}
+            activeFilter={tagFilter}
+            selectedTrackId={selectedTrack?.id ?? null}
+          />
         </div>
 
         <div className="pane" style={{ gridArea: 'right', borderRight: 'none' }}>

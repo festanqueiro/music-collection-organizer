@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
 
@@ -17,10 +17,12 @@ export function TrackTable({
   onSelect,
   selectedFolder,
   activeFilter,
+  selectedTrackId,
 }: {
   onSelect: (track: Track) => void
   selectedFolder: string | null
   activeFilter: (track: Track) => boolean
+  selectedTrackId: number | null
 }) {
   const tracks = useCollectionStore((s) => s.tracks)
   const searchText = useCollectionStore((s) => s.searchText)
@@ -56,6 +58,24 @@ export function TrackTable({
         return sortDir === 'asc' ? cmp : -cmp
       })
   }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir])
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const target = e.target as HTMLElement
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+      if (visibleTracks.length === 0) return
+      e.preventDefault()
+      const currentIndex = selectedTrackId ? visibleTracks.findIndex((t) => t.id === selectedTrackId) : -1
+      const nextIndex =
+        e.key === 'ArrowDown'
+          ? Math.min(visibleTracks.length - 1, currentIndex + 1)
+          : Math.max(0, currentIndex - 1)
+      onSelect(visibleTracks[nextIndex])
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [visibleTracks, selectedTrackId, onSelect])
 
   const columns: { key: SortKey; label: string }[] = [
     { key: 'title', label: 'Title' },
