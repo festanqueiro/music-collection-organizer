@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process'
-import ffmpegPath from 'ffmpeg-static'
+import { resolveFfmpegPath } from '../ffmpegPath'
 
 export function decodeToPcm(filePath: string, sampleRate = 44100): Promise<Float32Array> {
   return new Promise((resolve, reject) => {
+    const ffmpegPath = resolveFfmpegPath()
     if (!ffmpegPath) {
       reject(new Error('ffmpeg-static did not resolve a binary path for this platform/arch'))
       return

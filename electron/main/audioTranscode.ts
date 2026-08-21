@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, renameSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHash } from 'node:crypto'
-import ffmpegPath from 'ffmpeg-static'
+import { resolveFfmpegPath } from './ffmpegPath'
 
 // Chromium's <audio> element has no built-in AIFF decoder (it only supports
 // WAV, MP3, FLAC, AAC, and Ogg/WebM) — AIFF files scan and analyze fine
@@ -48,6 +48,7 @@ export function getPlayableFilePath(filePath: string, cacheDir: string): Promise
       return
     }
 
+    const ffmpegPath = resolveFfmpegPath()
     if (!ffmpegPath) {
       reject(new Error('ffmpeg-static did not resolve a binary path for this platform/arch'))
       return
