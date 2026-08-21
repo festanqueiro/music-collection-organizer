@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
-import { openDatabase } from './db'
+import { openDatabase, runInTransaction, type AppDatabase } from './db'
 
 describe('openDatabase', () => {
   it('creates all expected tables', () => {
@@ -67,5 +67,71 @@ describe('openDatabase', () => {
       expect(row.present).toBe(1)
       db.close()
     })
+  })
+})
+
+describe('runInTransaction', () => {
+  let db: AppDatabase
+
+  function setup() {
+    db = openDatabase(':memory:')
+    db.exec('CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT NOT NULL)')
+  }
+
+  afterEach(() => {
+    db.close()
+  })
+
+  it('commits data from two sibling nested calls inside an outer call', () => {
+    setup()
+
+    runInTransaction(db, () => {
+      runInTransaction(db, () => {
+        db.prepare('INSERT INTO items (name) VALUES (?)').run('a')
+      })
+      runInTransaction(db, () => {
+        db.prepare('INSERT INTO items (name) VALUES (?)').run('b')
+      })
+    })
+
+    const rows = db.prepare('SELECT name FROM items ORDER BY name').all() as { name: string }[]
+    expect(rows).toEqual([{ name: 'a' }, { name: 'b' }])
+  })
+
+  it('rolls back the whole outer transaction when a nested call throws, discarding an earlier sibling nested call', () => {
+    setup()
+
+    expect(() =>
+      runInTransaction(db, () => {
+        runInTransaction(db, () => {
+          db.prepare('INSERT INTO items (name) VALUES (?)').run('a')
+        })
+        runInTransaction(db, () => {
+          throw new Error('boom')
+        })
+      })
+    ).toThrow('boom')
+
+    const rows = db.prepare('SELECT name FROM items').all()
+    expect(rows).toEqual([])
+  })
+
+  it('leaves nesting-depth tracking reset to 0 after a nested-call rollback, so a later unrelated transaction still works', () => {
+    setup()
+
+    expect(() =>
+      runInTransaction(db, () => {
+        runInTransaction(db, () => {
+          throw new Error('boom')
+        })
+      })
+    ).toThrow('boom')
+
+    runInTransaction(db, () => {
+      db.prepare('INSERT INTO items (name) VALUES (?)').run('c')
+    })
+
+    const rows = db.prepare('SELECT name FROM items').all()
+    expect(rows).toEqual([{ name: 'c' }])
   })
 })
