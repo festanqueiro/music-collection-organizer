@@ -49,6 +49,7 @@ export function Player({ track }: { track: Track }) {
     if (!audio) return
     const chain = new EffectsChain(audio)
     chain.update(effectsSettings)
+    chain.setVolume(playerVolume)
     effectsChainRef.current = chain
     return () => {
       chain.close()
@@ -78,11 +79,13 @@ export function Player({ track }: { track: Track }) {
 
   // playerVolume lives in the global store (not local state) so a MIDI
   // binding can drive it regardless of which track's Player is currently
-  // mounted — this effect is what applies it to the actual <audio> element,
-  // including on every fresh mount (new track) and on every external change.
+  // mounted — this effect applies it to the master gain node (see
+  // effectsChain.ts) on every external change after mount. Setting
+  // HTMLMediaElement.volume directly doesn't reliably work once the
+  // element's output is captured by the Web Audio graph — the master
+  // gain is the only thing that actually controls the final signal.
   useEffect(() => {
-    const audio = audioRef.current
-    if (audio) audio.volume = playerVolume
+    effectsChainRef.current?.setVolume(playerVolume)
   }, [playerVolume])
 
   function updateDelay(partial: Partial<EffectsSettings['delay']>) {
@@ -153,6 +156,14 @@ export function Player({ track }: { track: Track }) {
         <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px' }}>
           {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
         </span>
+        {track.cloudStatus === 'local' && (
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px' }}>
+            Synced locally
+          </span>
+        )}
+        {track.analysisStatus === 'done' && (
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px' }}>Analysed</span>
+        )}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -168,7 +179,13 @@ export function Player({ track }: { track: Track }) {
               viewBox={`0 0 ${peaks.length} 100`}
               preserveAspectRatio="none"
               onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
-              style={{ cursor: 'pointer', display: 'block' }}
+              // Short/quiet-passage bars leave plenty of transparent gaps
+              // in the waveform — without this, clicks landing in those
+              // gaps (rather than exactly on a painted bar) are silently
+              // dropped, since SVG only hit-tests painted areas by
+              // default. pointerEvents: 'all' makes the whole box
+              // clickable regardless of what's actually drawn there.
+              style={{ cursor: 'pointer', display: 'block', pointerEvents: 'all' }}
             >
               {peaks.map((peak, i) => (
                 <rect
