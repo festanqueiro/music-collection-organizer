@@ -3,9 +3,14 @@ import { useEffect, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
-import type { EffectsSettings, MidiControlKey } from '../types'
+import type { EffectsSettings, MidiControlKey, Track } from '../types'
 
-export function Player({ src, peaks }: { src: string; peaks: number[] | null }) {
+// Renders as the app's footer player bar: track name + BPM, play/pause,
+// waveform (doubles as the seek bar), volume, and the delay/reverb FX
+// controls. All other track detail (artist, tags, full ID3) lives in
+// DetailPanel instead — this component is deliberately just the
+// now-playing strip.
+export function Player({ track }: { track: Track }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const effectsChainRef = useRef<EffectsChain | null>(null)
   const [playing, setPlaying] = useState(false)
@@ -36,7 +41,7 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
     }
   }
 
-  // Player remounts fresh per track (keyed by track id in DetailPanel), so
+  // Player remounts fresh per track (keyed by track id in App.tsx), so
   // this runs once per track — matches createMediaElementSource's
   // requirement of being called at most once per <audio> element.
   useEffect(() => {
@@ -73,6 +78,14 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
     setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, ...partial } })
   }
 
+  // One quarter-note at the track's BPM, clamped to the slider's 0-1000ms
+  // range (a quarter note below 60 BPM would exceed it).
+  function syncDelayToBpm() {
+    if (!track.bpm) return
+    const quarterNoteMs = Math.round(60000 / track.bpm)
+    updateDelay({ timeMs: Math.min(1000, quarterNoteMs) })
+  }
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (modalOpen) return
@@ -97,11 +110,13 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
     setProgress(ratio)
   }
 
+  const peaks = track.waveformPeaks
+
   return (
-    <div>
+    <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
       <audio
         ref={audioRef}
-        src={trackPathToMediaUrl(src)}
+        src={trackPathToMediaUrl(track.path)}
         onEnded={() => setPlaying(false)}
         onError={() => setPlaying(false)}
         onTimeUpdate={(e) => {
@@ -109,10 +124,53 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
           if (audio.duration && isFinite(audio.duration)) setProgress(audio.currentTime / audio.duration)
         }}
       />
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ minWidth: '160px', maxWidth: '260px', overflow: 'hidden' }}>
+          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
+            {track.title ?? track.filename}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
+            {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
+          </div>
+        </div>
+
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {peaks && peaks.length > 0 ? (
+            <svg
+              width="100%"
+              height="40"
+              viewBox={`0 0 ${peaks.length} 100`}
+              preserveAspectRatio="none"
+              onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
+              style={{ cursor: 'pointer', display: 'block' }}
+            >
+              {peaks.map((peak, i) => (
+                <rect
+                  key={i}
+                  x={i}
+                  y={50 - peak * 50}
+                  width={1}
+                  height={peak * 100}
+                  fill={i / peaks.length <= progress ? 'var(--color-accent)' : 'var(--color-border)'}
+                />
+              ))}
+              <rect
+                x={progress * peaks.length}
+                y={0}
+                width={Math.max(1, peaks.length / 400)}
+                height={100}
+                fill="var(--color-secondary)"
+              />
+            </svg>
+          ) : (
+            <div style={{ height: '40px', borderBottom: '1px solid var(--color-border)' }} />
+          )}
+        </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Volume">
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
@@ -137,7 +195,6 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
           flexWrap: 'wrap',
           alignItems: 'center',
           gap: '12px',
-          marginTop: '8px',
           fontSize: '12px',
           color: 'var(--color-text-dim)',
         }}
@@ -162,6 +219,14 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
             style={{ width: '60px' }}
           />
           <MidiLearnBadge control="delay.timeMs" />
+          <button
+            onClick={syncDelayToBpm}
+            disabled={!track.bpm}
+            title={track.bpm ? `Sync to ${Math.round(track.bpm)} BPM (quarter note)` : 'No BPM detected for this track'}
+            style={{ fontSize: '10px', padding: '0 4px' }}
+          >
+            Sync
+          </button>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Delay feedback">
           Feedback
@@ -212,29 +277,6 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
           <MidiLearnBadge control="reverb.mix" />
         </label>
       </div>
-
-      {peaks && peaks.length > 0 && (
-        <svg
-          width="100%"
-          height="60"
-          viewBox={`0 0 ${peaks.length} 100`}
-          preserveAspectRatio="none"
-          onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
-          style={{ cursor: 'pointer', display: 'block', marginTop: '8px' }}
-        >
-          {peaks.map((peak, i) => (
-            <rect
-              key={i}
-              x={i}
-              y={50 - peak * 50}
-              width={1}
-              height={peak * 100}
-              fill={i / peaks.length <= progress ? 'var(--color-accent)' : 'var(--color-border)'}
-            />
-          ))}
-          <rect x={progress * peaks.length} y={0} width={Math.max(1, peaks.length / 400)} height={100} fill="var(--color-secondary)" />
-        </svg>
-      )}
     </div>
   )
 }

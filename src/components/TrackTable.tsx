@@ -30,8 +30,30 @@ export function TrackTable({
   const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
   const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
+  const loadedTrackId = useCollectionStore((s) => s.loadedTrackId)
+  const loadTrackInPlayer = useCollectionStore((s) => s.loadTrackInPlayer)
   const [sortKey, setSortKey] = useState<SortKey>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!contextMenu) return
+    function close() {
+      setContextMenu(null)
+    }
+    // Deliberately no 'contextmenu' listener here — right-clicking a
+    // different row already reopens the menu via that row's own
+    // onContextMenu handler (setting new state directly), and a second
+    // window-level 'contextmenu' listener closing to null would race it:
+    // both fire from the same event's bubble phase, and being registered
+    // second, this one would run after and clobber the just-opened menu.
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [contextMenu])
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -118,7 +140,25 @@ export function TrackTable({
         </thead>
         <tbody>
           {visibleTracks.map((track) => (
-            <tr key={track.id} onClick={() => onSelect(track)} style={{ cursor: 'pointer' }}>
+            <tr
+              key={track.id}
+              onClick={() => onSelect(track)}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setContextMenu({ trackId: track.id, x: e.clientX, y: e.clientY })
+              }}
+              draggable
+              onDragStart={(e) => {
+                // Native OS drag (to Finder, a DAW, etc.) hands off the
+                // track's existing file path — it's a reference, not a
+                // copy; preventDefault stops the browser's own HTML5 drag
+                // image/ghost from also kicking in alongside it.
+                e.preventDefault()
+                window.api.startTrackDrag(track.id)
+              }}
+              style={{ cursor: 'pointer' }}
+            >
               <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                 <input
                   type="checkbox"
@@ -126,7 +166,28 @@ export function TrackTable({
                   onChange={() => toggleTrackChecked(track.id)}
                 />
               </td>
-              <td style={cellStyle}>{track.title ?? track.filename}</td>
+              <td style={cellStyle}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    loadTrackInPlayer(track.id)
+                  }}
+                  title="Load in Player"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '0 4px 0 0',
+                    cursor: 'pointer',
+                    verticalAlign: 'middle',
+                    color: track.id === loadedTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+                    play_circle
+                  </span>
+                </button>
+                {track.title ?? track.filename}
+              </td>
               <td style={cellStyle}>{track.artist ?? '—'}</td>
               <td style={cellStyle}>{track.bpm?.toFixed(0) ?? '—'}</td>
               <td style={cellStyle}>{track.musicalKey ?? '—'}</td>
@@ -154,6 +215,31 @@ export function TrackTable({
           ))}
         </tbody>
       </table>
+      {contextMenu && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            top: contextMenu.y,
+            left: contextMenu.x,
+            background: 'var(--color-surface-raised)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '6px',
+            padding: '4px',
+            zIndex: 20,
+          }}
+        >
+          <button
+            onClick={() => {
+              loadTrackInPlayer(contextMenu.trackId)
+              setContextMenu(null)
+            }}
+            style={{ background: 'none', border: 'none', padding: '4px 8px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+          >
+            Load track in Player
+          </button>
+        </div>
+      )}
     </div>
   )
 }

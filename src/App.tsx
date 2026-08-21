@@ -7,6 +7,7 @@ import { TagTree } from './components/TagTree'
 import { TrackTable } from './components/TrackTable'
 import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
+import { Player } from './components/Player'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
@@ -17,10 +18,12 @@ type LeftView = 'folders' | 'tags'
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
+  const tracks = useCollectionStore((s) => s.tracks)
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const loadCollectionFolder = useCollectionStore((s) => s.loadCollectionFolder)
   const loadEffectsSettings = useCollectionStore((s) => s.loadEffectsSettings)
   const loadMidiMappings = useCollectionStore((s) => s.loadMidiMappings)
+  const loadAppVersion = useCollectionStore((s) => s.loadAppVersion)
   const handleMidiControlChange = useCollectionStore((s) => s.handleMidiControlChange)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
   const analysisProgress = useCollectionStore((s) => s.analysisProgress)
@@ -31,6 +34,7 @@ export default function App() {
   const dismissGenreDeletionUndo = useCollectionStore((s) => s.dismissGenreDeletionUndo)
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
+  const loadedTrackId = useCollectionStore((s) => s.loadedTrackId)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -52,6 +56,7 @@ export default function App() {
     loadCollectionFolder()
     loadEffectsSettings()
     loadMidiMappings()
+    loadAppVersion()
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
       const isFinal = progress.done === progress.total
@@ -64,7 +69,15 @@ export default function App() {
       }
     })
     return unsubscribe
-  }, [loadAll, loadCollectionFolder, loadEffectsSettings, loadMidiMappings, setAnalysisProgress, refreshTracks])
+  }, [
+    loadAll,
+    loadCollectionFolder,
+    loadEffectsSettings,
+    loadMidiMappings,
+    loadAppVersion,
+    setAnalysisProgress,
+    refreshTracks,
+  ])
 
   return (
     <>
@@ -146,11 +159,27 @@ export default function App() {
           <DetailPanel track={selectedTrack} />
         </div>
 
-        {analysisProgress && (
-          <div style={{ gridArea: 'footer' }}>
-            <AnalysisProgressBar progress={analysisProgress} />
-          </div>
-        )}
+        <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)' }}>
+          {(() => {
+            // Driven by loadedTrackId, not row selection — the player is
+            // independent, so browsing/checking details on other tracks
+            // (which only updates selectedTrack, below) doesn't interrupt
+            // playback. Only the load-to-player icon/context-menu action
+            // changes what's loaded here. Re-derived from the live tracks
+            // array on every render so BPM/waveform reflect an analysis
+            // that completes after the track was loaded. key forces a
+            // full remount when the loaded track changes — otherwise the
+            // playing/progress state (and the underlying <audio> element)
+            // carries over from the previous track instead of resetting.
+            const loadedTrack = loadedTrackId != null ? tracks.find((t) => t.id === loadedTrackId) : null
+            return loadedTrack ? (
+              <Player key={loadedTrack.id} track={loadedTrack} />
+            ) : (
+              <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>No track loaded</div>
+            )
+          })()}
+          {analysisProgress && <AnalysisProgressBar progress={analysisProgress} />}
+        </div>
       </div>
     </>
   )
