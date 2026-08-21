@@ -1,4 +1,8 @@
-# music-collection-organizer
+<p align="center">
+  <img src="resources/icon.png" alt="MCO logo" width="160" />
+</p>
+
+# MCO - Music Collection Organizer
 
 An Electron desktop app (macOS only for now) that scans a DJ's local music
 collection, extracts tags and audio analysis (BPM, musical key, waveform)

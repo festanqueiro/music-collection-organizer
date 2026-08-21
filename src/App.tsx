@@ -10,6 +10,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
+import { subscribeToMidiCc } from './audio/midi'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags'
@@ -18,6 +19,9 @@ export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const loadCollectionFolder = useCollectionStore((s) => s.loadCollectionFolder)
+  const loadEffectsSettings = useCollectionStore((s) => s.loadEffectsSettings)
+  const loadMidiMappings = useCollectionStore((s) => s.loadMidiMappings)
+  const handleMidiControlChange = useCollectionStore((s) => s.handleMidiControlChange)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
   const analysisProgress = useCollectionStore((s) => s.analysisProgress)
   const setAnalysisProgress = useCollectionStore((s) => s.setAnalysisProgress)
@@ -34,9 +38,20 @@ export default function App() {
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  // Mounted once here (not inside Player, which remounts per track) so a
+  // MIDI binding keeps working regardless of which track is currently
+  // loaded.
+  useEffect(() => {
+    return subscribeToMidiCc(({ channel, controller, value }) => {
+      handleMidiControlChange(channel, controller, value)
+    })
+  }, [handleMidiControlChange])
+
   useEffect(() => {
     loadAll()
     loadCollectionFolder()
+    loadEffectsSettings()
+    loadMidiMappings()
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
       const isFinal = progress.done === progress.total
@@ -49,7 +64,7 @@ export default function App() {
       }
     })
     return unsubscribe
-  }, [loadAll, loadCollectionFolder, setAnalysisProgress, refreshTracks])
+  }, [loadAll, loadCollectionFolder, loadEffectsSettings, loadMidiMappings, setAnalysisProgress, refreshTracks])
 
   return (
     <>

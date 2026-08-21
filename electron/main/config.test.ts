@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import Store from 'electron-store'
+import { DEFAULT_EFFECTS_SETTINGS } from '../../src/types'
 import {
   getCollectionFolder,
   setCollectionFolder,
@@ -9,6 +10,10 @@ import {
   getLastBackupError,
   setLastBackupError,
   clearLastBackupError,
+  getEffectsSettings,
+  setEffectsSettings,
+  getMidiMappings,
+  setMidiMappings,
   __setStoreForTests,
 } from './config'
 
@@ -56,5 +61,25 @@ describe('config store', () => {
     setLastBackupError('some error')
     clearLastBackupError()
     expect(getLastBackupError()).toBeNull()
+  })
+
+  it('returns the default effects settings when unset', () => {
+    expect(getEffectsSettings()).toEqual(DEFAULT_EFFECTS_SETTINGS)
+  })
+
+  it('persists a set effects settings', () => {
+    const settings = { delay: { enabled: true, timeMs: 500, feedback: 0.5, mix: 0.6 }, reverb: { enabled: true, mix: 0.4 } }
+    setEffectsSettings(settings)
+    expect(getEffectsSettings()).toEqual(settings)
+  })
+
+  it('returns an empty object for midi mappings when unset', () => {
+    expect(getMidiMappings()).toEqual({})
+  })
+
+  it('persists set midi mappings', () => {
+    const mappings = { volume: { channel: 0, controller: 7 }, 'delay.mix': { channel: 1, controller: 12 } }
+    setMidiMappings(mappings)
+    expect(getMidiMappings()).toEqual(mappings)
   })
 })

@@ -58,3 +58,22 @@ export interface GenreDeletionSnapshot {
   trackGenreAssociations: { trackId: number }[]
   trackSubgenreAssociationsByName: Record<string, number[]>
 }
+
+export interface EffectsSettings {
+  delay: { enabled: boolean; timeMs: number; feedback: number; mix: number }
+  reverb: { enabled: boolean; mix: number }
+}
+
+export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
+  delay: { enabled: false, timeMs: 300, feedback: 0.3, mix: 0.3 },
+  reverb: { enabled: false, mix: 0.3 },
+}
+
+export type MidiControlKey = 'volume' | 'delay.timeMs' | 'delay.feedback' | 'delay.mix' | 'reverb.mix'
+
+export interface MidiBinding {
+  channel: number
+  controller: number
+}
+
+export type MidiMappings = Partial<Record<MidiControlKey, MidiBinding>>

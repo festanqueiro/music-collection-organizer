@@ -1,5 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { spawnSync } from 'node:child_process'
+import ffmpegPath from 'ffmpeg-static'
 
 // Generates a 1-second, 44100Hz, mono, 16-bit PCM WAV file containing a 440Hz sine wave.
 export function createTestToneWav(dir: string, filename = 'tone.wav'): string {
@@ -32,4 +34,18 @@ export function createTestToneWav(dir: string, filename = 'tone.wav'): string {
   const filePath = join(dir, filename)
   writeFileSync(filePath, buffer)
   return filePath
+}
+
+// Generates a real AIFF file (via ffmpeg, transcoding a synthesized test-tone
+// WAV) for tests that need a genuine AIFF container/codec, not just an
+// extension — e.g. verifying an AIFF-to-FLAC transcode actually decodes.
+export function createTestToneAiff(dir: string, filename = 'tone.aiff'): string {
+  const wavPath = createTestToneWav(dir, 'tone-source.wav')
+  const aiffPath = join(dir, filename)
+  if (!ffmpegPath) throw new Error('ffmpeg-static did not resolve a binary path for this platform/arch')
+  const result = spawnSync(ffmpegPath, ['-y', '-i', wavPath, '-loglevel', 'error', aiffPath])
+  if (result.status !== 0) {
+    throw new Error(`ffmpeg failed to create AIFF fixture: ${result.stderr?.toString()}`)
+  }
+  return aiffPath
 }

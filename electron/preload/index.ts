@@ -8,12 +8,20 @@ import type {
   BackupEntry,
   ImportResult,
   GenreDeletionSnapshot,
+  EffectsSettings,
+  MidiMappings,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
 
 const api = {
   getCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:getCollectionFolder'),
+  getEffectsSettings: (): Promise<EffectsSettings> => ipcRenderer.invoke('config:getEffectsSettings'),
+  setEffectsSettings: (settings: EffectsSettings): Promise<void> =>
+    ipcRenderer.invoke('config:setEffectsSettings', settings),
+  getMidiMappings: (): Promise<MidiMappings> => ipcRenderer.invoke('config:getMidiMappings'),
+  setMidiMappings: (mappings: MidiMappings): Promise<void> =>
+    ipcRenderer.invoke('config:setMidiMappings', mappings),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
   scanCollection: (): Promise<ScanResult> => ipcRenderer.invoke('scan:run'),
   getTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getAll'),
