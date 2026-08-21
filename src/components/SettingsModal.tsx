@@ -13,6 +13,15 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open) return
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [open, onClose])
+
   if (!open) return null
 
   return (
@@ -48,7 +57,14 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         <section style={{ marginBottom: '20px' }}>
           <h3 style={{ fontSize: '13px', color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Collection folder</h3>
           <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{collectionFolder ?? 'Not set'}</p>
-          <button onClick={() => pickCollectionFolder()}>Change…</button>
+          <button
+            onClick={async () => {
+              const changed = await pickCollectionFolder()
+              if (changed) onClose()
+            }}
+          >
+            Change…
+          </button>
         </section>
 
         <section>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { matchesTagFilter, type TagFilterState } from '../state/tagFilter'
 import type { Track } from '../types'
@@ -8,6 +8,7 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
   const subgenres = useCollectionStore((s) => s.subgenres)
   const moods = useCollectionStore((s) => s.moods)
   const trackTags = useCollectionStore((s) => s.trackTags)
+  const deleteGenre = useCollectionStore((s) => s.deleteGenre)
 
   const [genreIds, setGenreIds] = useState<Set<number>>(new Set())
   const [subgenreIds, setSubgenreIds] = useState<Set<number>>(new Set())
@@ -29,6 +30,16 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
     })
   }
 
+  // A checkbox toggle rebuilds the filter closure over trackTags as it was
+  // at that moment — if a tag edit elsewhere changes trackTags afterward
+  // without the user touching a checkbox, the stored filter closure goes
+  // stale (it still matches against the old trackTags). Re-applying the
+  // current filter selection whenever trackTags changes keeps it live.
+  useEffect(() => {
+    applyFilter({ genreIds, subgenreIds, moodIds })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackTags])
+
   function toggle(set: Set<number>, id: number, setter: (s: Set<number>) => void, key: 'genre' | 'subgenre' | 'mood') {
     const next = new Set(set)
     if (next.has(id)) next.delete(id)
@@ -47,13 +58,27 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
       <div style={{ fontWeight: 600, margin: '8px 0' }}>Genre</div>
       {genres.map((genre) => (
         <div key={genre.id}>
-          <label style={{ display: 'block', paddingLeft: '8px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '8px' }}>
             <input
               type="checkbox"
               checked={genreIds.has(genre.id)}
               onChange={() => toggle(genreIds, genre.id, setGenreIds, 'genre')}
             />{' '}
-            {genre.name}
+            <span style={{ flex: 1 }}>{genre.name}</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                if (window.confirm(`Delete genre "${genre.name}"? This also removes its sub-genres and untags every track that has it.`)) {
+                  deleteGenre(genre.id)
+                }
+              }}
+              title={`Delete genre "${genre.name}"`}
+              style={{ padding: '0 4px', fontSize: '11px' }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                delete
+              </span>
+            </button>
           </label>
           {subgenres
             .filter((sg) => sg.genreId === genre.id)

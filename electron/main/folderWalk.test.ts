@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { walkAudioFiles } from './folderWalk'
@@ -30,4 +30,29 @@ describe('walkAudioFiles', () => {
     const track1 = files.find((f) => f.path.endsWith('track1.wav'))!
     expect(track1.size).toBe(1)
   })
+
+  // Running as root ignores Unix permission bits entirely, so chmod 000
+  // wouldn't actually block the read — skip there rather than assert
+  // something false.
+  it.skipIf(process.getuid?.() === 0)(
+    'skips an unreadable subdirectory instead of aborting the whole walk',
+    () => {
+      const blockedDir = join(root, 'blocked')
+      mkdirSync(blockedDir)
+      writeFileSync(join(blockedDir, 'secret.wav'), 'x')
+      chmodSync(blockedDir, 0o000)
+
+      try {
+        const files = walkAudioFiles(root)
+        const paths = files.map((f) => f.path).sort()
+        // The two originally-readable files are still found; nothing from
+        // the unreadable directory is, and the call doesn't throw.
+        expect(paths).toEqual([join(root, 'sub', 'track2.flac'), join(root, 'track1.wav')])
+      } finally {
+        // Restore permissions before afterEach's rmSync tries to clean up —
+        // rmSync can't recurse into a directory it can't read either.
+        chmodSync(blockedDir, 0o755)
+      }
+    }
+  )
 })

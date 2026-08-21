@@ -8,6 +8,7 @@ import {
   createGenre,
   createSubgenre,
   createMood,
+  deleteGenre,
   setTrackGenres,
   setTrackSubgenres,
   setTrackMoods,
@@ -77,6 +78,13 @@ function rowToTrack(row: TrackRow): Track {
 }
 
 export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, backupFolder: string) {
+  // Guards scan:run against overlapping runs — without this, clicking
+  // "Update Collection" twice in quick succession could start two
+  // concurrent analysis queues both picking up the same still-pending
+  // tracks, racing to write the same rows and interleaving two different
+  // scan:progress totals.
+  let scanInProgress = false
+
   ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
 
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({
@@ -93,8 +101,15 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, 
   })
 
   ipcMain.handle('scan:run', async (): Promise<ScanResult> => {
+    if (scanInProgress) throw new Error('A scan is already in progress')
+    scanInProgress = true
+
     const folder = getCollectionFolder()
-    if (!folder) throw new Error('No collection folder configured')
+    if (!folder) {
+      scanInProgress = false
+      throw new Error('No collection folder configured')
+    }
+
     const result = runScan(db, folder)
 
     const pending = db
@@ -113,7 +128,10 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, 
         })
         .finally(() => {
           mainWindow.webContents.send('scan:progress', { done: pending.length, total: pending.length })
+          scanInProgress = false
         })
+    } else {
+      scanInProgress = false
     }
 
     return result
@@ -141,6 +159,7 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, 
     createSubgenre(db, name, genreId)
   )
   ipcMain.handle('tags:createMood', (_e, name: string): number => createMood(db, name))
+  ipcMain.handle('tags:deleteGenre', (_e, genreId: number): void => deleteGenre(db, genreId))
 
   // These return the post-write tag state (read back from the DB) rather
   // than void, so the renderer store can apply the server's answer directly

@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from 'node:fs'
+import { readdirSync, statSync, type Dirent } from 'node:fs'
 import { join, extname } from 'node:path'
 import type { DiskFile } from './scanDiff'
 
@@ -8,7 +8,17 @@ export function walkAudioFiles(rootPath: string): DiskFile[] {
   const results: DiskFile[] = []
 
   function walk(dir: string) {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    // A single unreadable subdirectory (permissions, a broken mount point)
+    // shouldn't abort scanning the rest of the collection.
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(dir, { withFileTypes: true })
+    } catch (err) {
+      console.warn(`walkAudioFiles: skipping unreadable directory ${dir}`, err)
+      return
+    }
+
+    for (const entry of entries) {
       const fullPath = join(dir, entry.name)
       if (entry.isDirectory()) {
         walk(fullPath)

@@ -25,6 +25,16 @@ export function TrackTable({
   const tracks = useCollectionStore((s) => s.tracks)
   const searchText = useCollectionStore((s) => s.searchText)
   const [sortKey, setSortKey] = useState<SortKey>('title')
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+
+  function handleSort(key: SortKey) {
+    if (key === sortKey) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
+  }
 
   const visibleTracks = useMemo(() => {
     const query = searchText.trim().toLowerCase()
@@ -39,9 +49,10 @@ export function TrackTable({
       .sort((a, b) => {
         const av = a[sortKey] ?? ''
         const bv = b[sortKey] ?? ''
-        return av < bv ? -1 : av > bv ? 1 : 0
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0
+        return sortDir === 'asc' ? cmp : -cmp
       })
-  }, [tracks, searchText, selectedFolder, activeFilter, sortKey])
+  }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir])
 
   const columns: { key: SortKey; label: string }[] = [
     { key: 'title', label: 'Title' },
@@ -62,10 +73,11 @@ export function TrackTable({
             {columns.map((col) => (
               <th
                 key={col.key}
-                onClick={() => setSortKey(col.key)}
+                onClick={() => handleSort(col.key)}
                 style={{ ...cellStyle, cursor: 'pointer', textAlign: 'left' }}
               >
                 {col.label}
+                {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
               </th>
             ))}
             <th style={cellStyle}>Status</th>

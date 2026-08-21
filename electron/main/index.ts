@@ -30,8 +30,6 @@ function registerMediaProtocol(): void {
   })
 }
 
-let backupIntervalStarted = false
-
 function performBackupCheck(db: ReturnType<typeof openDatabase>): void {
   try {
     runBackupIfNeeded(db, getConfigFilePath(), getBackupFolder(app.getPath('userData')), new Date())
@@ -40,16 +38,12 @@ function performBackupCheck(db: ReturnType<typeof openDatabase>): void {
   }
 }
 
-function createWindow(): void {
-  const db = openDatabase(join(app.getPath('userData'), 'collection.db'))
-
-  performBackupCheck(db)
-
-  if (!backupIntervalStarted) {
-    backupIntervalStarted = true
-    setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
-  }
-
+// db, the backup check, and the hourly interval are created once here
+// rather than inside createWindow() — createWindow() can run again (macOS's
+// 'activate' event re-creates a window after the user closes all of them
+// without quitting), and opening a second db handle / re-arming the
+// interval on every call would be wasteful and confusing to reason about.
+function createWindow(db: ReturnType<typeof openDatabase>): void {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -77,11 +71,16 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerMediaProtocol()
-  createWindow()
+
+  const db = openDatabase(join(app.getPath('userData'), 'collection.db'))
+  performBackupCheck(db)
+  setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
+
+  createWindow(db)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+      createWindow(db)
     }
   })
 })

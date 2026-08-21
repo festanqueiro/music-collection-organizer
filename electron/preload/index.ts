@@ -16,6 +16,7 @@ const api = {
   createSubgenre: (name: string, genreId: number): Promise<number> =>
     ipcRenderer.invoke('tags:createSubgenre', name, genreId),
   createMood: (name: string): Promise<number> => ipcRenderer.invoke('tags:createMood', name),
+  deleteGenre: (genreId: number): Promise<void> => ipcRenderer.invoke('tags:deleteGenre', genreId),
   setTrackGenres: (trackId: number, genreIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackGenres', trackId, genreIds),
   setTrackSubgenres: (trackId: number, subgenreIds: number[]): Promise<TrackTagIds> =>

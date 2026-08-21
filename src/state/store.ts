@@ -30,7 +30,7 @@ interface CollectionState {
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
   loadCollectionFolder: () => Promise<void>
-  pickCollectionFolder: () => Promise<void>
+  pickCollectionFolder: () => Promise<boolean>
   loadAll: () => Promise<void>
   setAnalysisProgress: (progress: { done: number; total: number } | null) => void
   refreshTracks: () => Promise<void>
@@ -42,6 +42,7 @@ interface CollectionState {
   createGenre: (name: string) => Promise<void>
   createSubgenre: (name: string, genreId: number) => Promise<void>
   createMood: (name: string) => Promise<void>
+  deleteGenre: (genreId: number) => Promise<void>
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -61,12 +62,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   pickCollectionFolder: async () => {
     const folder = await window.api.chooseCollectionFolder()
-    if (!folder) return
+    if (!folder) return false
     set({ collectionFolder: folder })
     // Without this, switching folders leaves the previous folder's tracks
     // showing (and unplayable, since media:// is scoped to the new folder)
     // until the user happens to trigger a scan some other way.
     await get().runScan()
+    return true
   },
 
   loadAll: async () => {
@@ -125,6 +127,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   createMood: async (name) => {
     if (!name.trim()) return
     await window.api.createMood(name.trim())
+    await get().loadAll()
+  },
+
+  deleteGenre: async (genreId) => {
+    await window.api.deleteGenre(genreId)
     await get().loadAll()
   },
 }))

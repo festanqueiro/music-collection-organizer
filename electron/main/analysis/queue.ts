@@ -93,10 +93,22 @@ export async function runAnalysisQueue(
   await new Promise<void>((resolve, reject) => {
     const workers: Worker[] = []
     let settled = false
+    // Tracks currently assigned to a worker (status already flipped to
+    // 'analyzing') but whose result hasn't come back yet. If a worker
+    // errors out, finish() terminates every worker immediately — without
+    // this, whatever was in-flight at that moment would stay stuck showing
+    // 'analyzing' in the UI forever, since nothing else ever updates it.
+    const inFlightTrackIds = new Set<number>()
 
     function finish(err?: Error) {
       if (settled) return
       settled = true
+      if (err) {
+        for (const id of inFlightTrackIds) {
+          db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(id)
+        }
+        inFlightTrackIds.clear()
+      }
       for (const w of workers) w.terminate()
       if (err) reject(err)
       else resolve()
@@ -106,6 +118,7 @@ export async function runAnalysisQueue(
       if (nextIndex >= tracks.length) return
       const track = tracks[nextIndex++]
       db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
+      inFlightTrackIds.add(track.id)
       const task: WorkerTask = { id: track.id, path: track.path }
       worker.postMessage(task)
     }
@@ -116,6 +129,7 @@ export async function runAnalysisQueue(
 
       worker.on('message', (msg: WorkerResult) => {
         const track = tracks.find((t) => t.id === msg.id)!
+        inFlightTrackIds.delete(msg.id)
         if (msg.status === 'done') {
           writeAnalysisResult(db, track, msg.result)
         } else {
