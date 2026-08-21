@@ -1,4 +1,4 @@
-import { app, BrowserWindow, protocol } from 'electron'
+import { app, BrowserWindow, protocol, session } from 'electron'
 import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createReadStream, statSync } from 'node:fs'
@@ -169,7 +169,27 @@ function createWindow(onShown?: () => void): void {
   }
 }
 
+// Electron requires an explicit grant for permission-gated renderer APIs —
+// without this, navigator.requestMIDIAccess() (the MIDI-learn feature)
+// silently rejects, with no dialog and no visible error beyond a console
+// message. Only 'midi' is granted (not 'midiSysex' — CC-only mapping never
+// needs sysex); everything else is explicitly denied, since this app has
+// no other use for camera/mic/geolocation/notifications/etc. Both handlers
+// are set because Chromium checks some permission-gated APIs via a
+// synchronous check (setPermissionCheckHandler) and others via the
+// asynchronous prompt-style request (setPermissionRequestHandler),
+// depending on the API.
+function registerPermissionHandlers(): void {
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    callback(permission === 'midi')
+  })
+  session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
+    return permission === 'midi'
+  })
+}
+
 app.whenReady().then(() => {
+  registerPermissionHandlers()
   registerMediaProtocol()
 
   const db = openDatabase(join(app.getPath('userData'), 'collection.db'))
