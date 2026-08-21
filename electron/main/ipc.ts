@@ -17,6 +17,7 @@ import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { getDragIcon } from './dragIcon'
 import { runAnalysisQueue } from './analysis/queue'
+import { getMediaCacheDir } from './mediaCacheDir'
 import { listBackups, restoreBackup } from './backup'
 import {
   createGenre,
@@ -115,9 +116,12 @@ function rowToTrack(row: TrackRow): Track {
 export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => BrowserWindow, backupFolder: string) {
   // Guards scan:run against overlapping runs.
   let scanInProgress = false
-  // Guards analysis:run against overlapping runs, and gives analysis:stop
-  // something to abort — non-null exactly while an analysis is in flight.
-  let analysisAbortController: AbortController | null = null
+  // Every in-flight analysis:run call's controller — a Set, not a single
+  // slot, since multiple calls can legitimately run concurrently (e.g. a
+  // full-collection "Analyse Collection" run plus a single-track one
+  // triggered by loading a track into the player). analysis:stop aborts
+  // all of them.
+  const activeAnalysisControllers = new Set<AbortController>()
 
   ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
 
@@ -181,8 +185,6 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   // Either way, only 'local' tracks — a cloud-only placeholder has no
   // real audio to analyze yet.
   ipcMain.handle('analysis:run', async (_e, trackIds?: number[]): Promise<void> => {
-    if (analysisAbortController) throw new Error('Analysis is already in progress')
-
     const tracks =
       trackIds && trackIds.length > 0
         ? (db
@@ -198,23 +200,31 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
     if (tracks.length === 0) return
 
-    analysisAbortController = new AbortController()
+    // Runs alongside any other in-flight analysis:run call rather than
+    // rejecting — e.g. loading a track into the player kicks off a
+    // single-track analysis in the background, which must not be blocked
+    // just because a full-collection "Analyse Collection" run happens to
+    // already be going. Each call gets its own controller so
+    // analysis:stop can abort all of them together.
+    const controller = new AbortController()
+    activeAnalysisControllers.add(controller)
     try {
       await runAnalysisQueue(db, tracks, {
         concurrency: 4,
+        cacheDir: getMediaCacheDir(),
         onProgress: (progress) => {
           getMainWindow().webContents.send('scan:progress', progress)
         },
-        signal: analysisAbortController.signal,
+        signal: controller.signal,
       })
     } finally {
+      activeAnalysisControllers.delete(controller)
       getMainWindow().webContents.send('scan:progress', { done: tracks.length, total: tracks.length })
-      analysisAbortController = null
     }
   })
 
   ipcMain.handle('analysis:stop', (): void => {
-    analysisAbortController?.abort()
+    for (const controller of activeAnalysisControllers) controller.abort()
   })
 
   ipcMain.handle('tracks:getAll', (): Track[] => {
@@ -280,7 +290,7 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   )
 
   ipcMain.handle('tracks:download', async (_e, trackId: number): Promise<void> => {
-    await downloadTrack(db, trackId)
+    await downloadTrack(db, trackId, getMediaCacheDir())
   })
 
   // Native OS file drag (e.g. dragging a row out to Finder, a DAW, or any
