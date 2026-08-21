@@ -91,3 +91,36 @@ export function getTrackTagIds(
   }
   return { genreIds, subgenreIds, moodIds }
 }
+
+export function addGenresToTracks(db: AppDatabase, trackIds: number[], genreIds: number[]): void {
+  runInTransaction(db, () => {
+    for (const trackId of trackIds) {
+      for (const genreId of genreIds) {
+        db.prepare('INSERT OR IGNORE INTO track_genres (track_id, genre_id) VALUES (?, ?)').run(trackId, genreId)
+      }
+    }
+  })
+}
+
+export function addSubgenresToTracks(db: AppDatabase, trackIds: number[], subgenreIds: number[]): void {
+  runInTransaction(db, () => {
+    for (const trackId of trackIds) {
+      for (const subgenreId of subgenreIds) {
+        db.prepare('INSERT OR IGNORE INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(
+          trackId,
+          subgenreId
+        )
+      }
+    }
+  })
+}
+
+export function addMoodsToTracks(db: AppDatabase, trackIds: number[], moodIds: number[]): void {
+  runInTransaction(db, () => {
+    for (const trackId of trackIds) {
+      for (const moodId of moodIds) {
+        db.prepare('INSERT OR IGNORE INTO track_moods (track_id, mood_id) VALUES (?, ?)').run(trackId, moodId)
+      }
+    }
+  })
+}

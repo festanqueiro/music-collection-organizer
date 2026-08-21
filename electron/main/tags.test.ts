@@ -9,6 +9,9 @@ import {
   setTrackSubgenres,
   setTrackMoods,
   getTrackTagIds,
+  addGenresToTracks,
+  addSubgenresToTracks,
+  addMoodsToTracks,
 } from './tags'
 
 describe('tags', () => {
@@ -57,5 +60,59 @@ describe('tags', () => {
     deleteGenre(db, houseId)
     const remaining = db.prepare('SELECT * FROM subgenres').all()
     expect(remaining).toEqual([])
+  })
+
+  it('addGenresToTracks adds a genre to multiple tracks without touching their other tags', () => {
+    const houseId = createGenre(db, 'House')
+    const technoId = createGenre(db, 'Techno')
+    const track2Id = db
+      .prepare(
+        `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/b.wav','b.wav','/', 'wav', 1, 1)`
+      )
+      .run().lastInsertRowid as number
+
+    setTrackGenres(db, trackId, [technoId]) // pre-existing tag that should survive
+
+    addGenresToTracks(db, [trackId, track2Id], [houseId])
+
+    expect(getTrackTagIds(db, trackId).genreIds.sort()).toEqual([houseId, technoId].sort())
+    expect(getTrackTagIds(db, track2Id).genreIds).toEqual([houseId])
+  })
+
+  it('addGenresToTracks is a harmless no-op when the track already has the genre', () => {
+    const houseId = createGenre(db, 'House')
+    setTrackGenres(db, trackId, [houseId])
+
+    expect(() => addGenresToTracks(db, [trackId], [houseId])).not.toThrow()
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([houseId])
+  })
+
+  it('addSubgenresToTracks adds a sub-genre to multiple tracks', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    const track2Id = db
+      .prepare(
+        `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/c.wav','c.wav','/', 'wav', 1, 1)`
+      )
+      .run().lastInsertRowid as number
+
+    addSubgenresToTracks(db, [trackId, track2Id], [deepHouseId])
+
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([deepHouseId])
+    expect(getTrackTagIds(db, track2Id).subgenreIds).toEqual([deepHouseId])
+  })
+
+  it('addMoodsToTracks adds a mood to multiple tracks', () => {
+    const energeticId = createMood(db, 'Energetic')
+    const track2Id = db
+      .prepare(
+        `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/d.wav','d.wav','/', 'wav', 1, 1)`
+      )
+      .run().lastInsertRowid as number
+
+    addMoodsToTracks(db, [trackId, track2Id], [energeticId])
+
+    expect(getTrackTagIds(db, trackId).moodIds).toEqual([energeticId])
+    expect(getTrackTagIds(db, track2Id).moodIds).toEqual([energeticId])
   })
 })
