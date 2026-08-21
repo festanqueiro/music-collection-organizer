@@ -57,6 +57,21 @@ export function Player({ track }: { track: Track }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Player only ever mounts fresh when a track is explicitly loaded (the
+  // play-circle icon or "Load track in Player") — so autoplaying on mount
+  // is exactly "click play in the track list plays instantly", not a
+  // surprise autoplay on some unrelated re-render.
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    effectsChainRef.current?.resume()
+    audio.play().then(
+      () => setPlaying(true),
+      () => setPlaying(false)
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     effectsChainRef.current?.update(effectsSettings)
   }, [effectsSettings])
