@@ -25,9 +25,20 @@ import {
   addGenresToTracks,
   addSubgenresToTracks,
   addMoodsToTracks,
+  captureGenreDeletionSnapshot,
+  undoGenreDeletion,
 } from './tags'
 import { exportTagData, importTagData, type TagExportData } from './tagExport'
-import type { Track, Genre, Subgenre, Mood, BackupInfo, BackupEntry, ImportResult } from '../../src/types'
+import type {
+  Track,
+  Genre,
+  Subgenre,
+  Mood,
+  BackupInfo,
+  BackupEntry,
+  ImportResult,
+  GenreDeletionSnapshot,
+} from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
 interface TrackRow {
@@ -191,7 +202,14 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     createSubgenre(db, name, genreId)
   )
   ipcMain.handle('tags:createMood', (_e, name: string): number => createMood(db, name))
-  ipcMain.handle('tags:deleteGenre', (_e, genreId: number): void => deleteGenre(db, genreId))
+  ipcMain.handle('tags:deleteGenre', (_e, genreId: number): GenreDeletionSnapshot => {
+    const snapshot = captureGenreDeletionSnapshot(db, genreId)
+    deleteGenre(db, genreId)
+    return snapshot
+  })
+  ipcMain.handle('tags:undoDeleteGenre', (_e, snapshot: GenreDeletionSnapshot): void =>
+    undoGenreDeletion(db, snapshot)
+  )
 
   // These return the post-write tag state (read back from the DB) rather
   // than void, so the renderer store can apply the server's answer directly

@@ -51,3 +51,10 @@ export interface ImportResult {
   matchedTracks: number
   skippedTracks: number
 }
+
+export interface GenreDeletionSnapshot {
+  genreName: string
+  subgenres: { name: string }[]
+  trackGenreAssociations: { trackId: number }[]
+  trackSubgenreAssociationsByName: Record<string, number[]>
+}

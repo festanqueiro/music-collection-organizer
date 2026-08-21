@@ -1,6 +1,6 @@
 // src/state/store.ts
 import { create, type StoreApi } from 'zustand'
-import type { Track, Genre, Subgenre, Mood, ImportResult } from '../types'
+import type { Track, Genre, Subgenre, Mood, ImportResult, GenreDeletionSnapshot } from '../types'
 import type { TrackTagIds } from './tagFilter'
 
 // Applies a tag IPC call's returned (server-authoritative) TrackTagIds to one
@@ -27,6 +27,7 @@ interface CollectionState {
   moods: Mood[]
   trackTags: Map<number, TrackTagIds>
   checkedTrackIds: Set<number>
+  pendingGenreDeletion: { snapshot: GenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
@@ -44,6 +45,8 @@ interface CollectionState {
   createSubgenre: (name: string, genreId: number) => Promise<void>
   createMood: (name: string) => Promise<void>
   deleteGenre: (genreId: number) => Promise<void>
+  undoGenreDeletion: () => Promise<void>
+  dismissGenreDeletionUndo: () => void
   toggleTrackChecked: (trackId: number) => void
   setTracksChecked: (trackIds: number[], checked: boolean) => void
   clearCheckedTracks: () => void
@@ -59,6 +62,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   moods: [],
   trackTags: new Map(),
   checkedTrackIds: new Set(),
+  pendingGenreDeletion: null,
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -147,8 +151,27 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   deleteGenre: async (genreId) => {
-    await window.api.deleteGenre(genreId)
+    const snapshot = await window.api.deleteGenre(genreId)
     await get().loadAll()
+    const prev = get().pendingGenreDeletion
+    if (prev) clearTimeout(prev.timeoutId)
+    const timeoutId = setTimeout(() => set({ pendingGenreDeletion: null }), 8000)
+    set({ pendingGenreDeletion: { snapshot, timeoutId } })
+  },
+
+  undoGenreDeletion: async () => {
+    const pending = get().pendingGenreDeletion
+    if (!pending) return
+    clearTimeout(pending.timeoutId)
+    set({ pendingGenreDeletion: null })
+    await window.api.undoDeleteGenre(pending.snapshot)
+    await get().loadAll()
+  },
+
+  dismissGenreDeletionUndo: () => {
+    const pending = get().pendingGenreDeletion
+    if (pending) clearTimeout(pending.timeoutId)
+    set({ pendingGenreDeletion: null })
   },
 
   toggleTrackChecked: (trackId) => {

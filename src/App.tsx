@@ -9,6 +9,7 @@ import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
+import { UndoToast } from './components/UndoToast'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags'
@@ -21,6 +22,9 @@ export default function App() {
   const analysisProgress = useCollectionStore((s) => s.analysisProgress)
   const setAnalysisProgress = useCollectionStore((s) => s.setAnalysisProgress)
   const refreshTracks = useCollectionStore((s) => s.refreshTracks)
+  const pendingGenreDeletion = useCollectionStore((s) => s.pendingGenreDeletion)
+  const undoGenreDeletion = useCollectionStore((s) => s.undoGenreDeletion)
+  const dismissGenreDeletionUndo = useCollectionStore((s) => s.dismissGenreDeletionUndo)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -49,6 +53,13 @@ export default function App() {
     <>
       <ScanPrompt />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      {pendingGenreDeletion && (
+        <UndoToast
+          message={`Deleted "${pendingGenreDeletion.snapshot.genreName}"`}
+          onUndo={undoGenreDeletion}
+          onDismiss={dismissGenreDeletionUndo}
+        />
+      )}
       <div
         className="app-layout"
         style={{
