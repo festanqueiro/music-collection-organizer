@@ -25,6 +25,8 @@ export default function App() {
   const pendingGenreDeletion = useCollectionStore((s) => s.pendingGenreDeletion)
   const undoGenreDeletion = useCollectionStore((s) => s.undoGenreDeletion)
   const dismissGenreDeletionUndo = useCollectionStore((s) => s.dismissGenreDeletionUndo)
+  const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
+  const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -52,7 +54,13 @@ export default function App() {
   return (
     <>
       <ScanPrompt />
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => {
+          setSettingsOpen(false)
+          setModalOpen(false)
+        }}
+      />
       {pendingGenreDeletion && (
         <UndoToast
           message={`Deleted "${pendingGenreDeletion.snapshot.genreName}"`}
@@ -68,7 +76,12 @@ export default function App() {
         }}
       >
         <div style={{ gridArea: 'toolbar' }}>
-          <Toolbar onOpenSettings={() => setSettingsOpen(true)} />
+          <Toolbar
+            onOpenSettings={() => {
+              setSettingsOpen(true)
+              setModalOpen(true)
+            }}
+          />
         </div>
 
         <div className="pane" style={{ gridArea: 'left', padding: '12px' }}>
@@ -85,9 +98,20 @@ export default function App() {
                 </button>
               </div>
               {leftView === 'folders' ? (
-                <FolderTree rootPath={collectionFolder} onSelect={setSelectedFolder} />
+                <FolderTree
+                  rootPath={collectionFolder}
+                  onSelect={(folder) => {
+                    setSelectedFolder(folder)
+                    clearCheckedTracks()
+                  }}
+                />
               ) : (
-                <TagTree onFilterChange={(filter) => setTagFilter(() => filter)} />
+                <TagTree
+                  onFilterChange={(filter) => {
+                    setTagFilter(() => filter)
+                    clearCheckedTracks()
+                  }}
+                />
               )}
             </>
           )}

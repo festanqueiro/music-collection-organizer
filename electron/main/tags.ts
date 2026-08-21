@@ -159,10 +159,26 @@ export function addGenresToTracks(db: AppDatabase, trackIds: number[], genreIds:
   })
 }
 
+// Sub-genre tags only make sense alongside their parent genre (see
+// setTrackGenres, which prunes track_subgenres rows when the parent genre is
+// removed) — so adding a subgenre here must also ensure the parent genre is
+// associated with the track, or the association would be an invisible
+// orphan until the next genre edit silently deletes it.
 export function addSubgenresToTracks(db: AppDatabase, trackIds: number[], subgenreIds: number[]): void {
+  if (subgenreIds.length === 0 || trackIds.length === 0) return
   runInTransaction(db, () => {
+    const placeholders = subgenreIds.map(() => '?').join(', ')
+    const subgenreRows = db
+      .prepare(`SELECT id, genre_id FROM subgenres WHERE id IN (${placeholders})`)
+      .all(...subgenreIds) as { id: number; genre_id: number }[]
+    const genreIdBySubgenreId = new Map(subgenreRows.map((r) => [r.id, r.genre_id]))
+
     for (const trackId of trackIds) {
       for (const subgenreId of subgenreIds) {
+        const genreId = genreIdBySubgenreId.get(subgenreId)
+        if (genreId !== undefined) {
+          db.prepare('INSERT OR IGNORE INTO track_genres (track_id, genre_id) VALUES (?, ?)').run(trackId, genreId)
+        }
         db.prepare('INSERT OR IGNORE INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(
           trackId,
           subgenreId

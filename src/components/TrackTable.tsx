@@ -29,6 +29,7 @@ export function TrackTable({
   const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
   const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
   const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
+  const modalOpen = useCollectionStore((s) => s.modalOpen)
   const [sortKey, setSortKey] = useState<SortKey>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
@@ -61,8 +62,9 @@ export function TrackTable({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (modalOpen) return
       const target = e.target as HTMLElement
-      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return
       if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
       if (visibleTracks.length === 0) return
       e.preventDefault()
@@ -75,7 +77,7 @@ export function TrackTable({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [visibleTracks, selectedTrackId, onSelect])
+  }, [visibleTracks, selectedTrackId, onSelect, modalOpen])
 
   const columns: { key: SortKey; label: string }[] = [
     { key: 'title', label: 'Title' },

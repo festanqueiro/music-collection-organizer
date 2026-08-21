@@ -31,10 +31,12 @@ interface CollectionState {
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
+  modalOpen: boolean
   loadCollectionFolder: () => Promise<void>
   pickCollectionFolder: () => Promise<boolean>
   loadAll: () => Promise<void>
   setAnalysisProgress: (progress: { done: number; total: number } | null) => void
+  setModalOpen: (open: boolean) => void
   refreshTracks: () => Promise<void>
   setTrackGenres: (trackId: number, genreIds: number[]) => Promise<void>
   setTrackSubgenres: (trackId: number, subgenreIds: number[]) => Promise<void>
@@ -66,6 +68,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
+  modalOpen: false,
 
   loadCollectionFolder: async () => {
     const folder = await window.api.getCollectionFolder()
@@ -100,10 +103,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       window.api.getAllTagIds(),
     ])
     const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
-    set({ tracks, genres, subgenres, moods, trackTags })
+    set({ tracks, genres, subgenres, moods, trackTags, checkedTrackIds: new Set() })
   },
 
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
+
+  setModalOpen: (open) => set({ modalOpen: open }),
 
   refreshTracks: async () => {
     const tracks = await window.api.getTracks()
@@ -125,7 +130,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     setTrackTags(set, get, updated)
   },
 
-  setSearchText: (text) => set({ searchText: text }),
+  setSearchText: (text) => set({ searchText: text, checkedTrackIds: new Set() }),
 
   runScan: async () => {
     await window.api.scanCollection()
@@ -163,9 +168,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const pending = get().pendingGenreDeletion
     if (!pending) return
     clearTimeout(pending.timeoutId)
-    set({ pendingGenreDeletion: null })
-    await window.api.undoDeleteGenre(pending.snapshot)
-    await get().loadAll()
+    try {
+      await window.api.undoDeleteGenre(pending.snapshot)
+      set({ pendingGenreDeletion: null })
+      await get().loadAll()
+    } catch (err) {
+      console.error('undo genre deletion failed', err)
+      set({ pendingGenreDeletion: null })
+    }
   },
 
   dismissGenreDeletionUndo: () => {

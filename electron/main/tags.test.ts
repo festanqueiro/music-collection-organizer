@@ -104,6 +104,16 @@ describe('tags', () => {
     expect(getTrackTagIds(db, track2Id).subgenreIds).toEqual([deepHouseId])
   })
 
+  it('addSubgenresToTracks also associates the sub-genre\'s parent genre with the track', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+
+    addSubgenresToTracks(db, [trackId], [deepHouseId])
+
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([houseId])
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([deepHouseId])
+  })
+
   it('addMoodsToTracks adds a mood to multiple tracks', () => {
     const energeticId = createMood(db, 'Energetic')
     const track2Id = db
