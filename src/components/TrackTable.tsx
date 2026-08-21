@@ -142,6 +142,7 @@ export function TrackTable({
           {visibleTracks.map((track) => (
             <tr
               key={track.id}
+              className={`track-row${track.id === selectedTrackId ? ' selected' : ''}`}
               onClick={() => onSelect(track)}
               onContextMenu={(e) => {
                 e.preventDefault()

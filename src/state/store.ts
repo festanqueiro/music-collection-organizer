@@ -46,7 +46,7 @@ interface CollectionState {
   checkedTrackIds: Set<number>
   pendingGenreDeletion: { snapshot: GenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
   loadedTrackId: number | null
-  loadTrackInPlayer: (trackId: number) => void
+  loadTrackInPlayer: (trackId: number) => Promise<void>
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
@@ -234,7 +234,36 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // DetailPanel) — the player is independent, so browsing/checking
   // details on other tracks doesn't interrupt whatever's currently
   // loaded and playing. Only this explicit action changes it.
-  loadTrackInPlayer: (trackId) => set({ loadedTrackId: trackId }),
+  //
+  // A cloud-only track has no local audio to stream yet, so it's
+  // downloaded first (blocking — nothing to play until it lands). A
+  // pending/error track still loads and plays immediately (analysis
+  // isn't needed for playback), but kicks off a background analysis run
+  // for just that track so BPM/waveform show up without a separate
+  // manual step.
+  loadTrackInPlayer: async (trackId) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (!track) return
+
+    if (track.cloudStatus === 'cloud_only') {
+      try {
+        await window.api.downloadTrack(trackId)
+        await get().loadAll()
+      } catch (err) {
+        console.error('failed to download track before loading into player', err)
+        return
+      }
+    }
+
+    set({ loadedTrackId: trackId })
+
+    const current = get().tracks.find((t) => t.id === trackId)
+    if (current && (current.analysisStatus === 'pending' || current.analysisStatus === 'error')) {
+      get()
+        .runAnalysis([trackId])
+        .catch((err) => console.error('background analysis of loaded track failed', err))
+    }
+  },
 
   loadAppVersion: async () => {
     const version = await window.api.getAppVersion()
