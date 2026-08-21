@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { existsSync } from 'node:fs'
 import type { AppDatabase } from '../db'
 import { runAnalysisPipeline } from './pipeline'
+import { getPlayableFilePath } from '../audioTranscode'
 import type { WorkerResult, WorkerTask } from './worker'
 
 function writeAnalysisResult(
@@ -35,10 +36,23 @@ function writeAnalysisResult(
 // where one file is analyzed right after being materialized locally — a
 // brief main-thread block for one track is an acceptable tradeoff there,
 // unlike a bulk scan of a whole collection (see runAnalysisQueue below).
-export async function analyzeTrack(db: AppDatabase, track: { id: number; path: string }): Promise<void> {
+export async function analyzeTrack(
+  db: AppDatabase,
+  track: { id: number; path: string },
+  cacheDir: string
+): Promise<void> {
   db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
   try {
-    const result = await runAnalysisPipeline(track.path)
+    // Resolves to the already-transcoded FLAC cache for AIFF (a no-op for
+    // every other format) — same file playback reads, so analyzing a track
+    // that's also being played right now (e.g. auto-analysis kicked off by
+    // loading a not-yet-analyzed track into the player) doesn't open a
+    // second, independent ffmpeg read of the original source file. That
+    // matters most for a cloud-synced source (Google Drive for Desktop,
+    // etc.), where two concurrent reads of a not-fully-synced file can
+    // race each other.
+    const playablePath = await getPlayableFilePath(track.path, cacheDir)
+    const result = await runAnalysisPipeline(playablePath)
     writeAnalysisResult(db, track, result)
   } catch {
     db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
@@ -57,13 +71,17 @@ const WORKER_ENTRY = fileURLToPath(new URL('./analysis/worker.js', import.meta.u
 async function runAnalysisQueueInProcess(
   db: AppDatabase,
   tracks: { id: number; path: string }[],
-  options: { onProgress?: (progress: { done: number; total: number }) => void; signal?: AbortSignal }
+  options: {
+    cacheDir: string
+    onProgress?: (progress: { done: number; total: number }) => void
+    signal?: AbortSignal
+  }
 ): Promise<void> {
   const total = tracks.length
   let done = 0
   for (const track of tracks) {
     if (options.signal?.aborted) break
-    await analyzeTrack(db, track)
+    await analyzeTrack(db, track, options.cacheDir)
     done++
     options.onProgress?.({ done, total })
   }
@@ -75,11 +93,17 @@ async function runAnalysisQueueInProcess(
 // whole app's event loop (IPC, window paint) for the duration of the scan.
 // DB writes stay on the main thread (better-sqlite3/node:sqlite must only
 // be touched there).
+//
+// cacheDir: passed in explicitly (not fetched internally via
+// app.getPath) rather than computed in this module — keeps queue.ts free
+// of a hard Electron-app dependency, same as the rest of this module's
+// path-taking functions, and lets tests pass a plain temp directory.
 export async function runAnalysisQueue(
   db: AppDatabase,
   tracks: { id: number; path: string }[],
   options: {
     concurrency: number
+    cacheDir: string
     onProgress?: (progress: { done: number; total: number }) => void
     signal?: AbortSignal
   }
@@ -98,6 +122,7 @@ export async function runAnalysisQueue(
   // O(n) scan per message would make the whole dispatch loop O(n²) over a
   // large bulk analysis.
   const tracksById = new Map(tracks.map((t) => [t.id, t]))
+  const { cacheDir } = options
 
   await new Promise<void>((resolve, reject) => {
     const workers: Worker[] = []
@@ -142,7 +167,7 @@ export async function runAnalysisQueue(
       const track = tracks[nextIndex++]
       db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
       inFlightTrackIds.add(track.id)
-      const task: WorkerTask = { id: track.id, path: track.path }
+      const task: WorkerTask = { id: track.id, path: track.path, cacheDir }
       worker.postMessage(task)
     }
 

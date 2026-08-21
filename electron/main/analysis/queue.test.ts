@@ -28,7 +28,7 @@ describe('analyzeTrack', () => {
       )
       .run(filePath, dir).lastInsertRowid as number
 
-    await analyzeTrack(db, { id, path: filePath })
+    await analyzeTrack(db, { id, path: filePath }, dir)
 
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
     expect(row.analysis_status).toBe('done')
@@ -44,7 +44,7 @@ describe('analyzeTrack', () => {
       )
       .run(join(dir, 'missing.wav')).lastInsertRowid as number
 
-    await analyzeTrack(db, { id, path: join(dir, 'missing.wav') })
+    await analyzeTrack(db, { id, path: join(dir, 'missing.wav') }, dir)
 
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
     expect(row.analysis_status).toBe('error')
@@ -83,7 +83,7 @@ describe('runAnalysisQueue', () => {
     await runAnalysisQueue(
       db,
       ids.map((id, i) => ({ id, path: filePaths[i] })),
-      { concurrency: 2, onProgress: (p) => progressCalls.push(p) }
+      { concurrency: 2, cacheDir: dir, onProgress: (p) => progressCalls.push(p) }
     )
 
     const rows = db.prepare('SELECT analysis_status FROM tracks').all() as any[]
@@ -109,6 +109,7 @@ describe('runAnalysisQueue', () => {
       ids.map((id, i) => ({ id, path: filePaths[i] })),
       {
         concurrency: 1,
+        cacheDir: dir,
         onProgress: (p) => {
           if (p.done === 1) controller.abort()
         },

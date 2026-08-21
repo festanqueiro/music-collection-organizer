@@ -7,6 +7,7 @@ import { registerIpcHandlers } from './ipc'
 import { getCollectionFolder, getConfigFilePath, setLastBackupError, clearLastBackupError } from './config'
 import { mediaUrlToFilePath } from './mediaProtocol'
 import { getPlayableFilePath } from './audioTranscode'
+import { getMediaCacheDir } from './mediaCacheDir'
 import { runBackupIfNeeded, getBackupFolder } from './backup'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -44,7 +45,7 @@ function registerMediaProtocol(): void {
     // the cached file is a normal file on disk, same as the original.
     let playablePath: string
     try {
-      playablePath = await getPlayableFilePath(filePath, join(app.getPath('userData'), 'media-cache'))
+      playablePath = await getPlayableFilePath(filePath, getMediaCacheDir())
     } catch (err) {
       console.error('audio transcode failed', err)
       return new Response('Transcode failed', { status: 500 })
