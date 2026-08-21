@@ -7,18 +7,35 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "dist": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null",
+    "dist:beta": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.appId=com.local.music-collection-organizer.beta -c.productName=\"V1 Library Organizer BETA\" -c.extraMetadata.name=v1-library-organizer-beta && scripts/install-beta.sh"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "module",
+  "build": {
+    "appId": "com.local.music-collection-organizer",
+    "productName": "V1 Library Organizer",
+    "directories": {
+      "output": "release"
+    },
+    "asarUnpack": [
+      "**/node_modules/ffmpeg-static/**"
+    ],
+    "mac": {
+      "target": "dir",
+      "identity": null
+    }
+  },
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^4.7.0",
     "electron": "^43.4.1",
+    "electron-builder": "^26.15.3",
     "electron-vite": "^5.0.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.6",
