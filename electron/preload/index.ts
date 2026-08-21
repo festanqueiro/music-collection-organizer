@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Track, Genre, Subgenre, Mood, BackupInfo } from '../../src/types'
+import type { Track, Genre, Subgenre, Mood, BackupInfo, BackupEntry } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
 
@@ -27,6 +27,8 @@ const api = {
   // own DB row rather than trusting one supplied over IPC.
   downloadTrack: (trackId: number): Promise<void> => ipcRenderer.invoke('tracks:download', trackId),
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
+  listBackups: (): Promise<BackupEntry[]> => ipcRenderer.invoke('backup:list'),
+  restoreBackup: (timestamp: string): Promise<void> => ipcRenderer.invoke('backup:restore', timestamp),
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('scan:progress', listener)

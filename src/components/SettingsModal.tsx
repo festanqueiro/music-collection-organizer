@@ -1,15 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import type { BackupInfo } from '../types'
+import type { BackupInfo, BackupEntry } from '../types'
+
+// Backup filenames use `now.toISOString().replace(/[:.]/g, '-')` (see
+// electron/main/backup.ts) — undo that by re-inserting the standard ISO
+// separators positionally rather than trying to regex-guess which dashes
+// were colons. Format: YYYY-MM-DDTHH-MM-SS-mmmZ (24 chars incl. Z).
+function parseBackupTimestamp(timestamp: string): Date {
+  const iso = `${timestamp.slice(0, 13)}:${timestamp.slice(14, 16)}:${timestamp.slice(17, 19)}.${timestamp.slice(20, 23)}Z`
+  return new Date(iso)
+}
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
   const [backupInfo, setBackupInfo] = useState<BackupInfo | null>(null)
+  const [backups, setBackups] = useState<BackupEntry[]>([])
 
   useEffect(() => {
     if (open) {
       window.api.getBackupInfo().then(setBackupInfo)
+      window.api.listBackups().then(setBackups)
     }
   }, [open])
 
@@ -84,6 +95,37 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </>
           ) : (
             <p style={{ margin: 0, color: 'var(--color-text-dim)' }}>Loading…</p>
+          )}
+        </section>
+
+        <section style={{ marginTop: '20px' }}>
+          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Restore</h3>
+          {backups.length === 0 ? (
+            <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '12px' }}>No backups yet.</p>
+          ) : (
+            <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
+              {backups.map((entry) => (
+                <div
+                  key={entry.timestamp}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}
+                >
+                  <span style={{ fontSize: '12px' }}>{parseBackupTimestamp(entry.timestamp).toLocaleString()}</span>
+                  <button
+                    onClick={async () => {
+                      if (
+                        window.confirm(
+                          'Restore this backup? This overwrites the current collection and config, then relaunches the app.'
+                        )
+                      ) {
+                        await window.api.restoreBackup(entry.timestamp)
+                      }
+                    }}
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </section>
       </div>

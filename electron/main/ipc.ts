@@ -1,9 +1,17 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { app, ipcMain, dialog, BrowserWindow } from 'electron'
+import { join } from 'node:path'
 import type { AppDatabase } from './db'
-import { getCollectionFolder, setCollectionFolder, getLastBackupAt, getLastBackupError } from './config'
+import {
+  getCollectionFolder,
+  setCollectionFolder,
+  getLastBackupAt,
+  getLastBackupError,
+  getConfigFilePath,
+} from './config'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { runAnalysisQueue } from './analysis/queue'
+import { listBackups, restoreBackup } from './backup'
 import {
   createGenre,
   createSubgenre,
@@ -14,7 +22,7 @@ import {
   setTrackMoods,
   getTrackTagIds,
 } from './tags'
-import type { Track, Genre, Subgenre, Mood, BackupInfo } from '../../src/types'
+import type { Track, Genre, Subgenre, Mood, BackupInfo, BackupEntry } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
 interface TrackRow {
@@ -96,6 +104,18 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     lastBackupAt: getLastBackupAt(),
     lastBackupError: getLastBackupError(),
   }))
+
+  ipcMain.handle('backup:list', (): BackupEntry[] => listBackups(backupFolder))
+
+  ipcMain.handle('backup:restore', (_e, timestamp: string): void => {
+    const entry = listBackups(backupFolder).find((e) => e.timestamp === timestamp)
+    if (!entry) throw new Error(`No backup found for timestamp ${timestamp}`)
+    db.close()
+    const dbFilePath = join(app.getPath('userData'), 'collection.db')
+    restoreBackup(entry, dbFilePath, getConfigFilePath())
+    app.relaunch()
+    app.exit()
+  })
 
   ipcMain.handle('config:chooseCollectionFolder', async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })

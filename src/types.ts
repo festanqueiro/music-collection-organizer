@@ -40,3 +40,9 @@ export interface BackupInfo {
   lastBackupAt: string | null
   lastBackupError: string | null
 }
+
+export interface BackupEntry {
+  timestamp: string
+  dbPath: string
+  configPath: string
+}
