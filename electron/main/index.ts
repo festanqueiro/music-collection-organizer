@@ -50,7 +50,10 @@ let currentWindow: BrowserWindow | null = null
 // event (which re-creates a window after the user closes all of them
 // without quitting), and both opening a second db handle and calling
 // ipcMain.handle() a second time for the same channel would throw.
-function createWindow(): void {
+// onShown runs after the window actually paints, not before — so a
+// (roughly daily) VACUUM INTO in performBackupCheck doesn't sit on the
+// main thread ahead of first paint.
+function createWindow(onShown?: () => void): void {
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -67,6 +70,7 @@ function createWindow(): void {
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
+    onShown?.()
   })
 
   if (process.env['ELECTRON_RENDERER_URL']) {
@@ -80,12 +84,11 @@ app.whenReady().then(() => {
   registerMediaProtocol()
 
   const db = openDatabase(join(app.getPath('userData'), 'collection.db'))
-  performBackupCheck(db)
   setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
 
   registerIpcHandlers(db, () => currentWindow!, getBackupFolder(app.getPath('userData')))
 
-  createWindow()
+  createWindow(() => performBackupCheck(db))
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -93,8 +96,7 @@ app.whenReady().then(() => {
       // to also re-check the backup, in case the hourly timer hasn't
       // fired yet — shouldBackupToday's dedup makes this a no-op most of
       // the time anyway.
-      performBackupCheck(db)
-      createWindow()
+      createWindow(() => performBackupCheck(db))
     }
   })
 })

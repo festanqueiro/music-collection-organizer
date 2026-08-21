@@ -89,6 +89,10 @@ export async function runAnalysisQueue(
   let done = 0
   let nextIndex = 0
   const workerCount = Math.max(1, Math.min(options.concurrency, tracks.length))
+  // Looked up once per completed message instead of tracks.find() — an
+  // O(n) scan per message would make the whole dispatch loop O(n²) over a
+  // large bulk analysis.
+  const tracksById = new Map(tracks.map((t) => [t.id, t]))
 
   await new Promise<void>((resolve, reject) => {
     const workers: Worker[] = []
@@ -136,7 +140,7 @@ export async function runAnalysisQueue(
         // calling postMessage() on an already-terminated worker.
         if (settled) return
 
-        const track = tracks.find((t) => t.id === msg.id)!
+        const track = tracksById.get(msg.id)!
         try {
           if (msg.status === 'done') {
             writeAnalysisResult(db, track, msg.result)

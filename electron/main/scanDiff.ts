@@ -10,18 +10,22 @@ export interface DbTrackRow {
   mtime: number
 }
 
-export interface ScanDiff {
-  toInsert: DiskFile[]
-  toUpdate: DiskFile[]
+export interface ScanDiff<T extends DiskFile = DiskFile> {
+  toInsert: T[]
+  toUpdate: T[]
   toRemove: string[]
 }
 
-export function diffScan(diskFiles: DiskFile[], dbRows: DbTrackRow[]): ScanDiff {
+// Generic over T (rather than fixed to DiskFile) so a caller passing a
+// DiskFile subtype — e.g. walkAudioFiles's result, which also carries a
+// `blocks` field scan.ts needs — gets that field back on toInsert/toUpdate
+// without an extra cast, and without this module needing to know about it.
+export function diffScan<T extends DiskFile>(diskFiles: T[], dbRows: DbTrackRow[]): ScanDiff<T> {
   const dbByPath = new Map(dbRows.map((r) => [r.path, r]))
   const diskPaths = new Set(diskFiles.map((f) => f.path))
 
-  const toInsert: DiskFile[] = []
-  const toUpdate: DiskFile[] = []
+  const toInsert: T[] = []
+  const toUpdate: T[] = []
   for (const file of diskFiles) {
     const existing = dbByPath.get(file.path)
     if (!existing) {

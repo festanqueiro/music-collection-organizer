@@ -1,7 +1,6 @@
-import { statSync } from 'node:fs'
 import { dirname, basename, extname } from 'node:path'
 import { runInTransaction, type AppDatabase } from './db'
-import { walkAudioFiles } from './folderWalk'
+import { walkAudioFiles, type DiskFileWithBlocks } from './folderWalk'
 import { diffScan, type DbTrackRow } from './scanDiff'
 import { isCloudOnly } from './cloudDetect'
 
@@ -20,14 +19,11 @@ export interface ScanResult {
 // with all of its tags intact, whether or not anything else about it changed.
 export function runScan(db: AppDatabase, rootPath: string): ScanResult {
   const diskFiles = walkAudioFiles(rootPath)
-  const dbRows = db.prepare('SELECT path, size, mtime FROM tracks').all() as unknown as DbTrackRow[]
-  const presentByPath = new Map(
-    (db.prepare('SELECT path, present FROM tracks').all() as { path: string; present: number }[]).map((r) => [
-      r.path,
-      r.present,
-    ])
-  )
-  const diff = diffScan(diskFiles, dbRows)
+  const trackRows = db.prepare('SELECT path, size, mtime, present FROM tracks').all() as unknown as (DbTrackRow & {
+    present: number
+  })[]
+  const presentByPath = new Map(trackRows.map((r) => [r.path, r.present]))
+  const diff = diffScan(diskFiles, trackRows)
 
   const insertStmt = db.prepare(`
     INSERT INTO tracks (path, filename, folder, format, size, mtime, cloud_status, analysis_status)
@@ -40,11 +36,10 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
   const markMissingStmt = db.prepare('UPDATE tracks SET present = 0 WHERE path = ?')
   const reviveStmt = db.prepare('UPDATE tracks SET present = 1 WHERE path = ?')
 
-  const toRow = (file: { path: string; size: number; mtime: number }) => {
-    const stats = statSync(file.path)
-    const cloudStatus = isCloudOnly({ size: stats.size, blocks: (stats as any).blocks ?? 0 })
-      ? 'cloud_only'
-      : 'local'
+  const toRow = (file: DiskFileWithBlocks) => {
+    // blocks was already captured by walkAudioFiles's own statSync — no
+    // need to stat every file a second time here just for this.
+    const cloudStatus = isCloudOnly({ size: file.size, blocks: file.blocks }) ? 'cloud_only' : 'local'
     return {
       path: file.path,
       filename: basename(file.path),

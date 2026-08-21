@@ -43,28 +43,6 @@ not a commitment list.
   sub-genres and every track's tag assignment with only a confirm() dialog
   as a safety net; an undo (even a short-lived one) would be friendlier.
 
-## Performance (found by a review pass, none urgent at current collection sizes)
-
-- **`electron/main/index.ts`: the startup backup check runs before the
-  window is created.** `runBackupIfNeeded` → `VACUUM INTO` rewrites the
-  whole DB file synchronously on the main thread; on a large collection
-  this could delay first paint on the (roughly daily) day it actually
-  fires. Consider creating the window first and running the check after
-  (e.g. on `ready-to-show`).
-- **`electron/main/scan.ts` stats every changed file twice** — once in
-  `folderWalk.ts` to build `{path, size, mtime}`, again in `toRow()` just
-  to read `blocks` for cloud-only detection. Could be one `statSync` if
-  `DiskFile` carried `blocks` too.
-- **`runScan` runs two full-table `SELECT`s** (`path,size,mtime` and
-  `path,present`) where one (`path,size,mtime,present`) would do.
-- **`queue.ts`'s worker `message` handler does `tracks.find(...)`** — an
-  O(n) scan per completed track, O(n²) over a full bulk analysis. A
-  `Map<id, track>` built once before the loop would fix it.
-- **`tags.ts`'s `getTrackTagIds`** (called after every single tag
-  checkbox toggle) runs 3 sequential queries where `ipc.ts`'s
-  `tracks:getAllTagIds` already shows the one-query `UNION ALL` pattern
-  that could replace them, scoped to one track.
-
 ## Platform/infra
 
 - **Windows/Linux support.** v1 is explicitly macOS-only (the cloud-only

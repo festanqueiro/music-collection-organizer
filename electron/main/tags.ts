@@ -63,18 +63,31 @@ export function setTrackMoods(db: AppDatabase, trackId: number, moodIds: number[
   })
 }
 
+// Called after every single tag-checkbox toggle (see ipc.ts's
+// tags:setTrackGenres/Subgenres/Moods handlers) — one UNION ALL query
+// instead of three separate round trips, same pattern as ipc.ts's
+// tracks:getAllTagIds already uses for the whole-collection version.
 export function getTrackTagIds(
   db: AppDatabase,
   trackId: number
 ): { genreIds: number[]; subgenreIds: number[]; moodIds: number[] } {
-  const genreIds = (db.prepare('SELECT genre_id FROM track_genres WHERE track_id = ?').all(trackId) as any[]).map(
-    (r) => r.genre_id
-  )
-  const subgenreIds = (
-    db.prepare('SELECT subgenre_id FROM track_subgenres WHERE track_id = ?').all(trackId) as any[]
-  ).map((r) => r.subgenre_id)
-  const moodIds = (db.prepare('SELECT mood_id FROM track_moods WHERE track_id = ?').all(trackId) as any[]).map(
-    (r) => r.mood_id
-  )
+  const rows = db
+    .prepare(
+      `SELECT genre_id, NULL as subgenre_id, NULL as mood_id FROM track_genres WHERE track_id = ?
+       UNION ALL
+       SELECT NULL, subgenre_id, NULL FROM track_subgenres WHERE track_id = ?
+       UNION ALL
+       SELECT NULL, NULL, mood_id FROM track_moods WHERE track_id = ?`
+    )
+    .all(trackId, trackId, trackId) as { genre_id: number | null; subgenre_id: number | null; mood_id: number | null }[]
+
+  const genreIds: number[] = []
+  const subgenreIds: number[] = []
+  const moodIds: number[] = []
+  for (const row of rows) {
+    if (row.genre_id) genreIds.push(row.genre_id)
+    if (row.subgenre_id) subgenreIds.push(row.subgenre_id)
+    if (row.mood_id) moodIds.push(row.mood_id)
+  }
   return { genreIds, subgenreIds, moodIds }
 }

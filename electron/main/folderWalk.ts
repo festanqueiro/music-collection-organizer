@@ -4,8 +4,16 @@ import type { DiskFile } from './scanDiff'
 
 const AUDIO_EXTENSIONS = new Set(['.wav', '.aiff', '.aif', '.flac'])
 
-export function walkAudioFiles(rootPath: string): DiskFile[] {
-  const results: DiskFile[] = []
+// Carries the stat() call's `blocks` field (used by cloudDetect.ts's
+// isCloudOnly heuristic) alongside the plain DiskFile shape — scan.ts's
+// toRow() used to statSync() every file a second time just to read this,
+// since it wasn't captured here.
+export interface DiskFileWithBlocks extends DiskFile {
+  blocks: number
+}
+
+export function walkAudioFiles(rootPath: string): DiskFileWithBlocks[] {
+  const results: DiskFileWithBlocks[] = []
 
   function walk(dir: string) {
     // A single unreadable subdirectory (permissions, a broken mount point)
@@ -29,7 +37,12 @@ export function walkAudioFiles(rootPath: string): DiskFile[] {
         // shouldn't abort the whole walk either.
         try {
           const stats = statSync(fullPath)
-          results.push({ path: fullPath, size: stats.size, mtime: Math.floor(stats.mtimeMs) })
+          results.push({
+            path: fullPath,
+            size: stats.size,
+            mtime: Math.floor(stats.mtimeMs),
+            blocks: (stats as unknown as { blocks?: number }).blocks ?? 0,
+          })
         } catch (err) {
           console.warn(`walkAudioFiles: skipping unreadable file ${fullPath}`, err)
         }
