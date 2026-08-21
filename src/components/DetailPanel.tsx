@@ -112,7 +112,7 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
     setDownloading(true)
     setDownloadError(null)
     try {
-      await window.api.downloadTrack(track.id, track.path)
+      await window.api.downloadTrack(track.id)
       await loadAll()
     } catch {
       setDownloadError('Download failed — check the file is still reachable and try again.')

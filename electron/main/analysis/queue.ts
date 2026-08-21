@@ -128,13 +128,34 @@ export async function runAnalysisQueue(
       workers.push(worker)
 
       worker.on('message', (msg: WorkerResult) => {
+        // A sibling worker's error can call finish() (which terminates
+        // every worker, including this one) between this message being
+        // queued and this handler actually running — without this guard,
+        // that stale message would still run: overwriting a track finish()
+        // already marked 'error', pushing done past total, and potentially
+        // calling postMessage() on an already-terminated worker.
+        if (settled) return
+
         const track = tracks.find((t) => t.id === msg.id)!
-        inFlightTrackIds.delete(msg.id)
-        if (msg.status === 'done') {
-          writeAnalysisResult(db, track, msg.result)
-        } else {
-          db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
+        try {
+          if (msg.status === 'done') {
+            writeAnalysisResult(db, track, msg.result)
+          } else {
+            db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
+          }
+        } catch (writeErr) {
+          console.error('failed to write analysis result', writeErr)
+          try {
+            db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
+          } catch {
+            // Best effort — if even this fails, inFlightTrackIds below
+            // still hasn't been cleared for this track, so a later
+            // finish(err) sweep (if one happens) can still catch it.
+          }
+        } finally {
+          inFlightTrackIds.delete(msg.id)
         }
+
         done++
         options.onProgress?.({ done, total })
 
@@ -146,6 +167,15 @@ export async function runAnalysisQueue(
       })
 
       worker.on('error', (err: Error) => finish(err))
+
+      // A worker can die (native crash, explicit process exit inside the
+      // thread) without ever emitting Node's 'error' event — only 'exit'
+      // is guaranteed there. Without this, that path would leave
+      // whatever was in-flight on this worker stuck 'analyzing' forever,
+      // and this whole runAnalysisQueue() call never settles.
+      worker.on('exit', (code) => {
+        if (code !== 0) finish(new Error(`Analysis worker exited with code ${code}`))
+      })
 
       assignNext(worker)
     }

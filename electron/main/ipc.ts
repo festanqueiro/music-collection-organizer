@@ -77,7 +77,11 @@ function rowToTrack(row: TrackRow): Track {
   }
 }
 
-export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, backupFolder: string) {
+// getMainWindow is a function (not a fixed BrowserWindow) so a window
+// recreated after all windows were closed (macOS's 'activate' event) is
+// always the one dialogs/events target — a captured reference to the
+// original window would be a destroyed BrowserWindow after that point.
+export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => BrowserWindow, backupFolder: string) {
   // Guards scan:run against overlapping runs — without this, clicking
   // "Update Collection" twice in quick succession could start two
   // concurrent analysis queues both picking up the same still-pending
@@ -93,7 +97,7 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, 
   }))
 
   ipcMain.handle('config:chooseCollectionFolder', async (): Promise<string | null> => {
-    const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory'] })
+    const result = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })
     if (result.canceled || result.filePaths.length === 0) return null
     const folder = result.filePaths[0]
     setCollectionFolder(folder)
@@ -104,37 +108,39 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, 
     if (scanInProgress) throw new Error('A scan is already in progress')
     scanInProgress = true
 
-    const folder = getCollectionFolder()
-    if (!folder) {
-      scanInProgress = false
-      throw new Error('No collection folder configured')
-    }
+    try {
+      const folder = getCollectionFolder()
+      if (!folder) throw new Error('No collection folder configured')
 
-    const result = runScan(db, folder)
+      const result = runScan(db, folder)
 
-    const pending = db
-      .prepare(`SELECT id, path FROM tracks WHERE analysis_status = 'pending' AND cloud_status = 'local'`)
-      .all() as { id: number; path: string }[]
+      const pending = db
+        .prepare(`SELECT id, path FROM tracks WHERE analysis_status = 'pending' AND cloud_status = 'local'`)
+        .all() as { id: number; path: string }[]
 
-    if (pending.length > 0) {
-      runAnalysisQueue(db, pending, {
-        concurrency: 4,
-        onProgress: (progress) => {
-          mainWindow.webContents.send('scan:progress', progress)
-        },
-      })
-        .catch((err) => {
-          console.error('analysis queue failed', err)
+      if (pending.length > 0) {
+        runAnalysisQueue(db, pending, {
+          concurrency: 4,
+          onProgress: (progress) => {
+            getMainWindow().webContents.send('scan:progress', progress)
+          },
         })
-        .finally(() => {
-          mainWindow.webContents.send('scan:progress', { done: pending.length, total: pending.length })
-          scanInProgress = false
-        })
-    } else {
-      scanInProgress = false
-    }
+          .catch((err) => {
+            console.error('analysis queue failed', err)
+          })
+          .finally(() => {
+            getMainWindow().webContents.send('scan:progress', { done: pending.length, total: pending.length })
+            scanInProgress = false
+          })
+      } else {
+        scanInProgress = false
+      }
 
-    return result
+      return result
+    } catch (err) {
+      scanInProgress = false
+      throw err
+    }
   })
 
   ipcMain.handle('tracks:getAll', (): Track[] => {
@@ -178,8 +184,8 @@ export function registerIpcHandlers(db: AppDatabase, mainWindow: BrowserWindow, 
     return { trackId, ...getTrackTagIds(db, trackId) }
   })
 
-  ipcMain.handle('tracks:download', async (_e, trackId: number, path: string): Promise<void> => {
-    await downloadTrack(db, { id: trackId, path })
+  ipcMain.handle('tracks:download', async (_e, trackId: number): Promise<void> => {
+    await downloadTrack(db, trackId)
   })
 
   ipcMain.handle('tracks:getAllTagIds', (): TrackTagIds[] => {

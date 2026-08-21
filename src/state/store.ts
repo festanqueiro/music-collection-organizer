@@ -66,8 +66,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ collectionFolder: folder })
     // Without this, switching folders leaves the previous folder's tracks
     // showing (and unplayable, since media:// is scoped to the new folder)
-    // until the user happens to trigger a scan some other way.
-    await get().runScan()
+    // until the user happens to trigger a scan some other way. This can
+    // reject (e.g. main's scanInProgress guard, if a previous scan's
+    // background analysis is still running) — the folder was still
+    // successfully changed, so don't let that turn into an unhandled
+    // rejection or stop the caller from treating the pick as successful.
+    try {
+      await get().runScan()
+    } catch (err) {
+      console.error('scan after folder change failed', err)
+    }
     return true
   },
 

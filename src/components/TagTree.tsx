@@ -3,6 +3,15 @@ import { useCollectionStore } from '../state/store'
 import { matchesTagFilter, type TagFilterState } from '../state/tagFilter'
 import type { Track } from '../types'
 
+// Drops any id from `ids` that no longer exists in `existing` — e.g. after
+// deleteGenre removes a genre out from under a still-checked checkbox, so
+// the filter doesn't keep matching against an id nothing has anymore
+// (which would otherwise make the track list go silently empty).
+function intersectWithExisting(ids: Set<number>, existing: { id: number }[]): Set<number> {
+  const existingIds = new Set(existing.map((x) => x.id))
+  return new Set([...ids].filter((id) => existingIds.has(id)))
+}
+
 export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: Track) => boolean) => void }) {
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
@@ -34,11 +43,16 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
   // at that moment — if a tag edit elsewhere changes trackTags afterward
   // without the user touching a checkbox, the stored filter closure goes
   // stale (it still matches against the old trackTags). Re-applying the
-  // current filter selection whenever trackTags changes keeps it live.
+  // current filter selection whenever trackTags (or the genre/subgenre
+  // lists themselves, e.g. after a delete) changes keeps it live.
   useEffect(() => {
-    applyFilter({ genreIds, subgenreIds, moodIds })
+    applyFilter({
+      genreIds: intersectWithExisting(genreIds, genres),
+      subgenreIds: intersectWithExisting(subgenreIds, subgenres),
+      moodIds,
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackTags])
+  }, [trackTags, genres, subgenres])
 
   function toggle(set: Set<number>, id: number, setter: (s: Set<number>) => void, key: 'genre' | 'subgenre' | 'mood') {
     const next = new Set(set)
@@ -46,8 +60,8 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
     else next.add(id)
     setter(next)
     const filterState: TagFilterState = {
-      genreIds: key === 'genre' ? next : genreIds,
-      subgenreIds: key === 'subgenre' ? next : subgenreIds,
+      genreIds: intersectWithExisting(key === 'genre' ? next : genreIds, genres),
+      subgenreIds: intersectWithExisting(key === 'subgenre' ? next : subgenreIds, subgenres),
       moodIds: key === 'mood' ? next : moodIds,
     }
     applyFilter(filterState)

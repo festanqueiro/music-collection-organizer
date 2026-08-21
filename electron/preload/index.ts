@@ -23,8 +23,9 @@ const api = {
     ipcRenderer.invoke('tags:setTrackSubgenres', trackId, subgenreIds),
   setTrackMoods: (trackId: number, moodIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackMoods', trackId, moodIds),
-  downloadTrack: (trackId: number, path: string): Promise<void> =>
-    ipcRenderer.invoke('tracks:download', trackId, path),
+  // Only a trackId — the main process looks up the actual path from its
+  // own DB row rather than trusting one supplied over IPC.
+  downloadTrack: (trackId: number): Promise<void> => ipcRenderer.invoke('tracks:download', trackId),
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)

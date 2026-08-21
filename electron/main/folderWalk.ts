@@ -23,8 +23,16 @@ export function walkAudioFiles(rootPath: string): DiskFile[] {
       if (entry.isDirectory()) {
         walk(fullPath)
       } else if (entry.isFile() && AUDIO_EXTENSIONS.has(extname(entry.name).toLowerCase())) {
-        const stats = statSync(fullPath)
-        results.push({ path: fullPath, size: stats.size, mtime: Math.floor(stats.mtimeMs) })
+        // Same reasoning as the readdirSync guard above — a file that
+        // vanishes or becomes unreadable between being listed and being
+        // stat'd (a dangling symlink, a race with another process)
+        // shouldn't abort the whole walk either.
+        try {
+          const stats = statSync(fullPath)
+          results.push({ path: fullPath, size: stats.size, mtime: Math.floor(stats.mtimeMs) })
+        } catch (err) {
+          console.warn(`walkAudioFiles: skipping unreadable file ${fullPath}`, err)
+        }
       }
     }
   }
