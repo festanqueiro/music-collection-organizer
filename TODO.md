@@ -8,7 +8,55 @@ responsive throughout, and the UI renders correctly (dark theme,
 three-pane layout, Jost font, sortable single-line track table).
 `npx tsc -b --noEmit` (the correct project-references invocation — plain
 `tsc --noEmit` was silently a no-op against this solution-style
-`tsconfig.json`) is clean, 50/50 tests passing, `npm run build` succeeds.
+`tsconfig.json`) is clean, 61/61 tests passing, `npm run build` succeeds.
+
+## New: analysis progress indicator + Settings/backups
+
+Both items from the repo root's `TODO.IDEAS.md` are now implemented:
+
+- **Analysis progress indicator** — a footer bar ("Analyzing N of M…")
+  appears while a scan's background analysis is running and disappears
+  when it finishes, plus a per-track spinner (`analyzing`) or error icon
+  (`error`) in the track table's new Status column. `App.tsx`'s
+  `onScanProgress` handler now throttles its track refresh (at most every
+  300ms, always on the final tick) via a new lightweight
+  `refreshTracks()` store action, instead of calling the expensive full
+  `loadAll()` on every single progress tick.
+- **Settings modal + automatic backups** — a gear icon in the toolbar
+  opens a modal showing the collection folder (with the existing
+  "Change…" action) and backup status (folder + last-backup time). A new
+  `electron/main/backup.ts` module snapshots `collection.db` via SQLite's
+  `VACUUM INTO` and copies the config store's JSON, both timestamped and
+  never overwritten, deduped to once per calendar day — run once on app
+  startup and hourly thereafter (covers both "on launch" and "daily" from
+  the original request). No manual trigger, no pruning — both explicitly
+  out of scope per the design spec.
+
+Design/plan: `docs/superpowers/specs/2026-08-21-progress-indicator-and-settings-backup-design.md`, `docs/superpowers/plans/2026-08-21-progress-indicator-and-settings-backup.md`. Ledger: `.superpowers/sdd/2026-08-21-progress-indicator-and-settings-backup/progress.md`.
+
+A final whole-branch review caught two Important issues (both fixed): a
+fresh install's backup would throw on the config-file copy *after* the
+DB snapshot was already written (electron-store creates its file lazily
+on first write), leaving an orphan `.db` file on every launch/hourly
+tick until a collection folder was chosen — `runBackup` now copies the
+config file first, so a failure there leaves no orphan snapshot; and the
+footer's final-tick refresh only cleared `analysisProgress` inside
+`.then()`, so a rejected final refresh would strand the bar forever —
+now uses `.finally()`.
+
+Deferred (Minor, non-blocking, from the same final review): the hourly
+backup-check `setInterval` captures the first `db` handle from
+`createWindow()` with no cleanup, which matters if macOS's `activate`
+event ever re-creates a window (pre-existing v1 lifecycle assumption,
+not introduced here); `VACUUM INTO` runs synchronously on the main
+thread and the backups folder grows without bound (both explicit,
+spec-sanctioned tradeoffs — no pruning was requested); two concurrent
+scans would interleave their progress events; a track that errors
+mid-analysis can be left showing the "analyzing" spinner until the next
+scan (pre-existing v1 behavior — the new Status column is now correctly
+surfacing it rather than causing it); the Settings modal has no
+Escape-to-close/focus trap and doesn't close itself after a successful
+folder change (matches the rest of the app's current UI polish level).
 
 ## Fixed during hands-on testing
 
