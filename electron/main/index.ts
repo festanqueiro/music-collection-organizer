@@ -6,6 +6,7 @@ import { openDatabase } from './db'
 import { registerIpcHandlers } from './ipc'
 import { getCollectionFolder, getConfigFilePath, setLastBackupError, clearLastBackupError } from './config'
 import { mediaUrlToFilePath } from './mediaProtocol'
+import { getPlayableFilePath } from './audioTranscode'
 import { runBackupIfNeeded, getBackupFolder } from './backup'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -23,10 +24,23 @@ function registerMediaProtocol(): void {
   protocol.handle('media', async (request) => {
     const filePath = mediaUrlToFilePath(request.url, getCollectionFolder())
     if (!filePath) return new Response('Not found', { status: 404 })
+
+    // Chromium's <audio> element can't decode AIFF — transcode (and cache)
+    // to a playable format first. Every other format passes through
+    // unchanged. Range-request/seeking support still works afterward since
+    // the cached file is a normal file on disk, same as the original.
+    let playablePath: string
+    try {
+      playablePath = await getPlayableFilePath(filePath, join(app.getPath('userData'), 'media-cache'))
+    } catch (err) {
+      console.error('audio transcode failed', err)
+      return new Response('Transcode failed', { status: 500 })
+    }
+
     // Forward the incoming Range header so seeking in the <audio> element
     // gets a 206 Partial Content response instead of re-fetching the whole
     // file from byte 0 on every seek — matters for large lossless tracks.
-    return net.fetch(pathToFileURL(filePath).toString(), { headers: request.headers })
+    return net.fetch(pathToFileURL(playablePath).toString(), { headers: request.headers })
   })
 }
 
