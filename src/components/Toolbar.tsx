@@ -1,6 +1,6 @@
 import { useCollectionStore } from '../state/store'
 
-export function Toolbar() {
+export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const searchText = useCollectionStore((s) => s.searchText)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const runScan = useCollectionStore((s) => s.runScan)
@@ -31,6 +31,9 @@ export function Toolbar() {
           color: 'var(--color-text)',
         }}
       />
+      <button onClick={onOpenSettings} style={{ alignSelf: 'flex-start' }}>
+        <span className="material-symbols-outlined">settings</span>
+      </button>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
         <button onClick={() => runScan()} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span className="material-symbols-outlined">refresh</span>

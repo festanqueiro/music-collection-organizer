@@ -7,6 +7,7 @@ import { TagTree } from './components/TagTree'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
+import { SettingsModal } from './components/SettingsModal'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags'
@@ -24,6 +25,7 @@ export default function App() {
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     loadAll()
@@ -45,6 +47,7 @@ export default function App() {
   return (
     <>
       <ScanPrompt />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <div
         className="app-layout"
         style={{
@@ -53,7 +56,7 @@ export default function App() {
         }}
       >
         <div style={{ gridArea: 'toolbar' }}>
-          <Toolbar />
+          <Toolbar onOpenSettings={() => setSettingsOpen(true)} />
         </div>
 
         <div className="pane" style={{ gridArea: 'left', padding: '12px' }}>
