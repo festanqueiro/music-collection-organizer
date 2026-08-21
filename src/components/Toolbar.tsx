@@ -5,7 +5,6 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const searchText = useCollectionStore((s) => s.searchText)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const runScan = useCollectionStore((s) => s.runScan)
-  const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
   const appVersion = useCollectionStore((s) => s.appVersion)
@@ -48,10 +47,6 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
           <button onClick={() => runScan()} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <span className="material-symbols-outlined">refresh</span>
             Update Collection
-          </button>
-          <button onClick={() => runAnalysis()} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span className="material-symbols-outlined">graphic_eq</span>
-            Analyse Collection
           </button>
         </div>
         {collectionFolder && (

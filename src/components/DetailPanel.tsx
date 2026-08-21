@@ -1,5 +1,5 @@
 // src/components/DetailPanel.tsx
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { formatDuration } from '../format'
 import type { Track } from '../types'
@@ -61,23 +61,46 @@ function FullId3Section({ track }: { track: Track }) {
   )
 }
 
-function NewTagInput({
-  placeholder,
+// One control for a track's genre/sub-genre/mood tags: badges for the
+// currently-applied ones (each with an × to remove), and a single
+// text input backed by a <datalist> of existing names — type to filter
+// and pick from the dropdown, or type something new and press Enter/+Add
+// to create it (then apply it) in one step. Replaces what used to be a
+// full checkbox list per tag type plus a separate "new tag" input.
+function TagPicker({
+  label,
+  options,
+  selectedIds,
   disabled,
+  placeholder,
+  onToggle,
   onCreate,
 }: {
-  placeholder: string
+  label: string
+  options: { id: number; name: string }[]
+  selectedIds: number[]
   disabled?: boolean
+  placeholder: string
+  onToggle: (id: number) => void
   onCreate: (name: string) => Promise<void>
 }) {
   const [value, setValue] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const datalistId = useId()
+  const selected = options.filter((o) => selectedIds.includes(o.id))
 
   async function submit() {
-    if (!value.trim()) return
+    const trimmed = value.trim()
+    if (!trimmed || disabled) return
+    const existing = options.find((o) => o.name.toLowerCase() === trimmed.toLowerCase())
+    if (existing) {
+      if (!selectedIds.includes(existing.id)) onToggle(existing.id)
+      setValue('')
+      return
+    }
     try {
       setError(null)
-      await onCreate(value)
+      await onCreate(trimmed)
       setValue('')
     } catch {
       setError('Could not create — name may already exist.')
@@ -85,35 +108,89 @@ function NewTagInput({
   }
 
   return (
-    <div style={{ marginTop: '4px' }}>
-      <input
-        type="text"
-        value={value}
-        placeholder={placeholder}
-        disabled={disabled}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') submit()
-        }}
-        style={{
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '4px',
-          padding: '4px 6px',
-          color: 'var(--color-text)',
-          fontSize: '12px',
-          marginRight: '4px',
-        }}
-      />
-      <button onClick={submit} disabled={disabled || !value.trim()}>
-        + Add
-      </button>
-      {error && <div style={{ color: 'var(--color-secondary)' }}>{error}</div>}
+    <div>
+      <div style={{ fontWeight: 600, marginTop: '8px' }}>{label}</div>
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '4px 0' }}>
+          {selected.map((o) => (
+            <span
+              key={o.id}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                background: 'var(--color-surface-raised)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '12px',
+                padding: '2px 4px 2px 10px',
+                fontSize: '12px',
+              }}
+            >
+              {o.name}
+              <button
+                onClick={() => onToggle(o.id)}
+                title={`Remove ${o.name}`}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '0 2px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                  close
+                </span>
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div style={{ marginTop: '4px' }}>
+        <input
+          type="text"
+          list={datalistId}
+          value={value}
+          placeholder={placeholder}
+          disabled={disabled}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit()
+          }}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '4px',
+            padding: '4px 6px',
+            color: 'var(--color-text)',
+            fontSize: '12px',
+            marginRight: '4px',
+          }}
+        />
+        <datalist id={datalistId}>
+          {options.map((o) => (
+            <option key={o.id} value={o.name} />
+          ))}
+        </datalist>
+        <button onClick={submit} disabled={disabled || !value.trim()}>
+          + Add
+        </button>
+        {error && <div style={{ color: 'var(--color-secondary)' }}>{error}</div>}
+      </div>
     </div>
   )
 }
 
-export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | null; onClose: () => void }) {
+export function DetailPanel({
+  track: selectedTrack,
+  onClose,
+  onLocateInTable,
+}: {
+  track: Track | null
+  onClose: () => void
+  onLocateInTable: (trackId: number) => void
+}) {
   const tracks = useCollectionStore((s) => s.tracks)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
@@ -200,7 +277,13 @@ export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | 
     return (
       <div style={{ padding: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 style={{ margin: 0 }}>{track.filename}</h3>
+          <h3
+            onClick={() => onLocateInTable(track.id)}
+            title="Scroll to this track in the collection table"
+            style={{ margin: 0, cursor: 'pointer' }}
+          >
+            {track.filename}
+          </h3>
           <button onClick={onClose} title="Close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
             <span className="material-symbols-outlined">close</span>
           </button>
@@ -221,13 +304,74 @@ export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | 
   return (
     <div style={{ padding: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <h3 style={{ margin: 0, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <h3
+          onClick={() => onLocateInTable(track.id)}
+          title="Scroll to this track in the collection table"
+          style={{
+            margin: 0,
+            flex: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            cursor: 'pointer',
+          }}
+        >
           {track.title ?? track.filename}
         </h3>
         <button onClick={onClose} title="Close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
+      <p>{track.artist}</p>
+
+      <div style={{ marginTop: '16px' }}>
+        {suggestedGenreName && !suggestedGenreAlreadyApplied && (
+          <div style={{ marginBottom: '4px' }}>
+            <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>Suggested: {suggestedGenreName}</span>{' '}
+            <button onClick={() => applySuggestedGenre(suggestedGenreName)}>
+              + Add
+            </button>
+          </div>
+        )}
+        <TagPicker
+          label="Genre"
+          options={genres}
+          selectedIds={tags.genreIds}
+          placeholder="Select or type a new genre…"
+          onToggle={(id) => setTrackGenres(track.id, toggleInList(tags.genreIds, id))}
+          onCreate={applySuggestedGenre}
+        />
+        <TagPicker
+          label="Sub-Genre"
+          options={availableSubgenres}
+          selectedIds={tags.subgenreIds}
+          disabled={!tags.genreIds[0]}
+          placeholder={tags.genreIds[0] ? 'Select or type a new sub-genre…' : 'Select a Genre first'}
+          onToggle={(id) => setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, id))}
+          onCreate={async (name) => {
+            if (!tags.genreIds[0]) return
+            await createSubgenre(name, tags.genreIds[0])
+            const subgenre = useCollectionStore
+              .getState()
+              .subgenres.find((sg) => sg.genreId === tags.genreIds[0] && sg.name.toLowerCase() === name.toLowerCase())
+            if (subgenre) await setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, subgenre.id))
+          }}
+        />
+        <TagPicker
+          label="Mood"
+          options={moods}
+          selectedIds={tags.moodIds}
+          placeholder="Select or type a new mood…"
+          onToggle={(id) => setTrackMoods(track.id, toggleInList(tags.moodIds, id))}
+          onCreate={async (name) => {
+            await createMood(name)
+            const mood = useCollectionStore.getState().moods.find((m) => m.name.toLowerCase() === name.toLowerCase())
+            if (mood) await setTrackMoods(track.id, toggleInList(tags.moodIds, mood.id))
+          }}
+        />
+      </div>
+
       {artworkUrl && (
         <img
           src={artworkUrl}
@@ -237,64 +381,10 @@ export function DetailPanel({ track: selectedTrack, onClose }: { track: Track | 
             aspectRatio: '1 / 1',
             objectFit: 'cover',
             borderRadius: '6px',
-            marginTop: '8px',
+            marginTop: '16px',
           }}
         />
       )}
-      <p>{track.artist}</p>
-
-      <div style={{ marginTop: '16px' }}>
-        <div style={{ fontWeight: 600 }}>Genre</div>
-        {suggestedGenreName && !suggestedGenreAlreadyApplied && (
-          <div style={{ marginBottom: '4px' }}>
-            <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>Suggested: {suggestedGenreName}</span>{' '}
-            <button onClick={() => applySuggestedGenre(suggestedGenreName)}>
-              + Add
-            </button>
-          </div>
-        )}
-        {genres.map((g) => (
-          <label key={g.id} style={{ display: 'block' }}>
-            <input
-              type="checkbox"
-              checked={tags.genreIds.includes(g.id)}
-              onChange={() => setTrackGenres(track.id, toggleInList(tags.genreIds, g.id))}
-            />{' '}
-            {g.name}
-          </label>
-        ))}
-        <NewTagInput placeholder="New genre…" onCreate={createGenre} />
-
-        <div style={{ fontWeight: 600, marginTop: '8px' }}>Sub-Genre</div>
-        {availableSubgenres.map((sg) => (
-          <label key={sg.id} style={{ display: 'block' }}>
-            <input
-              type="checkbox"
-              checked={tags.subgenreIds.includes(sg.id)}
-              onChange={() => setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, sg.id))}
-            />{' '}
-            {sg.name}
-          </label>
-        ))}
-        <NewTagInput
-          placeholder={tags.genreIds[0] ? 'New sub-genre…' : 'Select a Genre first'}
-          disabled={!tags.genreIds[0]}
-          onCreate={(name) => createSubgenre(name, tags.genreIds[0])}
-        />
-
-        <div style={{ fontWeight: 600, marginTop: '8px' }}>Mood</div>
-        {moods.map((m) => (
-          <label key={m.id} style={{ display: 'block' }}>
-            <input
-              type="checkbox"
-              checked={tags.moodIds.includes(m.id)}
-              onChange={() => setTrackMoods(track.id, toggleInList(tags.moodIds, m.id))}
-            />{' '}
-            {m.name}
-          </label>
-        ))}
-        <NewTagInput placeholder="New mood…" onCreate={createMood} />
-      </div>
 
       <FullId3Section track={track} />
     </div>

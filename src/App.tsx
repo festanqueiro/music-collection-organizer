@@ -38,6 +38,7 @@ export default function App() {
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const playlist = useCollectionStore((s) => s.playlist)
   const playerExpanded = useCollectionStore((s) => s.playerExpanded)
+  const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const lastRefreshRef = useRef(0)
@@ -46,6 +47,7 @@ export default function App() {
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [scrollToTrack, setScrollToTrack] = useState<{ trackId: number; nonce: number } | null>(null)
 
   // Mounted once here (not inside Player, which remounts per track) so a
   // MIDI binding keeps working regardless of which track is currently
@@ -221,11 +223,16 @@ export default function App() {
             selectedFolder={selectedFolder}
             activeFilter={tagFilter}
             selectedTrackId={selectedTrack?.id ?? null}
+            scrollToTrack={scrollToTrack}
           />
         </div>
 
         <div className="pane" style={{ gridArea: 'right', borderRight: 'none', overflowX: 'hidden' }}>
-          <DetailPanel track={selectedTrack} onClose={() => setSelectedTrack(null)} />
+          <DetailPanel
+            track={selectedTrack}
+            onClose={() => setSelectedTrack(null)}
+            onLocateInTable={(trackId) => setScrollToTrack({ trackId, nonce: Date.now() })}
+          />
         </div>
 
         <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)' }}>
@@ -244,7 +251,25 @@ export default function App() {
             return currentTrack ? (
               <Player key={currentTrack.id} track={currentTrack} />
             ) : (
-              <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>Nothing queued</div>
+              <div
+                style={{
+                  padding: '16px',
+                  color: 'var(--color-text-dim)',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                Nothing queued
+                <button
+                  onClick={() => setPlayerExpanded(!playerExpanded)}
+                  title={playerExpanded ? 'Collapse queue' : 'Expand queue'}
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  <span className="material-symbols-outlined">
+                    {playerExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_up'}
+                  </span>
+                </button>
+              </div>
             )
           })()}
           {analysisProgress && <AnalysisProgressBar progress={analysisProgress} />}
