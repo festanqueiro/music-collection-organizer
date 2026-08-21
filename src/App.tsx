@@ -36,7 +36,7 @@ export default function App() {
       const now = Date.now()
       if (isFinal || now - lastRefreshRef.current >= 300) {
         lastRefreshRef.current = now
-        refreshTracks().then(() => {
+        refreshTracks().finally(() => {
           if (isFinal) setAnalysisProgress(null)
         })
       }
@@ -85,7 +85,7 @@ export default function App() {
           <TrackTable onSelect={setSelectedTrack} selectedFolder={selectedFolder} activeFilter={tagFilter} />
         </div>
 
-        <div className="pane" style={{ gridArea: 'right' }}>
+        <div className="pane" style={{ gridArea: 'right', borderRight: 'none' }}>
           <DetailPanel track={selectedTrack} />
         </div>
 

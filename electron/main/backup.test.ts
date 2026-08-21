@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Store from 'electron-store'
@@ -92,5 +92,17 @@ describe('runBackup / runBackupIfNeeded', () => {
     const afterFirst = getLastBackupAt()
     runBackupIfNeeded(db, configFilePath, backupFolder, second)
     expect(getLastBackupAt()).toBe(afterFirst)
+  })
+
+  it('runBackup throws and leaves no orphan .db snapshot when the config file does not exist yet', () => {
+    const missingConfigFilePath = join(dir, 'config-never-written.json')
+    const now = new Date('2026-08-21T12:00:00.000Z')
+
+    expect(() => runBackup(db, missingConfigFilePath, backupFolder, now)).toThrow()
+
+    if (existsSync(backupFolder)) {
+      const dbFiles = readdirSync(backupFolder).filter((f) => f.endsWith('.db'))
+      expect(dbFiles).toEqual([])
+    }
   })
 })
