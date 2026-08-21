@@ -17,7 +17,16 @@ interface MidiAccessResult {
 }
 
 function getRequestMidiAccess(): (() => Promise<MidiAccessResult>) | undefined {
-  return (navigator as unknown as { requestMIDIAccess?: () => Promise<MidiAccessResult> }).requestMIDIAccess
+  const nav = navigator as unknown as { requestMIDIAccess?: () => Promise<MidiAccessResult> }
+  // .bind(nav) matters: requestMIDIAccess is a native WebIDL method that
+  // requires `this` to be the exact Navigator instance it came from.
+  // Returning the bare function reference (as this used to) detaches it
+  // from that binding, so calling it later — requestMIDIAccess() instead
+  // of navigator.requestMIDIAccess() — throws "TypeError: Illegal
+  // invocation". Confirmed via a live CDP console capture against a real
+  // running instance: this was the actual reason MIDI never connected,
+  // separate from (and in addition to) the Electron permission grant.
+  return nav.requestMIDIAccess?.bind(nav)
 }
 
 export interface MidiCcMessage {
