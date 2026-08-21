@@ -24,6 +24,9 @@ export function TrackTable({
 }) {
   const tracks = useCollectionStore((s) => s.tracks)
   const searchText = useCollectionStore((s) => s.searchText)
+  const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
+  const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
+  const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
   const [sortKey, setSortKey] = useState<SortKey>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
@@ -70,6 +73,13 @@ export function TrackTable({
       <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
         <thead>
           <tr>
+            <th style={cellStyle}>
+              <input
+                type="checkbox"
+                checked={visibleTracks.length > 0 && visibleTracks.every((t) => checkedTrackIds.has(t.id))}
+                onChange={(e) => setTracksChecked(visibleTracks.map((t) => t.id), e.target.checked)}
+              />
+            </th>
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -87,6 +97,13 @@ export function TrackTable({
         <tbody>
           {visibleTracks.map((track) => (
             <tr key={track.id} onClick={() => onSelect(track)} style={{ cursor: 'pointer' }}>
+              <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={checkedTrackIds.has(track.id)}
+                  onChange={() => toggleTrackChecked(track.id)}
+                />
+              </td>
               <td style={cellStyle}>{track.title ?? track.filename}</td>
               <td style={cellStyle}>{track.artist ?? '—'}</td>
               <td style={cellStyle}>{track.bpm?.toFixed(0) ?? '—'}</td>

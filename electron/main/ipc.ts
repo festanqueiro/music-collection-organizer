@@ -21,6 +21,9 @@ import {
   setTrackSubgenres,
   setTrackMoods,
   getTrackTagIds,
+  addGenresToTracks,
+  addSubgenresToTracks,
+  addMoodsToTracks,
 } from './tags'
 import type { Track, Genre, Subgenre, Mood, BackupInfo, BackupEntry } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
@@ -204,6 +207,20 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     setTrackMoods(db, trackId, moodIds)
     return { trackId, ...getTrackTagIds(db, trackId) }
   })
+
+  ipcMain.handle(
+    'tags:batchAddTags',
+    (
+      _e,
+      trackIds: number[],
+      tagIds: { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }
+    ): TrackTagIds[] => {
+      if (tagIds.genreIds.length) addGenresToTracks(db, trackIds, tagIds.genreIds)
+      if (tagIds.subgenreIds.length) addSubgenresToTracks(db, trackIds, tagIds.subgenreIds)
+      if (tagIds.moodIds.length) addMoodsToTracks(db, trackIds, tagIds.moodIds)
+      return trackIds.map((trackId) => ({ trackId, ...getTrackTagIds(db, trackId) }))
+    }
+  )
 
   ipcMain.handle('tracks:download', async (_e, trackId: number): Promise<void> => {
     await downloadTrack(db, trackId)

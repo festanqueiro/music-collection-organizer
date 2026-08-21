@@ -5,6 +5,7 @@ import { ScanPrompt } from './components/ScanPrompt'
 import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { TrackTable } from './components/TrackTable'
+import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
@@ -82,6 +83,7 @@ export default function App() {
         </div>
 
         <div className="pane" style={{ gridArea: 'center' }}>
+          <BatchTagBar />
           <TrackTable onSelect={setSelectedTrack} selectedFolder={selectedFolder} activeFilter={tagFilter} />
         </div>
 

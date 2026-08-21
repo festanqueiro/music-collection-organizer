@@ -23,6 +23,10 @@ const api = {
     ipcRenderer.invoke('tags:setTrackSubgenres', trackId, subgenreIds),
   setTrackMoods: (trackId: number, moodIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackMoods', trackId, moodIds),
+  batchAddTags: (
+    trackIds: number[],
+    tagIds: { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }
+  ): Promise<TrackTagIds[]> => ipcRenderer.invoke('tags:batchAddTags', trackIds, tagIds),
   // Only a trackId — the main process looks up the actual path from its
   // own DB row rather than trusting one supplied over IPC.
   downloadTrack: (trackId: number): Promise<void> => ipcRenderer.invoke('tracks:download', trackId),

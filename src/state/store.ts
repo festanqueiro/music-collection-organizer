@@ -26,6 +26,7 @@ interface CollectionState {
   subgenres: Subgenre[]
   moods: Mood[]
   trackTags: Map<number, TrackTagIds>
+  checkedTrackIds: Set<number>
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
@@ -43,6 +44,10 @@ interface CollectionState {
   createSubgenre: (name: string, genreId: number) => Promise<void>
   createMood: (name: string) => Promise<void>
   deleteGenre: (genreId: number) => Promise<void>
+  toggleTrackChecked: (trackId: number) => void
+  setTracksChecked: (trackIds: number[], checked: boolean) => void
+  clearCheckedTracks: () => void
+  addTagsToCheckedTracks: (tagIds: { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }) => Promise<void>
 }
 
 export const useCollectionStore = create<CollectionState>((set, get) => ({
@@ -51,6 +56,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   subgenres: [],
   moods: [],
   trackTags: new Map(),
+  checkedTrackIds: new Set(),
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -141,5 +147,32 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   deleteGenre: async (genreId) => {
     await window.api.deleteGenre(genreId)
     await get().loadAll()
+  },
+
+  toggleTrackChecked: (trackId) => {
+    const next = new Set(get().checkedTrackIds)
+    if (next.has(trackId)) next.delete(trackId)
+    else next.add(trackId)
+    set({ checkedTrackIds: next })
+  },
+
+  setTracksChecked: (trackIds, checked) => {
+    const next = new Set(get().checkedTrackIds)
+    for (const id of trackIds) {
+      if (checked) next.add(id)
+      else next.delete(id)
+    }
+    set({ checkedTrackIds: next })
+  },
+
+  clearCheckedTracks: () => set({ checkedTrackIds: new Set() }),
+
+  addTagsToCheckedTracks: async (tagIds) => {
+    const trackIds = Array.from(get().checkedTrackIds)
+    if (trackIds.length === 0) return
+    const updated = await window.api.batchAddTags(trackIds, tagIds)
+    const trackTags = new Map(get().trackTags)
+    for (const u of updated) trackTags.set(u.trackId, u)
+    set({ trackTags })
   },
 }))
