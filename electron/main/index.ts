@@ -172,19 +172,27 @@ function createWindow(onShown?: () => void): void {
 // Electron requires an explicit grant for permission-gated renderer APIs —
 // without this, navigator.requestMIDIAccess() (the MIDI-learn feature)
 // silently rejects, with no dialog and no visible error beyond a console
-// message. Only 'midi' is granted (not 'midiSysex' — CC-only mapping never
-// needs sysex); everything else is explicitly denied, since this app has
-// no other use for camera/mic/geolocation/notifications/etc. Both handlers
-// are set because Chromium checks some permission-gated APIs via a
-// synchronous check (setPermissionCheckHandler) and others via the
-// asynchronous prompt-style request (setPermissionRequestHandler),
-// depending on the API.
+// message. Confirmed via a direct CDP check against a real running
+// instance: a plain requestMIDIAccess() call with no sysex option still
+// requests the 'midiSysex' permission type in this Electron/Chromium
+// version, not 'midi' — granting only 'midi' left the request denied.
+// Both are granted here even though this app never actually sends/
+// receives sysex (only Control Change messages for knob mapping) — it's
+// what the permission model in this version requires for
+// requestMIDIAccess() to succeed at all. Everything else is explicitly
+// denied, since this app has no other use for camera/mic/geolocation/
+// notifications/etc. Both handler types are set because Chromium checks
+// some permission-gated APIs via a synchronous check
+// (setPermissionCheckHandler) and others via the asynchronous
+// prompt-style request (setPermissionRequestHandler), depending on the
+// API.
 function registerPermissionHandlers(): void {
+  const grantedPermissions = new Set(['midi', 'midiSysex'])
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(permission === 'midi')
+    callback(grantedPermissions.has(permission))
   })
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
-    return permission === 'midi'
+    return grantedPermissions.has(permission)
   })
 }
 

@@ -79,11 +79,11 @@ export function Player({ track }: { track: Track }) {
 
   // playerVolume lives in the global store (not local state) so a MIDI
   // binding can drive it regardless of which track's Player is currently
-  // mounted — this effect applies it to the master gain node (see
+  // mounted — this effect applies it to the dry-path gain node (see
   // effectsChain.ts) on every external change after mount. Setting
   // HTMLMediaElement.volume directly doesn't reliably work once the
-  // element's output is captured by the Web Audio graph — the master
-  // gain is the only thing that actually controls the final signal.
+  // element's output is captured by the Web Audio graph — only nodes
+  // inside the graph itself actually control what reaches destination.
   useEffect(() => {
     effectsChainRef.current?.setVolume(playerVolume)
   }, [playerVolume])
