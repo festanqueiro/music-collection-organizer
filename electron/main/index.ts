@@ -16,7 +16,20 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 protocol.registerSchemesAsPrivileged([
   {
     scheme: 'media',
-    privileges: { standard: true, secure: true, stream: true, bypassCSP: true, supportFetchAPI: true }
+    // corsEnabled matters even though nothing actually cross-origin-fetches
+    // this scheme: without it, Chromium treats media:// resources as
+    // "tainted" for Web Audio API purposes, so createMediaElementSource
+    // (used by the delay/reverb FX graph) silently outputs silence —
+    // playback otherwise looks completely normal (play state, progress,
+    // duration all work), just with no sound.
+    privileges: {
+      standard: true,
+      secure: true,
+      stream: true,
+      bypassCSP: true,
+      supportFetchAPI: true,
+      corsEnabled: true
+    }
   }
 ])
 
