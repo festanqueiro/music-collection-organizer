@@ -1,5 +1,14 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { Track, Genre, Subgenre, Mood, BackupInfo } from '../../src/types'
+import type {
+  Track,
+  Genre,
+  Subgenre,
+  Mood,
+  BackupInfo,
+  BackupEntry,
+  ImportResult,
+  GenreDeletionSnapshot,
+} from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
 
@@ -16,17 +25,27 @@ const api = {
   createSubgenre: (name: string, genreId: number): Promise<number> =>
     ipcRenderer.invoke('tags:createSubgenre', name, genreId),
   createMood: (name: string): Promise<number> => ipcRenderer.invoke('tags:createMood', name),
-  deleteGenre: (genreId: number): Promise<void> => ipcRenderer.invoke('tags:deleteGenre', genreId),
+  deleteGenre: (genreId: number): Promise<GenreDeletionSnapshot> => ipcRenderer.invoke('tags:deleteGenre', genreId),
+  undoDeleteGenre: (snapshot: GenreDeletionSnapshot): Promise<void> =>
+    ipcRenderer.invoke('tags:undoDeleteGenre', snapshot),
   setTrackGenres: (trackId: number, genreIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackGenres', trackId, genreIds),
   setTrackSubgenres: (trackId: number, subgenreIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackSubgenres', trackId, subgenreIds),
   setTrackMoods: (trackId: number, moodIds: number[]): Promise<TrackTagIds> =>
     ipcRenderer.invoke('tags:setTrackMoods', trackId, moodIds),
+  batchAddTags: (
+    trackIds: number[],
+    tagIds: { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }
+  ): Promise<TrackTagIds[]> => ipcRenderer.invoke('tags:batchAddTags', trackIds, tagIds),
   // Only a trackId — the main process looks up the actual path from its
   // own DB row rather than trusting one supplied over IPC.
   downloadTrack: (trackId: number): Promise<void> => ipcRenderer.invoke('tracks:download', trackId),
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
+  listBackups: (): Promise<BackupEntry[]> => ipcRenderer.invoke('backup:list'),
+  restoreBackup: (timestamp: string): Promise<void> => ipcRenderer.invoke('backup:restore', timestamp),
+  exportTagData: (): Promise<{ path: string } | null> => ipcRenderer.invoke('tags:exportData'),
+  importTagData: (): Promise<ImportResult | null> => ipcRenderer.invoke('tags:importData'),
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('scan:progress', listener)

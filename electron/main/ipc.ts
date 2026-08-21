@@ -1,9 +1,18 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { app, ipcMain, dialog, BrowserWindow } from 'electron'
+import { join } from 'node:path'
+import { writeFileSync, readFileSync } from 'node:fs'
 import type { AppDatabase } from './db'
-import { getCollectionFolder, setCollectionFolder, getLastBackupAt } from './config'
+import {
+  getCollectionFolder,
+  setCollectionFolder,
+  getLastBackupAt,
+  getLastBackupError,
+  getConfigFilePath,
+} from './config'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { runAnalysisQueue } from './analysis/queue'
+import { listBackups, restoreBackup } from './backup'
 import {
   createGenre,
   createSubgenre,
@@ -13,8 +22,23 @@ import {
   setTrackSubgenres,
   setTrackMoods,
   getTrackTagIds,
+  addGenresToTracks,
+  addSubgenresToTracks,
+  addMoodsToTracks,
+  captureGenreDeletionSnapshot,
+  undoGenreDeletion,
 } from './tags'
-import type { Track, Genre, Subgenre, Mood, BackupInfo } from '../../src/types'
+import { exportTagData, importTagData, type TagExportData } from './tagExport'
+import type {
+  Track,
+  Genre,
+  Subgenre,
+  Mood,
+  BackupInfo,
+  BackupEntry,
+  ImportResult,
+  GenreDeletionSnapshot,
+} from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
 interface TrackRow {
@@ -94,7 +118,20 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({
     backupFolder,
     lastBackupAt: getLastBackupAt(),
+    lastBackupError: getLastBackupError(),
   }))
+
+  ipcMain.handle('backup:list', (): BackupEntry[] => listBackups(backupFolder))
+
+  ipcMain.handle('backup:restore', (_e, timestamp: string): void => {
+    const entry = listBackups(backupFolder).find((e) => e.timestamp === timestamp)
+    if (!entry) throw new Error(`No backup found for timestamp ${timestamp}`)
+    db.close()
+    const dbFilePath = join(app.getPath('userData'), 'collection.db')
+    restoreBackup(entry, dbFilePath, getConfigFilePath())
+    app.relaunch()
+    app.exit()
+  })
 
   ipcMain.handle('config:chooseCollectionFolder', async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })
@@ -165,7 +202,14 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     createSubgenre(db, name, genreId)
   )
   ipcMain.handle('tags:createMood', (_e, name: string): number => createMood(db, name))
-  ipcMain.handle('tags:deleteGenre', (_e, genreId: number): void => deleteGenre(db, genreId))
+  ipcMain.handle('tags:deleteGenre', (_e, genreId: number): GenreDeletionSnapshot => {
+    const snapshot = captureGenreDeletionSnapshot(db, genreId)
+    deleteGenre(db, genreId)
+    return snapshot
+  })
+  ipcMain.handle('tags:undoDeleteGenre', (_e, snapshot: GenreDeletionSnapshot): void =>
+    undoGenreDeletion(db, snapshot)
+  )
 
   // These return the post-write tag state (read back from the DB) rather
   // than void, so the renderer store can apply the server's answer directly
@@ -183,6 +227,20 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     setTrackMoods(db, trackId, moodIds)
     return { trackId, ...getTrackTagIds(db, trackId) }
   })
+
+  ipcMain.handle(
+    'tags:batchAddTags',
+    (
+      _e,
+      trackIds: number[],
+      tagIds: { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }
+    ): TrackTagIds[] => {
+      if (tagIds.genreIds.length) addGenresToTracks(db, trackIds, tagIds.genreIds)
+      if (tagIds.subgenreIds.length) addSubgenresToTracks(db, trackIds, tagIds.subgenreIds)
+      if (tagIds.moodIds.length) addMoodsToTracks(db, trackIds, tagIds.moodIds)
+      return trackIds.map((trackId) => ({ trackId, ...getTrackTagIds(db, trackId) }))
+    }
+  )
 
   ipcMain.handle('tracks:download', async (_e, trackId: number): Promise<void> => {
     await downloadTrack(db, trackId)
@@ -207,5 +265,25 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
       if (row.mood_id) entry.moodIds.push(row.mood_id)
     }
     return Array.from(byTrack.entries()).map(([trackId, tags]) => ({ trackId, ...tags }))
+  })
+
+  ipcMain.handle('tags:exportData', async (): Promise<{ path: string } | null> => {
+    const result = await dialog.showSaveDialog(getMainWindow(), {
+      defaultPath: 'tag-export.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+    writeFileSync(result.filePath, JSON.stringify(exportTagData(db), null, 2))
+    return { path: result.filePath }
+  })
+
+  ipcMain.handle('tags:importData', async (): Promise<ImportResult | null> => {
+    const result = await dialog.showOpenDialog(getMainWindow(), {
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const data = JSON.parse(readFileSync(result.filePaths[0], 'utf-8')) as TagExportData
+    return importTagData(db, data)
   })
 }

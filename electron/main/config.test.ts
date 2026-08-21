@@ -6,6 +6,9 @@ import {
   getLastBackupAt,
   setLastBackupAt,
   getConfigFilePath,
+  getLastBackupError,
+  setLastBackupError,
+  clearLastBackupError,
   __setStoreForTests,
 } from './config'
 
@@ -38,5 +41,20 @@ describe('config store', () => {
 
   it('exposes the config file path', () => {
     expect(getConfigFilePath()).toMatch(/\.json$/)
+  })
+
+  it('returns null lastBackupError when unset', () => {
+    expect(getLastBackupError()).toBeNull()
+  })
+
+  it('persists a set lastBackupError', () => {
+    setLastBackupError('ENOSPC: no space left on device')
+    expect(getLastBackupError()).toBe('ENOSPC: no space left on device')
+  })
+
+  it('clears lastBackupError', () => {
+    setLastBackupError('some error')
+    clearLastBackupError()
+    expect(getLastBackupError()).toBeNull()
   })
 })

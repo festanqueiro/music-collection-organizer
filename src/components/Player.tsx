@@ -1,11 +1,13 @@
 // src/components/Player.tsx
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
+import { useCollectionStore } from '../state/store'
 
 export function Player({ src, peaks }: { src: string; peaks: number[] | null }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0) // 0..1 fraction of duration played
+  const modalOpen = useCollectionStore((s) => s.modalOpen)
 
   function toggle() {
     const audio = audioRef.current
@@ -23,6 +25,21 @@ export function Player({ src, peaks }: { src: string; peaks: number[] | null }) 
       )
     }
   }
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (modalOpen) return
+      const target = e.target as HTMLElement
+      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return
+      if (e.key === ' ') {
+        e.preventDefault()
+        toggle()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playing, modalOpen])
 
   function seekToClientX(clientX: number, target: HTMLElement | SVGSVGElement) {
     const audio = audioRef.current

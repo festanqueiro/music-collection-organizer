@@ -5,9 +5,11 @@ import { ScanPrompt } from './components/ScanPrompt'
 import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { TrackTable } from './components/TrackTable'
+import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
+import { UndoToast } from './components/UndoToast'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags'
@@ -20,6 +22,11 @@ export default function App() {
   const analysisProgress = useCollectionStore((s) => s.analysisProgress)
   const setAnalysisProgress = useCollectionStore((s) => s.setAnalysisProgress)
   const refreshTracks = useCollectionStore((s) => s.refreshTracks)
+  const pendingGenreDeletion = useCollectionStore((s) => s.pendingGenreDeletion)
+  const undoGenreDeletion = useCollectionStore((s) => s.undoGenreDeletion)
+  const dismissGenreDeletionUndo = useCollectionStore((s) => s.dismissGenreDeletionUndo)
+  const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
+  const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -47,7 +54,20 @@ export default function App() {
   return (
     <>
       <ScanPrompt />
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => {
+          setSettingsOpen(false)
+          setModalOpen(false)
+        }}
+      />
+      {pendingGenreDeletion && (
+        <UndoToast
+          message={`Deleted "${pendingGenreDeletion.snapshot.genreName}"`}
+          onUndo={undoGenreDeletion}
+          onDismiss={dismissGenreDeletionUndo}
+        />
+      )}
       <div
         className="app-layout"
         style={{
@@ -56,7 +76,12 @@ export default function App() {
         }}
       >
         <div style={{ gridArea: 'toolbar' }}>
-          <Toolbar onOpenSettings={() => setSettingsOpen(true)} />
+          <Toolbar
+            onOpenSettings={() => {
+              setSettingsOpen(true)
+              setModalOpen(true)
+            }}
+          />
         </div>
 
         <div className="pane" style={{ gridArea: 'left', padding: '12px' }}>
@@ -73,16 +98,33 @@ export default function App() {
                 </button>
               </div>
               {leftView === 'folders' ? (
-                <FolderTree rootPath={collectionFolder} onSelect={setSelectedFolder} />
+                <FolderTree
+                  rootPath={collectionFolder}
+                  onSelect={(folder) => {
+                    setSelectedFolder(folder)
+                    clearCheckedTracks()
+                  }}
+                />
               ) : (
-                <TagTree onFilterChange={(filter) => setTagFilter(() => filter)} />
+                <TagTree
+                  onFilterChange={(filter) => {
+                    setTagFilter(() => filter)
+                    clearCheckedTracks()
+                  }}
+                />
               )}
             </>
           )}
         </div>
 
         <div className="pane" style={{ gridArea: 'center' }}>
-          <TrackTable onSelect={setSelectedTrack} selectedFolder={selectedFolder} activeFilter={tagFilter} />
+          <BatchTagBar />
+          <TrackTable
+            onSelect={setSelectedTrack}
+            selectedFolder={selectedFolder}
+            activeFilter={tagFilter}
+            selectedTrackId={selectedTrack?.id ?? null}
+          />
         </div>
 
         <div className="pane" style={{ gridArea: 'right', borderRight: 'none' }}>

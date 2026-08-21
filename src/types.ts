@@ -38,4 +38,23 @@ export interface Mood {
 export interface BackupInfo {
   backupFolder: string
   lastBackupAt: string | null
+  lastBackupError: string | null
+}
+
+export interface BackupEntry {
+  timestamp: string
+  dbPath: string
+  configPath: string
+}
+
+export interface ImportResult {
+  matchedTracks: number
+  skippedTracks: number
+}
+
+export interface GenreDeletionSnapshot {
+  genreName: string
+  subgenres: { name: string }[]
+  trackGenreAssociations: { trackId: number }[]
+  trackSubgenreAssociationsByName: Record<string, number[]>
 }

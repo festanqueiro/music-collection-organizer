@@ -3,6 +3,7 @@ import Store from 'electron-store'
 interface ConfigSchema {
   collectionFolder?: string
   lastBackupAt?: string
+  lastBackupError?: string
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -36,4 +37,16 @@ export function setLastBackupAt(iso: string): void {
 
 export function getConfigFilePath(): string {
   return getStore().path
+}
+
+export function getLastBackupError(): string | null {
+  return getStore().get('lastBackupError') ?? null
+}
+
+export function setLastBackupError(message: string): void {
+  getStore().set('lastBackupError', message)
+}
+
+export function clearLastBackupError(): void {
+  getStore().delete('lastBackupError')
 }

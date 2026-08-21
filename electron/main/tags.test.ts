@@ -9,6 +9,11 @@ import {
   setTrackSubgenres,
   setTrackMoods,
   getTrackTagIds,
+  addGenresToTracks,
+  addSubgenresToTracks,
+  addMoodsToTracks,
+  captureGenreDeletionSnapshot,
+  undoGenreDeletion,
 } from './tags'
 
 describe('tags', () => {
@@ -57,5 +62,105 @@ describe('tags', () => {
     deleteGenre(db, houseId)
     const remaining = db.prepare('SELECT * FROM subgenres').all()
     expect(remaining).toEqual([])
+  })
+
+  it('addGenresToTracks adds a genre to multiple tracks without touching their other tags', () => {
+    const houseId = createGenre(db, 'House')
+    const technoId = createGenre(db, 'Techno')
+    const track2Id = db
+      .prepare(
+        `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/b.wav','b.wav','/', 'wav', 1, 1)`
+      )
+      .run().lastInsertRowid as number
+
+    setTrackGenres(db, trackId, [technoId]) // pre-existing tag that should survive
+
+    addGenresToTracks(db, [trackId, track2Id], [houseId])
+
+    expect(getTrackTagIds(db, trackId).genreIds.sort()).toEqual([houseId, technoId].sort())
+    expect(getTrackTagIds(db, track2Id).genreIds).toEqual([houseId])
+  })
+
+  it('addGenresToTracks is a harmless no-op when the track already has the genre', () => {
+    const houseId = createGenre(db, 'House')
+    setTrackGenres(db, trackId, [houseId])
+
+    expect(() => addGenresToTracks(db, [trackId], [houseId])).not.toThrow()
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([houseId])
+  })
+
+  it('addSubgenresToTracks adds a sub-genre to multiple tracks', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    const track2Id = db
+      .prepare(
+        `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/c.wav','c.wav','/', 'wav', 1, 1)`
+      )
+      .run().lastInsertRowid as number
+
+    addSubgenresToTracks(db, [trackId, track2Id], [deepHouseId])
+
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([deepHouseId])
+    expect(getTrackTagIds(db, track2Id).subgenreIds).toEqual([deepHouseId])
+  })
+
+  it('addSubgenresToTracks also associates the sub-genre\'s parent genre with the track', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+
+    addSubgenresToTracks(db, [trackId], [deepHouseId])
+
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([houseId])
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([deepHouseId])
+  })
+
+  it('addMoodsToTracks adds a mood to multiple tracks', () => {
+    const energeticId = createMood(db, 'Energetic')
+    const track2Id = db
+      .prepare(
+        `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/d.wav','d.wav','/', 'wav', 1, 1)`
+      )
+      .run().lastInsertRowid as number
+
+    addMoodsToTracks(db, [trackId, track2Id], [energeticId])
+
+    expect(getTrackTagIds(db, trackId).moodIds).toEqual([energeticId])
+    expect(getTrackTagIds(db, track2Id).moodIds).toEqual([energeticId])
+  })
+
+  it('captureGenreDeletionSnapshot records the genre, its sub-genres, and every track association', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    setTrackGenres(db, trackId, [houseId])
+    setTrackSubgenres(db, trackId, [deepHouseId])
+
+    const snapshot = captureGenreDeletionSnapshot(db, houseId)
+
+    expect(snapshot.genreName).toBe('House')
+    expect(snapshot.subgenres).toEqual([{ name: 'Deep House' }])
+    expect(snapshot.trackGenreAssociations).toEqual([{ trackId }])
+    expect(snapshot.trackSubgenreAssociationsByName).toEqual({ 'Deep House': [trackId] })
+  })
+
+  it('undoGenreDeletion recreates the genre, sub-genres, and track associations after a real delete', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    setTrackGenres(db, trackId, [houseId])
+    setTrackSubgenres(db, trackId, [deepHouseId])
+
+    const snapshot = captureGenreDeletionSnapshot(db, houseId)
+    deleteGenre(db, houseId)
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([])
+
+    undoGenreDeletion(db, snapshot)
+
+    const genres = db.prepare('SELECT name FROM genres').all()
+    expect(genres).toEqual([{ name: 'House' }])
+    const restoredGenreId = (db.prepare('SELECT id FROM genres WHERE name = ?').get('House') as { id: number }).id
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([restoredGenreId])
+    const restoredSubgenreId = (
+      db.prepare('SELECT id FROM subgenres WHERE name = ?').get('Deep House') as { id: number }
+    ).id
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([restoredSubgenreId])
   })
 })

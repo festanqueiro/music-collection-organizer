@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { fileURLToPath } from 'node:url'
 import { openDatabase } from './db'
 import { registerIpcHandlers } from './ipc'
-import { getCollectionFolder, getConfigFilePath } from './config'
+import { getCollectionFolder, getConfigFilePath, setLastBackupError, clearLastBackupError } from './config'
 import { mediaUrlToFilePath } from './mediaProtocol'
 import { runBackupIfNeeded, getBackupFolder } from './backup'
 
@@ -33,8 +33,10 @@ function registerMediaProtocol(): void {
 function performBackupCheck(db: ReturnType<typeof openDatabase>): void {
   try {
     runBackupIfNeeded(db, getConfigFilePath(), getBackupFolder(app.getPath('userData')), new Date())
+    clearLastBackupError()
   } catch (err) {
     console.error('backup failed', err)
+    setLastBackupError(err instanceof Error ? err.message : String(err))
   }
 }
 

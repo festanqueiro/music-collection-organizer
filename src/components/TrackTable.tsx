@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
 
@@ -17,13 +17,19 @@ export function TrackTable({
   onSelect,
   selectedFolder,
   activeFilter,
+  selectedTrackId,
 }: {
   onSelect: (track: Track) => void
   selectedFolder: string | null
   activeFilter: (track: Track) => boolean
+  selectedTrackId: number | null
 }) {
   const tracks = useCollectionStore((s) => s.tracks)
   const searchText = useCollectionStore((s) => s.searchText)
+  const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
+  const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
+  const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
+  const modalOpen = useCollectionStore((s) => s.modalOpen)
   const [sortKey, setSortKey] = useState<SortKey>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
 
@@ -54,6 +60,25 @@ export function TrackTable({
       })
   }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir])
 
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (modalOpen) return
+      const target = e.target as HTMLElement
+      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+      if (visibleTracks.length === 0) return
+      e.preventDefault()
+      const currentIndex = selectedTrackId ? visibleTracks.findIndex((t) => t.id === selectedTrackId) : -1
+      const nextIndex =
+        e.key === 'ArrowDown'
+          ? Math.min(visibleTracks.length - 1, currentIndex + 1)
+          : Math.max(0, currentIndex - 1)
+      onSelect(visibleTracks[nextIndex])
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [visibleTracks, selectedTrackId, onSelect, modalOpen])
+
   const columns: { key: SortKey; label: string }[] = [
     { key: 'title', label: 'Title' },
     { key: 'artist', label: 'Artist' },
@@ -70,6 +95,13 @@ export function TrackTable({
       <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
         <thead>
           <tr>
+            <th style={cellStyle}>
+              <input
+                type="checkbox"
+                checked={visibleTracks.length > 0 && visibleTracks.every((t) => checkedTrackIds.has(t.id))}
+                onChange={(e) => setTracksChecked(visibleTracks.map((t) => t.id), e.target.checked)}
+              />
+            </th>
             {columns.map((col) => (
               <th
                 key={col.key}
@@ -87,6 +119,13 @@ export function TrackTable({
         <tbody>
           {visibleTracks.map((track) => (
             <tr key={track.id} onClick={() => onSelect(track)} style={{ cursor: 'pointer' }}>
+              <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={checkedTrackIds.has(track.id)}
+                  onChange={() => toggleTrackChecked(track.id)}
+                />
+              </td>
               <td style={cellStyle}>{track.title ?? track.filename}</td>
               <td style={cellStyle}>{track.artist ?? '—'}</td>
               <td style={cellStyle}>{track.bpm?.toFixed(0) ?? '—'}</td>

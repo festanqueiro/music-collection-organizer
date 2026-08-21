@@ -82,9 +82,7 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
             <button
               onClick={(e) => {
                 e.stopPropagation()
-                if (window.confirm(`Delete genre "${genre.name}"? This also removes its sub-genres and untags every track that has it.`)) {
-                  deleteGenre(genre.id)
-                }
+                deleteGenre(genre.id)
               }}
               title={`Delete genre "${genre.name}"`}
               style={{ padding: '0 4px' }}
