@@ -8,6 +8,7 @@ import { TrackTable } from './components/TrackTable'
 import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
+import { PlaylistView } from './components/PlaylistView'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
@@ -34,7 +35,8 @@ export default function App() {
   const dismissGenreDeletionUndo = useCollectionStore((s) => s.dismissGenreDeletionUndo)
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
-  const loadedTrackId = useCollectionStore((s) => s.loadedTrackId)
+  const playlist = useCollectionStore((s) => s.playlist)
+  const playerExpanded = useCollectionStore((s) => s.playerExpanded)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -103,6 +105,12 @@ export default function App() {
           gridTemplateAreas: "'toolbar toolbar toolbar' 'left center right' 'footer footer footer'",
         }}
       >
+        {playerExpanded && (
+          <div style={{ gridRow: '1 / span 2', gridColumn: '1 / span 3', position: 'relative', zIndex: 10 }}>
+            <PlaylistView />
+          </div>
+        )}
+
         <div style={{ gridArea: 'toolbar' }}>
           <Toolbar
             onOpenSettings={() => {
@@ -171,21 +179,21 @@ export default function App() {
 
         <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)' }}>
           {(() => {
-            // Driven by loadedTrackId, not row selection — the player is
-            // independent, so browsing/checking details on other tracks
-            // (which only updates selectedTrack, below) doesn't interrupt
-            // playback. Only the load-to-player icon/context-menu action
-            // changes what's loaded here. Re-derived from the live tracks
-            // array on every render so BPM/waveform reflect an analysis
-            // that completes after the track was loaded. key forces a
-            // full remount when the loaded track changes — otherwise the
-            // playing/progress state (and the underlying <audio> element)
-            // carries over from the previous track instead of resetting.
-            const loadedTrack = loadedTrackId != null ? tracks.find((t) => t.id === loadedTrackId) : null
-            return loadedTrack ? (
-              <Player key={loadedTrack.id} track={loadedTrack} />
+            // Driven by the playlist queue's head, not row selection — the
+            // player is independent, so browsing/checking details on other
+            // tracks (which only updates selectedTrack, below) doesn't
+            // interrupt playback. Re-derived from the live tracks array on
+            // every render so BPM/waveform reflect an analysis that
+            // completes after playback started. key forces a full remount
+            // when the current track changes — otherwise the playing/
+            // progress state (and the underlying <audio> element) carries
+            // over from the previous track instead of resetting.
+            const currentTrackId = playlist[0]
+            const currentTrack = currentTrackId != null ? tracks.find((t) => t.id === currentTrackId) : null
+            return currentTrack ? (
+              <Player key={currentTrack.id} track={currentTrack} />
             ) : (
-              <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>No track loaded</div>
+              <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>Nothing queued</div>
             )
           })()}
           {analysisProgress && <AnalysisProgressBar progress={analysisProgress} />}

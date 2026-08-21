@@ -30,9 +30,12 @@ export function TrackTable({
   const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
   const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
-  const loadedTrackId = useCollectionStore((s) => s.loadedTrackId)
-  const loadTrackInPlayer = useCollectionStore((s) => s.loadTrackInPlayer)
+  const playlist = useCollectionStore((s) => s.playlist)
+  const playTrackNow = useCollectionStore((s) => s.playTrackNow)
+  const addToPlaylist = useCollectionStore((s) => s.addToPlaylist)
+  const playNext = useCollectionStore((s) => s.playNext)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
+  const currentTrackId = playlist[0] ?? null
   const [sortKey, setSortKey] = useState<SortKey>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
@@ -172,16 +175,16 @@ export function TrackTable({
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    loadTrackInPlayer(track.id)
+                    playTrackNow(track.id)
                   }}
-                  title="Load in Player"
+                  title="Play track now"
                   style={{
                     background: 'none',
                     border: 'none',
                     padding: '0 4px 0 0',
                     cursor: 'pointer',
                     verticalAlign: 'middle',
-                    color: track.id === loadedTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
+                    color: track.id === currentTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
                   }}
                 >
                   <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
@@ -233,7 +236,7 @@ export function TrackTable({
         >
           <button
             onClick={() => {
-              loadTrackInPlayer(contextMenu.trackId)
+              playTrackNow(contextMenu.trackId)
               setContextMenu(null)
             }}
             style={{
@@ -247,7 +250,43 @@ export function TrackTable({
               whiteSpace: 'nowrap',
             }}
           >
-            Load track in Player
+            Play track now
+          </button>
+          <button
+            onClick={() => {
+              addToPlaylist(contextMenu.trackId)
+              setContextMenu(null)
+            }}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              background: 'none',
+              border: 'none',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Add to playlist
+          </button>
+          <button
+            onClick={() => {
+              playNext(contextMenu.trackId)
+              setContextMenu(null)
+            }}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'left',
+              background: 'none',
+              border: 'none',
+              padding: '4px 8px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Play next
           </button>
           <button
             onClick={() => {

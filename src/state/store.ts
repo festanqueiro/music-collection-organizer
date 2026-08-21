@@ -14,6 +14,14 @@ import type {
 import { DEFAULT_EFFECTS_SETTINGS } from '../types'
 import { scaleMidiValue } from '../audio/midi'
 import type { TrackTagIds } from './tagFilter'
+import {
+  playTrackNow as playTrackNowPure,
+  addToPlaylist as addToPlaylistPure,
+  playNext as playNextPure,
+  removeFromPlaylist as removeFromPlaylistPure,
+  movePlaylistItem as movePlaylistItemPure,
+  advanceToNext as advanceToNextPure,
+} from './playlist'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
 // onChange continuously, and writing to electron-store on every tick would
@@ -37,6 +45,39 @@ function setTrackTags(
   set({ trackTags })
 }
 
+// A cloud-only track has no local audio to stream yet, so it's downloaded
+// first (blocking — nothing to play until it lands). A pending/error track
+// still plays immediately (analysis isn't needed for playback), but kicks
+// off a background analysis run for just that track so BPM/waveform show
+// up without a separate manual step. Called only by actions that make a
+// track the one actively playing (playTrackNow/advanceToNext) — queueing
+// actions (addToPlaylist/playNext) don't touch a track until it's current.
+async function ensureTrackReady(
+  set: StoreApi<CollectionState>['setState'],
+  get: StoreApi<CollectionState>['getState'],
+  trackId: number
+): Promise<void> {
+  const track = get().tracks.find((t) => t.id === trackId)
+  if (!track) return
+
+  if (track.cloudStatus === 'cloud_only') {
+    try {
+      await window.api.downloadTrack(trackId)
+      await get().loadAll()
+    } catch (err) {
+      console.error('failed to download track before playing it', err)
+      return
+    }
+  }
+
+  const current = get().tracks.find((t) => t.id === trackId)
+  if (current && (current.analysisStatus === 'pending' || current.analysisStatus === 'error')) {
+    get()
+      .runAnalysis([trackId])
+      .catch((err) => console.error('background analysis of playing track failed', err))
+  }
+}
+
 interface CollectionState {
   tracks: Track[]
   genres: Genre[]
@@ -45,8 +86,17 @@ interface CollectionState {
   trackTags: Map<number, TrackTagIds>
   checkedTrackIds: Set<number>
   pendingGenreDeletion: { snapshot: GenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
-  loadedTrackId: number | null
-  loadTrackInPlayer: (trackId: number) => Promise<void>
+  playlist: number[]
+  continuousPlay: boolean
+  playerExpanded: boolean
+  playTrackNow: (trackId: number) => Promise<void>
+  addToPlaylist: (trackId: number) => void
+  playNext: (trackId: number) => void
+  removeFromPlaylist: (index: number) => void
+  movePlaylistItem: (fromIndex: number, toIndex: number) => void
+  advanceToNext: () => Promise<void>
+  setContinuousPlay: (value: boolean) => void
+  setPlayerExpanded: (value: boolean) => void
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
@@ -100,7 +150,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   trackTags: new Map(),
   checkedTrackIds: new Set(),
   pendingGenreDeletion: null,
-  loadedTrackId: null,
+  playlist: [],
+  continuousPlay: true,
+  playerExpanded: false,
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -233,37 +285,32 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // Deliberately separate from row selection (which only drives
   // DetailPanel) — the player is independent, so browsing/checking
   // details on other tracks doesn't interrupt whatever's currently
-  // loaded and playing. Only this explicit action changes it.
-  //
-  // A cloud-only track has no local audio to stream yet, so it's
-  // downloaded first (blocking — nothing to play until it lands). A
-  // pending/error track still loads and plays immediately (analysis
-  // isn't needed for playback), but kicks off a background analysis run
-  // for just that track so BPM/waveform show up without a separate
-  // manual step.
-  loadTrackInPlayer: async (trackId) => {
-    const track = get().tracks.find((t) => t.id === trackId)
-    if (!track) return
-
-    if (track.cloudStatus === 'cloud_only') {
-      try {
-        await window.api.downloadTrack(trackId)
-        await get().loadAll()
-      } catch (err) {
-        console.error('failed to download track before loading into player', err)
-        return
-      }
-    }
-
-    set({ loadedTrackId: trackId })
-
-    const current = get().tracks.find((t) => t.id === trackId)
-    if (current && (current.analysisStatus === 'pending' || current.analysisStatus === 'error')) {
-      get()
-        .runAnalysis([trackId])
-        .catch((err) => console.error('background analysis of loaded track failed', err))
-    }
+  // loaded and playing. Only these explicit actions change it.
+  playTrackNow: async (trackId) => {
+    set({ playlist: playTrackNowPure(get().playlist, trackId) })
+    await ensureTrackReady(set, get, trackId)
   },
+
+  addToPlaylist: (trackId) => set({ playlist: addToPlaylistPure(get().playlist, trackId) }),
+
+  playNext: (trackId) => set({ playlist: playNextPure(get().playlist, trackId) }),
+
+  removeFromPlaylist: (index) => set({ playlist: removeFromPlaylistPure(get().playlist, index) }),
+
+  movePlaylistItem: (fromIndex, toIndex) =>
+    set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),
+
+  advanceToNext: async () => {
+    const before = get().playlist
+    const after = advanceToNextPure(before)
+    if (after === before) return
+    set({ playlist: after })
+    if (after.length > 0) await ensureTrackReady(set, get, after[0])
+  },
+
+  setContinuousPlay: (value) => set({ continuousPlay: value }),
+
+  setPlayerExpanded: (value) => set({ playerExpanded: value }),
 
   loadAppVersion: async () => {
     const version = await window.api.getAppVersion()

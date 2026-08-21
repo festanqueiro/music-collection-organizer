@@ -20,6 +20,10 @@ export function Player({ track }: { track: Track }) {
   const setEffectsSettings = useCollectionStore((s) => s.setEffectsSettings)
   const playerVolume = useCollectionStore((s) => s.playerVolume)
   const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
+  const continuousPlay = useCollectionStore((s) => s.continuousPlay)
+  const advanceToNext = useCollectionStore((s) => s.advanceToNext)
+  const playerExpanded = useCollectionStore((s) => s.playerExpanded)
+  const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
 
   function toggle() {
     const audio = audioRef.current
@@ -141,7 +145,10 @@ export function Player({ track }: { track: Track }) {
         // registration or any response headers — createMediaElementSource
         // (the delay/reverb FX graph) would silently output silence.
         crossOrigin="anonymous"
-        onEnded={() => setPlaying(false)}
+        onEnded={() => {
+          if (continuousPlay) advanceToNext()
+          else setPlaying(false)
+        }}
         onError={() => setPlaying(false)}
         onTimeUpdate={(e) => {
           const audio = e.currentTarget
@@ -149,7 +156,7 @@ export function Player({ track }: { track: Track }) {
         }}
       />
 
-      <div style={{ overflow: 'hidden' }}>
+      <div style={{ overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
           {track.title ?? track.filename}
         </span>
@@ -164,6 +171,15 @@ export function Player({ track }: { track: Track }) {
         {track.analysisStatus === 'done' && (
           <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px' }}>Analysed</span>
         )}
+        <button
+          onClick={() => setPlayerExpanded(!playerExpanded)}
+          title={playerExpanded ? 'Collapse playlist' : 'Expand playlist'}
+          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}
+        >
+          <span className="material-symbols-outlined">
+            {playerExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_up'}
+          </span>
+        </button>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

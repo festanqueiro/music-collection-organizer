@@ -124,8 +124,9 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
   const moods = useCollectionStore((s) => s.moods)
   const trackTags = useCollectionStore((s) => s.trackTags)
   const loadAll = useCollectionStore((s) => s.loadAll)
-  const loadedTrackId = useCollectionStore((s) => s.loadedTrackId)
-  const loadTrackInPlayer = useCollectionStore((s) => s.loadTrackInPlayer)
+  const playlist = useCollectionStore((s) => s.playlist)
+  const playTrackNow = useCollectionStore((s) => s.playTrackNow)
+  const currentTrackId = playlist[0] ?? null
   const setTrackGenres = useCollectionStore((s) => s.setTrackGenres)
   const setTrackSubgenres = useCollectionStore((s) => s.setTrackSubgenres)
   const setTrackMoods = useCollectionStore((s) => s.setTrackMoods)
@@ -204,9 +205,9 @@ export function DetailPanel({ track: selectedTrack }: { track: Track | null }) {
   return (
     <div style={{ padding: '16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <button onClick={() => loadTrackInPlayer(track.id)} title="Play">
+        <button onClick={() => playTrackNow(track.id)} title="Play track now">
           <span className="material-symbols-outlined">
-            {track.id === loadedTrackId ? 'graphic_eq' : 'play_arrow'}
+            {track.id === currentTrackId ? 'graphic_eq' : 'play_arrow'}
           </span>
         </button>
         <h3 style={{ margin: 0 }}>{track.title ?? track.filename}</h3>
