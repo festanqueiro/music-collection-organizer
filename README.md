@@ -19,12 +19,6 @@ Vitest.
 
 ## Getting started
 
-> **While this is still on the `v1-library-organizer` branch/worktree
-> (not yet merged to `main`):** the app's `package.json` and all its code
-> live at `.claude/worktrees/v1-library-organizer/`, not the repo root —
-> `cd` there before running any of the commands below. Once this merges
-> to `main`, everything moves to the repo root and this note goes away.
-
 ```bash
 npm install
 npm run dev     # launch the app in dev mode (hot reload)
