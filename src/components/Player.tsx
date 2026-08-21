@@ -117,6 +117,12 @@ export function Player({ track }: { track: Track }) {
       <audio
         ref={audioRef}
         src={trackPathToMediaUrl(track.path)}
+        // Without this, the media load is a "no-cors" request and its
+        // response is unconditionally opaque/tainted for Web Audio
+        // purposes regardless of the media:// scheme's own corsEnabled
+        // registration or any response headers — createMediaElementSource
+        // (the delay/reverb FX graph) would silently output silence.
+        crossOrigin="anonymous"
         onEnded={() => setPlaying(false)}
         onError={() => setPlaying(false)}
         onTimeUpdate={(e) => {
@@ -168,7 +174,12 @@ export function Player({ track }: { track: Track }) {
               />
             </svg>
           ) : (
-            <div style={{ height: '40px', borderBottom: '1px solid var(--color-border)' }} />
+            // No waveform data yet (track not analyzed) — still seekable,
+            // just without the visualization.
+            <div
+              onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
+              style={{ height: '40px', borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
+            />
           )}
         </div>
 
