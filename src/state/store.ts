@@ -1,7 +1,24 @@
 // src/state/store.ts
 import { create, type StoreApi } from 'zustand'
-import type { Track, Genre, Subgenre, Mood, ImportResult, GenreDeletionSnapshot } from '../types'
+import type {
+  Track,
+  Genre,
+  Subgenre,
+  Mood,
+  ImportResult,
+  GenreDeletionSnapshot,
+  EffectsSettings,
+  MidiMappings,
+  MidiControlKey,
+} from '../types'
+import { DEFAULT_EFFECTS_SETTINGS } from '../types'
+import { scaleMidiValue } from '../audio/midi'
 import type { TrackTagIds } from './tagFilter'
+
+// Debounced rather than saved on every slider tick — dragging a knob fires
+// onChange continuously, and writing to electron-store on every tick would
+// mean dozens of synchronous disk writes per second while dragging.
+let effectsSettingsSaveTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Applies a tag IPC call's returned (server-authoritative) TrackTagIds to one
 // track's entry in the trackTags map, without reloading the whole collection
@@ -32,6 +49,18 @@ interface CollectionState {
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
   modalOpen: boolean
+  effectsSettings: EffectsSettings
+  loadEffectsSettings: () => Promise<void>
+  setEffectsSettings: (settings: EffectsSettings) => void
+  playerVolume: number
+  setPlayerVolume: (volume: number) => void
+  midiMappings: MidiMappings
+  midiLearningControl: MidiControlKey | null
+  loadMidiMappings: () => Promise<void>
+  startMidiLearn: (control: MidiControlKey) => void
+  cancelMidiLearn: () => void
+  clearMidiMapping: (control: MidiControlKey) => void
+  handleMidiControlChange: (channel: number, controller: number, value: number) => void
   loadCollectionFolder: () => Promise<void>
   pickCollectionFolder: () => Promise<boolean>
   loadAll: () => Promise<void>
@@ -69,6 +98,79 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   collectionFolder: null,
   analysisProgress: null,
   modalOpen: false,
+  effectsSettings: DEFAULT_EFFECTS_SETTINGS,
+  playerVolume: 1,
+  midiMappings: {},
+  midiLearningControl: null,
+
+  loadEffectsSettings: async () => {
+    const settings = await window.api.getEffectsSettings()
+    set({ effectsSettings: settings })
+  },
+
+  setEffectsSettings: (settings) => {
+    set({ effectsSettings: settings })
+    if (effectsSettingsSaveTimeout) clearTimeout(effectsSettingsSaveTimeout)
+    effectsSettingsSaveTimeout = setTimeout(() => {
+      window.api.setEffectsSettings(settings).catch((err) => console.error('failed to save effects settings', err))
+    }, 300)
+  },
+
+  setPlayerVolume: (volume) => set({ playerVolume: volume }),
+
+  loadMidiMappings: async () => {
+    const mappings = await window.api.getMidiMappings()
+    set({ midiMappings: mappings })
+  },
+
+  startMidiLearn: (control) => set({ midiLearningControl: control }),
+
+  cancelMidiLearn: () => set({ midiLearningControl: null }),
+
+  clearMidiMapping: (control) => {
+    const mappings = { ...get().midiMappings }
+    delete mappings[control]
+    set({ midiMappings: mappings })
+    window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
+  },
+
+  // Called by the single global MIDI listener mounted in App.tsx — either
+  // binds the incoming CC to whichever control is in "learn" mode, or (if
+  // nothing is learning) looks up a matching existing binding and applies
+  // the scaled value to the corresponding piece of state.
+  handleMidiControlChange: (channel, controller, value) => {
+    const learning = get().midiLearningControl
+    if (learning) {
+      const mappings = { ...get().midiMappings, [learning]: { channel, controller } }
+      set({ midiMappings: mappings, midiLearningControl: null })
+      window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
+      return
+    }
+
+    const mappings = get().midiMappings
+    const match = (Object.keys(mappings) as MidiControlKey[]).find((key) => {
+      const binding = mappings[key]
+      return binding && binding.channel === channel && binding.controller === controller
+    })
+    if (!match) return
+
+    const scaled = scaleMidiValue(match, value)
+    if (match === 'volume') {
+      get().setPlayerVolume(scaled)
+      return
+    }
+
+    const effectsSettings = get().effectsSettings
+    if (match === 'delay.timeMs') {
+      get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, timeMs: scaled } })
+    } else if (match === 'delay.feedback') {
+      get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, feedback: scaled } })
+    } else if (match === 'delay.mix') {
+      get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, mix: scaled } })
+    } else if (match === 'reverb.mix') {
+      get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, mix: scaled } })
+    }
+  },
 
   loadCollectionFolder: async () => {
     const folder = await window.api.getCollectionFolder()

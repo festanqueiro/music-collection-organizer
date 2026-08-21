@@ -1,9 +1,12 @@
 import Store from 'electron-store'
+import { DEFAULT_EFFECTS_SETTINGS, type EffectsSettings, type MidiMappings } from '../../src/types'
 
 interface ConfigSchema {
   collectionFolder?: string
   lastBackupAt?: string
   lastBackupError?: string
+  effectsSettings?: EffectsSettings
+  midiMappings?: MidiMappings
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -49,4 +52,20 @@ export function setLastBackupError(message: string): void {
 
 export function clearLastBackupError(): void {
   getStore().delete('lastBackupError')
+}
+
+export function getEffectsSettings(): EffectsSettings {
+  return getStore().get('effectsSettings') ?? DEFAULT_EFFECTS_SETTINGS
+}
+
+export function setEffectsSettings(settings: EffectsSettings): void {
+  getStore().set('effectsSettings', settings)
+}
+
+export function getMidiMappings(): MidiMappings {
+  return getStore().get('midiMappings') ?? {}
+}
+
+export function setMidiMappings(mappings: MidiMappings): void {
+  getStore().set('midiMappings', mappings)
 }

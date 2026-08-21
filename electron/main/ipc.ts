@@ -8,6 +8,10 @@ import {
   getLastBackupAt,
   getLastBackupError,
   getConfigFilePath,
+  getEffectsSettings,
+  setEffectsSettings,
+  getMidiMappings,
+  setMidiMappings,
 } from './config'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
@@ -38,6 +42,8 @@ import type {
   BackupEntry,
   ImportResult,
   GenreDeletionSnapshot,
+  EffectsSettings,
+  MidiMappings,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -114,6 +120,14 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   let scanInProgress = false
 
   ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
+
+  ipcMain.handle('config:getEffectsSettings', (): EffectsSettings => getEffectsSettings())
+  ipcMain.handle('config:setEffectsSettings', (_e, settings: EffectsSettings): void =>
+    setEffectsSettings(settings)
+  )
+
+  ipcMain.handle('config:getMidiMappings', (): MidiMappings => getMidiMappings())
+  ipcMain.handle('config:setMidiMappings', (_e, mappings: MidiMappings): void => setMidiMappings(mappings))
 
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({
     backupFolder,
