@@ -113,6 +113,12 @@ export const DEFAULT_SIREN_SETTINGS: SirenSettings = {
 export interface EffectsSettings {
   delay: { enabled: boolean; timeMs: number; feedback: number; mix: number }
   reverb: { enabled: boolean; mix: number; decaySeconds: number; preDelayMs: number }
+  // A single-knob sweep filter, Xone-mixer style: position is bipolar —
+  // 0 is bypass (wide open), negative sweeps a low-pass filter closed
+  // (cutting highs), positive sweeps a high-pass filter closed (cutting
+  // lows). No separate enabled flag — center position already is bypass,
+  // matching the real hardware's UX (the knob itself is the switch).
+  filter: { position: number; resonance: number }
   siren: SirenSettings
 }
 
@@ -122,6 +128,7 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   // synthetic impulse, no pre-delay), so existing configs/behavior are
   // unchanged until someone actually touches the new controls.
   reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
+  filter: { position: 0, resonance: 1 },
   siren: DEFAULT_SIREN_SETTINGS,
 }
 
@@ -135,6 +142,8 @@ export type MidiControlKey =
   | 'reverb.mix'
   | 'reverb.decaySeconds'
   | 'reverb.preDelayMs'
+  | 'filter.position'
+  | 'filter.resonance'
   | 'siren.mode'
   | 'siren.pitchHz'
   | 'siren.speedHz'

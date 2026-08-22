@@ -397,6 +397,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, decaySeconds: scaled } })
     } else if (match === 'reverb.preDelayMs') {
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, preDelayMs: scaled } })
+    } else if (match === 'filter.position') {
+      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, position: scaled } })
+    } else if (match === 'filter.resonance') {
+      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, resonance: scaled } })
     } else if (match === 'siren.pitchHz') {
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, pitchHz: scaled } })
     } else if (match === 'siren.speedHz') {

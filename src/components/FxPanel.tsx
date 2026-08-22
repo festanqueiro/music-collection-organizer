@@ -5,6 +5,22 @@ import { MidiLearnBadge } from './MidiLearnBadge'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import { SIREN_MODES, SIREN_BEATS, type EffectsSettings, type SirenSettings, type Track } from '../types'
 
+// Standard delay-unit note divisions (straight, dotted, triplet), each
+// expressed as a multiple of one beat (a quarter note) — matches how
+// hardware/plugin delays with a "sync" mode let you dial in a musical
+// division instead of raw milliseconds.
+const DELAY_DIVISIONS: { label: string; beats: number }[] = [
+  { label: '1/1', beats: 4 },
+  { label: '1/2', beats: 2 },
+  { label: '1/4', beats: 1 },
+  { label: '1/8', beats: 0.5 },
+  { label: '1/16', beats: 0.25 },
+  { label: '1/4.', beats: 1.5 },
+  { label: '1/8.', beats: 0.75 },
+  { label: '1/4T', beats: 2 / 3 },
+  { label: '1/8T', beats: 1 / 3 },
+]
+
 // Lives in the right half of the full-screen queue view (PlaylistView),
 // mirroring the queue's left half. `track` (the currently-playing track,
 // if any) is only used for the delay-time BPM sync — the FX settings
@@ -62,16 +78,21 @@ export function FxPanel({ track }: { track: Track | null }) {
     })
   }
 
+  function updateFilter(partial: Partial<EffectsSettings['filter']>) {
+    setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, ...partial } })
+  }
+
   function updateSiren(partial: Partial<SirenSettings>) {
     setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, ...partial } })
   }
 
-  // One quarter-note at the track's BPM, clamped to the slider's 0-1000ms
-  // range (a quarter note below 60 BPM would exceed it).
-  function syncDelayToBpm() {
+  // beats is a multiple of one quarter note at the track's BPM, clamped
+  // to the slider's 0-1000ms range (a whole note below ~60 BPM would
+  // exceed it).
+  function syncDelayToDivision(beats: number) {
     if (!track?.bpm) return
-    const quarterNoteMs = Math.round(60000 / track.bpm)
-    updateDelay({ timeMs: Math.min(1000, quarterNoteMs) })
+    const ms = Math.round((60000 / track.bpm) * beats)
+    updateDelay({ timeMs: Math.min(1000, ms) })
   }
 
   return (
@@ -100,14 +121,22 @@ export function FxPanel({ track }: { track: Track | null }) {
               style={{ width: '100px' }}
             />
             <MidiLearnBadge control="delay.timeMs" />
-            <button
-              onClick={syncDelayToBpm}
+            <select
+              value=""
+              onChange={(e) => syncDelayToDivision(Number(e.target.value))}
               disabled={!track?.bpm}
-              title={track?.bpm ? `Sync to ${Math.round(track.bpm)} BPM (quarter note)` : 'No BPM detected for this track'}
-              style={{ fontSize: '10px', padding: '0 4px' }}
+              title={track?.bpm ? `Snap to a note division at ${Math.round(track.bpm)} BPM` : 'No BPM detected for this track'}
+              style={{ fontSize: '10px' }}
             >
-              Sync
-            </button>
+              <option value="" disabled>
+                Sync…
+              </option>
+              {DELAY_DIVISIONS.map((div) => (
+                <option key={div.label} value={div.beats}>
+                  {div.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Delay feedback">
             Feedback
@@ -183,6 +212,49 @@ export function FxPanel({ track }: { track: Track | null }) {
               style={{ width: '100px' }}
             />
             <MidiLearnBadge control="reverb.preDelayMs" />
+          </label>
+        </div>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
+        <h4 style={{ margin: '0 0 8px' }}>Filter</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px', color: 'var(--color-text-dim)' }}>
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            title="Xone-style sweep filter — left of center is low-pass (cuts highs), right is high-pass (cuts lows), center is bypass"
+          >
+            LP ⟵ Filter ⟶ HP
+            <input
+              type="range"
+              min={-1}
+              max={1}
+              step={0.01}
+              value={effectsSettings.filter.position}
+              onChange={(e) => updateFilter({ position: Number(e.target.value) })}
+              style={{ width: '100px' }}
+            />
+            <MidiLearnBadge control="filter.position" />
+            <button
+              onClick={() => updateFilter({ position: 0 })}
+              disabled={effectsSettings.filter.position === 0}
+              title="Reset to bypass (center)"
+              style={{ fontSize: '10px', padding: '0 4px' }}
+            >
+              Reset
+            </button>
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Resonance (Q) — how pronounced the peak at the cutoff frequency is">
+            Resonance
+            <input
+              type="range"
+              min={0.7}
+              max={20}
+              step={0.1}
+              value={effectsSettings.filter.resonance}
+              onChange={(e) => updateFilter({ resonance: Number(e.target.value) })}
+              style={{ width: '100px' }}
+            />
+            <MidiLearnBadge control="filter.resonance" />
           </label>
         </div>
       </div>

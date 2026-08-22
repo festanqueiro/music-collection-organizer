@@ -62,18 +62,23 @@ export function clearLastBackupError(): void {
   getStore().delete('lastBackupError')
 }
 
-// A config written before the siren module existed has no `siren` key —
-// settings.siren.mode would throw in the renderer without this merge.
-// Depth-one is enough: delay/reverb/siren are each flat objects of
-// primitives, so a stored sub-object's own fields always take precedence
-// over defaults, and only a genuinely missing sub-object falls back
-// wholesale.
+// A config written before a field/module existed is missing it entirely
+// (e.g. no `siren` key at all before that module shipped, or a `reverb`
+// with no `decaySeconds`/`preDelayMs` from before those were added) —
+// reading it as-is would either throw in the renderer or leave a field
+// `undefined`. Every sub-object is deep-merged one level against its own
+// defaults (they're each flat objects of primitives, so one level is
+// enough) rather than only the top-level EffectsSettings spread, which
+// would silently replace a whole stored sub-object and lose this exact
+// protection for any field added to it after the fact — reverb.decaySeconds
+// was briefly exposed to that gap before this comment was written.
 export function getEffectsSettings(): EffectsSettings {
   const stored = getStore().get('effectsSettings')
   if (!stored) return DEFAULT_EFFECTS_SETTINGS
   return {
-    ...DEFAULT_EFFECTS_SETTINGS,
-    ...stored,
+    delay: { ...DEFAULT_EFFECTS_SETTINGS.delay, ...stored.delay },
+    reverb: { ...DEFAULT_EFFECTS_SETTINGS.reverb, ...stored.reverb },
+    filter: { ...DEFAULT_EFFECTS_SETTINGS.filter, ...stored.filter },
     siren: { ...DEFAULT_SIREN_SETTINGS, ...stored.siren },
   }
 }

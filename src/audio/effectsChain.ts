@@ -3,6 +3,18 @@ import type { EffectsSettings } from '../types'
 const MAX_DELAY_SECONDS = 2
 const MAX_PRE_DELAY_SECONDS = 0.5
 const REVERB_DECAY_EXPONENT = 2
+const FILTER_PARAM_TAU = 0.02
+// Bypass sits at each type's edge of audibility: a lowpass at 20kHz or a
+// highpass at 20Hz cuts essentially nothing, so the filter can stay
+// permanently in the signal path (no connect/disconnect click) with the
+// knob at center. Sweep endpoints (open -> closed) are exponential, not
+// linear, matching how a real filter knob's perceived "speed" is roughly
+// even across its travel — a linear Hz sweep would spend almost all of
+// the knob's range barely changing anything up near 20kHz.
+const FILTER_LOWPASS_OPEN_HZ = 20000
+const FILTER_LOWPASS_CLOSED_HZ = 80
+const FILTER_HIGHPASS_OPEN_HZ = 20
+const FILTER_HIGHPASS_CLOSED_HZ = 8000
 
 // Synthesizes a plate-style impulse response (exponentially decaying white
 // noise) rather than shipping a recorded .wav — no binary asset, no
@@ -44,13 +56,23 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 // them keeps decaying on its own after the input goes silent — it just
 // can't be topped up with fresh signal anymore.
 //
-//              ┌───────────────────────────────────────────────────────┐
-// source ──────> dryGain ─┼─> delayNode <-> feedbackGain ├─> destination
-//                         │      └────────> delayWetGain ─┤
-//                         └─> preDelayNode ─> convolver ─> reverbWetGain ┘
+//                                        ┌─────────────────────────────────────────┐
+// source ──> dryGain ──> filterNode ──┼─> delayNode <-> feedbackGain ├─> destination
+//                                       │      └────────> delayWetGain ─┤
+//                                       ├─> preDelayNode ─> convolver ─> reverbWetGain ┤
+//                                       └────────────────────────────────────────────┘
+//
+// filterNode sits after the fader like a mixer channel's filter knob —
+// everything downstream (the dry signal AND the delay/reverb sends) is
+// swept together, same as sweeping a real Xone-style filter with a delay
+// throw active filters the repeats too. It's a single BiquadFilterNode
+// whose type/frequency track filter.position: negative sweeps a lowpass
+// closed (cuts highs), positive sweeps a highpass closed (cuts lows), 0
+// is bypass (wide open) — see update()'s comment for the mapping.
 export class EffectsChain {
   private context: AudioContext
   private dryGain: GainNode
+  private filterNode: BiquadFilterNode
   private delayNode: DelayNode
   private delayFeedbackGain: GainNode
   private delayWetGain: GainNode
@@ -66,13 +88,18 @@ export class EffectsChain {
     this.dryGain = this.context.createGain()
     this.dryGain.gain.value = 1
     source.connect(this.dryGain)
-    this.dryGain.connect(this.context.destination)
+
+    this.filterNode = this.context.createBiquadFilter()
+    this.filterNode.type = 'lowpass'
+    this.filterNode.frequency.value = FILTER_LOWPASS_OPEN_HZ
+    this.dryGain.connect(this.filterNode)
+    this.filterNode.connect(this.context.destination)
 
     this.delayNode = this.context.createDelay(MAX_DELAY_SECONDS)
     this.delayFeedbackGain = this.context.createGain()
     this.delayWetGain = this.context.createGain()
     this.delayWetGain.gain.value = 0
-    this.dryGain.connect(this.delayNode)
+    this.filterNode.connect(this.delayNode)
     this.delayNode.connect(this.delayFeedbackGain)
     this.delayFeedbackGain.connect(this.delayNode)
     this.delayNode.connect(this.delayWetGain)
@@ -84,7 +111,7 @@ export class EffectsChain {
     this.convolver.buffer = createSyntheticImpulseResponse(this.context, this.lastDecaySeconds)
     this.reverbWetGain = this.context.createGain()
     this.reverbWetGain.gain.value = 0
-    this.dryGain.connect(this.preDelayNode)
+    this.filterNode.connect(this.preDelayNode)
     this.preDelayNode.connect(this.convolver)
     this.convolver.connect(this.reverbWetGain)
     this.reverbWetGain.connect(this.context.destination)
@@ -114,6 +141,29 @@ export class EffectsChain {
       this.convolver.buffer = createSyntheticImpulseResponse(this.context, settings.reverb.decaySeconds)
     }
     this.reverbWetGain.gain.value = settings.reverb.enabled ? settings.reverb.mix : 0
+
+    // position < 0: lowpass sweeping closed (cuts highs) as it goes more
+    // negative. position > 0: highpass sweeping closed (cuts lows) as it
+    // goes more positive. position === 0: type doesn't matter, both are
+    // wide open (lowpass parked at 20kHz is equally transparent), so it's
+    // left as whatever type was already set rather than switched — no
+    // point retyping the node every time it's dead-centered.
+    const { position, resonance } = settings.filter
+    if (position < 0) {
+      this.filterNode.type = 'lowpass'
+      const t = -position // 0 (open) .. 1 (fully closed)
+      const freq = FILTER_LOWPASS_OPEN_HZ * (FILTER_LOWPASS_CLOSED_HZ / FILTER_LOWPASS_OPEN_HZ) ** t
+      this.filterNode.frequency.setTargetAtTime(freq, now, FILTER_PARAM_TAU)
+    } else if (position > 0) {
+      this.filterNode.type = 'highpass'
+      const t = position // 0 (open) .. 1 (fully closed)
+      const freq = FILTER_HIGHPASS_OPEN_HZ * (FILTER_HIGHPASS_CLOSED_HZ / FILTER_HIGHPASS_OPEN_HZ) ** t
+      this.filterNode.frequency.setTargetAtTime(freq, now, FILTER_PARAM_TAU)
+    } else {
+      const openFreq = this.filterNode.type === 'highpass' ? FILTER_HIGHPASS_OPEN_HZ : FILTER_LOWPASS_OPEN_HZ
+      this.filterNode.frequency.setTargetAtTime(openFreq, now, FILTER_PARAM_TAU)
+    }
+    this.filterNode.Q.setTargetAtTime(resonance, now, FILTER_PARAM_TAU)
   }
 
   setVolume(value: number): void {

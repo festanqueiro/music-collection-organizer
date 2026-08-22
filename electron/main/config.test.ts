@@ -73,6 +73,7 @@ describe('config store', () => {
     const settings = {
       delay: { enabled: true, timeMs: 500, feedback: 0.5, mix: 0.6 },
       reverb: { enabled: true, mix: 0.4, decaySeconds: 3, preDelayMs: 20 },
+      filter: { position: -0.5, resonance: 3 },
       siren: { ...DEFAULT_SIREN_SETTINGS, enabled: true, mode: 'bomb' as const },
     }
     setEffectsSettings(settings)
@@ -102,6 +103,37 @@ describe('config store', () => {
     })
     __setStoreForTests(store)
     expect(getEffectsSettings().siren).toEqual({ ...DEFAULT_SIREN_SETTINGS, enabled: true, mode: 'laser' })
+  })
+
+  it('fills in reverb fields missing from a stored blob predating them (decaySeconds/preDelayMs)', () => {
+    const store = new Store({ name: `test-old-reverb-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    store.set('effectsSettings', {
+      delay: DEFAULT_EFFECTS_SETTINGS.delay,
+      reverb: { enabled: true, mix: 0.5 },
+      siren: DEFAULT_SIREN_SETTINGS,
+    })
+    __setStoreForTests(store)
+    expect(getEffectsSettings().reverb).toEqual({
+      enabled: true,
+      mix: 0.5,
+      decaySeconds: DEFAULT_EFFECTS_SETTINGS.reverb.decaySeconds,
+      preDelayMs: DEFAULT_EFFECTS_SETTINGS.reverb.preDelayMs,
+    })
+  })
+
+  it('fills in the whole filter default for a stored blob with no filter key at all (pre-filter config)', () => {
+    const store = new Store({ name: `test-prefilter-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    store.set('effectsSettings', {
+      delay: DEFAULT_EFFECTS_SETTINGS.delay,
+      reverb: DEFAULT_EFFECTS_SETTINGS.reverb,
+      siren: DEFAULT_SIREN_SETTINGS,
+    })
+    __setStoreForTests(store)
+    expect(getEffectsSettings().filter).toEqual(DEFAULT_EFFECTS_SETTINGS.filter)
   })
 
   it('returns an empty object for midi mappings when unset', () => {
