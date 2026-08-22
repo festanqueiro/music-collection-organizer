@@ -18,6 +18,12 @@ export function addToPlaylist(playlist: PlaylistState, trackId: number): Playlis
   return [...playlist, trackId]
 }
 
+// Appends many tracks at once (e.g. "Add all to queue" for a folder) —
+// one state update instead of one per track.
+export function addManyToPlaylist(playlist: PlaylistState, trackIds: number[]): PlaylistState {
+  return [...playlist, ...trackIds]
+}
+
 // Inserts immediately after the current (head) track — i.e. at index 1 —
 // or as the new head if the queue is empty.
 export function playNext(playlist: PlaylistState, trackId: number): PlaylistState {

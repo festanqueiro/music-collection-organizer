@@ -19,6 +19,7 @@ import type { TrackTagIds } from './tagFilter'
 import {
   playTrackNow as playTrackNowPure,
   addToPlaylist as addToPlaylistPure,
+  addManyToPlaylist as addManyToPlaylistPure,
   playNext as playNextPure,
   removeFromPlaylist as removeFromPlaylistPure,
   movePlaylistItem as movePlaylistItemPure,
@@ -56,12 +57,22 @@ function setTrackTags(
 // here too avoids a pointless IPC round-trip for one that obviously can't
 // run.
 function triggerBackgroundAnalysis(get: StoreApi<CollectionState>['getState'], trackId: number): void {
-  const track = get().tracks.find((t) => t.id === trackId)
-  if (track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')) {
-    get()
-      .runAnalysis([trackId])
-      .catch((err) => console.error('background analysis of queued track failed', err))
-  }
+  triggerBackgroundAnalysisForMany(get, [trackId])
+}
+
+// Batches every track that actually needs it into a single analysis:run
+// call — used for "Add all to queue" so queueing a whole folder doesn't
+// fire off one IPC round-trip per track.
+function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getState'], trackIds: number[]): void {
+  const tracks = get().tracks
+  const ids = trackIds.filter((id) => {
+    const track = tracks.find((t) => t.id === id)
+    return track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')
+  })
+  if (ids.length === 0) return
+  get()
+    .runAnalysis(ids)
+    .catch((err) => console.error('background analysis of queued track(s) failed', err))
 }
 
 // A cloud-only track has no local audio to stream yet, so it's downloaded
@@ -106,6 +117,7 @@ interface CollectionState {
   playerExpanded: boolean
   playTrackNow: (trackId: number) => Promise<void>
   addToPlaylist: (trackId: number) => void
+  addManyToPlaylist: (trackIds: number[]) => void
   playNext: (trackId: number) => void
   removeFromPlaylist: (index: number) => void
   movePlaylistItem: (fromIndex: number, toIndex: number) => void
@@ -412,6 +424,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   addToPlaylist: (trackId) => {
     set({ playlist: addToPlaylistPure(get().playlist, trackId) })
     triggerBackgroundAnalysis(get, trackId)
+  },
+
+  addManyToPlaylist: (trackIds) => {
+    set({ playlist: addManyToPlaylistPure(get().playlist, trackIds) })
+    triggerBackgroundAnalysisForMany(get, trackIds)
   },
 
   playNext: (trackId) => {

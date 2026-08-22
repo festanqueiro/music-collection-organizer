@@ -26,6 +26,7 @@ export function TrackTable({
   activeFilter,
   selectedTrackId,
   scrollToTrack,
+  onShowInFolderTree,
 }: {
   onSelect: (track: Track) => void
   selectedFolder: string | null
@@ -35,6 +36,7 @@ export function TrackTable({
   // detail panel's title twice in a row re-triggers the scroll — a plain
   // trackId prop wouldn't change identity on a second click.
   scrollToTrack?: { trackId: number; nonce: number } | null
+  onShowInFolderTree: (folder: string) => void
 }) {
   const tracks = useCollectionStore((s) => s.tracks)
   const searchText = useCollectionStore((s) => s.searchText)
@@ -45,6 +47,7 @@ export function TrackTable({
   const playlist = useCollectionStore((s) => s.playlist)
   const playTrackNow = useCollectionStore((s) => s.playTrackNow)
   const addToPlaylist = useCollectionStore((s) => s.addToPlaylist)
+  const addManyToPlaylist = useCollectionStore((s) => s.addManyToPlaylist)
   const playNext = useCollectionStore((s) => s.playNext)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const currentTrackId = playlist[0] ?? null
@@ -141,6 +144,18 @@ export function TrackTable({
 
   return (
     <div style={{ overflowX: 'auto' }}>
+      <div style={{ padding: '4px 8px' }}>
+        <button
+          onClick={() => addManyToPlaylist(visibleTracks.map((t) => t.id))}
+          disabled={visibleTracks.length === 0}
+          style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+            playlist_add
+          </span>
+          Add all to queue
+        </button>
+      </div>
       <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
         <thead>
           <tr>
@@ -329,6 +344,19 @@ export function TrackTable({
               folder_open
             </span>
             Show in File Explorer
+          </button>
+          <button
+            onClick={() => {
+              const track = tracks.find((t) => t.id === contextMenu.trackId)
+              if (track) onShowInFolderTree(track.folder)
+              setContextMenu(null)
+            }}
+            style={contextMenuItemStyle}
+          >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              account_tree
+            </span>
+            Show in Folder Tree View
           </button>
         </div>
       )}

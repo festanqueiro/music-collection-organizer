@@ -224,6 +224,10 @@ export default function App() {
             activeFilter={tagFilter}
             selectedTrackId={selectedTrack?.id ?? null}
             scrollToTrack={scrollToTrack}
+            onShowInFolderTree={(folder) => {
+              setLeftView('folders')
+              setSelectedFolder(folder)
+            }}
           />
         </div>
 
