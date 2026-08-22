@@ -65,3 +65,26 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
     expect(useCollectionStore.getState().effectsSettings.delay.enabled).toBe(false)
   })
 })
+
+describe('handleMidiControlChange — delay.division (discrete, not a persisted setting)', () => {
+  beforeEach(() => {
+    useCollectionStore.setState({
+      midiMappings: { 'delay.division': { channel: 2, controller: 7, kind: 'cc' } },
+      delayDivisionSync: null,
+    })
+  })
+
+  it('calls the registered delayDivisionSync with the quantized index, not effectsSettings', () => {
+    const sync = vi.fn()
+    useCollectionStore.getState().setDelayDivisionSync(sync)
+    // DELAY_DIVISIONS has 9 entries; ccValue 127 should quantize to the last index (8).
+    useCollectionStore.getState().handleMidiControlChange(2, 7, 127, 'cc')
+    expect(sync).toHaveBeenCalledWith(8)
+    // A control-plane-only action — never touches persisted effects settings.
+    expect(useCollectionStore.getState().effectsSettings.delay.timeMs).toBe(300)
+  })
+
+  it('is a silent no-op when nothing has registered a sync handler', () => {
+    expect(() => useCollectionStore.getState().handleMidiControlChange(2, 7, 64, 'cc')).not.toThrow()
+  })
+})

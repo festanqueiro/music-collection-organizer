@@ -84,6 +84,24 @@ export type SirenBeat = 'off' | 'slow' | 'medium' | 'fast'
 export const SIREN_MODES: readonly SirenMode[] = ['siren', 'bomb', 'gun', 'laser']
 export const SIREN_BEATS: readonly SirenBeat[] = ['off', 'slow', 'medium', 'fast']
 
+// Standard delay-unit note divisions (straight, dotted, triplet), each
+// expressed as a multiple of one beat (a quarter note) — matches how
+// hardware/plugin delays with a "sync" mode let you dial in a musical
+// division instead of raw milliseconds. Same load-bearing order caveat
+// as SIREN_MODES/SIREN_BEATS above: a MIDI knob bound to delay.division
+// sweeps through these in this order.
+export const DELAY_DIVISIONS: readonly { label: string; beats: number }[] = [
+  { label: '1/1', beats: 4 },
+  { label: '1/2', beats: 2 },
+  { label: '1/4', beats: 1 },
+  { label: '1/8', beats: 0.5 },
+  { label: '1/16', beats: 0.25 },
+  { label: '1/4.', beats: 1.5 },
+  { label: '1/8.', beats: 0.75 },
+  { label: '1/4T', beats: 2 / 3 },
+  { label: '1/8T', beats: 1 / 3 },
+]
+
 export interface SirenSettings {
   enabled: boolean
   mode: SirenMode
@@ -144,6 +162,7 @@ export type MidiControlKey =
   | 'delay.timeMs'
   | 'delay.feedback'
   | 'delay.mix'
+  | 'delay.division'
   | 'reverb.enabled'
   | 'reverb.mix'
   | 'reverb.decaySeconds'

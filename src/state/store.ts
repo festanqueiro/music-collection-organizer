@@ -13,7 +13,7 @@ import type {
   MidiBinding,
   TrackTableColumnKey,
 } from '../types'
-import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS } from '../types'
+import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
@@ -134,6 +134,15 @@ interface CollectionState {
   // silently a no-op instead of throwing.
   playbackControls: { toggle: () => void } | null
   setPlaybackControls: (controls: { toggle: () => void } | null) => void
+  // Same imperative-escape-hatch pattern as playbackControls above: the
+  // Division knob's "recompute delay.timeMs from the current track's
+  // BPM" action needs the currently-playing track, which FxPanel already
+  // has (as its `track` prop) and the store doesn't. FxPanel registers
+  // the callback on mount/track change; a MIDI-bound delay.division
+  // knob calls it with the picked DELAY_DIVISIONS index so the on-screen
+  // knob's position stays in sync with what MIDI just picked.
+  delayDivisionSync: ((index: number) => void) | null
+  setDelayDivisionSync: (sync: ((index: number) => void) | null) => void
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
@@ -214,6 +223,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playbackProgress: 0,
   sirenTriggered: false,
   playbackControls: null,
+  delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
   midiLearningControl: null,
@@ -257,6 +267,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setSirenTriggered: (triggered) => set({ sirenTriggered: triggered }),
 
   setPlaybackControls: (controls) => set({ playbackControls: controls }),
+  setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
   loadMidiMappings: async () => {
     const mappings = await window.api.getMidiMappings()
@@ -330,6 +341,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
           siren: { ...effectsSettings.siren, beat: scaleMidiValueToOption(SIREN_BEATS, value) },
         })
       }
+      return
+    }
+
+    // Also discrete, but not a persisted setting — the same one-shot
+    // "recompute delay.timeMs from the current track's BPM" action the
+    // Division knob's UI performs on change, not a value that sticks
+    // around (a track swap doesn't retroactively resync it, same as
+    // turning the on-screen knob wouldn't either without moving it again).
+    if (match === 'delay.division') {
+      const index = DELAY_DIVISIONS.indexOf(scaleMidiValueToOption(DELAY_DIVISIONS, value))
+      get().delayDivisionSync?.(index)
       return
     }
 

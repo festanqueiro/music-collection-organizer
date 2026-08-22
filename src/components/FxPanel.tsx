@@ -1,5 +1,5 @@
 // src/components/FxPanel.tsx
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { Knob } from './Knob'
@@ -8,6 +8,7 @@ import { getDubSirenEngine } from '../audio/sirenEngine'
 import {
   SIREN_MODES,
   SIREN_BEATS,
+  DELAY_DIVISIONS,
   DEFAULT_EFFECTS_SETTINGS,
   DEFAULT_SIREN_SETTINGS,
   type EffectsSettings,
@@ -16,21 +17,12 @@ import {
   type Track,
 } from '../types'
 
-// Standard delay-unit note divisions (straight, dotted, triplet), each
-// expressed as a multiple of one beat (a quarter note) — matches how
-// hardware/plugin delays with a "sync" mode let you dial in a musical
-// division instead of raw milliseconds.
-const DELAY_DIVISIONS: { label: string; beats: number }[] = [
-  { label: '1/1', beats: 4 },
-  { label: '1/2', beats: 2 },
-  { label: '1/4', beats: 1 },
-  { label: '1/8', beats: 0.5 },
-  { label: '1/16', beats: 0.25 },
-  { label: '1/4.', beats: 1.5 },
-  { label: '1/8.', beats: 0.75 },
-  { label: '1/4T', beats: 2 / 3 },
-  { label: '1/8T', beats: 1 / 3 },
-]
+// The Division knob has no "current" value of its own to read back from
+// effectsSettings — picking a division is a one-shot action (recompute
+// delay.timeMs from the current track's BPM), not a persisted setting,
+// so this index is purely local UI state for the knob's position and
+// double-click reset. 1/4 (index 2) is a sensible, common default.
+const DEFAULT_DIVISION_INDEX = 2
 
 // Dragging a knob fires onChange on every pointermove, same frequency a
 // range input fired on every native input event — coalescing to at most
@@ -68,6 +60,7 @@ function KnobField({
   bipolar,
   formatValue,
   defaultValue,
+  disabled,
 }: {
   label: string
   control: MidiControlKey
@@ -79,6 +72,7 @@ function KnobField({
   bipolar?: boolean
   formatValue?: (value: number) => string
   defaultValue?: number
+  disabled?: boolean
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '56px' }}>
@@ -91,9 +85,13 @@ function KnobField({
         bipolar={bipolar}
         formatValue={formatValue}
         defaultValue={defaultValue}
+        disabled={disabled}
       />
       <span style={{ fontSize: '9px', color: 'var(--color-text-dim)', textAlign: 'center', lineHeight: 1.2 }}>
         {label}
+      </span>
+      <span style={{ fontSize: '9px', color: 'var(--color-text)', textAlign: 'center', lineHeight: 1.2 }}>
+        {formatValue ? formatValue(value) : value}
       </span>
       <MidiLearnBadge control={control} />
     </div>
@@ -109,6 +107,8 @@ export function FxPanel({ track }: { track: Track | null }) {
   const setEffectsSettings = useCollectionStore((s) => s.setEffectsSettings)
   const sirenTriggered = useCollectionStore((s) => s.sirenTriggered)
   const setSirenTriggered = useCollectionStore((s) => s.setSirenTriggered)
+  const setDelayDivisionSync = useCollectionStore((s) => s.setDelayDivisionSync)
+  const [divisionIndex, setDivisionIndex] = useState(DEFAULT_DIVISION_INDEX)
 
   function updateDelay(partial: Partial<EffectsSettings['delay']>) {
     setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, ...partial } })
@@ -141,6 +141,22 @@ export function FxPanel({ track }: { track: Track | null }) {
     const ms = Math.round((60000 / track.bpm) * beats)
     updateDelay({ timeMs: Math.min(1000, ms) })
   }
+
+  function applyDivision(index: number) {
+    setDivisionIndex(index)
+    syncDelayToDivision(DELAY_DIVISIONS[index].beats)
+  }
+
+  // Same imperative-registration pattern as Player.tsx's playbackControls:
+  // a ref keeps the store's callback pointing at the latest applyDivision
+  // (which closes over `track`) without re-registering on every render.
+  const applyDivisionRef = useRef(applyDivision)
+  applyDivisionRef.current = applyDivision
+  useEffect(() => {
+    setDelayDivisionSync((index) => applyDivisionRef.current(index))
+    return () => setDelayDivisionSync(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const sectionStyle = { borderTop: '1px solid var(--color-border)', paddingTop: '16px' }
   const headerRowStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }
@@ -287,25 +303,22 @@ export function FxPanel({ track }: { track: Track | null }) {
             defaultValue={DEFAULT_EFFECTS_SETTINGS.delay.feedback}
             formatValue={(v) => v.toFixed(2)}
           />
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '64px' }}>
-            <select
-              value=""
-              onChange={(e) => syncDelayToDivision(Number(e.target.value))}
-              disabled={!track?.bpm}
-              title={track?.bpm ? `Snap to a note division at ${Math.round(track.bpm)} BPM` : 'No BPM detected for this track'}
-              style={{ fontSize: '10px', width: '64px' }}
-            >
-              <option value="" disabled>
-                Sync…
-              </option>
-              {DELAY_DIVISIONS.map((div) => (
-                <option key={div.label} value={div.beats}>
-                  {div.label}
-                </option>
-              ))}
-            </select>
-            <span style={{ fontSize: '9px', color: 'var(--color-text-dim)' }}>Division</span>
-          </div>
+          <KnobField
+            label="Division"
+            control="delay.division"
+            value={divisionIndex}
+            min={0}
+            max={DELAY_DIVISIONS.length - 1}
+            step={1}
+            onChange={(v) => applyDivision(Math.round(v))}
+            defaultValue={DEFAULT_DIVISION_INDEX}
+            disabled={!track?.bpm}
+            formatValue={(v) =>
+              track?.bpm
+                ? `${DELAY_DIVISIONS[Math.round(v)].label} @ ${Math.round(track.bpm)} BPM`
+                : 'No BPM detected for this track'
+            }
+          />
         </div>
       </div>
 

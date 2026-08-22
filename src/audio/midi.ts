@@ -1,4 +1,4 @@
-import { SIREN_MODES, SIREN_BEATS, type MidiBinding, type MidiControlKey } from '../types'
+import { SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS, type MidiBinding, type MidiControlKey } from '../types'
 
 // Minimal local typings for the parts of the Web MIDI API this app uses.
 // Not relying on lib.dom's (optional, version-dependent) WebMidi types
@@ -148,6 +148,11 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'delay.timeMs': { min: 0, max: 1000 },
   'delay.feedback': { min: 0, max: 0.9 },
   'delay.mix': { min: 0, max: 1 },
+  // Never read through scaleMidiValue — a discrete pick via
+  // scaleMidiValueToOption(DELAY_DIVISIONS, ...), like siren.mode/beat
+  // below. Present only because the Record is total; the range is the
+  // index bounds.
+  'delay.division': { min: 0, max: DELAY_DIVISIONS.length - 1 },
   'reverb.enabled': { min: 0, max: 1 },
   // Doubled from the original 0..1 — allows the wet signal to outweigh
   // dry for a more extreme effect, not just blend up to fully wet.
@@ -192,6 +197,6 @@ export function scaleMidiValue(control: MidiControlKey, ccValue: number): number
 // bound to a control using this sweeps through the options in order.
 // min() guards the top band: ccValue 127 would otherwise land on
 // options.length.
-export function scaleMidiValueToOption<T extends string>(options: readonly T[], ccValue: number): T {
+export function scaleMidiValueToOption<T>(options: readonly T[], ccValue: number): T {
   return options[Math.min(options.length - 1, Math.floor((ccValue / 127) * options.length))]
 }

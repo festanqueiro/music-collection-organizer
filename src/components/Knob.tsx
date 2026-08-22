@@ -18,6 +18,7 @@ export function Knob({
   bipolar = false,
   formatValue,
   defaultValue,
+  disabled = false,
 }: {
   value: number
   min: number
@@ -35,6 +36,11 @@ export function Knob({
   // don't have a more meaningful default (e.g. a track-specific delay
   // time) still get sane double-click behavior for free.
   defaultValue?: number
+  // For controls whose action requires context that isn't always
+  // available (e.g. Division needs the current track's BPM) — dims the
+  // knob and ignores every interaction rather than silently doing
+  // nothing, which looked like the knob was broken.
+  disabled?: boolean
 }) {
   const dragState = useRef<{ startY: number; startValue: number } | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -45,12 +51,14 @@ export function Knob({
   }
 
   function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (disabled) return
     e.currentTarget.setPointerCapture(e.pointerId)
     dragState.current = { startY: e.clientY, startValue: value }
     setDragging(true)
   }
 
   function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (disabled) return
     if (!dragState.current) return
     const deltaY = dragState.current.startY - e.clientY // dragging up increases
     const deltaValue = (deltaY / DRAG_RANGE_PX) * (max - min)
@@ -65,12 +73,14 @@ export function Knob({
   // Fine adjustment without a drag — one wheel notch moves one step (or
   // 1% of the range if step isn't set).
   function handleWheel(e: React.WheelEvent<HTMLDivElement>) {
+    if (disabled) return
     e.preventDefault()
     const increment = step > 0 ? step : (max - min) / 100
     onChange(clamp(value + (e.deltaY < 0 ? increment : -increment)))
   }
 
   function handleDoubleClick() {
+    if (disabled) return
     onChange(clamp(defaultValue ?? (bipolar ? 0 : min)))
   }
 
@@ -93,7 +103,8 @@ export function Knob({
         background: 'var(--color-surface-raised)',
         border: `1px solid ${dragging ? 'var(--color-accent)' : 'var(--color-border)'}`,
         position: 'relative',
-        cursor: 'ns-resize',
+        cursor: disabled ? 'default' : 'ns-resize',
+        opacity: disabled ? 0.4 : 1,
         touchAction: 'none',
         flexShrink: 0,
         transform: `rotate(${angle}deg)`,
