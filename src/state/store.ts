@@ -378,6 +378,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       })
     } else if (match === 'reverb.mix') {
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, mix: scaled } })
+    } else if (match === 'reverb.decaySeconds') {
+      get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, decaySeconds: scaled } })
+    } else if (match === 'reverb.preDelayMs') {
+      get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, preDelayMs: scaled } })
     } else if (match === 'siren.pitchHz') {
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, pitchHz: scaled } })
     } else if (match === 'siren.speedHz') {

@@ -149,7 +149,11 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'delay.feedback': { min: 0, max: 0.9 },
   'delay.mix': { min: 0, max: 1 },
   'reverb.enabled': { min: 0, max: 1 },
-  'reverb.mix': { min: 0, max: 1 },
+  // Doubled from the original 0..1 — allows the wet signal to outweigh
+  // dry for a more extreme effect, not just blend up to fully wet.
+  'reverb.mix': { min: 0, max: 2 },
+  'reverb.decaySeconds': { min: 0.2, max: 5 },
+  'reverb.preDelayMs': { min: 0, max: 200 },
   // siren.mode/siren.beat are never read through scaleMidiValue (they go
   // through scaleMidiValueToOption instead) — entries exist only because
   // the Record above is total; the range is the index bounds.

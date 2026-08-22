@@ -43,6 +43,25 @@ export function FxPanel({ track }: { track: Track | null }) {
     setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, ...partial } })
   }
 
+  // Same rAF-coalescing as the delay Time slider above — decaySeconds
+  // changing regenerates the reverb's whole impulse-response buffer
+  // (a length*channels Math.random() loop), so doing that on every pixel
+  // of a drag rather than once per frame is real, avoidable main-thread
+  // work.
+  const pendingDecaySeconds = useRef<number | null>(null)
+  const decayRafId = useRef<number | null>(null)
+  function handleDecayChange(value: number) {
+    pendingDecaySeconds.current = value
+    if (decayRafId.current !== null) return
+    decayRafId.current = requestAnimationFrame(() => {
+      decayRafId.current = null
+      if (pendingDecaySeconds.current !== null) {
+        updateReverb({ decaySeconds: pendingDecaySeconds.current })
+        pendingDecaySeconds.current = null
+      }
+    })
+  }
+
   function updateSiren(partial: Partial<SirenSettings>) {
     setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, ...partial } })
   }
@@ -131,13 +150,39 @@ export function FxPanel({ track }: { track: Track | null }) {
             <input
               type="range"
               min={0}
-              max={1}
+              max={2}
               step={0.01}
               value={effectsSettings.reverb.mix}
               onChange={(e) => updateReverb({ mix: Number(e.target.value) })}
               style={{ width: '100px' }}
             />
             <MidiLearnBadge control="reverb.mix" />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Decay time">
+            Decay
+            <input
+              type="range"
+              min={0.2}
+              max={5}
+              step={0.1}
+              value={effectsSettings.reverb.decaySeconds}
+              onChange={(e) => handleDecayChange(Number(e.target.value))}
+              style={{ width: '100px' }}
+            />
+            <MidiLearnBadge control="reverb.decaySeconds" />
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Pre-delay">
+            Pre-delay
+            <input
+              type="range"
+              min={0}
+              max={200}
+              step={1}
+              value={effectsSettings.reverb.preDelayMs}
+              onChange={(e) => updateReverb({ preDelayMs: Number(e.target.value) })}
+              style={{ width: '100px' }}
+            />
+            <MidiLearnBadge control="reverb.preDelayMs" />
           </label>
         </div>
       </div>

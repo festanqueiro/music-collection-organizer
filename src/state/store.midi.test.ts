@@ -19,7 +19,7 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
       midiMappings: { 'delay.enabled': { channel: 0, controller: 1, kind: 'cc' } },
       effectsSettings: {
         delay: { enabled: false, timeMs: 300, feedback: 0.3, mix: 0.3 },
-        reverb: { enabled: false, mix: 0.3 },
+        reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
         siren: {
           enabled: false,
           mode: 'siren',

@@ -1,15 +1,19 @@
 import type { EffectsSettings } from '../types'
 
 const MAX_DELAY_SECONDS = 2
-const REVERB_IMPULSE_SECONDS = 2
+const MAX_PRE_DELAY_SECONDS = 0.5
 const REVERB_DECAY_EXPONENT = 2
 
 // Synthesizes a plate-style impulse response (exponentially decaying white
 // noise) rather than shipping a recorded .wav — no binary asset, no
-// licensing to track, good enough for a DJ preview player.
-function createSyntheticImpulseResponse(context: BaseAudioContext): AudioBuffer {
+// licensing to track, good enough for a DJ preview player. `decaySeconds`
+// is user-adjustable (reverb.decaySeconds); regenerating this on every
+// settings.reverb change would mean a fresh length*2-channel Math.random()
+// loop per slider tick, so the caller only calls this when decaySeconds
+// actually changed (see EffectsChain.update's lastDecaySeconds check).
+function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds: number): AudioBuffer {
   const sampleRate = context.sampleRate
-  const length = Math.floor(sampleRate * REVERB_IMPULSE_SECONDS)
+  const length = Math.floor(sampleRate * decaySeconds)
   const impulse = context.createBuffer(2, length, sampleRate)
   for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
     const data = impulse.getChannelData(channel)
@@ -40,17 +44,20 @@ function createSyntheticImpulseResponse(context: BaseAudioContext): AudioBuffer 
 // them keeps decaying on its own after the input goes silent — it just
 // can't be topped up with fresh signal anymore.
 //
-//              ┌─────────────────────────────────────┐
+//              ┌───────────────────────────────────────────────────────┐
 // source ──────> dryGain ─┼─> delayNode <-> feedbackGain ├─> destination
 //                         │      └────────> delayWetGain ─┤
-//                         └─> convolver ───> reverbWetGain ┘
+//                         └─> preDelayNode ─> convolver ─> reverbWetGain ┘
 export class EffectsChain {
   private context: AudioContext
   private dryGain: GainNode
   private delayNode: DelayNode
   private delayFeedbackGain: GainNode
   private delayWetGain: GainNode
+  private preDelayNode: DelayNode
+  private convolver: ConvolverNode
   private reverbWetGain: GainNode
+  private lastDecaySeconds: number
 
   constructor(audioElement: HTMLAudioElement) {
     this.context = new AudioContext()
@@ -71,12 +78,15 @@ export class EffectsChain {
     this.delayNode.connect(this.delayWetGain)
     this.delayWetGain.connect(this.context.destination)
 
-    const convolver = this.context.createConvolver()
-    convolver.buffer = createSyntheticImpulseResponse(this.context)
+    this.lastDecaySeconds = 2
+    this.preDelayNode = this.context.createDelay(MAX_PRE_DELAY_SECONDS)
+    this.convolver = this.context.createConvolver()
+    this.convolver.buffer = createSyntheticImpulseResponse(this.context, this.lastDecaySeconds)
     this.reverbWetGain = this.context.createGain()
     this.reverbWetGain.gain.value = 0
-    this.dryGain.connect(convolver)
-    convolver.connect(this.reverbWetGain)
+    this.dryGain.connect(this.preDelayNode)
+    this.preDelayNode.connect(this.convolver)
+    this.convolver.connect(this.reverbWetGain)
     this.reverbWetGain.connect(this.context.destination)
   }
 
@@ -88,9 +98,21 @@ export class EffectsChain {
     // the new value over a short time constant instead, keeping changes
     // smooth while still tracking the slider closely enough to feel
     // immediate.
-    this.delayNode.delayTime.setTargetAtTime(settings.delay.timeMs / 1000, this.context.currentTime, 0.08)
+    const now = this.context.currentTime
+    this.delayNode.delayTime.setTargetAtTime(settings.delay.timeMs / 1000, now, 0.08)
     this.delayFeedbackGain.gain.value = settings.delay.enabled ? settings.delay.feedback : 0
     this.delayWetGain.gain.value = settings.delay.enabled ? settings.delay.mix : 0
+
+    // Same glitch-avoidance as delayTime above.
+    this.preDelayNode.delayTime.setTargetAtTime(settings.reverb.preDelayMs / 1000, now, 0.05)
+    // Regenerating the impulse response is a length*channels Math.random()
+    // loop — skip it unless decaySeconds actually changed, so dragging an
+    // unrelated reverb slider (mix, pre-delay) doesn't redo this on every
+    // tick.
+    if (settings.reverb.decaySeconds !== this.lastDecaySeconds) {
+      this.lastDecaySeconds = settings.reverb.decaySeconds
+      this.convolver.buffer = createSyntheticImpulseResponse(this.context, settings.reverb.decaySeconds)
+    }
     this.reverbWetGain.gain.value = settings.reverb.enabled ? settings.reverb.mix : 0
   }
 

@@ -96,13 +96,16 @@ export const DEFAULT_SIREN_SETTINGS: SirenSettings = {
 
 export interface EffectsSettings {
   delay: { enabled: boolean; timeMs: number; feedback: number; mix: number }
-  reverb: { enabled: boolean; mix: number }
+  reverb: { enabled: boolean; mix: number; decaySeconds: number; preDelayMs: number }
   siren: SirenSettings
 }
 
 export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   delay: { enabled: false, timeMs: 300, feedback: 0.3, mix: 0.3 },
-  reverb: { enabled: false, mix: 0.3 },
+  // decaySeconds/preDelayMs default to the previous fixed values (a 2s
+  // synthetic impulse, no pre-delay), so existing configs/behavior are
+  // unchanged until someone actually touches the new controls.
+  reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
   siren: DEFAULT_SIREN_SETTINGS,
 }
 
@@ -114,6 +117,8 @@ export type MidiControlKey =
   | 'delay.mix'
   | 'reverb.enabled'
   | 'reverb.mix'
+  | 'reverb.decaySeconds'
+  | 'reverb.preDelayMs'
   | 'siren.mode'
   | 'siren.pitchHz'
   | 'siren.speedHz'
