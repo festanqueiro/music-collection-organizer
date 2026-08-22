@@ -1,7 +1,7 @@
 // src/components/DetailPanel.tsx
 import { useEffect, useId, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { formatDuration } from '../format'
+import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 
 // The full set of ID3-derived metadata fields this app extracts — expanded
@@ -12,10 +12,10 @@ import type { Track } from '../types'
 function FullId3Section({ track }: { track: Track }) {
   const [open, setOpen] = useState(true)
   const fields: [string, string | number | null][] = [
-    ['Title', track.title],
-    ['Artist', track.artist],
-    ['Album', track.album],
-    ['Genre (ID3)', track.genreTag],
+    ['Title', track.title ? decodeHtmlEntities(track.title) : null],
+    ['Artist', track.artist ? decodeHtmlEntities(track.artist) : null],
+    ['Album', track.album ? decodeHtmlEntities(track.album) : null],
+    ['Genre (ID3)', track.genreTag ? decodeHtmlEntities(track.genreTag) : null],
     ['Year', track.year],
     ['BPM', track.bpm ? Math.round(track.bpm) : null],
     ['Key', track.musicalKey],
@@ -279,7 +279,7 @@ export function DetailPanel({
             title="Scroll to this track in the collection table"
             style={{ margin: 0, cursor: 'pointer' }}
           >
-            {track.filename}
+            {decodeHtmlEntities(track.filename)}
           </h3>
           <button onClick={onClose} title="Close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
             <span className="material-symbols-outlined">close</span>
@@ -314,18 +314,20 @@ export function DetailPanel({
             cursor: 'pointer',
           }}
         >
-          {track.title ?? track.filename}
+          {decodeHtmlEntities(track.title ?? track.filename)}
         </h3>
         <button onClick={onClose} title="Close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
-      <p>{track.artist}</p>
+      <p>{track.artist ? decodeHtmlEntities(track.artist) : null}</p>
 
       <div style={{ marginTop: '16px' }}>
         {suggestedGenreName && !suggestedGenreAlreadyApplied && (
           <div style={{ marginBottom: '4px' }}>
-            <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>Suggested: {suggestedGenreName}</span>{' '}
+            <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>
+              Suggested: {decodeHtmlEntities(suggestedGenreName)}
+            </span>{' '}
             <button onClick={() => applySuggestedGenre(suggestedGenreName)}>
               + Add
             </button>
