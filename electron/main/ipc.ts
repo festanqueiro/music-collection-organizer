@@ -6,6 +6,7 @@ import {
   getCollectionFolder,
   setCollectionFolder,
   getLastBackupAt,
+  setLastBackupAt,
   getLastBackupError,
   getConfigFilePath,
   getEffectsSettings,
@@ -165,7 +166,9 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   // than waiting for the daily check. Doesn't touch lastBackupAt, so it
   // never suppresses (or gets suppressed by) the automatic one.
   ipcMain.handle('backup:runNow', (): BackupEntry => {
-    const { dbBackupPath, configBackupPath } = runBackup(db, getConfigFilePath(), backupFolder, new Date())
+    const now = new Date()
+    const { dbBackupPath, configBackupPath } = runBackup(db, getConfigFilePath(), backupFolder, now)
+    setLastBackupAt(now.toISOString())
     const entry = listBackups(backupFolder).find((e) => e.dbPath === dbBackupPath)
     if (entry) return entry
     // Fallback in case listBackups' filename parsing ever drifts from

@@ -4,6 +4,7 @@ import { Toolbar } from './components/Toolbar'
 import { ScanPrompt } from './components/ScanPrompt'
 import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
+import { SubtagTree } from './components/SubtagTree'
 import { TrackTable } from './components/TrackTable'
 import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
@@ -16,7 +17,7 @@ import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
 import type { Track } from './types'
 
-type LeftView = 'folders' | 'tags'
+type LeftView = 'folders' | 'tags' | 'subtags'
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
@@ -35,6 +36,9 @@ export default function App() {
   const pendingGenreDeletion = useCollectionStore((s) => s.pendingGenreDeletion)
   const undoGenreDeletion = useCollectionStore((s) => s.undoGenreDeletion)
   const dismissGenreDeletionUndo = useCollectionStore((s) => s.dismissGenreDeletionUndo)
+  const pendingSubgenreDeletion = useCollectionStore((s) => s.pendingSubgenreDeletion)
+  const undoSubgenreDeletion = useCollectionStore((s) => s.undoSubgenreDeletion)
+  const dismissSubgenreDeletionUndo = useCollectionStore((s) => s.dismissSubgenreDeletionUndo)
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const playlist = useCollectionStore((s) => s.playlist)
@@ -152,6 +156,13 @@ export default function App() {
           onDismiss={dismissGenreDeletionUndo}
         />
       )}
+      {pendingSubgenreDeletion && (
+        <UndoToast
+          message={`Deleted "${pendingSubgenreDeletion.snapshot.subgenreName}"`}
+          onUndo={undoSubgenreDeletion}
+          onDismiss={dismissSubgenreDeletionUndo}
+        />
+      )}
       <div
         className="app-layout"
         style={{
@@ -197,8 +208,16 @@ export default function App() {
                 >
                   Tags
                 </button>
+                <button
+                  onClick={() => setLeftView('subtags')}
+                  style={{
+                    border: leftView === 'subtags' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                  }}
+                >
+                  Subtags
+                </button>
               </div>
-              {leftView === 'folders' ? (
+              {leftView === 'folders' && (
                 <FolderTree
                   rootPath={collectionFolder}
                   selectedFolder={selectedFolder}
@@ -207,8 +226,17 @@ export default function App() {
                     clearCheckedTracks()
                   }}
                 />
-              ) : (
+              )}
+              {leftView === 'tags' && (
                 <TagTree
+                  onFilterChange={(filter) => {
+                    setTagFilter(() => filter)
+                    clearCheckedTracks()
+                  }}
+                />
+              )}
+              {leftView === 'subtags' && (
+                <SubtagTree
                   onFilterChange={(filter) => {
                     setTagFilter(() => filter)
                     clearCheckedTracks()
