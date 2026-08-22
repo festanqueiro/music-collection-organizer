@@ -26,8 +26,8 @@ function getStore(): Store<ConfigSchema> {
     // (config.json + collection.db together) currently lives — null means
     // "still on the default (userData)". This is what lets the DB and
     // settings both relocate into the collection folder together (see
-    // ipc.ts's migrateDataFolder) without this module needing to know
-    // anything about collection folders or migration itself.
+    // dataMigration.ts's migrateDataFolder) without this module needing
+    // to know anything about collection folders or migration itself.
     const dataFolder = getDataFolder()
     store = new Store<ConfigSchema>(dataFolder ? { name: 'config', cwd: dataFolder } : { name: 'config' })
   }

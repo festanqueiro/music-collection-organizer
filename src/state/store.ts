@@ -475,6 +475,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   pickCollectionFolder: async () => {
+    // A first-ever collection folder pick (no data folder configured yet)
+    // also relocates the DB + settings into it and restarts the app —
+    // without this check, that would happen with zero warning right after
+    // the OS folder picker closes, and look like the app crashed.
+    if (await window.api.willRelocateOnNextCollectionFolderPick()) {
+      const proceed = window.confirm(
+        'This is your first time setting a collection folder — the database and settings will move inside it, and the app will restart. Continue?'
+      )
+      if (!proceed) return false
+    }
     const folder = await window.api.chooseCollectionFolder()
     if (!folder) return false
     set({ collectionFolder: folder })

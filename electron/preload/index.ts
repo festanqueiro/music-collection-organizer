@@ -28,6 +28,8 @@ const api = {
   setColumnOrder: (order: TrackTableColumnKey[]): Promise<void> =>
     ipcRenderer.invoke('config:setColumnOrder', order),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
+  willRelocateOnNextCollectionFolderPick: (): Promise<boolean> =>
+    ipcRenderer.invoke('config:willRelocateOnNextCollectionFolderPick'),
   getDbFilePath: (): Promise<string> => ipcRenderer.invoke('config:getDbFilePath'),
   // Resolves only if the user cancels the picker (null) — a successful
   // pick relaunches the whole app from the main process before this

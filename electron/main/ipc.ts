@@ -132,6 +132,12 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
   ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
 
+  // Lets the renderer warn before opening the folder picker below — a
+  // first-ever collection folder pick also relocates the DB + settings
+  // and relaunches the app (see config:chooseCollectionFolder), which
+  // would otherwise happen with zero warning and look like a crash.
+  ipcMain.handle('config:willRelocateOnNextCollectionFolderPick', (): boolean => getDataFolder() === null)
+
   ipcMain.handle('app:getVersion', (): string => app.getVersion())
 
   ipcMain.handle('config:getEffectsSettings', (): EffectsSettings => getEffectsSettings())
