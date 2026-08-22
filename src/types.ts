@@ -71,20 +71,24 @@ export const SIREN_BEATS: readonly SirenBeat[] = ['off', 'slow', 'medium', 'fast
 export interface SirenSettings {
   enabled: boolean
   mode: SirenMode
-  pitchHz: number // 90..520
-  speedHz: number // 0.5..12 (LFO / "wobble" rate)
+  pitchHz: number // 90..520 (base/starting frequency)
+  speedHz: number // 0.5..12 (LFO rate — how fast the pitch wobbles up and down)
+  depth: number // 0..2 (LFO depth multiplier — how wide the pitch swing stretches from pitchHz; 1 = each mode's stock depth)
   level: number // 0..1 (the siren's own output gain, independent of playerVolume)
   echoFeedback: number // 0..0.85
   beat: SirenBeat
 }
 
 // Defaults are the watchOS app's "Cisco Siren" default preset, with level
-// added (the watch had no volume control) and beat forced off.
+// added (the watch had no volume control), depth at 1 (each mode's stock
+// LFO depth, unscaled — matches pre-depth-control behavior), and beat
+// forced off.
 export const DEFAULT_SIREN_SETTINGS: SirenSettings = {
   enabled: false,
   mode: 'siren',
   pitchHz: 350,
   speedHz: 6,
+  depth: 1,
   level: 0.8,
   echoFeedback: 0.45,
   beat: 'off',
@@ -113,10 +117,13 @@ export type MidiControlKey =
   | 'siren.mode'
   | 'siren.pitchHz'
   | 'siren.speedHz'
+  | 'siren.depth'
   | 'siren.level'
   | 'siren.echoFeedback'
   | 'siren.beat'
   | 'siren.trigger'
+  | 'player.playPause'
+  | 'player.playNext'
 
 export interface MidiBinding {
   channel: number

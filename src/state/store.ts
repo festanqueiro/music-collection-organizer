@@ -124,6 +124,15 @@ interface CollectionState {
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
   setPlayerExpanded: (value: boolean) => void
+  // Imperative escape hatch so a MIDI-bound player.playPause control (and
+  // eventually the spacebar/other external triggers) can toggle playback
+  // without lifting the actual playing/paused boolean — which the <audio>
+  // element itself owns — out of Player.tsx and into the store. Player
+  // registers its toggle function on mount, clears it on unmount; null
+  // when nothing is loaded, so a stray MIDI press with nothing playing is
+  // silently a no-op instead of throwing.
+  playbackControls: { toggle: () => void } | null
+  setPlaybackControls: (controls: { toggle: () => void } | null) => void
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
@@ -200,6 +209,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playerVolume: 1,
   playbackProgress: 0,
   sirenTriggered: false,
+  playbackControls: null,
   midiMappings: {},
   midiLearningControl: null,
 
@@ -235,6 +245,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setPlaybackProgress: (progress) => set({ playbackProgress: progress }),
 
   setSirenTriggered: (triggered) => set({ sirenTriggered: triggered }),
+
+  setPlaybackControls: (controls) => set({ playbackControls: controls }),
 
   loadMidiMappings: async () => {
     const mappings = await window.api.getMidiMappings()
@@ -318,6 +330,21 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       return
     }
 
+    // player.playPause toggles on the press edge (mirrors delay.enabled's
+    // momentary-button handling) via the imperative toggle Player.tsx
+    // registers on mount — a no-op if nothing's loaded. player.playNext
+    // fires once per press with no release behavior, same as any other
+    // one-shot trigger; it works even with nothing currently mounted,
+    // since advanceToNext is a plain store action.
+    if (match === 'player.playPause') {
+      if (value !== 0) get().playbackControls?.toggle()
+      return
+    }
+    if (match === 'player.playNext') {
+      if (value !== 0) get().advanceToNext()
+      return
+    }
+
     const scaled = scaleMidiValue(match, value)
     if (match === 'volume') {
       get().setPlayerVolume(scaled)
@@ -355,6 +382,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, pitchHz: scaled } })
     } else if (match === 'siren.speedHz') {
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, speedHz: scaled } })
+    } else if (match === 'siren.depth') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, depth: scaled } })
     } else if (match === 'siren.level') {
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, level: scaled } })
     } else if (match === 'siren.echoFeedback') {

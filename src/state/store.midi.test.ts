@@ -25,6 +25,7 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
           mode: 'siren',
           pitchHz: 350,
           speedHz: 6,
+          depth: 1,
           level: 0.8,
           echoFeedback: 0.45,
           beat: 'off',

@@ -156,12 +156,18 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'siren.mode': { min: 0, max: SIREN_MODES.length - 1 },
   'siren.pitchHz': { min: 90, max: 520 },
   'siren.speedHz': { min: 0.5, max: 12 },
+  'siren.depth': { min: 0, max: 2 },
   'siren.level': { min: 0, max: 1 },
   'siren.echoFeedback': { min: 0, max: 0.85 },
   'siren.beat': { min: 0, max: SIREN_BEATS.length - 1 },
   // Never read through scaleMidiValue either — a momentary button, not a
   // range. Present only because the Record above is total.
   'siren.trigger': { min: 0, max: 1 },
+  // Also button-style, not ranges — present only because the Record is
+  // total. player.playPause toggles on the press edge (LED mirrors
+  // playing state); player.playNext fires once per press, no LED.
+  'player.playPause': { min: 0, max: 1 },
+  'player.playNext': { min: 0, max: 1 },
 }
 
 // Scales a 7-bit MIDI CC value (0-127) to a control's real-world range.

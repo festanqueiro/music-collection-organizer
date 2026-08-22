@@ -196,6 +196,19 @@ export function FxPanel({ track }: { track: Track | null }) {
             />
             <MidiLearnBadge control="siren.speedHz" />
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Depth (how wide the pitch swings from the base note)">
+            Depth
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.05}
+              value={effectsSettings.siren.depth}
+              onChange={(e) => updateSiren({ depth: Number(e.target.value) })}
+              style={{ width: '100px' }}
+            />
+            <MidiLearnBadge control="siren.depth" />
+          </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Echo feedback">
             Echo
             <input

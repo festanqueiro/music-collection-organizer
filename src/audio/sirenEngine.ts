@@ -146,7 +146,7 @@ export class DubSirenEngine {
     if (!this.sweeping) {
       this.osc.frequency.setTargetAtTime(settings.pitchHz, now, PARAM_SMOOTH_TAU)
       this.lfoDepthGain.gain.setTargetAtTime(
-        settings.pitchHz * MODE_VOICES[settings.mode].lfoDepth,
+        settings.pitchHz * MODE_VOICES[settings.mode].lfoDepth * settings.depth,
         now,
         PARAM_SMOOTH_TAU
       )

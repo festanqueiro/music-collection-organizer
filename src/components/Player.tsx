@@ -4,6 +4,7 @@ import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
 import { MidiLearnBadge } from './MidiLearnBadge'
+import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration } from '../format'
 import type { Track } from '../types'
 
@@ -33,6 +34,8 @@ export function Player({ track }: { track: Track }) {
   const setPlaybackProgress = useCollectionStore((s) => s.setPlaybackProgress)
   const playlist = useCollectionStore((s) => s.playlist)
   const hasNext = playlist.length > 1
+  const setPlaybackControls = useCollectionStore((s) => s.setPlaybackControls)
+  const midiMappings = useCollectionStore((s) => s.midiMappings)
 
   // Player remounts fresh per track, so this also resets the shared
   // progress back to 0 as soon as a new track takes over, rather than
@@ -62,6 +65,26 @@ export function Player({ track }: { track: Track }) {
       )
     }
   }
+
+  // Registers this mount's toggle as the store's imperative playback
+  // control, so a MIDI-bound player.playPause can reach it — toggle is
+  // redefined every render (it closes over `playing`), so a ref keeps the
+  // registered function pointing at the latest one without re-registering
+  // (and re-triggering the effect) on every render.
+  const toggleRef = useRef(toggle)
+  toggleRef.current = toggle
+  useEffect(() => {
+    setPlaybackControls({ toggle: () => toggleRef.current() })
+    return () => setPlaybackControls(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Mirrors playing/paused to a bound player.playPause button's LED,
+  // same convention as delay.enabled/reverb.enabled.
+  useEffect(() => {
+    const binding = midiMappings['player.playPause']
+    if (binding) sendMidiFeedback(binding, playing)
+  }, [playing, midiMappings])
 
   // Player remounts fresh per track (keyed by track id in App.tsx), so
   // this runs once per track — matches createMediaElementSource's
@@ -234,10 +257,12 @@ export function Player({ track }: { track: Track }) {
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
+        <MidiLearnBadge control="player.playPause" />
 
         <button onClick={() => advanceToNext()} disabled={!hasNext} title="Play next">
           <span className="material-symbols-outlined">skip_next</span>
         </button>
+        <MidiLearnBadge control="player.playNext" />
 
         <div style={{ flex: 1, minWidth: 0 }}>
           {peaks && peaks.length > 0 ? (
