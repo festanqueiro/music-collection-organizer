@@ -147,8 +147,12 @@ export class EffectsChain {
     // goes more positive. position === 0: type doesn't matter, both are
     // wide open (lowpass parked at 20kHz is equally transparent), so it's
     // left as whatever type was already set rather than switched — no
-    // point retyping the node every time it's dead-centered.
-    const { position, resonance } = settings.filter
+    // point retyping the node every time it's dead-centered. enabled is a
+    // hard bypass on top of that (a MIDI-mapped on/off button) — forces
+    // fully open without touching the dialed-in position, so re-enabling
+    // picks up right where the knob was left.
+    const { enabled, position: rawPosition, resonance } = settings.filter
+    const position = enabled ? rawPosition : 0
     if (position < 0) {
       this.filterNode.type = 'lowpass'
       const t = -position // 0 (open) .. 1 (fully closed)

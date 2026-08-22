@@ -154,8 +154,10 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'reverb.mix': { min: 0, max: 2 },
   'reverb.decaySeconds': { min: 0.2, max: 5 },
   'reverb.preDelayMs': { min: 0, max: 200 },
+  'filter.enabled': { min: 0, max: 1 },
   'filter.position': { min: -1, max: 1 },
   'filter.resonance': { min: 0.7, max: 20 },
+  'siren.enabled': { min: 0, max: 1 },
   // siren.mode/siren.beat are never read through scaleMidiValue (they go
   // through scaleMidiValueToOption instead) — entries exist only because
   // the Record above is total; the range is the index bounds.

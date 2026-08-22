@@ -20,7 +20,7 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
       effectsSettings: {
         delay: { enabled: false, timeMs: 300, feedback: 0.3, mix: 0.3 },
         reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
-        filter: { position: 0, resonance: 1 },
+        filter: { enabled: true, position: 0, resonance: 1 },
         siren: {
           enabled: false,
           mode: 'siren',

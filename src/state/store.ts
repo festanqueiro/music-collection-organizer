@@ -225,17 +225,21 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setEffectsSettings: (settings) => {
-    // Single choke point for every delay.enabled/reverb.enabled change,
-    // whichever triggered it (the FxPanel checkbox or a MIDI toggle) — so
-    // a bound button's LED always mirrors the app's actual enabled state,
-    // not just the state changes that happened to originate from MIDI.
+    // Single choke point for every *.enabled change, whichever triggered
+    // it (an FxPanel toggle switch or a MIDI toggle) — so a bound
+    // button's LED always mirrors the app's actual enabled state, not
+    // just the state changes that happened to originate from MIDI.
     const previous = get().effectsSettings
     const mappings = get().midiMappings
-    if (settings.delay.enabled !== previous.delay.enabled && mappings['delay.enabled']) {
-      sendMidiFeedback(mappings['delay.enabled'], settings.delay.enabled)
-    }
-    if (settings.reverb.enabled !== previous.reverb.enabled && mappings['reverb.enabled']) {
-      sendMidiFeedback(mappings['reverb.enabled'], settings.reverb.enabled)
+    const enabledPairs: [MidiControlKey, boolean, boolean][] = [
+      ['delay.enabled', settings.delay.enabled, previous.delay.enabled],
+      ['reverb.enabled', settings.reverb.enabled, previous.reverb.enabled],
+      ['filter.enabled', settings.filter.enabled, previous.filter.enabled],
+      ['siren.enabled', settings.siren.enabled, previous.siren.enabled],
+    ]
+    for (const [control, next, prev] of enabledPairs) {
+      const binding = mappings[control]
+      if (next !== prev && binding) sendMidiFeedback(binding, next)
     }
 
     set({ effectsSettings: settings })
@@ -293,8 +297,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       // Sync the LED to the control's current state right away, rather
       // than leaving it showing whatever it happened to be at (e.g. lit
       // from a previous binding) until the next toggle.
-      if (learning === 'delay.enabled') sendMidiFeedback(binding, get().effectsSettings.delay.enabled)
-      else if (learning === 'reverb.enabled') sendMidiFeedback(binding, get().effectsSettings.reverb.enabled)
+      const currentEffectsSettings = get().effectsSettings
+      if (learning === 'delay.enabled') sendMidiFeedback(binding, currentEffectsSettings.delay.enabled)
+      else if (learning === 'reverb.enabled') sendMidiFeedback(binding, currentEffectsSettings.reverb.enabled)
+      else if (learning === 'filter.enabled') sendMidiFeedback(binding, currentEffectsSettings.filter.enabled)
+      else if (learning === 'siren.enabled') sendMidiFeedback(binding, currentEffectsSettings.siren.enabled)
       return
     }
 
@@ -397,10 +404,22 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, decaySeconds: scaled } })
     } else if (match === 'reverb.preDelayMs') {
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, preDelayMs: scaled } })
+    } else if (match === 'filter.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        filter: { ...effectsSettings.filter, enabled: !effectsSettings.filter.enabled },
+      })
     } else if (match === 'filter.position') {
       get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, position: scaled } })
     } else if (match === 'filter.resonance') {
       get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, resonance: scaled } })
+    } else if (match === 'siren.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        siren: { ...effectsSettings.siren, enabled: !effectsSettings.siren.enabled },
+      })
     } else if (match === 'siren.pitchHz') {
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, pitchHz: scaled } })
     } else if (match === 'siren.speedHz') {

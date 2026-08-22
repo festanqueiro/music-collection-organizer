@@ -143,6 +143,16 @@ export function FxPanel({ track }: { track: Track | null }) {
         </div>
         <div style={knobRowStyle}>
           <KnobField
+            label="Mix"
+            control="delay.mix"
+            value={effectsSettings.delay.mix}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateDelay({ mix: v })}
+            formatValue={(v) => v.toFixed(2)}
+          />
+          <KnobField
             label="Time"
             control="delay.timeMs"
             value={effectsSettings.delay.timeMs}
@@ -160,16 +170,6 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={0.9}
             step={0.01}
             onChange={(v) => updateDelay({ feedback: v })}
-            formatValue={(v) => v.toFixed(2)}
-          />
-          <KnobField
-            label="Mix"
-            control="delay.mix"
-            value={effectsSettings.delay.mix}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(v) => updateDelay({ mix: v })}
             formatValue={(v) => v.toFixed(2)}
           />
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '64px' }}>
@@ -240,7 +240,13 @@ export function FxPanel({ track }: { track: Track | null }) {
 
       <div style={sectionStyle}>
         <div style={headerRowStyle}>
+          <ToggleSwitch
+            checked={effectsSettings.filter.enabled}
+            onChange={(checked) => updateFilter({ enabled: checked })}
+            title="Filter on/off"
+          />
           <h4 style={{ margin: 0 }}>Filter</h4>
+          <MidiLearnBadge control="filter.enabled" />
         </div>
         <div style={knobRowStyle}>
           <KnobField
@@ -286,6 +292,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             title="Siren on/off"
           />
           <h4 style={{ margin: 0 }}>Dub Siren</h4>
+          <MidiLearnBadge control="siren.enabled" />
         </div>
         <div style={knobRowStyle}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '64px' }}>

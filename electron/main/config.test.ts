@@ -73,7 +73,7 @@ describe('config store', () => {
     const settings = {
       delay: { enabled: true, timeMs: 500, feedback: 0.5, mix: 0.6 },
       reverb: { enabled: true, mix: 0.4, decaySeconds: 3, preDelayMs: 20 },
-      filter: { position: -0.5, resonance: 3 },
+      filter: { enabled: true, position: -0.5, resonance: 3 },
       siren: { ...DEFAULT_SIREN_SETTINGS, enabled: true, mode: 'bomb' as const },
     }
     setEffectsSettings(settings)
