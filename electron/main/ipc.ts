@@ -12,6 +12,8 @@ import {
   setEffectsSettings,
   getMidiMappings,
   setMidiMappings,
+  getColumnOrder,
+  setColumnOrder,
 } from './config'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
@@ -47,6 +49,7 @@ import type {
   GenreDeletionSnapshot,
   EffectsSettings,
   MidiMappings,
+  TrackTableColumnKey,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -135,6 +138,9 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
   ipcMain.handle('config:getMidiMappings', (): MidiMappings => getMidiMappings())
   ipcMain.handle('config:setMidiMappings', (_e, mappings: MidiMappings): void => setMidiMappings(mappings))
+
+  ipcMain.handle('config:getColumnOrder', (): TrackTableColumnKey[] => getColumnOrder())
+  ipcMain.handle('config:setColumnOrder', (_e, order: TrackTableColumnKey[]): void => setColumnOrder(order))
 
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({
     backupFolder,

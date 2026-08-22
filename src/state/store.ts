@@ -11,8 +11,9 @@ import type {
   MidiMappings,
   MidiControlKey,
   MidiBinding,
+  TrackTableColumnKey,
 } from '../types'
-import { DEFAULT_EFFECTS_SETTINGS, SIREN_MODES, SIREN_BEATS } from '../types'
+import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
@@ -158,6 +159,9 @@ interface CollectionState {
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
+  columnOrder: TrackTableColumnKey[]
+  loadColumnOrder: () => Promise<void>
+  setColumnOrder: (order: TrackTableColumnKey[]) => void
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -211,6 +215,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   sirenTriggered: false,
   playbackControls: null,
   midiMappings: {},
+  columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -251,6 +256,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   loadMidiMappings: async () => {
     const mappings = await window.api.getMidiMappings()
     set({ midiMappings: mappings })
+  },
+
+  loadColumnOrder: async () => {
+    const order = await window.api.getColumnOrder()
+    set({ columnOrder: order })
+  },
+
+  setColumnOrder: (order) => {
+    set({ columnOrder: order })
+    window.api.setColumnOrder(order).catch((err) => console.error('failed to save column order', err))
   },
 
   startMidiLearn: (control) => set({ midiLearningControl: control }),

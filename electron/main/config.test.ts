@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import Store from 'electron-store'
-import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_SIREN_SETTINGS } from '../../src/types'
+import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_SIREN_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER } from '../../src/types'
 import {
   getCollectionFolder,
   setCollectionFolder,
@@ -14,6 +14,8 @@ import {
   setEffectsSettings,
   getMidiMappings,
   setMidiMappings,
+  getColumnOrder,
+  setColumnOrder,
   __setStoreForTests,
 } from './config'
 
@@ -110,5 +112,36 @@ describe('config store', () => {
     const mappings = { volume: { channel: 0, controller: 7 }, 'delay.mix': { channel: 1, controller: 12 } }
     setMidiMappings(mappings)
     expect(getMidiMappings()).toEqual(mappings)
+  })
+
+  it('returns the default column order when unset', () => {
+    expect(getColumnOrder()).toEqual(DEFAULT_TRACK_TABLE_COLUMN_ORDER)
+  })
+
+  it('persists a set column order', () => {
+    const order = ['artist', 'title', 'bpm', 'musicalKey', 'format', 'duration', 'filename'] as const
+    setColumnOrder([...order])
+    expect(getColumnOrder()).toEqual(order)
+  })
+
+  it('appends a column missing from a stored order (added in a later app version)', () => {
+    const store = new Store({ name: `test-missing-col-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    store.set('columnOrder', ['artist', 'title'])
+    __setStoreForTests(store)
+    const result = getColumnOrder()
+    expect(result.slice(0, 2)).toEqual(['artist', 'title'])
+    expect(result).toHaveLength(DEFAULT_TRACK_TABLE_COLUMN_ORDER.length)
+    expect(new Set(result)).toEqual(new Set(DEFAULT_TRACK_TABLE_COLUMN_ORDER))
+  })
+
+  it('drops an unknown column from a stored order (removed in a later app version)', () => {
+    const store = new Store({ name: `test-unknown-col-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    store.set('columnOrder', ['artist', 'someRemovedColumn', 'title'])
+    __setStoreForTests(store)
+    expect(getColumnOrder()).not.toContain('someRemovedColumn')
   })
 })

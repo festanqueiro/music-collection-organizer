@@ -25,6 +25,7 @@ export default function App() {
   const loadCollectionFolder = useCollectionStore((s) => s.loadCollectionFolder)
   const loadEffectsSettings = useCollectionStore((s) => s.loadEffectsSettings)
   const loadMidiMappings = useCollectionStore((s) => s.loadMidiMappings)
+  const loadColumnOrder = useCollectionStore((s) => s.loadColumnOrder)
   const loadAppVersion = useCollectionStore((s) => s.loadAppVersion)
   const handleMidiControlChange = useCollectionStore((s) => s.handleMidiControlChange)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
@@ -109,6 +110,7 @@ export default function App() {
     loadCollectionFolder()
     loadEffectsSettings()
     loadMidiMappings()
+    loadColumnOrder()
     loadAppVersion()
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
@@ -127,6 +129,7 @@ export default function App() {
     loadCollectionFolder,
     loadEffectsSettings,
     loadMidiMappings,
+    loadColumnOrder,
     loadAppVersion,
     setAnalysisProgress,
     refreshTracks,

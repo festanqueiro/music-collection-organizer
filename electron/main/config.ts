@@ -1,5 +1,12 @@
 import Store from 'electron-store'
-import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_SIREN_SETTINGS, type EffectsSettings, type MidiMappings } from '../../src/types'
+import {
+  DEFAULT_EFFECTS_SETTINGS,
+  DEFAULT_SIREN_SETTINGS,
+  DEFAULT_TRACK_TABLE_COLUMN_ORDER,
+  type EffectsSettings,
+  type MidiMappings,
+  type TrackTableColumnKey,
+} from '../../src/types'
 
 interface ConfigSchema {
   collectionFolder?: string
@@ -7,6 +14,7 @@ interface ConfigSchema {
   lastBackupError?: string
   effectsSettings?: EffectsSettings
   midiMappings?: MidiMappings
+  columnOrder?: string[]
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -80,4 +88,21 @@ export function getMidiMappings(): MidiMappings {
 
 export function setMidiMappings(mappings: MidiMappings): void {
   getStore().set('midiMappings', mappings)
+}
+
+// Reconciled against the current known column set on every read, not just
+// validated on write: a column added in a later app version needs to show
+// up (appended at the end) even in a profile whose stored order predates
+// it, and a column since removed needs to silently drop out rather than
+// leaving a dead entry the table can't render.
+export function getColumnOrder(): TrackTableColumnKey[] {
+  const stored = getStore().get('columnOrder') ?? []
+  const known = new Set(DEFAULT_TRACK_TABLE_COLUMN_ORDER)
+  const kept = stored.filter((key): key is TrackTableColumnKey => known.has(key as TrackTableColumnKey))
+  const missing = DEFAULT_TRACK_TABLE_COLUMN_ORDER.filter((key) => !kept.includes(key))
+  return [...kept, ...missing]
+}
+
+export function setColumnOrder(order: TrackTableColumnKey[]): void {
+  getStore().set('columnOrder', order)
 }

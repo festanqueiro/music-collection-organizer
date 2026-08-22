@@ -19,6 +19,22 @@ export interface Track {
   analysisStatus: 'pending' | 'analyzing' | 'done' | 'error'
 }
 
+// The sortable columns in TrackTable, in their default order. User
+// reordering (drag-and-drop) is persisted as a permutation of this list —
+// see config.ts's getColumnOrder for how a stored order missing a column
+// (e.g. one added in a later version) or containing an unknown one is
+// reconciled back against this.
+export type TrackTableColumnKey = 'title' | 'filename' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
+export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = [
+  'title',
+  'filename',
+  'artist',
+  'bpm',
+  'musicalKey',
+  'format',
+  'duration',
+]
+
 export interface Genre {
   id: number
   name: string

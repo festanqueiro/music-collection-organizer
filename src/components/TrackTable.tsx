@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { formatDuration } from '../format'
-import type { Track } from '../types'
+import type { Track, TrackTableColumnKey } from '../types'
 
-type SortKey = 'title' | 'filename' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
+type SortKey = TrackTableColumnKey
 
 const contextMenuItemStyle = {
   display: 'flex',
@@ -50,7 +50,10 @@ export function TrackTable({
   const addManyToPlaylist = useCollectionStore((s) => s.addManyToPlaylist)
   const playNext = useCollectionStore((s) => s.playNext)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
+  const columnOrder = useCollectionStore((s) => s.columnOrder)
+  const setColumnOrder = useCollectionStore((s) => s.setColumnOrder)
   const currentTrackId = playlist[0] ?? null
+  const [draggedColumn, setDraggedColumn] = useState<TrackTableColumnKey | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('title')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
@@ -129,18 +132,88 @@ export function TrackTable({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [visibleTracks, selectedTrackId, onSelect, modalOpen])
 
-  const columns: { key: SortKey; label: string }[] = [
-    { key: 'title', label: 'Title' },
-    { key: 'filename', label: 'Filename' },
-    { key: 'artist', label: 'Artist' },
-    { key: 'bpm', label: 'BPM' },
-    { key: 'musicalKey', label: 'Key' },
-    { key: 'format', label: 'Format' },
-    { key: 'duration', label: 'Duration' },
-  ]
+  const columnLabels: Record<TrackTableColumnKey, string> = {
+    title: 'Title',
+    filename: 'Filename',
+    artist: 'Artist',
+    bpm: 'BPM',
+    musicalKey: 'Key',
+    format: 'Format',
+    duration: 'Duration',
+  }
+  const orderedColumns = columnOrder.map((key) => ({ key, label: columnLabels[key] }))
 
   const cellStyle = { padding: '8px', whiteSpace: 'nowrap' as const }
   const titleCellStyle = { ...cellStyle, maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' as const }
+
+  function renderCell(track: Track, key: TrackTableColumnKey) {
+    switch (key) {
+      case 'title':
+        return (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                playTrackNow(track.id)
+              }}
+              title="Play track now"
+              style={{
+                background: 'none',
+                border: 'none',
+                padding: '0 4px 0 0',
+                cursor: 'pointer',
+                verticalAlign: 'middle',
+                color: track.id === currentTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+                play_circle
+              </span>
+            </button>
+            {track.analysisStatus === 'analyzing' && (
+              <span
+                className="material-symbols-outlined spin"
+                style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
+                title="Analyzing…"
+              >
+                progress_activity
+              </span>
+            )}
+            {track.title ?? track.filename}
+          </>
+        )
+      case 'filename':
+        return track.filename
+      case 'artist':
+        return track.artist ?? '—'
+      case 'bpm':
+        return track.bpm?.toFixed(0) ?? '—'
+      case 'musicalKey':
+        return track.musicalKey ?? '—'
+      case 'format':
+        return track.format
+      case 'duration':
+        return track.duration ? formatDuration(track.duration) : '—'
+    }
+  }
+
+  function cellStyleFor(key: TrackTableColumnKey) {
+    return key === 'title' || key === 'filename' ? titleCellStyle : cellStyle
+  }
+
+  function handleColumnDrop(targetKey: TrackTableColumnKey) {
+    if (!draggedColumn || draggedColumn === targetKey) {
+      setDraggedColumn(null)
+      return
+    }
+    const next = [...columnOrder]
+    const fromIndex = next.indexOf(draggedColumn)
+    const toIndex = next.indexOf(targetKey)
+    next.splice(fromIndex, 1)
+    next.splice(toIndex, 0, draggedColumn)
+    setColumnOrder(next)
+    setDraggedColumn(null)
+  }
 
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -166,11 +239,24 @@ export function TrackTable({
                 onChange={(e) => setTracksChecked(visibleTracks.map((t) => t.id), e.target.checked)}
               />
             </th>
-            {columns.map((col) => (
+            {orderedColumns.map((col) => (
               <th
                 key={col.key}
                 onClick={() => handleSort(col.key)}
-                style={{ ...cellStyle, cursor: 'pointer', textAlign: 'left' }}
+                draggable
+                onDragStart={() => setDraggedColumn(col.key)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  handleColumnDrop(col.key)
+                }}
+                title="Click to sort, drag to reorder"
+                style={{
+                  ...cellStyle,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  opacity: draggedColumn === col.key ? 0.5 : 1,
+                }}
               >
                 {col.label}
                 {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
@@ -210,43 +296,11 @@ export function TrackTable({
                   onChange={() => toggleTrackChecked(track.id)}
                 />
               </td>
-              <td style={titleCellStyle}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    playTrackNow(track.id)
-                  }}
-                  title="Play track now"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '0 4px 0 0',
-                    cursor: 'pointer',
-                    verticalAlign: 'middle',
-                    color: track.id === currentTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
-                    play_circle
-                  </span>
-                </button>
-                {track.analysisStatus === 'analyzing' && (
-                  <span
-                    className="material-symbols-outlined spin"
-                    style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
-                    title="Analyzing…"
-                  >
-                    progress_activity
-                  </span>
-                )}
-                {track.title ?? track.filename}
-              </td>
-              <td style={titleCellStyle}>{track.filename}</td>
-              <td style={cellStyle}>{track.artist ?? '—'}</td>
-              <td style={cellStyle}>{track.bpm?.toFixed(0) ?? '—'}</td>
-              <td style={cellStyle}>{track.musicalKey ?? '—'}</td>
-              <td style={cellStyle}>{track.format}</td>
-              <td style={cellStyle}>{track.duration ? formatDuration(track.duration) : '—'}</td>
+              {orderedColumns.map((col) => (
+                <td key={col.key} style={cellStyleFor(col.key)}>
+                  {renderCell(track, col.key)}
+                </td>
+              ))}
               <td style={cellStyle}>
                 {track.analysisStatus === 'analyzing' ? (
                   <span className="material-symbols-outlined spin" style={{ fontSize: '16px' }} title="Analyzing…">

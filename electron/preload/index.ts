@@ -10,6 +10,7 @@ import type {
   GenreDeletionSnapshot,
   EffectsSettings,
   MidiMappings,
+  TrackTableColumnKey,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
@@ -23,6 +24,9 @@ const api = {
   getMidiMappings: (): Promise<MidiMappings> => ipcRenderer.invoke('config:getMidiMappings'),
   setMidiMappings: (mappings: MidiMappings): Promise<void> =>
     ipcRenderer.invoke('config:setMidiMappings', mappings),
+  getColumnOrder: (): Promise<TrackTableColumnKey[]> => ipcRenderer.invoke('config:getColumnOrder'),
+  setColumnOrder: (order: TrackTableColumnKey[]): Promise<void> =>
+    ipcRenderer.invoke('config:setColumnOrder', order),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
   scanCollection: (): Promise<ScanResult> => ipcRenderer.invoke('scan:run'),
   analyzeCollection: (trackIds?: number[]): Promise<void> => ipcRenderer.invoke('analysis:run', trackIds),
