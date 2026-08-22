@@ -8,6 +8,8 @@ import { getDubSirenEngine } from '../audio/sirenEngine'
 import {
   SIREN_MODES,
   SIREN_BEATS,
+  DEFAULT_EFFECTS_SETTINGS,
+  DEFAULT_SIREN_SETTINGS,
   type EffectsSettings,
   type MidiControlKey,
   type SirenSettings,
@@ -65,6 +67,7 @@ function KnobField({
   onChange,
   bipolar,
   formatValue,
+  defaultValue,
 }: {
   label: string
   control: MidiControlKey
@@ -75,10 +78,20 @@ function KnobField({
   onChange: (value: number) => void
   bipolar?: boolean
   formatValue?: (value: number) => string
+  defaultValue?: number
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '56px' }}>
-      <Knob value={value} min={min} max={max} step={step} onChange={onChange} bipolar={bipolar} formatValue={formatValue} />
+      <Knob
+        value={value}
+        min={min}
+        max={max}
+        step={step}
+        onChange={onChange}
+        bipolar={bipolar}
+        formatValue={formatValue}
+        defaultValue={defaultValue}
+      />
       <span style={{ fontSize: '9px', color: 'var(--color-text-dim)', textAlign: 'center', lineHeight: 1.2 }}>
         {label}
       </span>
@@ -138,6 +151,101 @@ export function FxPanel({ track }: { track: Track | null }) {
       <div style={{ ...sectionStyle, borderTop: 'none', paddingTop: 0 }}>
         <div style={headerRowStyle}>
           <ToggleSwitch
+            checked={effectsSettings.eq.enabled}
+            onChange={(checked) => updateEq({ enabled: checked })}
+            title="EQ on/off"
+          />
+          <h4 style={{ margin: 0 }}>EQ</h4>
+          <MidiLearnBadge control="eq.enabled" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField
+            label="Low"
+            control="eq.low"
+            value={effectsSettings.eq.low}
+            min={-12}
+            max={12}
+            step={0.5}
+            onChange={(v) => updateEq({ low: v })}
+            bipolar
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.eq.low}
+            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
+          />
+          <KnobField
+            label="Mid"
+            control="eq.mid"
+            value={effectsSettings.eq.mid}
+            min={-12}
+            max={12}
+            step={0.5}
+            onChange={(v) => updateEq({ mid: v })}
+            bipolar
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.eq.mid}
+            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
+          />
+          <KnobField
+            label="High"
+            control="eq.high"
+            value={effectsSettings.eq.high}
+            min={-12}
+            max={12}
+            step={0.5}
+            onChange={(v) => updateEq({ high: v })}
+            bipolar
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.eq.high}
+            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
+          />
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <ToggleSwitch
+            checked={effectsSettings.filter.enabled}
+            onChange={(checked) => updateFilter({ enabled: checked })}
+            title="Filter on/off"
+          />
+          <h4 style={{ margin: 0 }}>Filter</h4>
+          <MidiLearnBadge control="filter.enabled" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField
+            label="LP ⟵⟶ HP"
+            control="filter.position"
+            value={effectsSettings.filter.position}
+            min={-1}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateFilter({ position: v })}
+            bipolar
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.filter.position}
+            formatValue={(v) => (v === 0 ? 'Bypass' : v < 0 ? `LP ${Math.round(-v * 100)}%` : `HP ${Math.round(v * 100)}%`)}
+          />
+          <KnobField
+            label="Resonance"
+            control="filter.resonance"
+            value={effectsSettings.filter.resonance}
+            min={0.7}
+            max={20}
+            step={0.1}
+            onChange={(v) => updateFilter({ resonance: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.filter.resonance}
+            formatValue={(v) => v.toFixed(1)}
+          />
+          <button
+            onClick={() => updateFilter({ position: 0 })}
+            disabled={effectsSettings.filter.position === 0}
+            title="Reset to bypass (center)"
+            style={{ fontSize: '10px', padding: '0 4px', alignSelf: 'center' }}
+          >
+            Reset
+          </button>
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <ToggleSwitch
             checked={effectsSettings.delay.enabled}
             onChange={(checked) => updateDelay({ enabled: checked })}
             title="Delay on/off"
@@ -154,6 +262,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={1}
             step={0.01}
             onChange={(v) => updateDelay({ mix: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.delay.mix}
             formatValue={(v) => v.toFixed(2)}
           />
           <KnobField
@@ -164,6 +273,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={1000}
             step={10}
             onChange={handleTimeChange}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.delay.timeMs}
             formatValue={(v) => `${Math.round(v)} ms`}
           />
           <KnobField
@@ -174,6 +284,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={0.9}
             step={0.01}
             onChange={(v) => updateDelay({ feedback: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.delay.feedback}
             formatValue={(v) => v.toFixed(2)}
           />
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '64px' }}>
@@ -217,6 +328,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={2}
             step={0.01}
             onChange={(v) => updateReverb({ mix: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.reverb.mix}
             formatValue={(v) => v.toFixed(2)}
           />
           <KnobField
@@ -227,6 +339,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={5}
             step={0.1}
             onChange={handleDecayChange}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.reverb.decaySeconds}
             formatValue={(v) => `${v.toFixed(1)} s`}
           />
           <KnobField
@@ -237,98 +350,9 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={200}
             step={1}
             onChange={(v) => updateReverb({ preDelayMs: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.reverb.preDelayMs}
             formatValue={(v) => `${Math.round(v)} ms`}
           />
-        </div>
-      </div>
-
-      <div style={sectionStyle}>
-        <div style={headerRowStyle}>
-          <ToggleSwitch
-            checked={effectsSettings.eq.enabled}
-            onChange={(checked) => updateEq({ enabled: checked })}
-            title="EQ on/off"
-          />
-          <h4 style={{ margin: 0 }}>EQ</h4>
-          <MidiLearnBadge control="eq.enabled" />
-        </div>
-        <div style={knobRowStyle}>
-          <KnobField
-            label="Low"
-            control="eq.low"
-            value={effectsSettings.eq.low}
-            min={-12}
-            max={12}
-            step={0.5}
-            onChange={(v) => updateEq({ low: v })}
-            bipolar
-            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
-          />
-          <KnobField
-            label="Mid"
-            control="eq.mid"
-            value={effectsSettings.eq.mid}
-            min={-12}
-            max={12}
-            step={0.5}
-            onChange={(v) => updateEq({ mid: v })}
-            bipolar
-            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
-          />
-          <KnobField
-            label="High"
-            control="eq.high"
-            value={effectsSettings.eq.high}
-            min={-12}
-            max={12}
-            step={0.5}
-            onChange={(v) => updateEq({ high: v })}
-            bipolar
-            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
-          />
-        </div>
-      </div>
-
-      <div style={sectionStyle}>
-        <div style={headerRowStyle}>
-          <ToggleSwitch
-            checked={effectsSettings.filter.enabled}
-            onChange={(checked) => updateFilter({ enabled: checked })}
-            title="Filter on/off"
-          />
-          <h4 style={{ margin: 0 }}>Filter</h4>
-          <MidiLearnBadge control="filter.enabled" />
-        </div>
-        <div style={knobRowStyle}>
-          <KnobField
-            label="LP ⟵⟶ HP"
-            control="filter.position"
-            value={effectsSettings.filter.position}
-            min={-1}
-            max={1}
-            step={0.01}
-            onChange={(v) => updateFilter({ position: v })}
-            bipolar
-            formatValue={(v) => (v === 0 ? 'Bypass' : v < 0 ? `LP ${Math.round(-v * 100)}%` : `HP ${Math.round(v * 100)}%`)}
-          />
-          <KnobField
-            label="Resonance"
-            control="filter.resonance"
-            value={effectsSettings.filter.resonance}
-            min={0.7}
-            max={20}
-            step={0.1}
-            onChange={(v) => updateFilter({ resonance: v })}
-            formatValue={(v) => v.toFixed(1)}
-          />
-          <button
-            onClick={() => updateFilter({ position: 0 })}
-            disabled={effectsSettings.filter.position === 0}
-            title="Reset to bypass (center)"
-            style={{ fontSize: '10px', padding: '0 4px', alignSelf: 'center' }}
-          >
-            Reset
-          </button>
         </div>
       </div>
 
@@ -369,6 +393,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={520}
             step={1}
             onChange={(v) => updateSiren({ pitchHz: v })}
+            defaultValue={DEFAULT_SIREN_SETTINGS.pitchHz}
             formatValue={(v) => `${Math.round(v)} Hz`}
           />
           <KnobField
@@ -379,6 +404,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={12}
             step={0.1}
             onChange={(v) => updateSiren({ speedHz: v })}
+            defaultValue={DEFAULT_SIREN_SETTINGS.speedHz}
             formatValue={(v) => `${v.toFixed(1)} Hz`}
           />
           <KnobField
@@ -389,6 +415,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={2}
             step={0.05}
             onChange={(v) => updateSiren({ depth: v })}
+            defaultValue={DEFAULT_SIREN_SETTINGS.depth}
             formatValue={(v) => v.toFixed(2)}
           />
           <KnobField
@@ -399,6 +426,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={0.85}
             step={0.01}
             onChange={(v) => updateSiren({ echoFeedback: v })}
+            defaultValue={DEFAULT_SIREN_SETTINGS.echoFeedback}
             formatValue={(v) => v.toFixed(2)}
           />
           <KnobField
@@ -409,6 +437,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             max={1}
             step={0.01}
             onChange={(v) => updateSiren({ level: v })}
+            defaultValue={DEFAULT_SIREN_SETTINGS.level}
             formatValue={(v) => v.toFixed(2)}
           />
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '64px' }}>

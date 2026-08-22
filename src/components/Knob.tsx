@@ -17,6 +17,7 @@ export function Knob({
   size = 32,
   bipolar = false,
   formatValue,
+  defaultValue,
 }: {
   value: number
   min: number
@@ -29,6 +30,11 @@ export function Knob({
   // minimum.
   bipolar?: boolean
   formatValue?: (value: number) => string
+  // Double-click resets to this value. Falls back to 0 for bipolar knobs
+  // (their natural center/bypass) or `min` otherwise, so callers that
+  // don't have a more meaningful default (e.g. a track-specific delay
+  // time) still get sane double-click behavior for free.
+  defaultValue?: number
 }) {
   const dragState = useRef<{ startY: number; startValue: number } | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -64,6 +70,10 @@ export function Knob({
     onChange(clamp(value + (e.deltaY < 0 ? increment : -increment)))
   }
 
+  function handleDoubleClick() {
+    onChange(clamp(defaultValue ?? (bipolar ? 0 : min)))
+  }
+
   const ratio = (value - min) / (max - min)
   const angle = MIN_ANGLE + ratio * (MAX_ANGLE - MIN_ANGLE)
 
@@ -74,6 +84,7 @@ export function Knob({
       onPointerUp={endDrag}
       onLostPointerCapture={endDrag}
       onWheel={handleWheel}
+      onDoubleClick={handleDoubleClick}
       title={formatValue ? formatValue(value) : String(value)}
       style={{
         width: size,
