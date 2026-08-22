@@ -31,6 +31,17 @@ describe('walkAudioFiles', () => {
     expect(track1.size).toBe(1)
   })
 
+  it('never walks into a .mco data folder, even if it somehow contained audio-extension files', () => {
+    const mcoDir = join(root, '.mco')
+    mkdirSync(mcoDir)
+    writeFileSync(join(mcoDir, 'collection.db'), 'not audio')
+    writeFileSync(join(mcoDir, 'decoy.wav'), 'should never be picked up')
+
+    const files = walkAudioFiles(root)
+    const paths = files.map((f) => f.path).sort()
+    expect(paths).toEqual([join(root, 'sub', 'track2.flac'), join(root, 'track1.wav')])
+  })
+
   // Running as root ignores Unix permission bits entirely, so chmod 000
   // wouldn't actually block the read — skip there rather than assert
   // something false.

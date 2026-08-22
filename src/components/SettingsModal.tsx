@@ -19,11 +19,13 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [backupInfo, setBackupInfo] = useState<BackupInfo | null>(null)
   const [backups, setBackups] = useState<BackupEntry[]>([])
   const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
+  const [dbFilePath, setDbFilePath] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       window.api.getBackupInfo().then(setBackupInfo)
       window.api.listBackups().then(setBackups)
+      window.api.getDbFilePath().then(setDbFilePath)
     }
   }, [open])
 
@@ -75,6 +77,28 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             onClick={async () => {
               const changed = await pickCollectionFolder()
               if (changed) onClose()
+            }}
+          >
+            Change…
+          </button>
+        </section>
+
+        <section style={{ marginBottom: '20px' }}>
+          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Database &amp; settings</h3>
+          <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{dbFilePath ?? 'Loading…'}</p>
+          <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+            The first time you set a collection folder, this moves inside it automatically. Backups always target
+            wherever it currently lives, so restoring stays safe after a move.
+          </p>
+          <button
+            onClick={async () => {
+              if (
+                window.confirm(
+                  'Move the database and settings to a new folder? The old copy is left in place, and the app will restart.'
+                )
+              ) {
+                await window.api.chooseDbLocation()
+              }
             }}
           >
             Change…

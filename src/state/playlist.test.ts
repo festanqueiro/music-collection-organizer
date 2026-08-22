@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { playTrackNow, addToPlaylist, playNext, removeFromPlaylist, movePlaylistItem, advanceToNext } from './playlist'
+import {
+  playTrackNow,
+  addToPlaylist,
+  addManyToPlaylist,
+  playNext,
+  removeFromPlaylist,
+  movePlaylistItem,
+  advanceToNext,
+} from './playlist'
 
 describe('playTrackNow', () => {
   it('becomes the only entry when the queue is empty', () => {
@@ -18,6 +26,20 @@ describe('addToPlaylist', () => {
 
   it('becomes the only entry when the queue is empty', () => {
     expect(addToPlaylist([], 5)).toEqual([5])
+  })
+})
+
+describe('addManyToPlaylist', () => {
+  it('appends every track to the end, preserving order', () => {
+    expect(addManyToPlaylist([1, 2], [3, 4, 5])).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it('becomes the queue when it was empty', () => {
+    expect(addManyToPlaylist([], [1, 2, 3])).toEqual([1, 2, 3])
+  })
+
+  it('is a no-op for an empty list of tracks to add', () => {
+    expect(addManyToPlaylist([1, 2], [])).toEqual([1, 2])
   })
 })
 

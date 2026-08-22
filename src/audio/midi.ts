@@ -1,4 +1,4 @@
-import { SIREN_MODES, SIREN_BEATS, type MidiBinding, type MidiControlKey } from '../types'
+import { SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS, type MidiBinding, type MidiControlKey } from '../types'
 
 // Minimal local typings for the parts of the Web MIDI API this app uses.
 // Not relying on lib.dom's (optional, version-dependent) WebMidi types
@@ -148,20 +148,43 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'delay.timeMs': { min: 0, max: 1000 },
   'delay.feedback': { min: 0, max: 0.9 },
   'delay.mix': { min: 0, max: 1 },
+  // Never read through scaleMidiValue — a discrete pick via
+  // scaleMidiValueToOption(DELAY_DIVISIONS, ...), like siren.mode/beat
+  // below. Present only because the Record is total; the range is the
+  // index bounds.
+  'delay.division': { min: 0, max: DELAY_DIVISIONS.length - 1 },
   'reverb.enabled': { min: 0, max: 1 },
-  'reverb.mix': { min: 0, max: 1 },
+  // Doubled from the original 0..1 — allows the wet signal to outweigh
+  // dry for a more extreme effect, not just blend up to fully wet.
+  'reverb.mix': { min: 0, max: 2 },
+  'reverb.decaySeconds': { min: 0.2, max: 5 },
+  'reverb.preDelayMs': { min: 0, max: 200 },
+  'filter.enabled': { min: 0, max: 1 },
+  'filter.position': { min: -1, max: 1 },
+  'filter.resonance': { min: 0.7, max: 20 },
+  'eq.enabled': { min: 0, max: 1 },
+  'eq.low': { min: -12, max: 12 },
+  'eq.mid': { min: -12, max: 12 },
+  'eq.high': { min: -12, max: 12 },
+  'siren.enabled': { min: 0, max: 1 },
   // siren.mode/siren.beat are never read through scaleMidiValue (they go
   // through scaleMidiValueToOption instead) — entries exist only because
   // the Record above is total; the range is the index bounds.
   'siren.mode': { min: 0, max: SIREN_MODES.length - 1 },
   'siren.pitchHz': { min: 90, max: 520 },
   'siren.speedHz': { min: 0.5, max: 12 },
+  'siren.depth': { min: 0, max: 2 },
   'siren.level': { min: 0, max: 1 },
   'siren.echoFeedback': { min: 0, max: 0.85 },
   'siren.beat': { min: 0, max: SIREN_BEATS.length - 1 },
   // Never read through scaleMidiValue either — a momentary button, not a
   // range. Present only because the Record above is total.
   'siren.trigger': { min: 0, max: 1 },
+  // Also button-style, not ranges — present only because the Record is
+  // total. player.playPause toggles on the press edge (LED mirrors
+  // playing state); player.playNext fires once per press, no LED.
+  'player.playPause': { min: 0, max: 1 },
+  'player.playNext': { min: 0, max: 1 },
 }
 
 // Scales a 7-bit MIDI CC value (0-127) to a control's real-world range.
@@ -174,6 +197,6 @@ export function scaleMidiValue(control: MidiControlKey, ccValue: number): number
 // bound to a control using this sweeps through the options in order.
 // min() guards the top band: ccValue 127 would otherwise land on
 // options.length.
-export function scaleMidiValueToOption<T extends string>(options: readonly T[], ccValue: number): T {
+export function scaleMidiValueToOption<T>(options: readonly T[], ccValue: number): T {
   return options[Math.min(options.length - 1, Math.floor((ccValue / 127) * options.length))]
 }

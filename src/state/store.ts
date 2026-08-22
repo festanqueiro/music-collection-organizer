@@ -11,14 +11,16 @@ import type {
   MidiMappings,
   MidiControlKey,
   MidiBinding,
+  TrackTableColumnKey,
 } from '../types'
-import { DEFAULT_EFFECTS_SETTINGS, SIREN_MODES, SIREN_BEATS } from '../types'
+import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import {
   playTrackNow as playTrackNowPure,
   addToPlaylist as addToPlaylistPure,
+  addManyToPlaylist as addManyToPlaylistPure,
   playNext as playNextPure,
   removeFromPlaylist as removeFromPlaylistPure,
   movePlaylistItem as movePlaylistItemPure,
@@ -56,12 +58,22 @@ function setTrackTags(
 // here too avoids a pointless IPC round-trip for one that obviously can't
 // run.
 function triggerBackgroundAnalysis(get: StoreApi<CollectionState>['getState'], trackId: number): void {
-  const track = get().tracks.find((t) => t.id === trackId)
-  if (track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')) {
-    get()
-      .runAnalysis([trackId])
-      .catch((err) => console.error('background analysis of queued track failed', err))
-  }
+  triggerBackgroundAnalysisForMany(get, [trackId])
+}
+
+// Batches every track that actually needs it into a single analysis:run
+// call — used for "Add all to queue" so queueing a whole folder doesn't
+// fire off one IPC round-trip per track.
+function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getState'], trackIds: number[]): void {
+  const tracks = get().tracks
+  const ids = trackIds.filter((id) => {
+    const track = tracks.find((t) => t.id === id)
+    return track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')
+  })
+  if (ids.length === 0) return
+  get()
+    .runAnalysis(ids)
+    .catch((err) => console.error('background analysis of queued track(s) failed', err))
 }
 
 // A cloud-only track has no local audio to stream yet, so it's downloaded
@@ -106,12 +118,31 @@ interface CollectionState {
   playerExpanded: boolean
   playTrackNow: (trackId: number) => Promise<void>
   addToPlaylist: (trackId: number) => void
+  addManyToPlaylist: (trackIds: number[]) => void
   playNext: (trackId: number) => void
   removeFromPlaylist: (index: number) => void
   movePlaylistItem: (fromIndex: number, toIndex: number) => void
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
   setPlayerExpanded: (value: boolean) => void
+  // Imperative escape hatch so a MIDI-bound player.playPause control (and
+  // eventually the spacebar/other external triggers) can toggle playback
+  // without lifting the actual playing/paused boolean — which the <audio>
+  // element itself owns — out of Player.tsx and into the store. Player
+  // registers its toggle function on mount, clears it on unmount; null
+  // when nothing is loaded, so a stray MIDI press with nothing playing is
+  // silently a no-op instead of throwing.
+  playbackControls: { toggle: () => void } | null
+  setPlaybackControls: (controls: { toggle: () => void } | null) => void
+  // Same imperative-escape-hatch pattern as playbackControls above: the
+  // Division knob's "recompute delay.timeMs from the current track's
+  // BPM" action needs the currently-playing track, which FxPanel already
+  // has (as its `track` prop) and the store doesn't. FxPanel registers
+  // the callback on mount/track change; a MIDI-bound delay.division
+  // knob calls it with the picked DELAY_DIVISIONS index so the on-screen
+  // knob's position stays in sync with what MIDI just picked.
+  delayDivisionSync: ((index: number) => void) | null
+  setDelayDivisionSync: (sync: ((index: number) => void) | null) => void
   searchText: string
   collectionFolder: string | null
   analysisProgress: { done: number; total: number } | null
@@ -137,6 +168,9 @@ interface CollectionState {
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
+  columnOrder: TrackTableColumnKey[]
+  loadColumnOrder: () => Promise<void>
+  setColumnOrder: (order: TrackTableColumnKey[]) => void
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -188,7 +222,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playerVolume: 1,
   playbackProgress: 0,
   sirenTriggered: false,
+  playbackControls: null,
+  delayDivisionSync: null,
   midiMappings: {},
+  columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -198,17 +235,22 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setEffectsSettings: (settings) => {
-    // Single choke point for every delay.enabled/reverb.enabled change,
-    // whichever triggered it (the FxPanel checkbox or a MIDI toggle) — so
-    // a bound button's LED always mirrors the app's actual enabled state,
-    // not just the state changes that happened to originate from MIDI.
+    // Single choke point for every *.enabled change, whichever triggered
+    // it (an FxPanel toggle switch or a MIDI toggle) — so a bound
+    // button's LED always mirrors the app's actual enabled state, not
+    // just the state changes that happened to originate from MIDI.
     const previous = get().effectsSettings
     const mappings = get().midiMappings
-    if (settings.delay.enabled !== previous.delay.enabled && mappings['delay.enabled']) {
-      sendMidiFeedback(mappings['delay.enabled'], settings.delay.enabled)
-    }
-    if (settings.reverb.enabled !== previous.reverb.enabled && mappings['reverb.enabled']) {
-      sendMidiFeedback(mappings['reverb.enabled'], settings.reverb.enabled)
+    const enabledPairs: [MidiControlKey, boolean, boolean][] = [
+      ['delay.enabled', settings.delay.enabled, previous.delay.enabled],
+      ['reverb.enabled', settings.reverb.enabled, previous.reverb.enabled],
+      ['filter.enabled', settings.filter.enabled, previous.filter.enabled],
+      ['eq.enabled', settings.eq.enabled, previous.eq.enabled],
+      ['siren.enabled', settings.siren.enabled, previous.siren.enabled],
+    ]
+    for (const [control, next, prev] of enabledPairs) {
+      const binding = mappings[control]
+      if (next !== prev && binding) sendMidiFeedback(binding, next)
     }
 
     set({ effectsSettings: settings })
@@ -224,9 +266,22 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setSirenTriggered: (triggered) => set({ sirenTriggered: triggered }),
 
+  setPlaybackControls: (controls) => set({ playbackControls: controls }),
+  setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
+
   loadMidiMappings: async () => {
     const mappings = await window.api.getMidiMappings()
     set({ midiMappings: mappings })
+  },
+
+  loadColumnOrder: async () => {
+    const order = await window.api.getColumnOrder()
+    set({ columnOrder: order })
+  },
+
+  setColumnOrder: (order) => {
+    set({ columnOrder: order })
+    window.api.setColumnOrder(order).catch((err) => console.error('failed to save column order', err))
   },
 
   startMidiLearn: (control) => set({ midiLearningControl: control }),
@@ -254,8 +309,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       // Sync the LED to the control's current state right away, rather
       // than leaving it showing whatever it happened to be at (e.g. lit
       // from a previous binding) until the next toggle.
-      if (learning === 'delay.enabled') sendMidiFeedback(binding, get().effectsSettings.delay.enabled)
-      else if (learning === 'reverb.enabled') sendMidiFeedback(binding, get().effectsSettings.reverb.enabled)
+      const currentEffectsSettings = get().effectsSettings
+      if (learning === 'delay.enabled') sendMidiFeedback(binding, currentEffectsSettings.delay.enabled)
+      else if (learning === 'reverb.enabled') sendMidiFeedback(binding, currentEffectsSettings.reverb.enabled)
+      else if (learning === 'filter.enabled') sendMidiFeedback(binding, currentEffectsSettings.filter.enabled)
+      else if (learning === 'eq.enabled') sendMidiFeedback(binding, currentEffectsSettings.eq.enabled)
+      else if (learning === 'siren.enabled') sendMidiFeedback(binding, currentEffectsSettings.siren.enabled)
       return
     }
 
@@ -285,6 +344,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       return
     }
 
+    // Also discrete, but not a persisted setting — the same one-shot
+    // "recompute delay.timeMs from the current track's BPM" action the
+    // Division knob's UI performs on change, not a value that sticks
+    // around (a track swap doesn't retroactively resync it, same as
+    // turning the on-screen knob wouldn't either without moving it again).
+    if (match === 'delay.division') {
+      const index = DELAY_DIVISIONS.indexOf(scaleMidiValueToOption(DELAY_DIVISIONS, value))
+      get().delayDivisionSync?.(index)
+      return
+    }
+
     // Momentary trigger, not a toggle like delay.enabled/reverb.enabled —
     // press (nonzero) sounds the siren for as long as it's held, release
     // (0) stops it, mirroring the on-screen button and the hold-S
@@ -303,6 +373,21 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         engine.triggerUp()
         set({ sirenTriggered: false })
       }
+      return
+    }
+
+    // player.playPause toggles on the press edge (mirrors delay.enabled's
+    // momentary-button handling) via the imperative toggle Player.tsx
+    // registers on mount — a no-op if nothing's loaded. player.playNext
+    // fires once per press with no release behavior, same as any other
+    // one-shot trigger; it works even with nothing currently mounted,
+    // since advanceToNext is a plain store action.
+    if (match === 'player.playPause') {
+      if (value !== 0) get().playbackControls?.toggle()
+      return
+    }
+    if (match === 'player.playNext') {
+      if (value !== 0) get().advanceToNext()
       return
     }
 
@@ -339,10 +424,44 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       })
     } else if (match === 'reverb.mix') {
       get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, mix: scaled } })
+    } else if (match === 'reverb.decaySeconds') {
+      get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, decaySeconds: scaled } })
+    } else if (match === 'reverb.preDelayMs') {
+      get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, preDelayMs: scaled } })
+    } else if (match === 'filter.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        filter: { ...effectsSettings.filter, enabled: !effectsSettings.filter.enabled },
+      })
+    } else if (match === 'filter.position') {
+      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, position: scaled } })
+    } else if (match === 'filter.resonance') {
+      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, resonance: scaled } })
+    } else if (match === 'eq.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        eq: { ...effectsSettings.eq, enabled: !effectsSettings.eq.enabled },
+      })
+    } else if (match === 'eq.low') {
+      get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, low: scaled } })
+    } else if (match === 'eq.mid') {
+      get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, mid: scaled } })
+    } else if (match === 'eq.high') {
+      get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, high: scaled } })
+    } else if (match === 'siren.enabled') {
+      if (value === 0) return
+      get().setEffectsSettings({
+        ...effectsSettings,
+        siren: { ...effectsSettings.siren, enabled: !effectsSettings.siren.enabled },
+      })
     } else if (match === 'siren.pitchHz') {
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, pitchHz: scaled } })
     } else if (match === 'siren.speedHz') {
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, speedHz: scaled } })
+    } else if (match === 'siren.depth') {
+      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, depth: scaled } })
     } else if (match === 'siren.level') {
       get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, level: scaled } })
     } else if (match === 'siren.echoFeedback') {
@@ -356,6 +475,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   pickCollectionFolder: async () => {
+    // A first-ever collection folder pick (no data folder configured yet)
+    // also relocates the DB + settings into it and restarts the app —
+    // without this check, that would happen with zero warning right after
+    // the OS folder picker closes, and look like the app crashed.
+    if (await window.api.willRelocateOnNextCollectionFolderPick()) {
+      const proceed = window.confirm(
+        'This is your first time setting a collection folder — the database and settings will move inside it, and the app will restart. Continue?'
+      )
+      if (!proceed) return false
+    }
     const folder = await window.api.chooseCollectionFolder()
     if (!folder) return false
     set({ collectionFolder: folder })
@@ -412,6 +541,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   addToPlaylist: (trackId) => {
     set({ playlist: addToPlaylistPure(get().playlist, trackId) })
     triggerBackgroundAnalysis(get, trackId)
+  },
+
+  addManyToPlaylist: (trackIds) => {
+    set({ playlist: addManyToPlaylistPure(get().playlist, trackIds) })
+    triggerBackgroundAnalysisForMany(get, trackIds)
   },
 
   playNext: (trackId) => {

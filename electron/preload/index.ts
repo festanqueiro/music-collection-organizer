@@ -10,6 +10,7 @@ import type {
   GenreDeletionSnapshot,
   EffectsSettings,
   MidiMappings,
+  TrackTableColumnKey,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
@@ -23,7 +24,17 @@ const api = {
   getMidiMappings: (): Promise<MidiMappings> => ipcRenderer.invoke('config:getMidiMappings'),
   setMidiMappings: (mappings: MidiMappings): Promise<void> =>
     ipcRenderer.invoke('config:setMidiMappings', mappings),
+  getColumnOrder: (): Promise<TrackTableColumnKey[]> => ipcRenderer.invoke('config:getColumnOrder'),
+  setColumnOrder: (order: TrackTableColumnKey[]): Promise<void> =>
+    ipcRenderer.invoke('config:setColumnOrder', order),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
+  willRelocateOnNextCollectionFolderPick: (): Promise<boolean> =>
+    ipcRenderer.invoke('config:willRelocateOnNextCollectionFolderPick'),
+  getDbFilePath: (): Promise<string> => ipcRenderer.invoke('config:getDbFilePath'),
+  // Resolves only if the user cancels the picker (null) — a successful
+  // pick relaunches the whole app from the main process before this
+  // invoke() would otherwise get a response, same as restoreBackup below.
+  chooseDbLocation: (): Promise<string | null> => ipcRenderer.invoke('config:chooseDbLocation'),
   scanCollection: (): Promise<ScanResult> => ipcRenderer.invoke('scan:run'),
   analyzeCollection: (trackIds?: number[]): Promise<void> => ipcRenderer.invoke('analysis:run', trackIds),
   stopAnalysis: (): Promise<void> => ipcRenderer.invoke('analysis:stop'),

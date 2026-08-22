@@ -29,15 +29,28 @@ analyzed on demand, one track at a time.
   volume, elapsed/remaining time (click the time to toggle between
   them) — separate from row selection, so browsing track details doesn't
   interrupt playback.
-- **Delay + reverb FX**, synthesized (no bundled assets), with a
-  BPM-sync button on the delay time, in their own panel alongside the
-  full-screen queue (with room reserved for an upcoming Dub Siren
-  module). Settings persist across restarts.
+- **FX panel**: EQ (3-band Low/Mid/High), a Xone-mixer-style single-knob
+  sweep Filter (one direction sweeps a lowpass closed, the other a
+  highpass), Delay, Reverb, and a Dub Siren — all synthesized (no bundled
+  assets), rendered as rotary knobs in their own panel alongside the
+  full-screen queue. Every knob shows its live value, double-click resets
+  it to a sensible default, and the Delay's Division knob snaps its time
+  to a musical note division (1/4, 1/8T, dotted, etc.) at the loaded
+  track's BPM. Each module has its own on/off toggle in its header.
+  Settings persist across restarts.
 - **MIDI mapping**: click the piano icon next to any FX control or the
   volume slider, twist or press a hardware knob/button, done — bindings
-  persist too. On/off controls (Delay, Reverb) bind to a hardware button
-  rather than a knob threshold, and light its LED to mirror the app's
-  state where the controller supports it.
+  persist too. On/off toggles bind to a hardware button rather than a
+  knob threshold, and light its LED to mirror the app's state where the
+  controller supports it. Playback (play/pause, next) is MIDI-mappable
+  too.
+- **Customizable track table**: drag column headers to reorder them
+  (persisted), click to sort (click again to reverse). Right-click a row
+  for "Add to queue"/"Play next", "Show in File Explorer", or "Show in
+  Folder Tree View" (switches to the Folders tab and scrolls to/expands
+  that track's folder). "Add all to queue" queues the current filtered
+  view in one go — also available per-folder from the Folder Tree's
+  right-click menu.
 - **Native file drag-out**: drag a row straight to Finder, a DAW, or any
   other app — it hands off the file's existing path (a reference, like
   any Finder drag), nothing is copied. Right-click → "Show in File
@@ -81,22 +94,35 @@ a machine where `npm run dev`'s dev server isn't available.
 ### Packaging a real .app
 
 ```bash
-npm run dist         # packages the production app to release/mac-arm64/
-npm run dist:beta    # packages AND installs a separate BETA app alongside
-                      # production — its own bundle id and userData
-                      # directory (own DB/config/backups), never touches
-                      # the production install
+npm run dist
+# packages the production app to release/mac-arm64/
+
+npm run dist:install
+# packages AND copies it into ~/Applications, so a local test build can be
+# launched without manually dragging it out of release/
+
+npm run dist:beta
+# packages AND installs a separate BETA app alongside production — its own
+# bundle id and userData directory (own DB/config/backups), never touches
+# the production install
 ```
 
 Both are unsigned/local-only builds (no code-signing identity configured).
 `package.json`'s version is bumped automatically (patch) and tagged on
 every merge to `main` via `.github/workflows/version-bump.yml`.
 
-The app's data lives outside the repo, under Electron's per-app userData
-directory (on macOS: `~/Library/Application Support/<app name>/`) —
-`collection.db` (the SQLite database) and the config store (collection
-folder path, window state). Deleting that directory resets the app to a
-clean state.
+The app's data — `collection.db` (the SQLite database) and the config
+store (collection folder path, FX/MIDI settings, window state) — lives
+outside the repo. By default that's Electron's per-app userData directory
+(on macOS: `~/Library/Application Support/<app name>/`), but the first
+time you ever set a collection folder, both move automatically into a
+hidden `.mco` folder inside it, so the whole collection — music,
+database, and settings — travels together if that folder is ever copied
+to another machine or drive. You can also relocate them independently at
+any time from Settings → "Database & settings" → Change…. Either way, the
+old files are never deleted on a move (a cheap safety net alongside the
+daily backups, which always target wherever the data currently lives).
+Deleting the current data folder resets the app to a clean state.
 
 ## Project layout
 

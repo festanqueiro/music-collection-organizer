@@ -14,6 +14,11 @@
   --color-accent: #2dd4bf;
   --color-accent-strong: #14b8a6;
   --color-secondary: #a78bfa;
+  /* Tells Chromium to render browser-native chrome — scrollbars, and
+     (the actual reason this matters) a <select>'s dropdown option list,
+     which CSS otherwise can't style at all — in dark mode instead of a
+     jarring white popup mid app. */
+  color-scheme: dark;
 }
 
 * {
@@ -53,9 +58,43 @@ button {
   border-radius: 4px;
   padding: 4px 8px;
   cursor: pointer;
+  transition:
+    border-color 100ms ease,
+    transform 80ms ease;
 }
 
 button:disabled {
+  color: var(--color-text-dim);
+  cursor: default;
+  opacity: 0.6;
+}
+
+button:hover:not(:disabled),
+select:hover:not(:disabled) {
+  border-color: var(--color-accent);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+select {
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  cursor: pointer;
+  transition: border-color 100ms ease;
+}
+
+select:disabled {
   color: var(--color-text-dim);
   cursor: default;
   opacity: 0.6;
