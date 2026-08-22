@@ -6,6 +6,7 @@ import { Readable } from 'node:stream'
 import { openDatabase } from './db'
 import { registerIpcHandlers } from './ipc'
 import { getCollectionFolder, getConfigFilePath, setLastBackupError, clearLastBackupError } from './config'
+import { getDbFilePath } from './dbPath'
 import { mediaUrlToFilePath } from './mediaProtocol'
 import { getPlayableFilePath } from './audioTranscode'
 import { getMediaCacheDir } from './mediaCacheDir'
@@ -200,7 +201,7 @@ app.whenReady().then(() => {
   registerPermissionHandlers()
   registerMediaProtocol()
 
-  const db = openDatabase(join(app.getPath('userData'), 'collection.db'))
+  const db = openDatabase(getDbFilePath())
   setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
 
   registerIpcHandlers(db, () => currentWindow!, getBackupFolder(app.getPath('userData')))

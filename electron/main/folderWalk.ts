@@ -27,6 +27,10 @@ export function walkAudioFiles(rootPath: string): DiskFileWithBlocks[] {
     }
 
     for (const entry of entries) {
+      // The app's own data folder (see electron/main/bootstrap.ts) can
+      // live right inside the collection folder — never worth walking
+      // into (it holds collection.db/config.json, never audio files).
+      if (entry.isDirectory() && entry.name === '.mco') continue
       const fullPath = join(dir, entry.name)
       if (entry.isDirectory()) {
         walk(fullPath)

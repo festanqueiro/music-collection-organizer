@@ -15,6 +15,9 @@ import {
   getColumnOrder,
   setColumnOrder,
 } from './config'
+import { getDataFolder, setDataFolder } from './bootstrap'
+import { getDbFilePath } from './dbPath'
+import { migrateDataFolder } from './dataMigration'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { getDragIcon } from './dragIcon'
@@ -154,18 +157,73 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     const entry = listBackups(backupFolder).find((e) => e.timestamp === timestamp)
     if (!entry) throw new Error(`No backup found for timestamp ${timestamp}`)
     db.close()
-    const dbFilePath = join(app.getPath('userData'), 'collection.db')
-    restoreBackup(entry, dbFilePath, getConfigFilePath())
+    // Resolves through the same helper as the startup openDatabase() call
+    // and config:chooseDbLocation below, so a restore always lands
+    // wherever the DB is currently configured to live, not always userData
+    // — otherwise relocating the DB and then restoring a backup would
+    // silently resurrect a stale collection.db at the old default location.
+    restoreBackup(entry, getDbFilePath(), getConfigFilePath())
     app.relaunch()
     app.exit()
   })
+
+  // Closes the live DB, hands off to dataMigration.ts's pure copy-or-adopt
+  // logic, persists the new location, then relaunches — same close/
+  // relaunch shape as backup:restore above, so a fresh openDatabase()/
+  // config getStore() at startup opens the new location cleanly instead
+  // of trying to hot-swap the live db handle (and the config.ts
+  // module-level Store singleton) every other handler in this file has
+  // already closed over.
+  function relocateDataFolder(newDataFolder: string, collectionFolderToStamp: string | undefined): void {
+    db.close()
+    migrateDataFolder({
+      newDataFolder,
+      oldDbPath: getDbFilePath(),
+      oldConfigPath: getConfigFilePath(),
+      collectionFolderToStamp,
+    })
+    setDataFolder(newDataFolder)
+    app.relaunch()
+    app.exit()
+  }
 
   ipcMain.handle('config:chooseCollectionFolder', async (): Promise<string | null> => {
     const result = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })
     if (result.canceled || result.filePaths.length === 0) return null
     const folder = result.filePaths[0]
+
+    // Only a *first-ever* pick (no data folder configured yet — a fresh
+    // install) also establishes where the DB + settings live by default:
+    // right inside the chosen collection folder (in a hidden `.mco`
+    // subfolder, out of the way of the actual music), so the whole
+    // collection travels together if the folder is ever copied or moved
+    // to another machine or drive. Re-picking a *different* collection
+    // folder later (this app supports switching between them) does NOT
+    // relocate again, on purpose — the DB stays wherever it already is,
+    // so switching folders keeps today's scan/analyze-prompt flow instead
+    // of always relaunching. config:chooseDbLocation below is the
+    // explicit, deliberate way to move the data folder after the fact.
+    if (getDataFolder() === null) {
+      relocateDataFolder(join(folder, '.mco'), folder)
+      return folder // unreachable in practice — relocateDataFolder relaunches the app
+    }
+
     setCollectionFolder(folder)
     return folder
+  })
+
+  ipcMain.handle('config:getDbFilePath', (): string => getDbFilePath())
+
+  // Explicit, deliberate relocation of the data folder (DB + settings) to
+  // wherever the user picks — independent of the automatic first-pick
+  // default above. See dataMigration.ts's migrateDataFolder for the
+  // copy-vs-adopt and never-delete behavior.
+  ipcMain.handle('config:chooseDbLocation', async (): Promise<string | null> => {
+    const result = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })
+    if (result.canceled || result.filePaths.length === 0) return null
+    const folder = result.filePaths[0]
+    relocateDataFolder(folder, undefined)
+    return folder // unreachable in practice — migrateDataFolder relaunches the app
   })
 
   // File discovery/diff only — does NOT trigger analysis. Analysis is a
