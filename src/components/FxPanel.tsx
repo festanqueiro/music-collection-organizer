@@ -109,6 +109,10 @@ export function FxPanel({ track }: { track: Track | null }) {
     setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, ...partial } })
   }
 
+  function updateEq(partial: Partial<EffectsSettings['eq']>) {
+    setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, ...partial } })
+  }
+
   function updateSiren(partial: Partial<SirenSettings>) {
     setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, ...partial } })
   }
@@ -234,6 +238,53 @@ export function FxPanel({ track }: { track: Track | null }) {
             step={1}
             onChange={(v) => updateReverb({ preDelayMs: v })}
             formatValue={(v) => `${Math.round(v)} ms`}
+          />
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <ToggleSwitch
+            checked={effectsSettings.eq.enabled}
+            onChange={(checked) => updateEq({ enabled: checked })}
+            title="EQ on/off"
+          />
+          <h4 style={{ margin: 0 }}>EQ</h4>
+          <MidiLearnBadge control="eq.enabled" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField
+            label="Low"
+            control="eq.low"
+            value={effectsSettings.eq.low}
+            min={-12}
+            max={12}
+            step={0.5}
+            onChange={(v) => updateEq({ low: v })}
+            bipolar
+            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
+          />
+          <KnobField
+            label="Mid"
+            control="eq.mid"
+            value={effectsSettings.eq.mid}
+            min={-12}
+            max={12}
+            step={0.5}
+            onChange={(v) => updateEq({ mid: v })}
+            bipolar
+            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
+          />
+          <KnobField
+            label="High"
+            control="eq.high"
+            value={effectsSettings.eq.high}
+            min={-12}
+            max={12}
+            step={0.5}
+            onChange={(v) => updateEq({ high: v })}
+            bipolar
+            formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
           />
         </div>
       </div>

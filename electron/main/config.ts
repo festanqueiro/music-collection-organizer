@@ -79,6 +79,7 @@ export function getEffectsSettings(): EffectsSettings {
     delay: { ...DEFAULT_EFFECTS_SETTINGS.delay, ...stored.delay },
     reverb: { ...DEFAULT_EFFECTS_SETTINGS.reverb, ...stored.reverb },
     filter: { ...DEFAULT_EFFECTS_SETTINGS.filter, ...stored.filter },
+    eq: { ...DEFAULT_EFFECTS_SETTINGS.eq, ...stored.eq },
     siren: { ...DEFAULT_SIREN_SETTINGS, ...stored.siren },
   }
 }

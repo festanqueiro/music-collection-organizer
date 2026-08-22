@@ -15,6 +15,9 @@ const FILTER_LOWPASS_OPEN_HZ = 20000
 const FILTER_LOWPASS_CLOSED_HZ = 80
 const FILTER_HIGHPASS_OPEN_HZ = 20
 const FILTER_HIGHPASS_CLOSED_HZ = 8000
+const EQ_LOW_HZ = 200
+const EQ_MID_HZ = 1000
+const EQ_HIGH_HZ = 5000
 
 // Synthesizes a plate-style impulse response (exponentially decaying white
 // noise) rather than shipping a recorded .wav — no binary asset, no
@@ -56,11 +59,17 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 // them keeps decaying on its own after the input goes silent — it just
 // can't be topped up with fresh signal anymore.
 //
-//                                        ┌─────────────────────────────────────────┐
-// source ──> dryGain ──> filterNode ──┼─> delayNode <-> feedbackGain ├─> destination
-//                                       │      └────────> delayWetGain ─┤
-//                                       ├─> preDelayNode ─> convolver ─> reverbWetGain ┤
-//                                       └────────────────────────────────────────────┘
+//                                                             ┌─────────────────────────────────────────┐
+// source ──> dryGain ──> eqLow ─> eqMid ─> eqHigh ──> filterNode ──┼─> delayNode <-> feedbackGain ├─> destination
+//                                                                    │      └────────> delayWetGain ─┤
+//                                                                    ├─> preDelayNode ─> convolver ─> reverbWetGain ┤
+//                                                                    └────────────────────────────────────────────┘
+//
+// EQ sits right after the fader, before the filter — matching a real
+// mixer channel strip's EQ-then-filter order — so a boosted/cut band
+// carries through the sweep filter and the delay/reverb sends too. Three
+// chained BiquadFilterNodes (lowshelf/peaking/highshelf), each just a
+// gain knob at a fixed frequency.
 //
 // filterNode sits after the fader like a mixer channel's filter knob —
 // everything downstream (the dry signal AND the delay/reverb sends) is
@@ -72,6 +81,9 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 export class EffectsChain {
   private context: AudioContext
   private dryGain: GainNode
+  private eqLow: BiquadFilterNode
+  private eqMid: BiquadFilterNode
+  private eqHigh: BiquadFilterNode
   private filterNode: BiquadFilterNode
   private delayNode: DelayNode
   private delayFeedbackGain: GainNode
@@ -89,10 +101,24 @@ export class EffectsChain {
     this.dryGain.gain.value = 1
     source.connect(this.dryGain)
 
+    this.eqLow = this.context.createBiquadFilter()
+    this.eqLow.type = 'lowshelf'
+    this.eqLow.frequency.value = EQ_LOW_HZ
+    this.eqMid = this.context.createBiquadFilter()
+    this.eqMid.type = 'peaking'
+    this.eqMid.frequency.value = EQ_MID_HZ
+    this.eqMid.Q.value = 1
+    this.eqHigh = this.context.createBiquadFilter()
+    this.eqHigh.type = 'highshelf'
+    this.eqHigh.frequency.value = EQ_HIGH_HZ
+    this.dryGain.connect(this.eqLow)
+    this.eqLow.connect(this.eqMid)
+    this.eqMid.connect(this.eqHigh)
+
     this.filterNode = this.context.createBiquadFilter()
     this.filterNode.type = 'lowpass'
     this.filterNode.frequency.value = FILTER_LOWPASS_OPEN_HZ
-    this.dryGain.connect(this.filterNode)
+    this.eqHigh.connect(this.filterNode)
     this.filterNode.connect(this.context.destination)
 
     this.delayNode = this.context.createDelay(MAX_DELAY_SECONDS)
@@ -126,6 +152,12 @@ export class EffectsChain {
     // smooth while still tracking the slider closely enough to feel
     // immediate.
     const now = this.context.currentTime
+    // enabled forces all three bands flat (0dB) without touching the
+    // dialed-in gains, same convention as filter.enabled below.
+    this.eqLow.gain.setTargetAtTime(settings.eq.enabled ? settings.eq.low : 0, now, FILTER_PARAM_TAU)
+    this.eqMid.gain.setTargetAtTime(settings.eq.enabled ? settings.eq.mid : 0, now, FILTER_PARAM_TAU)
+    this.eqHigh.gain.setTargetAtTime(settings.eq.enabled ? settings.eq.high : 0, now, FILTER_PARAM_TAU)
+
     this.delayNode.delayTime.setTargetAtTime(settings.delay.timeMs / 1000, now, 0.08)
     this.delayFeedbackGain.gain.value = settings.delay.enabled ? settings.delay.feedback : 0
     this.delayWetGain.gain.value = settings.delay.enabled ? settings.delay.mix : 0

@@ -120,6 +120,10 @@ export interface EffectsSettings {
   // MIDI-mapped on/off button) — disabled forces the filter fully open
   // regardless of position, without losing the dialed-in position.
   filter: { enabled: boolean; position: number; resonance: number }
+  // Standard 3-band channel-strip EQ, dB gain per band (-12..+12, 0 flat).
+  // enabled is a hard bypass on top, same convention as filter.enabled —
+  // forces all three bands flat without losing the dialed-in gains.
+  eq: { enabled: boolean; low: number; mid: number; high: number }
   siren: SirenSettings
 }
 
@@ -130,6 +134,7 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   // unchanged until someone actually touches the new controls.
   reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
   filter: { enabled: true, position: 0, resonance: 1 },
+  eq: { enabled: true, low: 0, mid: 0, high: 0 },
   siren: DEFAULT_SIREN_SETTINGS,
 }
 
@@ -146,6 +151,10 @@ export type MidiControlKey =
   | 'filter.enabled'
   | 'filter.position'
   | 'filter.resonance'
+  | 'eq.enabled'
+  | 'eq.low'
+  | 'eq.mid'
+  | 'eq.high'
   | 'siren.enabled'
   | 'siren.mode'
   | 'siren.pitchHz'
