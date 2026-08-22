@@ -194,15 +194,12 @@ export function DetailPanel({
   const tracks = useCollectionStore((s) => s.tracks)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
-  const moods = useCollectionStore((s) => s.moods)
   const trackTags = useCollectionStore((s) => s.trackTags)
   const loadAll = useCollectionStore((s) => s.loadAll)
   const setTrackGenres = useCollectionStore((s) => s.setTrackGenres)
   const setTrackSubgenres = useCollectionStore((s) => s.setTrackSubgenres)
-  const setTrackMoods = useCollectionStore((s) => s.setTrackMoods)
   const createGenre = useCollectionStore((s) => s.createGenre)
   const createSubgenre = useCollectionStore((s) => s.createSubgenre)
-  const createMood = useCollectionStore((s) => s.createMood)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [artworkUrl, setArtworkUrl] = useState<string | null>(null)
@@ -232,7 +229,7 @@ export function DetailPanel({
   // track briefly isn't in `tracks` yet (e.g. mid-reload).
   const track = tracks.find((t) => t.id === selectedTrack.id) ?? selectedTrack
 
-  const tags = trackTags.get(track.id) ?? { trackId: track.id, genreIds: [], subgenreIds: [], moodIds: [] }
+  const tags = trackTags.get(track.id) ?? { trackId: track.id, genreIds: [], subgenreIds: [] }
   const availableSubgenres = subgenres.filter((sg) => tags.genreIds.includes(sg.genreId))
 
   function toggleInList(list: number[], id: number): number[] {
@@ -335,19 +332,19 @@ export function DetailPanel({
           </div>
         )}
         <TagPicker
-          label="Genre"
+          label="Tag"
           options={genres}
           selectedIds={tags.genreIds}
-          placeholder="Select or type a new genre…"
+          placeholder="Select or type a new tag…"
           onToggle={(id) => setTrackGenres(track.id, toggleInList(tags.genreIds, id))}
           onCreate={applySuggestedGenre}
         />
         <TagPicker
-          label="Sub-Genre"
+          label="Subtag"
           options={availableSubgenres}
           selectedIds={tags.subgenreIds}
           disabled={!tags.genreIds[0]}
-          placeholder={tags.genreIds[0] ? 'Select or type a new sub-genre…' : 'Select a Genre first'}
+          placeholder={tags.genreIds[0] ? 'Select or type a new subtag…' : 'Select a Tag first'}
           onToggle={(id) => setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, id))}
           onCreate={async (name) => {
             if (!tags.genreIds[0]) return
@@ -356,18 +353,6 @@ export function DetailPanel({
               .getState()
               .subgenres.find((sg) => sg.genreId === tags.genreIds[0] && sg.name.toLowerCase() === name.toLowerCase())
             if (subgenre) await setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, subgenre.id))
-          }}
-        />
-        <TagPicker
-          label="Mood"
-          options={moods}
-          selectedIds={tags.moodIds}
-          placeholder="Select or type a new mood…"
-          onToggle={(id) => setTrackMoods(track.id, toggleInList(tags.moodIds, id))}
-          onCreate={async (name) => {
-            await createMood(name)
-            const mood = useCollectionStore.getState().moods.find((m) => m.name.toLowerCase() === name.toLowerCase())
-            if (mood) await setTrackMoods(track.id, toggleInList(tags.moodIds, mood.id))
           }}
         />
       </div>

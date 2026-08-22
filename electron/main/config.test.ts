@@ -73,7 +73,7 @@ describe('config store', () => {
     const settings = {
       delay: { enabled: true, timeMs: 500, feedback: 0.5, mix: 0.6 },
       reverb: { enabled: true, mix: 0.4, decaySeconds: 3, preDelayMs: 20 },
-      filter: { enabled: true, position: -0.5, resonance: 3 },
+      filter: { enabled: true, lowpass: 0.5, highpass: 0, resonance: 3 },
       eq: { enabled: true, low: 4, mid: -2, high: 1.5 },
       siren: { ...DEFAULT_SIREN_SETTINGS, enabled: true, mode: 'bomb' as const },
     }
@@ -166,7 +166,7 @@ describe('config store', () => {
   })
 
   it('persists a set column order', () => {
-    const order = ['artist', 'title', 'bpm', 'musicalKey', 'format', 'duration', 'filename'] as const
+    const order = ['artist', 'title', 'bpm', 'musicalKey', 'format', 'duration', 'filename', 'tags'] as const
     setColumnOrder([...order])
     expect(getColumnOrder()).toEqual(order)
   })

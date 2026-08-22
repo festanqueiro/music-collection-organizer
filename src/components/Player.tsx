@@ -5,7 +5,7 @@ import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { sendMidiFeedback } from '../audio/midi'
-import { formatDuration } from '../format'
+import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 
 // Renders as the app's footer player bar: track name + BPM, play/pause,
@@ -23,6 +23,7 @@ export function Player({ track }: { track: Track }) {
   const [currentTime, setCurrentTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const [showTimeLeft, setShowTimeLeft] = useState(false)
+  const [artworkUrl, setArtworkUrl] = useState<string | null>(null)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const playerVolume = useCollectionStore((s) => s.playerVolume)
@@ -43,6 +44,20 @@ export function Player({ track }: { track: Track }) {
   useEffect(() => {
     setPlaybackProgress(0)
     return () => setPlaybackProgress(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Player remounts fresh per track (see above), so this only ever runs
+  // once per track — no need to key off track.id separately.
+  useEffect(() => {
+    let cancelled = false
+    setArtworkUrl(null)
+    window.api.getTrackArtwork(track.id).then((url) => {
+      if (!cancelled) setArtworkUrl(url)
+    })
+    return () => {
+      cancelled = true
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -190,6 +205,13 @@ export function Player({ track }: { track: Track }) {
       />
 
       <div style={{ display: 'flex', alignItems: 'center' }}>
+        {artworkUrl && (
+          <img
+            src={artworkUrl}
+            alt=""
+            style={{ width: '28px', height: '28px', objectFit: 'cover', borderRadius: '3px', marginRight: '8px', flexShrink: 0 }}
+          />
+        )}
         {track.analysisStatus === 'analyzing' && (
           <span
             className="material-symbols-outlined spin"
@@ -209,8 +231,10 @@ export function Player({ track }: { track: Track }) {
             flexShrink: 1,
           }}
         >
-          {track.title ?? track.filename}
-          {track.artist && <span style={{ fontWeight: 400, color: 'var(--color-text-dim)' }}> — {track.artist}</span>}
+          {decodeHtmlEntities(track.title ?? track.filename)}
+          {track.artist && (
+            <span style={{ fontWeight: 400, color: 'var(--color-text-dim)' }}> — {decodeHtmlEntities(track.artist)}</span>
+          )}
         </span>
         <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px', flexShrink: 0 }}>
           {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}

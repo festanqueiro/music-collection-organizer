@@ -3,17 +3,22 @@ import { openDatabase, type AppDatabase } from './db'
 import {
   createGenre,
   createSubgenre,
-  createMood,
   deleteGenre,
+  deleteSubgenre,
+  renameGenre,
+  renameSubgenre,
+  setGenreColor,
+  countTracksWithGenre,
+  countTracksWithSubgenre,
   setTrackGenres,
   setTrackSubgenres,
-  setTrackMoods,
   getTrackTagIds,
   addGenresToTracks,
   addSubgenresToTracks,
-  addMoodsToTracks,
   captureGenreDeletionSnapshot,
   undoGenreDeletion,
+  captureSubgenreDeletionSnapshot,
+  undoSubgenreDeletion,
 } from './tags'
 
 describe('tags', () => {
@@ -29,19 +34,16 @@ describe('tags', () => {
       .run().lastInsertRowid as number
   })
 
-  it('creates genres, subgenres, moods and tags a track', () => {
+  it('creates genres, subgenres and tags a track', () => {
     const houseId = createGenre(db, 'House')
     const deepHouseId = createSubgenre(db, 'Deep House', houseId)
-    const energeticId = createMood(db, 'Energetic')
 
     setTrackGenres(db, trackId, [houseId])
     setTrackSubgenres(db, trackId, [deepHouseId])
-    setTrackMoods(db, trackId, [energeticId])
 
     expect(getTrackTagIds(db, trackId)).toEqual({
       genreIds: [houseId],
       subgenreIds: [deepHouseId],
-      moodIds: [energeticId],
     })
   })
 
@@ -114,20 +116,6 @@ describe('tags', () => {
     expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([deepHouseId])
   })
 
-  it('addMoodsToTracks adds a mood to multiple tracks', () => {
-    const energeticId = createMood(db, 'Energetic')
-    const track2Id = db
-      .prepare(
-        `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/d.wav','d.wav','/', 'wav', 1, 1)`
-      )
-      .run().lastInsertRowid as number
-
-    addMoodsToTracks(db, [trackId, track2Id], [energeticId])
-
-    expect(getTrackTagIds(db, trackId).moodIds).toEqual([energeticId])
-    expect(getTrackTagIds(db, track2Id).moodIds).toEqual([energeticId])
-  })
-
   it('captureGenreDeletionSnapshot records the genre, its sub-genres, and every track association', () => {
     const houseId = createGenre(db, 'House')
     const deepHouseId = createSubgenre(db, 'Deep House', houseId)
@@ -162,5 +150,70 @@ describe('tags', () => {
       db.prepare('SELECT id FROM subgenres WHERE name = ?').get('Deep House') as { id: number }
     ).id
     expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([restoredSubgenreId])
+  })
+
+  it('renameGenre updates the name in place, keeping the same id and associations', () => {
+    const houseId = createGenre(db, 'House')
+    setTrackGenres(db, trackId, [houseId])
+
+    renameGenre(db, houseId, 'Deep House')
+
+    const genre = db.prepare('SELECT name FROM genres WHERE id = ?').get(houseId) as { name: string }
+    expect(genre.name).toBe('Deep House')
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([houseId])
+  })
+
+  it('renameSubgenre updates the name in place, keeping the same id and associations', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    setTrackSubgenres(db, trackId, [deepHouseId])
+
+    renameSubgenre(db, deepHouseId, 'Deeper House')
+
+    const subgenre = db.prepare('SELECT name FROM subgenres WHERE id = ?').get(deepHouseId) as { name: string }
+    expect(subgenre.name).toBe('Deeper House')
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([deepHouseId])
+  })
+
+  it('setGenreColor stores and clears a color', () => {
+    const houseId = createGenre(db, 'House')
+    setGenreColor(db, houseId, '#3b82f6')
+    expect((db.prepare('SELECT color FROM genres WHERE id = ?').get(houseId) as { color: string }).color).toBe(
+      '#3b82f6'
+    )
+    setGenreColor(db, houseId, null)
+    expect((db.prepare('SELECT color FROM genres WHERE id = ?').get(houseId) as { color: string | null }).color).toBe(
+      null
+    )
+  })
+
+  it('countTracksWithGenre/Subgenre counts direct associations only', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    setTrackGenres(db, trackId, [houseId])
+    setTrackSubgenres(db, trackId, [deepHouseId])
+
+    expect(countTracksWithGenre(db, houseId)).toBe(1)
+    expect(countTracksWithSubgenre(db, deepHouseId)).toBe(1)
+  })
+
+  it('captureSubgenreDeletionSnapshot + undoSubgenreDeletion restores a deleted sub-genre and its associations', () => {
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    setTrackGenres(db, trackId, [houseId])
+    setTrackSubgenres(db, trackId, [deepHouseId])
+
+    const snapshot = captureSubgenreDeletionSnapshot(db, deepHouseId)
+    deleteSubgenre(db, deepHouseId)
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([])
+
+    undoSubgenreDeletion(db, snapshot)
+
+    const restoredSubgenreId = (
+      db.prepare('SELECT id FROM subgenres WHERE name = ?').get('Deep House') as { id: number }
+    ).id
+    expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([restoredSubgenreId])
+    // Deleting a sub-genre never touches the parent genre's own association.
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([houseId])
   })
 })

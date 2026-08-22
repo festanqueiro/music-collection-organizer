@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { openDatabase, type AppDatabase } from './db'
-import { createGenre, createSubgenre, createMood, setTrackGenres, setTrackSubgenres, setTrackMoods, getTrackTagIds } from './tags'
+import { createGenre, createSubgenre, setTrackGenres, setTrackSubgenres, getTrackTagIds } from './tags'
 import { exportTagData, importTagData } from './tagExport'
 
 describe('exportTagData', () => {
@@ -10,23 +10,20 @@ describe('exportTagData', () => {
     db = openDatabase(':memory:')
   })
 
-  it('exports the full genre/subgenre/mood catalog by name', () => {
+  it('exports the full genre/subgenre catalog by name', () => {
     const houseId = createGenre(db, 'House')
     createSubgenre(db, 'Deep House', houseId)
-    createMood(db, 'Energetic')
 
     const data = exportTagData(db)
 
     expect(data.version).toBe(1)
     expect(data.genres).toEqual([{ name: 'House' }])
     expect(data.subgenres).toEqual([{ name: 'Deep House', genreName: 'House' }])
-    expect(data.moods).toEqual([{ name: 'Energetic' }])
   })
 
   it('exports each tagged track by path with its tag names', () => {
     const houseId = createGenre(db, 'House')
     const deepHouseId = createSubgenre(db, 'Deep House', houseId)
-    const energeticId = createMood(db, 'Energetic')
     const trackId = db
       .prepare(
         `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/a.wav','a.wav','/', 'wav', 1, 1)`
@@ -35,7 +32,6 @@ describe('exportTagData', () => {
 
     setTrackGenres(db, trackId, [houseId])
     setTrackSubgenres(db, trackId, [deepHouseId])
-    setTrackMoods(db, trackId, [energeticId])
 
     const data = exportTagData(db)
 
@@ -44,7 +40,6 @@ describe('exportTagData', () => {
         path: '/a.wav',
         genres: ['House'],
         subgenres: [{ name: 'Deep House', genreName: 'House' }],
-        moods: ['Energetic'],
       },
     ])
   })
@@ -59,11 +54,10 @@ describe('exportTagData', () => {
     expect(data.tracks).toEqual([])
   })
 
-  it('does not produce a cartesian product when a track has multiple tags of different kinds', () => {
+  it('does not produce a cartesian product when a track has multiple genres and sub-genres', () => {
     const houseId = createGenre(db, 'House')
     const technoId = createGenre(db, 'Techno')
-    const energeticId = createMood(db, 'Energetic')
-    const darkId = createMood(db, 'Dark')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
     const trackId = db
       .prepare(
         `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/b.wav','b.wav','/', 'wav', 1, 1)`
@@ -71,13 +65,13 @@ describe('exportTagData', () => {
       .run().lastInsertRowid as number
 
     setTrackGenres(db, trackId, [houseId, technoId])
-    setTrackMoods(db, trackId, [energeticId, darkId])
+    setTrackSubgenres(db, trackId, [deepHouseId])
 
     const data = exportTagData(db)
 
     expect(data.tracks).toHaveLength(1)
     expect(data.tracks[0].genres.sort()).toEqual(['House', 'Techno'])
-    expect(data.tracks[0].moods.sort()).toEqual(['Dark', 'Energetic'])
+    expect(data.tracks[0].subgenres).toEqual([{ name: 'Deep House', genreName: 'House' }])
   })
 })
 
@@ -88,7 +82,7 @@ describe('importTagData', () => {
     db = openDatabase(':memory:')
   })
 
-  it('creates missing genres/subgenres/moods and tags matched tracks', () => {
+  it('creates missing genres/subgenres and tags matched tracks', () => {
     db.prepare(
       `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/a.wav','a.wav','/', 'wav', 1, 1)`
     ).run()
@@ -97,13 +91,11 @@ describe('importTagData', () => {
       version: 1,
       genres: [{ name: 'House' }],
       subgenres: [{ name: 'Deep House', genreName: 'House' }],
-      moods: [{ name: 'Energetic' }],
       tracks: [
         {
           path: '/a.wav',
           genres: ['House'],
           subgenres: [{ name: 'Deep House', genreName: 'House' }],
-          moods: ['Energetic'],
         },
       ],
     })
@@ -119,8 +111,7 @@ describe('importTagData', () => {
       version: 1,
       genres: [],
       subgenres: [],
-      moods: [],
-      tracks: [{ path: '/does-not-exist.wav', genres: [], subgenres: [], moods: [] }],
+      tracks: [{ path: '/does-not-exist.wav', genres: [], subgenres: [] }],
     })
 
     expect(result).toEqual({ matchedTracks: 0, skippedTracks: 1 })
@@ -139,21 +130,19 @@ describe('importTagData', () => {
       version: 1,
       genres: [{ name: 'House' }],
       subgenres: [],
-      moods: [],
-      tracks: [{ path: '/a.wav', genres: ['House'], subgenres: [], moods: [] }],
+      tracks: [{ path: '/a.wav', genres: ['House'], subgenres: [] }],
     })
 
     expect(getTrackTagIds(db, trackId).genreIds.length).toBe(2)
   })
 
-  it('reuses an existing genre/subgenre/mood by name instead of creating a duplicate', () => {
+  it('reuses an existing genre by name instead of creating a duplicate', () => {
     const houseId = createGenre(db, 'House')
 
     importTagData(db, {
       version: 1,
       genres: [{ name: 'House' }],
       subgenres: [],
-      moods: [],
       tracks: [],
     })
 
@@ -173,13 +162,11 @@ describe('importTagData', () => {
         { name: 'Deep', genreName: 'House' },
         { name: 'Deep', genreName: 'Techno' },
       ],
-      moods: [],
       tracks: [
         {
           path: '/a.wav',
           genres: [],
           subgenres: [{ name: 'Deep', genreName: 'House' }],
-          moods: [],
         },
       ],
     })

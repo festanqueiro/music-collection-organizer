@@ -24,11 +24,12 @@ export interface Track {
 // see config.ts's getColumnOrder for how a stored order missing a column
 // (e.g. one added in a later version) or containing an unknown one is
 // reconciled back against this.
-export type TrackTableColumnKey = 'title' | 'filename' | 'artist' | 'bpm' | 'musicalKey' | 'format' | 'duration'
+export type TrackTableColumnKey = 'title' | 'filename' | 'artist' | 'tags' | 'bpm' | 'musicalKey' | 'format' | 'duration'
 export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = [
   'title',
   'filename',
   'artist',
+  'tags',
   'bpm',
   'musicalKey',
   'format',
@@ -38,17 +39,17 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
 export interface Genre {
   id: number
   name: string
+  // Hex color (e.g. "#3b82f6") set via the Tag Tree view's right-click
+  // menu — null until the user picks one, in which case the UI falls back
+  // to a default swatch. Shared by every subgenre under it (subgenres
+  // don't have their own color).
+  color: string | null
 }
 
 export interface Subgenre {
   id: number
   name: string
   genreId: number
-}
-
-export interface Mood {
-  id: number
-  name: string
 }
 
 export interface BackupInfo {
@@ -73,6 +74,12 @@ export interface GenreDeletionSnapshot {
   subgenres: { name: string }[]
   trackGenreAssociations: { trackId: number }[]
   trackSubgenreAssociationsByName: Record<string, number[]>
+}
+
+export interface SubgenreDeletionSnapshot {
+  subgenreName: string
+  genreId: number
+  trackSubgenreAssociations: { trackId: number }[]
 }
 
 export type SirenMode = 'siren' | 'bomb' | 'gun' | 'laser'
@@ -131,13 +138,18 @@ export const DEFAULT_SIREN_SETTINGS: SirenSettings = {
 export interface EffectsSettings {
   delay: { enabled: boolean; timeMs: number; feedback: number; mix: number }
   reverb: { enabled: boolean; mix: number; decaySeconds: number; preDelayMs: number }
-  // A single-knob sweep filter, Xone-mixer style: position is bipolar —
-  // 0 is bypass (wide open), negative sweeps a low-pass filter closed
-  // (cutting highs), positive sweeps a high-pass filter closed (cutting
-  // lows). enabled is a hard global bypass on top of that (e.g. for a
-  // MIDI-mapped on/off button) — disabled forces the filter fully open
-  // regardless of position, without losing the dialed-in position.
-  filter: { enabled: boolean; position: number; resonance: number }
+  // Two independent, always-in-signal-path filter stages instead of one
+  // knob swept across a bipolar range — the old single-knob "position"
+  // design flipped one BiquadFilterNode between lowpass/highpass type as
+  // it crossed the center, and that type switch caused an audible level
+  // jump right at the crossover (the two filter types don't have
+  // identical passband gain right at the boundary). lowpass/highpass are
+  // each 0 (fully open, inaudible) .. 1 (fully closed) and never change
+  // the node's type, so there's no crossover to click at. enabled is a
+  // hard global bypass on top of both (e.g. a MIDI-mapped on/off button)
+  // — disabled forces both fully open without losing the dialed-in
+  // amounts.
+  filter: { enabled: boolean; lowpass: number; highpass: number; resonance: number }
   // Standard 3-band channel-strip EQ, dB gain per band (-12..+12, 0 flat).
   // enabled is a hard bypass on top, same convention as filter.enabled —
   // forces all three bands flat without losing the dialed-in gains.
@@ -151,7 +163,7 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   // synthetic impulse, no pre-delay), so existing configs/behavior are
   // unchanged until someone actually touches the new controls.
   reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
-  filter: { enabled: true, position: 0, resonance: 1 },
+  filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1 },
   eq: { enabled: true, low: 0, mid: 0, high: 0 },
   siren: DEFAULT_SIREN_SETTINGS,
 }
@@ -168,7 +180,8 @@ export type MidiControlKey =
   | 'reverb.decaySeconds'
   | 'reverb.preDelayMs'
   | 'filter.enabled'
-  | 'filter.position'
+  | 'filter.lowpass'
+  | 'filter.highpass'
   | 'filter.resonance'
   | 'eq.enabled'
   | 'eq.low'

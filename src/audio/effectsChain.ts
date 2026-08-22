@@ -71,20 +71,27 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 // chained BiquadFilterNodes (lowshelf/peaking/highshelf), each just a
 // gain knob at a fixed frequency.
 //
-// filterNode sits after the fader like a mixer channel's filter knob —
-// everything downstream (the dry signal AND the delay/reverb sends) is
-// swept together, same as sweeping a real Xone-style filter with a delay
-// throw active filters the repeats too. It's a single BiquadFilterNode
-// whose type/frequency track filter.position: negative sweeps a lowpass
-// closed (cuts highs), positive sweeps a highpass closed (cuts lows), 0
-// is bypass (wide open) — see update()'s comment for the mapping.
+// lowpassNode/highpassNode sit after the fader like a mixer channel's
+// filter knobs — everything downstream (the dry signal AND the delay/
+// reverb sends) is swept together, same as sweeping a real Xone-style
+// filter with a delay throw active filters the repeats too. Two separate,
+// permanently-typed BiquadFilterNodes chained in series (lowpass then
+// highpass), each always in the signal path — filter.lowpass/highpass
+// (0..1) only move each node's own frequency, never its type. This
+// replaces an earlier single-node design that flipped one BiquadFilterNode
+// between lowpass/highpass type as a bipolar knob crossed its center,
+// which caused an audible level jump right at that crossover (the two
+// filter types don't have identical passband gain at the boundary) —
+// keeping both nodes permanently typed and always-open-by-default avoids
+// ever performing that type switch.
 export class EffectsChain {
   private context: AudioContext
   private dryGain: GainNode
   private eqLow: BiquadFilterNode
   private eqMid: BiquadFilterNode
   private eqHigh: BiquadFilterNode
-  private filterNode: BiquadFilterNode
+  private lowpassNode: BiquadFilterNode
+  private highpassNode: BiquadFilterNode
   private delayNode: DelayNode
   private delayFeedbackGain: GainNode
   private delayWetGain: GainNode
@@ -115,17 +122,21 @@ export class EffectsChain {
     this.eqLow.connect(this.eqMid)
     this.eqMid.connect(this.eqHigh)
 
-    this.filterNode = this.context.createBiquadFilter()
-    this.filterNode.type = 'lowpass'
-    this.filterNode.frequency.value = FILTER_LOWPASS_OPEN_HZ
-    this.eqHigh.connect(this.filterNode)
-    this.filterNode.connect(this.context.destination)
+    this.lowpassNode = this.context.createBiquadFilter()
+    this.lowpassNode.type = 'lowpass'
+    this.lowpassNode.frequency.value = FILTER_LOWPASS_OPEN_HZ
+    this.highpassNode = this.context.createBiquadFilter()
+    this.highpassNode.type = 'highpass'
+    this.highpassNode.frequency.value = FILTER_HIGHPASS_OPEN_HZ
+    this.eqHigh.connect(this.lowpassNode)
+    this.lowpassNode.connect(this.highpassNode)
+    this.highpassNode.connect(this.context.destination)
 
     this.delayNode = this.context.createDelay(MAX_DELAY_SECONDS)
     this.delayFeedbackGain = this.context.createGain()
     this.delayWetGain = this.context.createGain()
     this.delayWetGain.gain.value = 0
-    this.filterNode.connect(this.delayNode)
+    this.highpassNode.connect(this.delayNode)
     this.delayNode.connect(this.delayFeedbackGain)
     this.delayFeedbackGain.connect(this.delayNode)
     this.delayNode.connect(this.delayWetGain)
@@ -137,7 +148,7 @@ export class EffectsChain {
     this.convolver.buffer = createSyntheticImpulseResponse(this.context, this.lastDecaySeconds)
     this.reverbWetGain = this.context.createGain()
     this.reverbWetGain.gain.value = 0
-    this.filterNode.connect(this.preDelayNode)
+    this.highpassNode.connect(this.preDelayNode)
     this.preDelayNode.connect(this.convolver)
     this.convolver.connect(this.reverbWetGain)
     this.reverbWetGain.connect(this.context.destination)
@@ -174,32 +185,23 @@ export class EffectsChain {
     }
     this.reverbWetGain.gain.value = settings.reverb.enabled ? settings.reverb.mix : 0
 
-    // position < 0: lowpass sweeping closed (cuts highs) as it goes more
-    // negative. position > 0: highpass sweeping closed (cuts lows) as it
-    // goes more positive. position === 0: type doesn't matter, both are
-    // wide open (lowpass parked at 20kHz is equally transparent), so it's
-    // left as whatever type was already set rather than switched — no
-    // point retyping the node every time it's dead-centered. enabled is a
-    // hard bypass on top of that (a MIDI-mapped on/off button) — forces
-    // fully open without touching the dialed-in position, so re-enabling
-    // picks up right where the knob was left.
-    const { enabled, position: rawPosition, resonance } = settings.filter
-    const position = enabled ? rawPosition : 0
-    if (position < 0) {
-      this.filterNode.type = 'lowpass'
-      const t = -position // 0 (open) .. 1 (fully closed)
-      const freq = FILTER_LOWPASS_OPEN_HZ * (FILTER_LOWPASS_CLOSED_HZ / FILTER_LOWPASS_OPEN_HZ) ** t
-      this.filterNode.frequency.setTargetAtTime(freq, now, FILTER_PARAM_TAU)
-    } else if (position > 0) {
-      this.filterNode.type = 'highpass'
-      const t = position // 0 (open) .. 1 (fully closed)
-      const freq = FILTER_HIGHPASS_OPEN_HZ * (FILTER_HIGHPASS_CLOSED_HZ / FILTER_HIGHPASS_OPEN_HZ) ** t
-      this.filterNode.frequency.setTargetAtTime(freq, now, FILTER_PARAM_TAU)
-    } else {
-      const openFreq = this.filterNode.type === 'highpass' ? FILTER_HIGHPASS_OPEN_HZ : FILTER_LOWPASS_OPEN_HZ
-      this.filterNode.frequency.setTargetAtTime(openFreq, now, FILTER_PARAM_TAU)
-    }
-    this.filterNode.Q.setTargetAtTime(resonance, now, FILTER_PARAM_TAU)
+    // lowpass/highpass are each 0 (wide open, inaudible) .. 1 (fully
+    // closed) — the node's type never changes, only its frequency, so
+    // there's no crossover discontinuity between the two stages the way
+    // the old single swept node had. enabled is a hard bypass on top of
+    // both (a MIDI-mapped on/off button) — forces both fully open without
+    // touching the dialed-in amounts, so re-enabling picks up right where
+    // the knobs were left.
+    const { enabled, lowpass, highpass, resonance } = settings.filter
+    const lowpassAmount = enabled ? lowpass : 0
+    const highpassAmount = enabled ? highpass : 0
+    const lowpassFreq = FILTER_LOWPASS_OPEN_HZ * (FILTER_LOWPASS_CLOSED_HZ / FILTER_LOWPASS_OPEN_HZ) ** lowpassAmount
+    const highpassFreq =
+      FILTER_HIGHPASS_OPEN_HZ * (FILTER_HIGHPASS_CLOSED_HZ / FILTER_HIGHPASS_OPEN_HZ) ** highpassAmount
+    this.lowpassNode.frequency.setTargetAtTime(lowpassFreq, now, FILTER_PARAM_TAU)
+    this.highpassNode.frequency.setTargetAtTime(highpassFreq, now, FILTER_PARAM_TAU)
+    this.lowpassNode.Q.setTargetAtTime(resonance, now, FILTER_PARAM_TAU)
+    this.highpassNode.Q.setTargetAtTime(resonance, now, FILTER_PARAM_TAU)
   }
 
   setVolume(value: number): void {

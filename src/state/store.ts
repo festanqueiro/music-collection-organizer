@@ -4,9 +4,9 @@ import type {
   Track,
   Genre,
   Subgenre,
-  Mood,
   ImportResult,
   GenreDeletionSnapshot,
+  SubgenreDeletionSnapshot,
   EffectsSettings,
   MidiMappings,
   MidiControlKey,
@@ -109,10 +109,10 @@ interface CollectionState {
   tracks: Track[]
   genres: Genre[]
   subgenres: Subgenre[]
-  moods: Mood[]
   trackTags: Map<number, TrackTagIds>
   checkedTrackIds: Set<number>
   pendingGenreDeletion: { snapshot: GenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
+  pendingSubgenreDeletion: { snapshot: SubgenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
   playlist: number[]
   continuousPlay: boolean
   playerExpanded: boolean
@@ -183,21 +183,25 @@ interface CollectionState {
   refreshTracks: () => Promise<void>
   setTrackGenres: (trackId: number, genreIds: number[]) => Promise<void>
   setTrackSubgenres: (trackId: number, subgenreIds: number[]) => Promise<void>
-  setTrackMoods: (trackId: number, moodIds: number[]) => Promise<void>
   setSearchText: (text: string) => void
   runScan: () => Promise<void>
   runAnalysis: (trackIds?: number[]) => Promise<void>
   stopAnalysis: () => Promise<void>
   createGenre: (name: string) => Promise<void>
   createSubgenre: (name: string, genreId: number) => Promise<void>
-  createMood: (name: string) => Promise<void>
+  renameGenre: (genreId: number, name: string) => Promise<void>
+  renameSubgenre: (subgenreId: number, name: string) => Promise<void>
+  setGenreColor: (genreId: number, color: string | null) => Promise<void>
   deleteGenre: (genreId: number) => Promise<void>
   undoGenreDeletion: () => Promise<void>
   dismissGenreDeletionUndo: () => void
+  deleteSubgenre: (subgenreId: number) => Promise<void>
+  undoSubgenreDeletion: () => Promise<void>
+  dismissSubgenreDeletionUndo: () => void
   toggleTrackChecked: (trackId: number) => void
   setTracksChecked: (trackIds: number[], checked: boolean) => void
   clearCheckedTracks: () => void
-  addTagsToCheckedTracks: (tagIds: { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }) => Promise<void>
+  addTagsToCheckedTracks: (tagIds: { genreIds: number[]; subgenreIds: number[] }) => Promise<void>
   exportTagData: () => Promise<{ path: string } | null>
   importTagData: () => Promise<ImportResult | null>
 }
@@ -206,10 +210,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   tracks: [],
   genres: [],
   subgenres: [],
-  moods: [],
   trackTags: new Map(),
   checkedTrackIds: new Set(),
   pendingGenreDeletion: null,
+  pendingSubgenreDeletion: null,
   playlist: [],
   continuousPlay: true,
   playerExpanded: false,
@@ -434,8 +438,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         ...effectsSettings,
         filter: { ...effectsSettings.filter, enabled: !effectsSettings.filter.enabled },
       })
-    } else if (match === 'filter.position') {
-      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, position: scaled } })
+    } else if (match === 'filter.lowpass') {
+      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, lowpass: scaled } })
+    } else if (match === 'filter.highpass') {
+      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, highpass: scaled } })
     } else if (match === 'filter.resonance') {
       get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, resonance: scaled } })
     } else if (match === 'eq.enabled') {
@@ -514,15 +520,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   loadAll: async () => {
-    const [tracks, genres, subgenres, moods, tagIdRows] = await Promise.all([
+    const [tracks, genres, subgenres, tagIdRows] = await Promise.all([
       window.api.getTracks(),
       window.api.getGenres(),
       window.api.getSubgenres(),
-      window.api.getMoods(),
       window.api.getAllTagIds(),
     ])
     const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
-    set({ tracks, genres, subgenres, moods, trackTags, checkedTrackIds: new Set() })
+    set({ tracks, genres, subgenres, trackTags, checkedTrackIds: new Set() })
   },
 
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
@@ -590,11 +595,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     setTrackTags(set, get, updated)
   },
 
-  setTrackMoods: async (trackId, moodIds) => {
-    const updated = await window.api.setTrackMoods(trackId, moodIds)
-    setTrackTags(set, get, updated)
-  },
-
   setSearchText: (text) => set({ searchText: text, checkedTrackIds: new Set() }),
 
   runScan: async () => {
@@ -625,9 +625,20 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     await get().loadAll()
   },
 
-  createMood: async (name) => {
+  renameGenre: async (genreId, name) => {
     if (!name.trim()) return
-    await window.api.createMood(name.trim())
+    await window.api.renameGenre(genreId, name.trim())
+    await get().loadAll()
+  },
+
+  renameSubgenre: async (subgenreId, name) => {
+    if (!name.trim()) return
+    await window.api.renameSubgenre(subgenreId, name.trim())
+    await get().loadAll()
+  },
+
+  setGenreColor: async (genreId, color) => {
+    await window.api.setGenreColor(genreId, color)
     await get().loadAll()
   },
 
@@ -660,6 +671,35 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ pendingGenreDeletion: null })
   },
 
+  deleteSubgenre: async (subgenreId) => {
+    const snapshot = await window.api.deleteSubgenre(subgenreId)
+    await get().loadAll()
+    const prev = get().pendingSubgenreDeletion
+    if (prev) clearTimeout(prev.timeoutId)
+    const timeoutId = setTimeout(() => set({ pendingSubgenreDeletion: null }), 8000)
+    set({ pendingSubgenreDeletion: { snapshot, timeoutId } })
+  },
+
+  undoSubgenreDeletion: async () => {
+    const pending = get().pendingSubgenreDeletion
+    if (!pending) return
+    clearTimeout(pending.timeoutId)
+    try {
+      await window.api.undoDeleteSubgenre(pending.snapshot)
+      set({ pendingSubgenreDeletion: null })
+      await get().loadAll()
+    } catch (err) {
+      console.error('undo subgenre deletion failed', err)
+      set({ pendingSubgenreDeletion: null })
+    }
+  },
+
+  dismissSubgenreDeletionUndo: () => {
+    const pending = get().pendingSubgenreDeletion
+    if (pending) clearTimeout(pending.timeoutId)
+    set({ pendingSubgenreDeletion: null })
+  },
+
   toggleTrackChecked: (trackId) => {
     const next = new Set(get().checkedTrackIds)
     if (next.has(trackId)) next.delete(trackId)
@@ -678,7 +718,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   clearCheckedTracks: () => set({ checkedTrackIds: new Set() }),
 
-  addTagsToCheckedTracks: async (tagIds) => {
+  addTagsToCheckedTracks: async (tagIds: { genreIds: number[]; subgenreIds: number[] }) => {
     const trackIds = Array.from(get().checkedTrackIds)
     if (trackIds.length === 0) return
     const updated = await window.api.batchAddTags(trackIds, tagIds)

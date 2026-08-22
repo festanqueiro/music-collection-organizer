@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS tracks (
 
 CREATE TABLE IF NOT EXISTS genres (
   id INTEGER PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL
+  name TEXT UNIQUE NOT NULL,
+  color TEXT
 );
 
 CREATE TABLE IF NOT EXISTS subgenres (
@@ -74,11 +75,18 @@ export function openDatabase(path: string): AppDatabase {
 // This adds any columns older local databases are missing, so schema
 // changes don't require deleting your collection.db.
 function migrate(db: AppDatabase): void {
-  const columns = db.prepare('PRAGMA table_info(tracks)').all() as { name: string }[]
-  const columnNames = new Set(columns.map((c) => c.name))
+  const trackColumns = db.prepare('PRAGMA table_info(tracks)').all() as { name: string }[]
+  const trackColumnNames = new Set(trackColumns.map((c) => c.name))
 
-  if (!columnNames.has('present')) {
+  if (!trackColumnNames.has('present')) {
     db.exec('ALTER TABLE tracks ADD COLUMN present INTEGER NOT NULL DEFAULT 1')
+  }
+
+  const genreColumns = db.prepare('PRAGMA table_info(genres)').all() as { name: string }[]
+  const genreColumnNames = new Set(genreColumns.map((c) => c.name))
+
+  if (!genreColumnNames.has('color')) {
+    db.exec('ALTER TABLE genres ADD COLUMN color TEXT')
   }
 }
 

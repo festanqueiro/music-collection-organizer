@@ -1,14 +1,12 @@
 export interface TagFilterState {
   genreIds: Set<number>
   subgenreIds: Set<number>
-  moodIds: Set<number>
 }
 
 export interface TrackTagIds {
   trackId: number
   genreIds: number[]
   subgenreIds: number[]
-  moodIds: number[]
 }
 
 export function matchesTagFilter(
@@ -17,7 +15,6 @@ export function matchesTagFilter(
   subgenreIdsByGenreId: Map<number, number[]>
 ): boolean {
   const genreBranchActive = filter.genreIds.size > 0 || filter.subgenreIds.size > 0
-  const moodBranchActive = filter.moodIds.size > 0
 
   if (genreBranchActive) {
     const directGenreMatch = track.genreIds.some((id) => filter.genreIds.has(id))
@@ -31,11 +28,6 @@ export function matchesTagFilter(
     )
 
     if (!directGenreMatch && !subgenreMatch) return false
-  }
-
-  if (moodBranchActive) {
-    const moodMatch = track.moodIds.some((id) => filter.moodIds.has(id))
-    if (!moodMatch) return false
   }
 
   return true
