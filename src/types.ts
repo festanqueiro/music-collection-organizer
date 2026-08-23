@@ -150,7 +150,7 @@ export interface EffectsSettings {
   // — disabled forces both fully open without losing the dialed-in
   // amounts.
   filter: { enabled: boolean; lowpass: number; highpass: number; resonance: number }
-  // Standard 3-band channel-strip EQ, dB gain per band (-12..+12, 0 flat).
+  // Standard 3-band channel-strip EQ, dB gain per band (-24..+24, 0 flat).
   // enabled is a hard bypass on top, same convention as filter.enabled —
   // forces all three bands flat without losing the dialed-in gains.
   eq: { enabled: boolean; low: number; mid: number; high: number }
