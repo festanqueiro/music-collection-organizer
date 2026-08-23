@@ -336,15 +336,18 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     return (db.prepare('SELECT * FROM tracks WHERE present = 1').all() as unknown as TrackRow[]).map(rowToTrack)
   })
 
+  // COLLATE NOCASE so the Tag Tree/pickers/selects (everything reads
+  // through these two handlers) list tags A-Z regardless of case, rather
+  // than in whatever order they happened to get created.
   ipcMain.handle('tags:getGenres', (): Genre[] =>
-    (db.prepare('SELECT * FROM genres').all() as unknown as GenreRow[]).map((r) => ({
+    (db.prepare('SELECT * FROM genres ORDER BY name COLLATE NOCASE').all() as unknown as GenreRow[]).map((r) => ({
       id: r.id,
       name: r.name,
       color: r.color,
     }))
   )
   ipcMain.handle('tags:getSubgenres', (): Subgenre[] =>
-    (db.prepare('SELECT * FROM subgenres').all() as unknown as SubgenreRow[]).map((r) => ({
+    (db.prepare('SELECT * FROM subgenres ORDER BY name COLLATE NOCASE').all() as unknown as SubgenreRow[]).map((r) => ({
       id: r.id,
       name: r.name,
       genreId: r.genre_id,

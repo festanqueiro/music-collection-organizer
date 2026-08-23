@@ -103,7 +103,7 @@ export function TrackTable({
       .map((id) => subgenresById.get(id))
       .filter((sg): sg is NonNullable<typeof sg> => !!sg)
       .map((sg) => ({ name: sg.name, color: genresById.get(sg.genreId)?.color ?? null }))
-    return [...genreNames, ...subgenreNames]
+    return [...genreNames, ...subgenreNames].sort((a, b) => a.name.localeCompare(b.name))
   }
 
   // 'tags' has no matching field on Track (it's derived from trackTags),
