@@ -68,7 +68,9 @@ export function SubtagTree({ onFilterChange }: { onFilterChange: (filter: (track
         <div style={{ color: 'var(--color-text-dim)', fontSize: '12px', paddingLeft: '8px' }}>No subtags yet.</div>
       )}
       {subgenres.map((sg) => {
-        const genreIds = [...(genreIdsBySubgenreId.get(sg.id) ?? [])]
+        const genreIds = [...(genreIdsBySubgenreId.get(sg.id) ?? [])].sort((a, b) =>
+          (genreNameById.get(a) ?? '').localeCompare(genreNameById.get(b) ?? '')
+        )
         const isExpanded = expandedSubgenreId === sg.id
         const isSelected = selection?.subgenreId === sg.id && selection.genreId == null
         return (
