@@ -198,6 +198,20 @@ export class DubSirenEngine {
     if (this.context.state === 'suspended') this.context.resume().catch(() => {})
   }
 
+  // Same output-device routing as EffectsChain.setSinkId — the siren is
+  // its own separate AudioContext, so it needs this applied independently
+  // or it would keep playing through the system default even after the
+  // track's own audio moved to a chosen interface.
+  async setSinkId(deviceId: string | null): Promise<void> {
+    const context = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> }
+    if (typeof context.setSinkId !== 'function') return
+    try {
+      await context.setSinkId(deviceId ?? '')
+    } catch (err) {
+      console.error('failed to set siren audio output device', err)
+    }
+  }
+
   close(): void {
     this.stopGunRetrigger()
     this.stopBeatScheduler()

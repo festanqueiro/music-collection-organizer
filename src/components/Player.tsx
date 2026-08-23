@@ -31,6 +31,7 @@ export function Player({ track }: { track: Track }) {
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const playerVolume = useCollectionStore((s) => s.playerVolume)
+  const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
   const continuousPlay = useCollectionStore((s) => s.continuousPlay)
   const advanceToNext = useCollectionStore((s) => s.advanceToNext)
@@ -151,6 +152,14 @@ export function Player({ track }: { track: Track }) {
   useEffect(() => {
     effectsChainRef.current?.setVolume(playerVolume)
   }, [playerVolume])
+
+  // Same store-driven pattern as playerVolume above, for the chosen audio
+  // output device — also runs on mount (Player remounts fresh per track,
+  // so a newly created EffectsChain otherwise defaults to the system
+  // output until this fires).
+  useEffect(() => {
+    effectsChainRef.current?.setSinkId(audioOutputDeviceId)
+  }, [audioOutputDeviceId])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

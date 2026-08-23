@@ -181,14 +181,25 @@ function createWindow(onShown?: () => void): void {
 // receives sysex (only Control Change messages for knob mapping) — it's
 // what the permission model in this version requires for
 // requestMIDIAccess() to succeed at all. Everything else is explicitly
-// denied, since this app has no other use for camera/mic/geolocation/
+// denied, since this app has no other use for camera/geolocation/
 // notifications/etc. Both handler types are set because Chromium checks
 // some permission-gated APIs via a synchronous check
 // (setPermissionCheckHandler) and others via the asynchronous
 // prompt-style request (setPermissionRequestHandler), depending on the
 // API.
+//
+// 'media' (grouped mic+camera in Electron's permission model — there's
+// no way to grant audio-only here) is also allowed: enumerateDevices()
+// only returns real output device labels (vs. blank strings) once the
+// page has an active/previously-granted getUserMedia() permission of any
+// kind, per browser privacy design — SettingsModal's audio output device
+// picker briefly opens (and immediately closes) a mic stream purely to
+// unlock those labels for the *output* device list; the mic itself is
+// never read from. macOS's own system privacy prompt still gates this
+// once regardless of this grant — this only lets the request reach that
+// OS-level check instead of being silently blocked before it does.
 function registerPermissionHandlers(): void {
-  const grantedPermissions = new Set(['midi', 'midiSysex'])
+  const grantedPermissions = new Set(['midi', 'midiSysex', 'media'])
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(grantedPermissions.has(permission))
   })

@@ -231,6 +231,24 @@ export class EffectsChain {
     this.dryGain.gain.value = value
   }
 
+  // Routes this context's output to a specific Core Audio device (an
+  // audio interface, say) instead of the system default — AudioContext.
+  // setSinkId() is a fairly recent addition (Chrome 110+/this Electron's
+  // Chromium), so it's feature-detected rather than assumed; null means
+  // "system default", passed through as '' per the spec. Best-effort: a
+  // device that's since been unplugged rejects, which shouldn't crash
+  // playback — the context just keeps outputting to wherever it already
+  // was.
+  async setSinkId(deviceId: string | null): Promise<void> {
+    const context = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> }
+    if (typeof context.setSinkId !== 'function') return
+    try {
+      await context.setSinkId(deviceId ?? '')
+    } catch (err) {
+      console.error('failed to set audio output device', err)
+    }
+  }
+
   // AudioContexts start suspended until a user gesture resumes them — call
   // this from the same click handler that starts playback.
   resume(): void {

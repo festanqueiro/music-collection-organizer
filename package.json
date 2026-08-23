@@ -28,7 +28,10 @@
     "mac": {
       "target": "dir",
       "identity": null,
-      "icon": "resources/icon.png"
+      "icon": "resources/icon.png",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Used only once, briefly, to unlock real audio device names when picking an audio output device in Settings — the microphone itself is never read from."
+      }
     }
   },
   "devDependencies": {

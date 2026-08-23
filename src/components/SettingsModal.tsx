@@ -11,6 +11,13 @@ function parseBackupTimestamp(timestamp: string): Date {
   return new Date(iso)
 }
 
+type SettingsTab = 'general' | 'audio' | 'backups'
+const SETTINGS_TABS: { key: SettingsTab; label: string }[] = [
+  { key: 'general', label: 'General' },
+  { key: 'audio', label: 'Audio' },
+  { key: 'backups', label: 'Backups' },
+]
+
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
@@ -21,6 +28,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
   const [dbFilePath, setDbFilePath] = useState<string | null>(null)
   const [backingUp, setBackingUp] = useState(false)
+  const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
+  const setAudioOutputDeviceId = useCollectionStore((s) => s.setAudioOutputDeviceId)
+  const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([])
+  const [audioDevicesError, setAudioDevicesError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
 
   useEffect(() => {
     if (open) {
@@ -29,6 +41,44 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       window.api.getDbFilePath().then(setDbFilePath)
     }
   }, [open])
+
+  // Device *labels* only come back non-blank once the page holds (or has
+  // held) an active getUserMedia() permission of some kind — a browser
+  // privacy measure that isn't specific to microphones, but there's no
+  // "grant output-device-labels-only" permission to ask for instead. This
+  // briefly opens a mic stream purely to unlock those labels, then
+  // immediately stops it — the mic itself is never read from. Falls back
+  // to unlabeled entries (still fully usable, just less readable) if the
+  // permission is denied rather than blocking the picker entirely.
+  useEffect(() => {
+    // Only requested once the Audio tab is actually opened, not just
+    // whenever Settings opens at all — a user who only ever looks at
+    // Backups/Tags shouldn't see a mic-permission prompt they never asked
+    // for.
+    if (!open || activeTab !== 'audio') return
+    let cancelled = false
+    async function loadDevices() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((t) => t.stop())
+      } catch (err) {
+        console.error('microphone permission (for output device labels) denied', err)
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        if (cancelled) return
+        setAudioOutputDevices(devices.filter((d) => d.kind === 'audiooutput'))
+        setAudioDevicesError(null)
+      } catch (err) {
+        if (!cancelled) setAudioDevicesError('Could not list audio output devices.')
+        console.error('enumerateDevices failed', err)
+      }
+    }
+    loadDevices()
+    return () => {
+      cancelled = true
+    }
+  }, [open, activeTab])
 
   useEffect(() => {
     if (!open) return
@@ -71,132 +121,186 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           </button>
         </div>
 
-        <section style={{ marginBottom: '20px' }}>
-          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Collection folder</h3>
-          <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{collectionFolder ?? 'Not set'}</p>
-          <button
-            onClick={async () => {
-              const changed = await pickCollectionFolder()
-              if (changed) onClose()
-            }}
-          >
-            Change…
-          </button>
-        </section>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px' }}>
+          {SETTINGS_TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                border: activeTab === tab.key ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                color: activeTab === tab.key ? 'var(--color-accent)' : undefined,
+              }}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        <section style={{ marginBottom: '20px' }}>
-          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Database &amp; settings</h3>
-          <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{dbFilePath ?? 'Loading…'}</p>
-          <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-            The first time you set a collection folder, this moves inside it automatically. Backups always target
-            wherever it currently lives, so restoring stays safe after a move.
-          </p>
-          <button
-            onClick={async () => {
-              if (
-                window.confirm(
-                  'Move the database and settings to a new folder? The old copy is left in place, and the app will restart.'
-                )
-              ) {
-                await window.api.chooseDbLocation()
-              }
-            }}
-          >
-            Change…
-          </button>
-        </section>
+        {activeTab === 'general' && (
+          <>
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Collection folder</h3>
+              <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{collectionFolder ?? 'Not set'}</p>
+              <button
+                onClick={async () => {
+                  const changed = await pickCollectionFolder()
+                  if (changed) onClose()
+                }}
+              >
+                Change…
+              </button>
+            </section>
 
-        <section>
-          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Backups</h3>
-          {backupInfo ? (
-            <>
-              <p style={{ margin: '0 0 4px', wordBreak: 'break-all' }}>{backupInfo.backupFolder}</p>
-              <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                Last backup:{' '}
-                {backupInfo.lastBackupAt ? new Date(backupInfo.lastBackupAt).toLocaleString() : 'Never yet'}
+            <section>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Database &amp; settings</h3>
+              <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{dbFilePath ?? 'Loading…'}</p>
+              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                The first time you set a collection folder, this moves inside it automatically. Backups always
+                target wherever it currently lives, so restoring stays safe after a move.
               </p>
-              {backupInfo.lastBackupError && (
-                <p style={{ margin: '4px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
-                  ⚠ Last backup failed: {backupInfo.lastBackupError}
-                </p>
-              )}
-            </>
-          ) : (
-            <p style={{ margin: 0, color: 'var(--color-text-dim)' }}>Loading…</p>
-          )}
-          <button
-            style={{ marginTop: '8px' }}
-            disabled={backingUp}
-            onClick={async () => {
-              setBackingUp(true)
-              try {
-                await window.api.runBackupNow()
-                setBackupInfo(await window.api.getBackupInfo())
-                setBackups(await window.api.listBackups())
-              } finally {
-                setBackingUp(false)
-              }
-            }}
-          >
-            {backingUp ? 'Backing up…' : 'Back up now'}
-          </button>
-        </section>
+              <button
+                onClick={async () => {
+                  if (
+                    window.confirm(
+                      'Move the database and settings to a new folder? The old copy is left in place, and the app will restart.'
+                    )
+                  ) {
+                    await window.api.chooseDbLocation()
+                  }
+                }}
+              >
+                Change…
+              </button>
+            </section>
+          </>
+        )}
 
-        <section style={{ marginTop: '20px' }}>
-          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Restore</h3>
-          {backups.length === 0 ? (
-            <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '12px' }}>No backups yet.</p>
-          ) : (
-            <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
-              {backups.map((entry) => (
-                <div
-                  key={entry.timestamp}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}
-                >
-                  <span style={{ fontSize: '12px' }}>{parseBackupTimestamp(entry.timestamp).toLocaleString()}</span>
-                  <button
-                    onClick={async () => {
-                      if (
-                        window.confirm(
-                          'Restore this backup? This overwrites the current collection and config, then relaunches the app.'
-                        )
-                      ) {
-                        await window.api.restoreBackup(entry.timestamp)
-                      }
-                    }}
-                  >
-                    Restore
-                  </button>
-                </div>
+        {activeTab === 'audio' && (
+          <section>
+            <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Audio Output</h3>
+            <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+              Route playback to a specific audio interface instead of the system default — applies to both track
+              playback and the Dub Siren.
+            </p>
+            <select
+              value={audioOutputDeviceId ?? ''}
+              onChange={(e) => setAudioOutputDeviceId(e.target.value || null)}
+            >
+              <option value="">System default</option>
+              {audioOutputDevices.map((d, i) => (
+                <option key={d.deviceId} value={d.deviceId}>
+                  {d.label || `Audio output ${i + 1}`}
+                </option>
               ))}
-            </div>
-          )}
-        </section>
+            </select>
+            {audioDevicesError && (
+              <p style={{ margin: '8px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
+                {audioDevicesError}
+              </p>
+            )}
+          </section>
+        )}
 
-        <section style={{ marginTop: '20px' }}>
-          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Tag data</h3>
-          <button
-            onClick={async () => {
-              const result = await exportTagData()
-              setTagDataMessage(result ? `Exported to ${result.path}` : null)
-            }}
-          >
-            Export…
-          </button>{' '}
-          <button
-            onClick={async () => {
-              const result = await importTagData()
-              setTagDataMessage(
-                result ? `Imported: ${result.matchedTracks} matched, ${result.skippedTracks} skipped` : null
-              )
-            }}
-          >
-            Import…
-          </button>
-          {tagDataMessage && (
-            <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{tagDataMessage}</p>
-          )}
-        </section>
+        {activeTab === 'backups' && (
+          <>
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Backups</h3>
+              {backupInfo ? (
+                <>
+                  <p style={{ margin: '0 0 4px', wordBreak: 'break-all' }}>{backupInfo.backupFolder}</p>
+                  <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                    Last backup:{' '}
+                    {backupInfo.lastBackupAt ? new Date(backupInfo.lastBackupAt).toLocaleString() : 'Never yet'}
+                  </p>
+                  {backupInfo.lastBackupError && (
+                    <p style={{ margin: '4px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
+                      ⚠ Last backup failed: {backupInfo.lastBackupError}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p style={{ margin: 0, color: 'var(--color-text-dim)' }}>Loading…</p>
+              )}
+              <button
+                style={{ marginTop: '8px' }}
+                disabled={backingUp}
+                onClick={async () => {
+                  setBackingUp(true)
+                  try {
+                    await window.api.runBackupNow()
+                    setBackupInfo(await window.api.getBackupInfo())
+                    setBackups(await window.api.listBackups())
+                  } finally {
+                    setBackingUp(false)
+                  }
+                }}
+              >
+                {backingUp ? 'Backing up…' : 'Back up now'}
+              </button>
+            </section>
+
+            <section>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Restore</h3>
+              {backups.length === 0 ? (
+                <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '12px' }}>No backups yet.</p>
+              ) : (
+                <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                  {backups.map((entry) => (
+                    <div
+                      key={entry.timestamp}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        marginBottom: '4px',
+                      }}
+                    >
+                      <span style={{ fontSize: '12px' }}>{parseBackupTimestamp(entry.timestamp).toLocaleString()}</span>
+                      <button
+                        onClick={async () => {
+                          if (
+                            window.confirm(
+                              'Restore this backup? This overwrites the current collection and config, then relaunches the app.'
+                            )
+                          ) {
+                            await window.api.restoreBackup(entry.timestamp)
+                          }
+                        }}
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section style={{ marginTop: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Tag data</h3>
+              <button
+                onClick={async () => {
+                  const result = await exportTagData()
+                  setTagDataMessage(result ? `Exported to ${result.path}` : null)
+                }}
+              >
+                Export…
+              </button>{' '}
+              <button
+                onClick={async () => {
+                  const result = await importTagData()
+                  setTagDataMessage(
+                    result ? `Imported: ${result.matchedTracks} matched, ${result.skippedTracks} skipped` : null
+                  )
+                }}
+              >
+                Import…
+              </button>
+              {tagDataMessage && (
+                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{tagDataMessage}</p>
+              )}
+            </section>
+          </>
+        )}
       </div>
     </div>
   )

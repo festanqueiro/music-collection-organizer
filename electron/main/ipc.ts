@@ -17,6 +17,8 @@ import {
   setColumnOrder,
   getSortState,
   setSortState,
+  getAudioOutputDeviceId,
+  setAudioOutputDeviceId,
 } from './config'
 import { getDataFolder, setDataFolder } from './bootstrap'
 import { getDbFilePath } from './dbPath'
@@ -158,6 +160,11 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
   ipcMain.handle('config:getSortState', (): TrackTableSortState => getSortState())
   ipcMain.handle('config:setSortState', (_e, state: TrackTableSortState): void => setSortState(state))
+
+  ipcMain.handle('config:getAudioOutputDeviceId', (): string | null => getAudioOutputDeviceId())
+  ipcMain.handle('config:setAudioOutputDeviceId', (_e, deviceId: string | null): void =>
+    setAudioOutputDeviceId(deviceId)
+  )
 
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({
     backupFolder,

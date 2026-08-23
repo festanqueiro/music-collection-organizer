@@ -30,6 +30,9 @@ const api = {
     ipcRenderer.invoke('config:setColumnOrder', order),
   getSortState: (): Promise<TrackTableSortState> => ipcRenderer.invoke('config:getSortState'),
   setSortState: (state: TrackTableSortState): Promise<void> => ipcRenderer.invoke('config:setSortState', state),
+  getAudioOutputDeviceId: (): Promise<string | null> => ipcRenderer.invoke('config:getAudioOutputDeviceId'),
+  setAudioOutputDeviceId: (deviceId: string | null): Promise<void> =>
+    ipcRenderer.invoke('config:setAudioOutputDeviceId', deviceId),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
   willRelocateOnNextCollectionFolderPick: (): Promise<boolean> =>
     ipcRenderer.invoke('config:willRelocateOnNextCollectionFolderPick'),
