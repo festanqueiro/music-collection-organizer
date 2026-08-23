@@ -341,9 +341,18 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }
 
     const mappings = get().midiMappings
+    // kind must match too, not just channel+controller — Note and CC
+    // messages occupy independent number spaces on real hardware (Note 25
+    // and CC 25 are unrelated), so a Note-mapped control and a CC-mapped
+    // control can legitimately share the same controller number without
+    // being the same physical button. Ignoring kind here meant a Note
+    // press could match whichever CC-bound control happened to iterate
+    // first instead of the Note-bound control it was actually meant for —
+    // e.g. a "Play Next" pad (Note 25) got treated as a filter.highpass
+    // (CC 25) knob move and silently never advanced the queue.
     const match = (Object.keys(mappings) as MidiControlKey[]).find((key) => {
       const binding = mappings[key]
-      return binding && binding.channel === channel && binding.controller === controller
+      return binding && binding.channel === channel && binding.controller === controller && (binding.kind ?? 'cc') === kind
     })
     if (!match) return
 
