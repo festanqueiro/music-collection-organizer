@@ -587,6 +587,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         const es = get().effectsSettings
         get().setEffectsSettings({ ...es, filter: { ...es.filter, resonance: scaled } })
       })
+    } else if (match === 'filter.mix') {
+      scheduleMidiCommit('filter.mix', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, filter: { ...es.filter, mix: scaled } })
+      })
     } else if (match === 'eq.enabled') {
       if (value === 0) return
       get().setEffectsSettings({

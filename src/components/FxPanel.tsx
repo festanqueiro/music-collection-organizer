@@ -237,6 +237,17 @@ export function FxPanel({ track }: { track: Track | null }) {
         </div>
         <div style={knobRowStyle}>
           <KnobField
+            label="Mix"
+            control="filter.mix"
+            value={effectsSettings.filter.mix}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateFilter({ mix: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.filter.mix}
+            formatValue={(v) => v.toFixed(2)}
+          />
+          <KnobField
             label="LP"
             control="filter.lowpass"
             value={effectsSettings.filter.lowpass}

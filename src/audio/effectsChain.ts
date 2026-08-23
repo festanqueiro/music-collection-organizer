@@ -59,11 +59,11 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 // them keeps decaying on its own after the input goes silent — it just
 // can't be topped up with fresh signal anymore.
 //
-//              ┌─> eqLow -> eqMid -> eqHigh ─> eqWetGain ─┐                  ┌─────────────────────────────────────────┐
-// source ──> dryGain ┤                                    ├─> lowpassNode -> highpassNode ──┼─> delayNode <-> feedbackGain ├─> destination
-//              └───────────────────────────> eqDryGain ───┘                                   │      └────────> delayWetGain ─┤
-//                                                                                              ├─> preDelayNode ─> convolver ─> reverbWetGain ┤
-//                                                                                              └────────────────────────────────────────────┘
+//              ┌─> eqLow -> eqMid -> eqHigh ─> eqWetGain ─┐    ┌─> lowpassNode -> highpassNode -> filterWetGain ─┐                  ┌─────────────────────────────────────────┐
+// source ──> dryGain ┤                                    ├──> ┤                                                 ├─> delayNode <-> feedbackGain ├─> destination
+//              └───────────────────────────> eqDryGain ───┘    └────────────────────────────────> filterDryGain ─┘   │      └────────> delayWetGain ─┤
+//                                                                                                                     ├─> preDelayNode ─> convolver ─> reverbWetGain ┤
+//                                                                                                                     └────────────────────────────────────────────┘
 //
 // EQ sits right after the fader, before the filter — matching a real
 // mixer channel strip's EQ-then-filter order — so a boosted/cut band
@@ -85,7 +85,9 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 // which caused an audible level jump right at that crossover (the two
 // filter types don't have identical passband gain at the boundary) —
 // keeping both nodes permanently typed and always-open-by-default avoids
-// ever performing that type switch.
+// ever performing that type switch. filter.mix (via filterWetGain/
+// filterDryGain, fed from the EQ stage's own wet+dry outputs) blends the
+// swept signal back against the pre-filter one, same convention as eq.mix.
 export class EffectsChain {
   private context: AudioContext
   private dryGain: GainNode
@@ -96,6 +98,8 @@ export class EffectsChain {
   private eqWetGain: GainNode
   private lowpassNode: BiquadFilterNode
   private highpassNode: BiquadFilterNode
+  private filterDryGain: GainNode
+  private filterWetGain: GainNode
   private delayNode: DelayNode
   private delayFeedbackGain: GainNode
   private delayWetGain: GainNode
@@ -143,16 +147,31 @@ export class EffectsChain {
     this.highpassNode = this.context.createBiquadFilter()
     this.highpassNode.type = 'highpass'
     this.highpassNode.frequency.value = FILTER_HIGHPASS_OPEN_HZ
+    // filter.mix blends the LP/HP-processed (wet) signal back against the
+    // pre-filter (dry) one — same dry/wet convention as eq.mix above.
+    // filterDryGain/filterWetGain both fan out from the EQ stage's output
+    // (eqWetGain/eqDryGain each connect to both the wet path's entry point
+    // AND the dry tap) and land on the same downstream nodes together,
+    // which sum multiple incoming connections automatically.
+    this.filterDryGain = this.context.createGain()
+    this.filterDryGain.gain.value = 0
+    this.filterWetGain = this.context.createGain()
+    this.filterWetGain.gain.value = 1
     this.eqWetGain.connect(this.lowpassNode)
     this.eqDryGain.connect(this.lowpassNode)
+    this.eqWetGain.connect(this.filterDryGain)
+    this.eqDryGain.connect(this.filterDryGain)
     this.lowpassNode.connect(this.highpassNode)
-    this.highpassNode.connect(this.context.destination)
+    this.highpassNode.connect(this.filterWetGain)
+    this.filterWetGain.connect(this.context.destination)
+    this.filterDryGain.connect(this.context.destination)
 
     this.delayNode = this.context.createDelay(MAX_DELAY_SECONDS)
     this.delayFeedbackGain = this.context.createGain()
     this.delayWetGain = this.context.createGain()
     this.delayWetGain.gain.value = 0
-    this.highpassNode.connect(this.delayNode)
+    this.filterWetGain.connect(this.delayNode)
+    this.filterDryGain.connect(this.delayNode)
     this.delayNode.connect(this.delayFeedbackGain)
     this.delayFeedbackGain.connect(this.delayNode)
     this.delayNode.connect(this.delayWetGain)
@@ -164,7 +183,8 @@ export class EffectsChain {
     this.convolver.buffer = createSyntheticImpulseResponse(this.context, this.lastDecaySeconds)
     this.reverbWetGain = this.context.createGain()
     this.reverbWetGain.gain.value = 0
-    this.highpassNode.connect(this.preDelayNode)
+    this.filterWetGain.connect(this.preDelayNode)
+    this.filterDryGain.connect(this.preDelayNode)
     this.preDelayNode.connect(this.convolver)
     this.convolver.connect(this.reverbWetGain)
     this.reverbWetGain.connect(this.context.destination)
@@ -215,7 +235,7 @@ export class EffectsChain {
     // both (a MIDI-mapped on/off button) — forces both fully open without
     // touching the dialed-in amounts, so re-enabling picks up right where
     // the knobs were left.
-    const { enabled, lowpass, highpass, resonance } = settings.filter
+    const { enabled, lowpass, highpass, resonance, mix } = settings.filter
     const lowpassAmount = enabled ? lowpass : 0
     const highpassAmount = enabled ? highpass : 0
     const lowpassFreq = FILTER_LOWPASS_OPEN_HZ * (FILTER_LOWPASS_CLOSED_HZ / FILTER_LOWPASS_OPEN_HZ) ** lowpassAmount
@@ -225,6 +245,9 @@ export class EffectsChain {
     this.highpassNode.frequency.setTargetAtTime(highpassFreq, now, FILTER_PARAM_TAU)
     this.lowpassNode.Q.setTargetAtTime(resonance, now, FILTER_PARAM_TAU)
     this.highpassNode.Q.setTargetAtTime(resonance, now, FILTER_PARAM_TAU)
+    const filterWet = enabled ? mix : 0
+    this.filterWetGain.gain.setTargetAtTime(filterWet, now, FILTER_PARAM_TAU)
+    this.filterDryGain.gain.setTargetAtTime(1 - filterWet, now, FILTER_PARAM_TAU)
   }
 
   setVolume(value: number): void {

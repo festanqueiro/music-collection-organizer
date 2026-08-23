@@ -163,6 +163,7 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'filter.lowpass': { min: 0, max: 1 },
   'filter.highpass': { min: 0, max: 1 },
   'filter.resonance': { min: 0.7, max: 20 },
+  'filter.mix': { min: 0, max: 1 },
   'eq.enabled': { min: 0, max: 1 },
   'eq.low': { min: -24, max: 24 },
   'eq.mid': { min: -24, max: 24 },
