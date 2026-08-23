@@ -88,3 +88,54 @@ describe('handleMidiControlChange — delay.division (discrete, not a persisted 
     expect(() => useCollectionStore.getState().handleMidiControlChange(2, 7, 64, 'cc')).not.toThrow()
   })
 })
+
+describe('handleMidiControlChange — player.playPause/playNext', () => {
+  beforeEach(() => {
+    useCollectionStore.setState({
+      midiMappings: {},
+      midiLearningControl: null,
+      playbackControls: null,
+    })
+  })
+
+  it('learning player.playPause onto a physical button removes a stale mapping already on that same button', () => {
+    // Simulates a button that was previously (mis)learned for playNext,
+    // then re-learned for playPause without explicitly unbinding the old
+    // one first — before the fix, both mappings pointed at channel 0/
+    // controller 10, and the lookup in handleMidiControlChange picked
+    // whichever key it found first, so the newly learned control could
+    // silently never fire.
+    useCollectionStore.setState({
+      midiMappings: { 'player.playNext': { channel: 0, controller: 10, kind: 'note' } },
+      midiLearningControl: 'player.playPause',
+    })
+
+    useCollectionStore.getState().handleMidiControlChange(0, 10, 127, 'note')
+
+    const mappings = useCollectionStore.getState().midiMappings
+    expect(mappings['player.playPause']).toEqual({ channel: 0, controller: 10, kind: 'note' })
+    expect(mappings['player.playNext']).toBeUndefined()
+  })
+
+  it('toggles playback on a press and ignores the release', () => {
+    const toggle = vi.fn()
+    useCollectionStore.setState({
+      midiMappings: { 'player.playPause': { channel: 1, controller: 20, kind: 'note' } },
+      playbackControls: { toggle },
+    })
+
+    useCollectionStore.getState().handleMidiControlChange(1, 20, 127, 'note')
+    expect(toggle).toHaveBeenCalledTimes(1)
+
+    useCollectionStore.getState().handleMidiControlChange(1, 20, 0, 'note')
+    expect(toggle).toHaveBeenCalledTimes(1) // release is a no-op, not a second toggle
+  })
+
+  it('is a silent no-op when nothing is loaded (playbackControls is null)', () => {
+    useCollectionStore.setState({
+      midiMappings: { 'player.playPause': { channel: 1, controller: 20, kind: 'note' } },
+      playbackControls: null,
+    })
+    expect(() => useCollectionStore.getState().handleMidiControlChange(1, 20, 127, 'note')).not.toThrow()
+  })
+})
