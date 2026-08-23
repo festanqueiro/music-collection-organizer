@@ -51,14 +51,17 @@ export function TrackTable({
   const playTrackNow = useCollectionStore((s) => s.playTrackNow)
   const addToPlaylist = useCollectionStore((s) => s.addToPlaylist)
   const addManyToPlaylist = useCollectionStore((s) => s.addManyToPlaylist)
+  const showToast = useCollectionStore((s) => s.showToast)
   const playNext = useCollectionStore((s) => s.playNext)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const columnOrder = useCollectionStore((s) => s.columnOrder)
   const setColumnOrder = useCollectionStore((s) => s.setColumnOrder)
+  const sortState = useCollectionStore((s) => s.sortState)
+  const setSortState = useCollectionStore((s) => s.setSortState)
   const currentTrackId = playlist[0] ?? null
   const [draggedColumn, setDraggedColumn] = useState<TrackTableColumnKey | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>('title')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const sortKey = sortState.key
+  const sortDir = sortState.direction
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
 
   useEffect(() => {
@@ -82,10 +85,9 @@ export function TrackTable({
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      setSortState({ key, direction: sortDir === 'asc' ? 'desc' : 'asc' })
     } else {
-      setSortKey(key)
-      setSortDir('asc')
+      setSortState({ key, direction: 'asc' })
     }
   }
 
@@ -121,7 +123,8 @@ export function TrackTable({
       .filter(activeFilter)
       .filter((t) =>
         query
-          ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query))
+          ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
+            tagNamesFor(t.id).some((tag) => tag.name.toLowerCase().includes(query))
           : true
       )
       .sort((a, b) => {
@@ -130,7 +133,7 @@ export function TrackTable({
         const cmp = av < bv ? -1 : av > bv ? 1 : 0
         return sortDir === 'asc' ? cmp : -cmp
       })
-  }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir])
+  }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir, trackTags, genresById, subgenresById])
 
   // Re-analysing a track changes its BPM/Key, which can shift its sort
   // position out of the visible scroll area — clicking the track's title
@@ -146,14 +149,22 @@ export function TrackTable({
       if (modalOpen) return
       const target = e.target as HTMLElement
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) return
       if (visibleTracks.length === 0) return
       e.preventDefault()
       const currentIndex = selectedTrackId ? visibleTracks.findIndex((t) => t.id === selectedTrackId) : -1
-      const nextIndex =
-        e.key === 'ArrowDown'
-          ? Math.min(visibleTracks.length - 1, currentIndex + 1)
-          : Math.max(0, currentIndex - 1)
+      // PageUp/PageDown jump a fixed number of rows rather than measuring
+      // the actual scrollable viewport height — a reasonable approximation
+      // for "about a screen" without wiring up row-height/container
+      // measurement just for this.
+      const PAGE_SIZE = 10
+      let nextIndex = currentIndex
+      if (e.key === 'ArrowDown') nextIndex = Math.min(visibleTracks.length - 1, currentIndex + 1)
+      else if (e.key === 'ArrowUp') nextIndex = Math.max(0, currentIndex - 1)
+      else if (e.key === 'Home') nextIndex = 0
+      else if (e.key === 'End') nextIndex = visibleTracks.length - 1
+      else if (e.key === 'PageDown') nextIndex = Math.min(visibleTracks.length - 1, currentIndex + PAGE_SIZE)
+      else if (e.key === 'PageUp') nextIndex = Math.max(0, currentIndex - PAGE_SIZE)
       onSelect(visibleTracks[nextIndex])
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -289,7 +300,22 @@ export function TrackTable({
     <div style={{ overflowX: 'auto' }}>
       <div style={{ padding: '4px 8px' }}>
         <button
-          onClick={() => addManyToPlaylist(visibleTracks.map((t) => t.id))}
+          onClick={() => {
+            // Queuing dozens+ of tracks in one click is easy to trigger
+            // by accident (e.g. clicking with no folder/tag filter active
+            // queues the entire collection) and there's no bulk "clear
+            // queue" undo for a mis-click this size — a confirmation only
+            // kicks in above a threshold so the common, deliberate case
+            // (a filtered folder/tag view) stays a single click.
+            if (
+              visibleTracks.length > 50 &&
+              !window.confirm(`Add all ${visibleTracks.length} tracks to the queue?`)
+            ) {
+              return
+            }
+            addManyToPlaylist(visibleTracks.map((t) => t.id))
+            showToast(`${visibleTracks.length} track${visibleTracks.length === 1 ? '' : 's'} queued`)
+          }}
           disabled={visibleTracks.length === 0}
           style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
         >
@@ -337,6 +363,16 @@ export function TrackTable({
           </tr>
         </thead>
         <tbody>
+          {tracks.length > 0 && visibleTracks.length === 0 && (
+            <tr>
+              <td
+                colSpan={orderedColumns.length + 3}
+                style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-dim)' }}
+              >
+                No tracks match your search/filter.
+              </td>
+            </tr>
+          )}
           {visibleTracks.map((track) => (
             <tr
               key={track.id}

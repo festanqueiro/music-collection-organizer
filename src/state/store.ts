@@ -12,6 +12,7 @@ import type {
   MidiControlKey,
   MidiBinding,
   TrackTableColumnKey,
+  TrackTableSortState,
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
@@ -31,6 +32,9 @@ import {
 // onChange continuously, and writing to electron-store on every tick would
 // mean dozens of synchronous disk writes per second while dragging.
 let effectsSettingsSaveTimeout: ReturnType<typeof setTimeout> | null = null
+
+// Backs showToast's auto-dismiss below.
+let toastTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Applies a tag IPC call's returned (server-authoritative) TrackTagIds to one
 // track's entry in the trackTags map, without reloading the whole collection
@@ -121,6 +125,7 @@ interface CollectionState {
   addManyToPlaylist: (trackIds: number[]) => void
   playNext: (trackId: number) => void
   removeFromPlaylist: (index: number) => void
+  clearPlaylist: () => void
   movePlaylistItem: (fromIndex: number, toIndex: number) => void
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
@@ -165,12 +170,21 @@ interface CollectionState {
   // the FX panel button's pressed styling should reflect all of them.
   sirenTriggered: boolean
   setSirenTriggered: (triggered: boolean) => void
+  // Brief, auto-dismissing confirmation for a bulk action (batch tag,
+  // folder-wide analyse/queue) that would otherwise give zero feedback —
+  // a <select> snapping back to its placeholder or a context menu just
+  // closing looks identical to the click not registering at all.
+  toastMessage: string | null
+  showToast: (message: string) => void
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
   columnOrder: TrackTableColumnKey[]
   loadColumnOrder: () => Promise<void>
   setColumnOrder: (order: TrackTableColumnKey[]) => void
+  sortState: TrackTableSortState
+  loadSortState: () => Promise<void>
+  setSortState: (state: TrackTableSortState) => void
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -226,10 +240,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playerVolume: 1,
   playbackProgress: 0,
   sirenTriggered: false,
+  toastMessage: null,
   playbackControls: null,
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
+  sortState: { key: 'title', direction: 'asc' },
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -270,6 +286,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setSirenTriggered: (triggered) => set({ sirenTriggered: triggered }),
 
+  showToast: (message) => {
+    if (toastTimeout) clearTimeout(toastTimeout)
+    set({ toastMessage: message })
+    toastTimeout = setTimeout(() => set({ toastMessage: null }), 3000)
+  },
+
   setPlaybackControls: (controls) => set({ playbackControls: controls }),
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
@@ -286,6 +308,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setColumnOrder: (order) => {
     set({ columnOrder: order })
     window.api.setColumnOrder(order).catch((err) => console.error('failed to save column order', err))
+  },
+
+  loadSortState: async () => {
+    const state = await window.api.getSortState()
+    set({ sortState: state })
+  },
+
+  setSortState: (state) => {
+    set({ sortState: state })
+    window.api.setSortState(state).catch((err) => console.error('failed to save sort state', err))
   },
 
   startMidiLearn: (control) => set({ midiLearningControl: control }),
@@ -588,6 +620,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   removeFromPlaylist: (index) => set({ playlist: removeFromPlaylistPure(get().playlist, index) }),
+
+  clearPlaylist: () => set({ playlist: [] }),
 
   movePlaylistItem: (fromIndex, toIndex) =>
     set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),

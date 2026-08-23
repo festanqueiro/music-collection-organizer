@@ -11,6 +11,7 @@ import type {
   EffectsSettings,
   MidiMappings,
   TrackTableColumnKey,
+  TrackTableSortState,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
@@ -27,6 +28,8 @@ const api = {
   getColumnOrder: (): Promise<TrackTableColumnKey[]> => ipcRenderer.invoke('config:getColumnOrder'),
   setColumnOrder: (order: TrackTableColumnKey[]): Promise<void> =>
     ipcRenderer.invoke('config:setColumnOrder', order),
+  getSortState: (): Promise<TrackTableSortState> => ipcRenderer.invoke('config:getSortState'),
+  setSortState: (state: TrackTableSortState): Promise<void> => ipcRenderer.invoke('config:setSortState', state),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
   willRelocateOnNextCollectionFolderPick: (): Promise<boolean> =>
     ipcRenderer.invoke('config:willRelocateOnNextCollectionFolderPick'),

@@ -15,6 +15,8 @@ import {
   setMidiMappings,
   getColumnOrder,
   setColumnOrder,
+  getSortState,
+  setSortState,
 } from './config'
 import { getDataFolder, setDataFolder } from './bootstrap'
 import { getDbFilePath } from './dbPath'
@@ -59,6 +61,7 @@ import type {
   EffectsSettings,
   MidiMappings,
   TrackTableColumnKey,
+  TrackTableSortState,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -152,6 +155,9 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
   ipcMain.handle('config:getColumnOrder', (): TrackTableColumnKey[] => getColumnOrder())
   ipcMain.handle('config:setColumnOrder', (_e, order: TrackTableColumnKey[]): void => setColumnOrder(order))
+
+  ipcMain.handle('config:getSortState', (): TrackTableSortState => getSortState())
+  ipcMain.handle('config:setSortState', (_e, state: TrackTableSortState): void => setSortState(state))
 
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({
     backupFolder,
