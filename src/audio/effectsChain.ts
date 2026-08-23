@@ -59,17 +59,19 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 // them keeps decaying on its own after the input goes silent — it just
 // can't be topped up with fresh signal anymore.
 //
-//                                                             ┌─────────────────────────────────────────┐
-// source ──> dryGain ──> eqLow ─> eqMid ─> eqHigh ──> filterNode ──┼─> delayNode <-> feedbackGain ├─> destination
-//                                                                    │      └────────> delayWetGain ─┤
-//                                                                    ├─> preDelayNode ─> convolver ─> reverbWetGain ┤
-//                                                                    └────────────────────────────────────────────┘
+//              ┌─> eqLow -> eqMid -> eqHigh ─> eqWetGain ─┐                  ┌─────────────────────────────────────────┐
+// source ──> dryGain ┤                                    ├─> lowpassNode -> highpassNode ──┼─> delayNode <-> feedbackGain ├─> destination
+//              └───────────────────────────> eqDryGain ───┘                                   │      └────────> delayWetGain ─┤
+//                                                                                              ├─> preDelayNode ─> convolver ─> reverbWetGain ┤
+//                                                                                              └────────────────────────────────────────────┘
 //
 // EQ sits right after the fader, before the filter — matching a real
 // mixer channel strip's EQ-then-filter order — so a boosted/cut band
 // carries through the sweep filter and the delay/reverb sends too. Three
 // chained BiquadFilterNodes (lowshelf/peaking/highshelf), each just a
-// gain knob at a fixed frequency.
+// gain knob at a fixed frequency, run in parallel with an unprocessed
+// dry tap — eq.mix (via eqWetGain/eqDryGain) blends between the two,
+// same dry/wet convention as delay.mix/reverb.mix.
 //
 // lowpassNode/highpassNode sit after the fader like a mixer channel's
 // filter knobs — everything downstream (the dry signal AND the delay/
@@ -90,6 +92,8 @@ export class EffectsChain {
   private eqLow: BiquadFilterNode
   private eqMid: BiquadFilterNode
   private eqHigh: BiquadFilterNode
+  private eqDryGain: GainNode
+  private eqWetGain: GainNode
   private lowpassNode: BiquadFilterNode
   private highpassNode: BiquadFilterNode
   private delayNode: DelayNode
@@ -118,9 +122,20 @@ export class EffectsChain {
     this.eqHigh = this.context.createBiquadFilter()
     this.eqHigh.type = 'highshelf'
     this.eqHigh.frequency.value = EQ_HIGH_HZ
+    // eq.mix blends the processed (wet) EQ chain back against the
+    // unprocessed (dry) signal — dryGain feeds both eqDryGain (straight
+    // through) and the eqLow->Mid->High chain (via eqWetGain at the end),
+    // and both land on the same downstream node (lowpassNode), which sums
+    // multiple incoming connections automatically.
+    this.eqDryGain = this.context.createGain()
+    this.eqDryGain.gain.value = 0
+    this.eqWetGain = this.context.createGain()
+    this.eqWetGain.gain.value = 1
     this.dryGain.connect(this.eqLow)
     this.eqLow.connect(this.eqMid)
     this.eqMid.connect(this.eqHigh)
+    this.eqHigh.connect(this.eqWetGain)
+    this.dryGain.connect(this.eqDryGain)
 
     this.lowpassNode = this.context.createBiquadFilter()
     this.lowpassNode.type = 'lowpass'
@@ -128,7 +143,8 @@ export class EffectsChain {
     this.highpassNode = this.context.createBiquadFilter()
     this.highpassNode.type = 'highpass'
     this.highpassNode.frequency.value = FILTER_HIGHPASS_OPEN_HZ
-    this.eqHigh.connect(this.lowpassNode)
+    this.eqWetGain.connect(this.lowpassNode)
+    this.eqDryGain.connect(this.lowpassNode)
     this.lowpassNode.connect(this.highpassNode)
     this.highpassNode.connect(this.context.destination)
 
@@ -163,11 +179,18 @@ export class EffectsChain {
     // smooth while still tracking the slider closely enough to feel
     // immediate.
     const now = this.context.currentTime
-    // enabled forces all three bands flat (0dB) without touching the
-    // dialed-in gains, same convention as filter.enabled below.
-    this.eqLow.gain.setTargetAtTime(settings.eq.enabled ? settings.eq.low : 0, now, FILTER_PARAM_TAU)
-    this.eqMid.gain.setTargetAtTime(settings.eq.enabled ? settings.eq.mid : 0, now, FILTER_PARAM_TAU)
-    this.eqHigh.gain.setTargetAtTime(settings.eq.enabled ? settings.eq.high : 0, now, FILTER_PARAM_TAU)
+    // The three bands always run at their dialed-in gains — enabled and
+    // mix both just control how much of that processed signal reaches
+    // the output (via eqWetGain/eqDryGain below), same as delay.mix/
+    // reverb.mix's wet/dry convention. Leaving the bands themselves alone
+    // means re-enabling (or raising mix back up) picks up instantly at
+    // the dialed-in position, no separate ramp needed.
+    this.eqLow.gain.setTargetAtTime(settings.eq.low, now, FILTER_PARAM_TAU)
+    this.eqMid.gain.setTargetAtTime(settings.eq.mid, now, FILTER_PARAM_TAU)
+    this.eqHigh.gain.setTargetAtTime(settings.eq.high, now, FILTER_PARAM_TAU)
+    const eqWet = settings.eq.enabled ? settings.eq.mix : 0
+    this.eqWetGain.gain.setTargetAtTime(eqWet, now, FILTER_PARAM_TAU)
+    this.eqDryGain.gain.setTargetAtTime(1 - eqWet, now, FILTER_PARAM_TAU)
 
     this.delayNode.delayTime.setTargetAtTime(settings.delay.timeMs / 1000, now, 0.08)
     this.delayFeedbackGain.gain.value = settings.delay.enabled ? settings.delay.feedback : 0

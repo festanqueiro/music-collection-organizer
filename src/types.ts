@@ -150,10 +150,14 @@ export interface EffectsSettings {
   // — disabled forces both fully open without losing the dialed-in
   // amounts.
   filter: { enabled: boolean; lowpass: number; highpass: number; resonance: number }
-  // Standard 3-band channel-strip EQ, dB gain per band (-12..+12, 0 flat).
+  // Standard 3-band channel-strip EQ, dB gain per band (-24..+24, 0 flat).
   // enabled is a hard bypass on top, same convention as filter.enabled —
-  // forces all three bands flat without losing the dialed-in gains.
-  eq: { enabled: boolean; low: number; mid: number; high: number }
+  // forces all three bands flat without losing the dialed-in gains. mix
+  // (0..1) blends the EQ'd signal back against the unprocessed one —
+  // same dry/wet convention as delay.mix/reverb.mix — so the tonal shift
+  // can be dialed in gradually instead of only ever being fully applied;
+  // 1 (fully wet) matches the EQ's original always-fully-applied behavior.
+  eq: { enabled: boolean; low: number; mid: number; high: number; mix: number }
   siren: SirenSettings
 }
 
@@ -164,7 +168,7 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   // unchanged until someone actually touches the new controls.
   reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
   filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1 },
-  eq: { enabled: true, low: 0, mid: 0, high: 0 },
+  eq: { enabled: true, low: 0, mid: 0, high: 0, mix: 1 },
   siren: DEFAULT_SIREN_SETTINGS,
 }
 
@@ -187,6 +191,7 @@ export type MidiControlKey =
   | 'eq.low'
   | 'eq.mid'
   | 'eq.high'
+  | 'eq.mix'
   | 'siren.enabled'
   | 'siren.mode'
   | 'siren.pitchHz'

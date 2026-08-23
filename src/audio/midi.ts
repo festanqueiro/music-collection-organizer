@@ -164,9 +164,10 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'filter.highpass': { min: 0, max: 1 },
   'filter.resonance': { min: 0.7, max: 20 },
   'eq.enabled': { min: 0, max: 1 },
-  'eq.low': { min: -12, max: 12 },
-  'eq.mid': { min: -12, max: 12 },
-  'eq.high': { min: -12, max: 12 },
+  'eq.low': { min: -24, max: 24 },
+  'eq.mid': { min: -24, max: 24 },
+  'eq.high': { min: -24, max: 24 },
+  'eq.mix': { min: 0, max: 1 },
   'siren.enabled': { min: 0, max: 1 },
   // siren.mode/siren.beat are never read through scaleMidiValue (they go
   // through scaleMidiValueToOption instead) — entries exist only because

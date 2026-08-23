@@ -483,6 +483,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, mid: scaled } })
     } else if (match === 'eq.high') {
       get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, high: scaled } })
+    } else if (match === 'eq.mix') {
+      get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, mix: scaled } })
     } else if (match === 'siren.enabled') {
       if (value === 0) return
       get().setEffectsSettings({

@@ -21,7 +21,7 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
         delay: { enabled: false, timeMs: 300, feedback: 0.3, mix: 0.3 },
         reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
         filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1 },
-        eq: { enabled: true, low: 0, mid: 0, high: 0 },
+        eq: { enabled: true, low: 0, mid: 0, high: 0, mix: 1 },
         siren: {
           enabled: false,
           mode: 'siren',

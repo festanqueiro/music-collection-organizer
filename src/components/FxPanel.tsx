@@ -176,11 +176,22 @@ export function FxPanel({ track }: { track: Track | null }) {
         </div>
         <div style={knobRowStyle}>
           <KnobField
+            label="Mix"
+            control="eq.mix"
+            value={effectsSettings.eq.mix}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateEq({ mix: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.eq.mix}
+            formatValue={(v) => v.toFixed(2)}
+          />
+          <KnobField
             label="Low"
             control="eq.low"
             value={effectsSettings.eq.low}
-            min={-12}
-            max={12}
+            min={-24}
+            max={24}
             step={0.5}
             onChange={(v) => updateEq({ low: v })}
             bipolar
@@ -191,8 +202,8 @@ export function FxPanel({ track }: { track: Track | null }) {
             label="Mid"
             control="eq.mid"
             value={effectsSettings.eq.mid}
-            min={-12}
-            max={12}
+            min={-24}
+            max={24}
             step={0.5}
             onChange={(v) => updateEq({ mid: v })}
             bipolar
@@ -203,8 +214,8 @@ export function FxPanel({ track }: { track: Track | null }) {
             label="High"
             control="eq.high"
             value={effectsSettings.eq.high}
-            min={-12}
-            max={12}
+            min={-24}
+            max={24}
             step={0.5}
             onChange={(v) => updateEq({ high: v })}
             bipolar
