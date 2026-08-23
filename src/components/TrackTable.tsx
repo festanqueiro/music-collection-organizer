@@ -56,10 +56,12 @@ export function TrackTable({
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const columnOrder = useCollectionStore((s) => s.columnOrder)
   const setColumnOrder = useCollectionStore((s) => s.setColumnOrder)
+  const sortState = useCollectionStore((s) => s.sortState)
+  const setSortState = useCollectionStore((s) => s.setSortState)
   const currentTrackId = playlist[0] ?? null
   const [draggedColumn, setDraggedColumn] = useState<TrackTableColumnKey | null>(null)
-  const [sortKey, setSortKey] = useState<SortKey>('title')
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc')
+  const sortKey = sortState.key
+  const sortDir = sortState.direction
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
 
   useEffect(() => {
@@ -83,10 +85,9 @@ export function TrackTable({
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      setSortState({ key, direction: sortDir === 'asc' ? 'desc' : 'asc' })
     } else {
-      setSortKey(key)
-      setSortDir('asc')
+      setSortState({ key, direction: 'asc' })
     }
   }
 
@@ -148,14 +149,22 @@ export function TrackTable({
       if (modalOpen) return
       const target = e.target as HTMLElement
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return
-      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) return
       if (visibleTracks.length === 0) return
       e.preventDefault()
       const currentIndex = selectedTrackId ? visibleTracks.findIndex((t) => t.id === selectedTrackId) : -1
-      const nextIndex =
-        e.key === 'ArrowDown'
-          ? Math.min(visibleTracks.length - 1, currentIndex + 1)
-          : Math.max(0, currentIndex - 1)
+      // PageUp/PageDown jump a fixed number of rows rather than measuring
+      // the actual scrollable viewport height — a reasonable approximation
+      // for "about a screen" without wiring up row-height/container
+      // measurement just for this.
+      const PAGE_SIZE = 10
+      let nextIndex = currentIndex
+      if (e.key === 'ArrowDown') nextIndex = Math.min(visibleTracks.length - 1, currentIndex + 1)
+      else if (e.key === 'ArrowUp') nextIndex = Math.max(0, currentIndex - 1)
+      else if (e.key === 'Home') nextIndex = 0
+      else if (e.key === 'End') nextIndex = visibleTracks.length - 1
+      else if (e.key === 'PageDown') nextIndex = Math.min(visibleTracks.length - 1, currentIndex + PAGE_SIZE)
+      else if (e.key === 'PageUp') nextIndex = Math.max(0, currentIndex - PAGE_SIZE)
       onSelect(visibleTracks[nextIndex])
     }
     window.addEventListener('keydown', handleKeyDown)

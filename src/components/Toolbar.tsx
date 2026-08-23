@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import logo from '../../resources/icon.png'
 
@@ -8,6 +9,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const collectionFolder = useCollectionStore((s) => s.collectionFolder)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
   const appVersion = useCollectionStore((s) => s.appVersion)
+  const [scanning, setScanning] = useState(false)
 
   return (
     <div
@@ -44,9 +46,22 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
       </button>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => runScan()} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <span className="material-symbols-outlined">refresh</span>
-            Update Collection
+          <button
+            onClick={async () => {
+              setScanning(true)
+              try {
+                await runScan()
+              } finally {
+                setScanning(false)
+              }
+            }}
+            disabled={scanning}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <span className={`material-symbols-outlined${scanning ? ' spin' : ''}`}>
+              {scanning ? 'progress_activity' : 'refresh'}
+            </span>
+            {scanning ? 'Scanning…' : 'Update Collection'}
           </button>
         </div>
         {collectionFolder && (

@@ -36,6 +36,11 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
   'duration',
 ]
 
+export interface TrackTableSortState {
+  key: TrackTableColumnKey
+  direction: 'asc' | 'desc'
+}
+
 export interface Genre {
   id: number
   name: string

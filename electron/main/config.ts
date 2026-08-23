@@ -7,6 +7,7 @@ import {
   type EffectsSettings,
   type MidiMappings,
   type TrackTableColumnKey,
+  type TrackTableSortState,
 } from '../../src/types'
 
 interface ConfigSchema {
@@ -16,6 +17,7 @@ interface ConfigSchema {
   effectsSettings?: EffectsSettings
   midiMappings?: MidiMappings
   columnOrder?: string[]
+  sortState?: TrackTableSortState
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -119,4 +121,20 @@ export function getColumnOrder(): TrackTableColumnKey[] {
 
 export function setColumnOrder(order: TrackTableColumnKey[]): void {
   getStore().set('columnOrder', order)
+}
+
+// Falls back to the table's default sort (title/ascending) rather than
+// throwing if a stored key names a column removed in a later app version
+// — same reconciliation reasoning as getColumnOrder above.
+export function getSortState(): TrackTableSortState {
+  const stored = getStore().get('sortState')
+  const known = new Set(DEFAULT_TRACK_TABLE_COLUMN_ORDER)
+  if (stored && known.has(stored.key as TrackTableColumnKey)) {
+    return { key: stored.key as TrackTableColumnKey, direction: stored.direction }
+  }
+  return { key: 'title', direction: 'asc' }
+}
+
+export function setSortState(state: TrackTableSortState): void {
+  getStore().set('sortState', state)
 }

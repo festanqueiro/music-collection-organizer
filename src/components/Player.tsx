@@ -17,6 +17,10 @@ import type { Track } from '../types'
 // this component is deliberately just the now-playing strip.
 export function Player({ track }: { track: Track }) {
   const audioRef = useRef<HTMLAudioElement>(null)
+  // Remembers the volume to restore on unmute — a plain ref, not state,
+  // since it's write-only from the mute button's own perspective (never
+  // rendered) and shouldn't trigger a re-render on every volume change.
+  const lastVolumeRef = useRef(1)
   const effectsChainRef = useRef<EffectsChain | null>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0) // 0..1 fraction of duration played
@@ -336,9 +340,22 @@ export function Player({ track }: { track: Track }) {
         </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Volume">
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-            volume_up
-          </span>
+          <button
+            onClick={() => {
+              if (playerVolume > 0) {
+                lastVolumeRef.current = playerVolume
+                setPlayerVolume(0)
+              } else {
+                setPlayerVolume(lastVolumeRef.current || 1)
+              }
+            }}
+            title={playerVolume > 0 ? 'Mute' : 'Unmute'}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              {playerVolume === 0 ? 'volume_off' : playerVolume < 0.5 ? 'volume_down' : 'volume_up'}
+            </span>
+          </button>
           <input
             type="range"
             min={0}

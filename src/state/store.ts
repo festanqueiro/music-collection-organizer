@@ -12,6 +12,7 @@ import type {
   MidiControlKey,
   MidiBinding,
   TrackTableColumnKey,
+  TrackTableSortState,
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
@@ -181,6 +182,9 @@ interface CollectionState {
   columnOrder: TrackTableColumnKey[]
   loadColumnOrder: () => Promise<void>
   setColumnOrder: (order: TrackTableColumnKey[]) => void
+  sortState: TrackTableSortState
+  loadSortState: () => Promise<void>
+  setSortState: (state: TrackTableSortState) => void
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -241,6 +245,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
+  sortState: { key: 'title', direction: 'asc' },
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -303,6 +308,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setColumnOrder: (order) => {
     set({ columnOrder: order })
     window.api.setColumnOrder(order).catch((err) => console.error('failed to save column order', err))
+  },
+
+  loadSortState: async () => {
+    const state = await window.api.getSortState()
+    set({ sortState: state })
+  },
+
+  setSortState: (state) => {
+    set({ sortState: state })
+    window.api.setSortState(state).catch((err) => console.error('failed to save sort state', err))
   },
 
   startMidiLearn: (control) => set({ midiLearningControl: control }),
