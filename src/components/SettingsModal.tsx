@@ -21,12 +21,50 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
   const [dbFilePath, setDbFilePath] = useState<string | null>(null)
   const [backingUp, setBackingUp] = useState(false)
+  const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
+  const setAudioOutputDeviceId = useCollectionStore((s) => s.setAudioOutputDeviceId)
+  const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([])
+  const [audioDevicesError, setAudioDevicesError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
       window.api.getBackupInfo().then(setBackupInfo)
       window.api.listBackups().then(setBackups)
       window.api.getDbFilePath().then(setDbFilePath)
+    }
+  }, [open])
+
+  // Device *labels* only come back non-blank once the page holds (or has
+  // held) an active getUserMedia() permission of some kind — a browser
+  // privacy measure that isn't specific to microphones, but there's no
+  // "grant output-device-labels-only" permission to ask for instead. This
+  // briefly opens a mic stream purely to unlock those labels, then
+  // immediately stops it — the mic itself is never read from. Falls back
+  // to unlabeled entries (still fully usable, just less readable) if the
+  // permission is denied rather than blocking the picker entirely.
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    async function loadDevices() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        stream.getTracks().forEach((t) => t.stop())
+      } catch (err) {
+        console.error('microphone permission (for output device labels) denied', err)
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        if (cancelled) return
+        setAudioOutputDevices(devices.filter((d) => d.kind === 'audiooutput'))
+        setAudioDevicesError(null)
+      } catch (err) {
+        if (!cancelled) setAudioDevicesError('Could not list audio output devices.')
+        console.error('enumerateDevices failed', err)
+      }
+    }
+    loadDevices()
+    return () => {
+      cancelled = true
     }
   }, [open])
 
@@ -104,6 +142,28 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           >
             Change…
           </button>
+        </section>
+
+        <section style={{ marginBottom: '20px' }}>
+          <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Audio Output</h3>
+          <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+            Route playback to a specific audio interface instead of the system default — applies to both track
+            playback and the Dub Siren.
+          </p>
+          <select
+            value={audioOutputDeviceId ?? ''}
+            onChange={(e) => setAudioOutputDeviceId(e.target.value || null)}
+          >
+            <option value="">System default</option>
+            {audioOutputDevices.map((d, i) => (
+              <option key={d.deviceId} value={d.deviceId}>
+                {d.label || `Audio output ${i + 1}`}
+              </option>
+            ))}
+          </select>
+          {audioDevicesError && (
+            <p style={{ margin: '8px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>{audioDevicesError}</p>
+          )}
         </section>
 
         <section>

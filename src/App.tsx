@@ -29,6 +29,8 @@ export default function App() {
   const loadMidiMappings = useCollectionStore((s) => s.loadMidiMappings)
   const loadColumnOrder = useCollectionStore((s) => s.loadColumnOrder)
   const loadSortState = useCollectionStore((s) => s.loadSortState)
+  const loadAudioOutputDeviceId = useCollectionStore((s) => s.loadAudioOutputDeviceId)
+  const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const loadAppVersion = useCollectionStore((s) => s.loadAppVersion)
   const handleMidiControlChange = useCollectionStore((s) => s.handleMidiControlChange)
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
@@ -88,6 +90,13 @@ export default function App() {
     getDubSirenEngine().update(effectsSettings.siren)
   }, [effectsSettings.siren])
 
+  // Same reasoning as above — the siren is its own separate AudioContext,
+  // so the chosen output device has to be applied to it independently of
+  // whatever Player.tsx's EffectsChain is doing for the current track.
+  useEffect(() => {
+    getDubSirenEngine().setSinkId(audioOutputDeviceId)
+  }, [audioOutputDeviceId])
+
   // Hold-S keyboard trigger, mirroring the FxPanel button. Lives here
   // (not in Player) for the same reason as the effect above — it must
   // keep working even when nothing is queued.
@@ -133,6 +142,7 @@ export default function App() {
     loadMidiMappings()
     loadColumnOrder()
     loadSortState()
+    loadAudioOutputDeviceId()
     loadAppVersion()
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
@@ -153,6 +163,7 @@ export default function App() {
     loadMidiMappings,
     loadColumnOrder,
     loadSortState,
+    loadAudioOutputDeviceId,
     loadAppVersion,
     setAnalysisProgress,
     refreshTracks,

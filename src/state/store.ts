@@ -185,6 +185,12 @@ interface CollectionState {
   sortState: TrackTableSortState
   loadSortState: () => Promise<void>
   setSortState: (state: TrackTableSortState) => void
+  // null = system default output device. Applied to both the current
+  // Player's EffectsChain and the siren's own separate AudioContext —
+  // see Player.tsx's and App.tsx's effects reacting to this.
+  audioOutputDeviceId: string | null
+  loadAudioOutputDeviceId: () => Promise<void>
+  setAudioOutputDeviceId: (deviceId: string | null) => Promise<void>
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -246,6 +252,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
   sortState: { key: 'title', direction: 'asc' },
+  audioOutputDeviceId: null,
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -318,6 +325,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setSortState: (state) => {
     set({ sortState: state })
     window.api.setSortState(state).catch((err) => console.error('failed to save sort state', err))
+  },
+
+  loadAudioOutputDeviceId: async () => {
+    const deviceId = await window.api.getAudioOutputDeviceId()
+    set({ audioOutputDeviceId: deviceId })
+  },
+
+  setAudioOutputDeviceId: async (deviceId) => {
+    set({ audioOutputDeviceId: deviceId })
+    await window.api.setAudioOutputDeviceId(deviceId)
   },
 
   startMidiLearn: (control) => set({ midiLearningControl: control }),

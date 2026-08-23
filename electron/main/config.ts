@@ -18,6 +18,7 @@ interface ConfigSchema {
   midiMappings?: MidiMappings
   columnOrder?: string[]
   sortState?: TrackTableSortState
+  audioOutputDeviceId?: string
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -137,4 +138,14 @@ export function getSortState(): TrackTableSortState {
 
 export function setSortState(state: TrackTableSortState): void {
   getStore().set('sortState', state)
+}
+
+// null means "system default output device" — the normal, unset state.
+export function getAudioOutputDeviceId(): string | null {
+  return getStore().get('audioOutputDeviceId') ?? null
+}
+
+export function setAudioOutputDeviceId(deviceId: string | null): void {
+  if (deviceId === null) getStore().delete('audioOutputDeviceId')
+  else getStore().set('audioOutputDeviceId', deviceId)
 }
