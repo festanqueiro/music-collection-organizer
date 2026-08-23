@@ -5,16 +5,15 @@ import { matchesTagFilter, type TagFilterState, type TrackTagIds } from './tagFi
 const HOUSE = 1
 const DEEP_HOUSE = 10
 const TECHNO = 2
-const ENERGETIC = 100
 
 const subgenreIdsByGenreId = new Map([[HOUSE, [DEEP_HOUSE]]])
 
 function track(overrides: Partial<TrackTagIds>): TrackTagIds {
-  return { trackId: 1, genreIds: [], subgenreIds: [], moodIds: [], ...overrides }
+  return { trackId: 1, genreIds: [], subgenreIds: [], ...overrides }
 }
 
 function emptyFilter(): TagFilterState {
-  return { genreIds: new Set(), subgenreIds: new Set(), moodIds: new Set() }
+  return { genreIds: new Set(), subgenreIds: new Set() }
 }
 
 describe('matchesTagFilter', () => {
@@ -40,13 +39,5 @@ describe('matchesTagFilter', () => {
   it('excludes a track matching neither selected genre', () => {
     const filter = { ...emptyFilter(), genreIds: new Set([HOUSE]) }
     expect(matchesTagFilter(track({ genreIds: [TECHNO] }), filter, subgenreIdsByGenreId)).toBe(false)
-  })
-
-  it('AND-combines genre branch and mood branch', () => {
-    const filter = { genreIds: new Set([HOUSE]), subgenreIds: new Set<number>(), moodIds: new Set([ENERGETIC]) }
-    expect(matchesTagFilter(track({ genreIds: [HOUSE], moodIds: [] }), filter, subgenreIdsByGenreId)).toBe(false)
-    expect(matchesTagFilter(track({ genreIds: [HOUSE], moodIds: [ENERGETIC] }), filter, subgenreIdsByGenreId)).toBe(
-      true
-    )
   })
 })

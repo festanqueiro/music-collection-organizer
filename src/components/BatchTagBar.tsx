@@ -5,7 +5,6 @@ export function BatchTagBar() {
   const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
-  const moods = useCollectionStore((s) => s.moods)
   const addTagsToCheckedTracks = useCollectionStore((s) => s.addTagsToCheckedTracks)
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
@@ -28,10 +27,10 @@ export function BatchTagBar() {
         value=""
         onChange={(e) => {
           const id = Number(e.target.value)
-          if (id) addTagsToCheckedTracks({ genreIds: [id], subgenreIds: [], moodIds: [] })
+          if (id) addTagsToCheckedTracks({ genreIds: [id], subgenreIds: [] })
         }}
       >
-        <option value="">+ Add genre…</option>
+        <option value="">+ Add tag…</option>
         {genres.map((g) => (
           <option key={g.id} value={g.id}>
             {g.name}
@@ -42,27 +41,13 @@ export function BatchTagBar() {
         value=""
         onChange={(e) => {
           const id = Number(e.target.value)
-          if (id) addTagsToCheckedTracks({ genreIds: [], subgenreIds: [id], moodIds: [] })
+          if (id) addTagsToCheckedTracks({ genreIds: [], subgenreIds: [id] })
         }}
       >
-        <option value="">+ Add sub-genre…</option>
+        <option value="">+ Add subtag…</option>
         {subgenres.map((sg) => (
           <option key={sg.id} value={sg.id}>
             {sg.name}
-          </option>
-        ))}
-      </select>
-      <select
-        value=""
-        onChange={(e) => {
-          const id = Number(e.target.value)
-          if (id) addTagsToCheckedTracks({ genreIds: [], subgenreIds: [], moodIds: [id] })
-        }}
-      >
-        <option value="">+ Add mood…</option>
-        {moods.map((m) => (
-          <option key={m.id} value={m.id}>
-            {m.name}
           </option>
         ))}
       </select>

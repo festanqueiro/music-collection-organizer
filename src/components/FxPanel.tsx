@@ -226,16 +226,26 @@ export function FxPanel({ track }: { track: Track | null }) {
         </div>
         <div style={knobRowStyle}>
           <KnobField
-            label="LP ⟵⟶ HP"
-            control="filter.position"
-            value={effectsSettings.filter.position}
-            min={-1}
+            label="LP"
+            control="filter.lowpass"
+            value={effectsSettings.filter.lowpass}
+            min={0}
             max={1}
             step={0.01}
-            onChange={(v) => updateFilter({ position: v })}
-            bipolar
-            defaultValue={DEFAULT_EFFECTS_SETTINGS.filter.position}
-            formatValue={(v) => (v === 0 ? 'Bypass' : v < 0 ? `LP ${Math.round(-v * 100)}%` : `HP ${Math.round(v * 100)}%`)}
+            onChange={(v) => updateFilter({ lowpass: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.filter.lowpass}
+            formatValue={(v) => (v === 0 ? 'Open' : `${Math.round(v * 100)}%`)}
+          />
+          <KnobField
+            label="HP"
+            control="filter.highpass"
+            value={effectsSettings.filter.highpass}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateFilter({ highpass: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.filter.highpass}
+            formatValue={(v) => (v === 0 ? 'Open' : `${Math.round(v * 100)}%`)}
           />
           <KnobField
             label="Resonance"
@@ -249,9 +259,9 @@ export function FxPanel({ track }: { track: Track | null }) {
             formatValue={(v) => v.toFixed(1)}
           />
           <button
-            onClick={() => updateFilter({ position: 0 })}
-            disabled={effectsSettings.filter.position === 0}
-            title="Reset to bypass (center)"
+            onClick={() => updateFilter({ lowpass: 0, highpass: 0 })}
+            disabled={effectsSettings.filter.lowpass === 0 && effectsSettings.filter.highpass === 0}
+            title="Reset both to fully open"
             style={{ fontSize: '10px', padding: '0 4px', alignSelf: 'center' }}
           >
             Reset

@@ -1,7 +1,7 @@
 // src/components/DetailPanel.tsx
 import { useEffect, useId, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { formatDuration } from '../format'
+import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 
 // The full set of ID3-derived metadata fields this app extracts — expanded
@@ -12,10 +12,10 @@ import type { Track } from '../types'
 function FullId3Section({ track }: { track: Track }) {
   const [open, setOpen] = useState(true)
   const fields: [string, string | number | null][] = [
-    ['Title', track.title],
-    ['Artist', track.artist],
-    ['Album', track.album],
-    ['Genre (ID3)', track.genreTag],
+    ['Title', track.title ? decodeHtmlEntities(track.title) : null],
+    ['Artist', track.artist ? decodeHtmlEntities(track.artist) : null],
+    ['Album', track.album ? decodeHtmlEntities(track.album) : null],
+    ['Genre (ID3)', track.genreTag ? decodeHtmlEntities(track.genreTag) : null],
     ['Year', track.year],
     ['BPM', track.bpm ? Math.round(track.bpm) : null],
     ['Key', track.musicalKey],
@@ -194,15 +194,12 @@ export function DetailPanel({
   const tracks = useCollectionStore((s) => s.tracks)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
-  const moods = useCollectionStore((s) => s.moods)
   const trackTags = useCollectionStore((s) => s.trackTags)
   const loadAll = useCollectionStore((s) => s.loadAll)
   const setTrackGenres = useCollectionStore((s) => s.setTrackGenres)
   const setTrackSubgenres = useCollectionStore((s) => s.setTrackSubgenres)
-  const setTrackMoods = useCollectionStore((s) => s.setTrackMoods)
   const createGenre = useCollectionStore((s) => s.createGenre)
   const createSubgenre = useCollectionStore((s) => s.createSubgenre)
-  const createMood = useCollectionStore((s) => s.createMood)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [artworkUrl, setArtworkUrl] = useState<string | null>(null)
@@ -232,7 +229,7 @@ export function DetailPanel({
   // track briefly isn't in `tracks` yet (e.g. mid-reload).
   const track = tracks.find((t) => t.id === selectedTrack.id) ?? selectedTrack
 
-  const tags = trackTags.get(track.id) ?? { trackId: track.id, genreIds: [], subgenreIds: [], moodIds: [] }
+  const tags = trackTags.get(track.id) ?? { trackId: track.id, genreIds: [], subgenreIds: [] }
   const availableSubgenres = subgenres.filter((sg) => tags.genreIds.includes(sg.genreId))
 
   function toggleInList(list: number[], id: number): number[] {
@@ -282,7 +279,7 @@ export function DetailPanel({
             title="Scroll to this track in the collection table"
             style={{ margin: 0, cursor: 'pointer' }}
           >
-            {track.filename}
+            {decodeHtmlEntities(track.filename)}
           </h3>
           <button onClick={onClose} title="Close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
             <span className="material-symbols-outlined">close</span>
@@ -317,37 +314,39 @@ export function DetailPanel({
             cursor: 'pointer',
           }}
         >
-          {track.title ?? track.filename}
+          {decodeHtmlEntities(track.title ?? track.filename)}
         </h3>
         <button onClick={onClose} title="Close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
-      <p>{track.artist}</p>
+      <p>{track.artist ? decodeHtmlEntities(track.artist) : null}</p>
 
       <div style={{ marginTop: '16px' }}>
         {suggestedGenreName && !suggestedGenreAlreadyApplied && (
           <div style={{ marginBottom: '4px' }}>
-            <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>Suggested: {suggestedGenreName}</span>{' '}
+            <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>
+              Suggested: {decodeHtmlEntities(suggestedGenreName)}
+            </span>{' '}
             <button onClick={() => applySuggestedGenre(suggestedGenreName)}>
               + Add
             </button>
           </div>
         )}
         <TagPicker
-          label="Genre"
+          label="Tag"
           options={genres}
           selectedIds={tags.genreIds}
-          placeholder="Select or type a new genre…"
+          placeholder="Select or type a new tag…"
           onToggle={(id) => setTrackGenres(track.id, toggleInList(tags.genreIds, id))}
           onCreate={applySuggestedGenre}
         />
         <TagPicker
-          label="Sub-Genre"
+          label="Subtag"
           options={availableSubgenres}
           selectedIds={tags.subgenreIds}
           disabled={!tags.genreIds[0]}
-          placeholder={tags.genreIds[0] ? 'Select or type a new sub-genre…' : 'Select a Genre first'}
+          placeholder={tags.genreIds[0] ? 'Select or type a new subtag…' : 'Select a Tag first'}
           onToggle={(id) => setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, id))}
           onCreate={async (name) => {
             if (!tags.genreIds[0]) return
@@ -356,18 +355,6 @@ export function DetailPanel({
               .getState()
               .subgenres.find((sg) => sg.genreId === tags.genreIds[0] && sg.name.toLowerCase() === name.toLowerCase())
             if (subgenre) await setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, subgenre.id))
-          }}
-        />
-        <TagPicker
-          label="Mood"
-          options={moods}
-          selectedIds={tags.moodIds}
-          placeholder="Select or type a new mood…"
-          onToggle={(id) => setTrackMoods(track.id, toggleInList(tags.moodIds, id))}
-          onCreate={async (name) => {
-            await createMood(name)
-            const mood = useCollectionStore.getState().moods.find((m) => m.name.toLowerCase() === name.toLowerCase())
-            if (mood) await setTrackMoods(track.id, toggleInList(tags.moodIds, mood.id))
           }}
         />
       </div>

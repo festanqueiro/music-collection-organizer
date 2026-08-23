@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { formatDuration } from '../format'
+import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 
 type SortKey = TrackTableColumnKey
@@ -39,6 +39,9 @@ export function TrackTable({
   onShowInFolderTree: (folder: string) => void
 }) {
   const tracks = useCollectionStore((s) => s.tracks)
+  const genres = useCollectionStore((s) => s.genres)
+  const subgenres = useCollectionStore((s) => s.subgenres)
+  const trackTags = useCollectionStore((s) => s.trackTags)
   const searchText = useCollectionStore((s) => s.searchText)
   const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
   const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
@@ -86,6 +89,31 @@ export function TrackTable({
     }
   }
 
+  const subgenresById = useMemo(() => new Map(subgenres.map((sg) => [sg.id, sg])), [subgenres])
+  const genresById = useMemo(() => new Map(genres.map((g) => [g.id, g])), [genres])
+
+  function tagNamesFor(trackId: number): { name: string; color: string | null }[] {
+    const tags = trackTags.get(trackId)
+    if (!tags) return []
+    const genreNames = tags.genreIds
+      .map((id) => genresById.get(id))
+      .filter((g): g is NonNullable<typeof g> => !!g)
+      .map((g) => ({ name: g.name, color: g.color }))
+    const subgenreNames = tags.subgenreIds
+      .map((id) => subgenresById.get(id))
+      .filter((sg): sg is NonNullable<typeof sg> => !!sg)
+      .map((sg) => ({ name: sg.name, color: genresById.get(sg.genreId)?.color ?? null }))
+    return [...genreNames, ...subgenreNames]
+  }
+
+  // 'tags' has no matching field on Track (it's derived from trackTags),
+  // so it needs its own comparable value instead of the direct property
+  // lookup every other column uses.
+  function sortValueFor(track: Track, key: SortKey): string | number {
+    if (key === 'tags') return tagNamesFor(track.id).map((t) => t.name).join(', ')
+    return track[key] ?? ''
+  }
+
   const visibleTracks = useMemo(() => {
     const query = searchText.trim().toLowerCase()
     return tracks
@@ -97,8 +125,8 @@ export function TrackTable({
           : true
       )
       .sort((a, b) => {
-        const av = a[sortKey] ?? ''
-        const bv = b[sortKey] ?? ''
+        const av = sortValueFor(a, sortKey)
+        const bv = sortValueFor(b, sortKey)
         const cmp = av < bv ? -1 : av > bv ? 1 : 0
         return sortDir === 'asc' ? cmp : -cmp
       })
@@ -136,6 +164,7 @@ export function TrackTable({
     title: 'Title',
     filename: 'Filename',
     artist: 'Artist',
+    tags: 'Tags',
     bpm: 'BPM',
     musicalKey: 'Key',
     format: 'Format',
@@ -145,6 +174,7 @@ export function TrackTable({
 
   const cellStyle = { padding: '8px', whiteSpace: 'nowrap' as const }
   const titleCellStyle = { ...cellStyle, maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' as const }
+  const tagsCellStyle = { ...cellStyle, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' as const }
 
   function renderCell(track: Track, key: TrackTableColumnKey) {
     switch (key) {
@@ -154,6 +184,11 @@ export function TrackTable({
             <button
               onClick={(e) => {
                 e.stopPropagation()
+                // Loading a track into the player is itself a form of
+                // selecting it — without this, the play button and
+                // clicking the row would leave the detail panel out of
+                // sync with what's actually playing.
+                onSelect(track)
                 playTrackNow(track.id)
               }}
               title="Play track now"
@@ -179,13 +214,46 @@ export function TrackTable({
                 progress_activity
               </span>
             )}
-            {track.title ?? track.filename}
+            {(trackTags.get(track.id)?.genreIds.length ?? 0) + (trackTags.get(track.id)?.subgenreIds.length ?? 0) >
+              0 && (
+              <span
+                className="material-symbols-outlined"
+                style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
+                title="This track has tags"
+              >
+                label
+              </span>
+            )}
+            {decodeHtmlEntities(track.title ?? track.filename)}
           </>
         )
       case 'filename':
-        return track.filename
+        return decodeHtmlEntities(track.filename)
       case 'artist':
-        return track.artist ?? '—'
+        return track.artist ? decodeHtmlEntities(track.artist) : '—'
+      case 'tags': {
+        const names = tagNamesFor(track.id)
+        if (names.length === 0) return '—'
+        return (
+          <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
+            {names.map((t, i) => (
+              <span
+                key={i}
+                style={{
+                  fontSize: '11px',
+                  padding: '1px 6px',
+                  borderRadius: '8px',
+                  background: t.color ?? 'var(--color-surface-raised)',
+                  border: '1px solid var(--color-border)',
+                  color: t.color ? '#fff' : 'var(--color-text)',
+                }}
+              >
+                {t.name}
+              </span>
+            ))}
+          </span>
+        )
+      }
       case 'bpm':
         return track.bpm?.toFixed(0) ?? '—'
       case 'musicalKey':
@@ -198,7 +266,9 @@ export function TrackTable({
   }
 
   function cellStyleFor(key: TrackTableColumnKey) {
-    return key === 'title' || key === 'filename' ? titleCellStyle : cellStyle
+    if (key === 'title' || key === 'filename') return titleCellStyle
+    if (key === 'tags') return tagsCellStyle
+    return cellStyle
   }
 
   function handleColumnDrop(targetKey: TrackTableColumnKey) {

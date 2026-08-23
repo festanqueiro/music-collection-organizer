@@ -1,4 +1,5 @@
 import { runInTransaction, type AppDatabase } from './db'
+import type { SubgenreDeletionSnapshot } from '../../src/types'
 
 export function createGenre(db: AppDatabase, name: string): number {
   return db.prepare('INSERT INTO genres (name) VALUES (?)').run(name).lastInsertRowid as number
@@ -10,12 +11,68 @@ export function createSubgenre(db: AppDatabase, name: string, genreId: number): 
     .run(name, genreId).lastInsertRowid as number
 }
 
-export function createMood(db: AppDatabase, name: string): number {
-  return db.prepare('INSERT INTO moods (name) VALUES (?)').run(name).lastInsertRowid as number
-}
-
 export function deleteGenre(db: AppDatabase, genreId: number): void {
   db.prepare('DELETE FROM genres WHERE id = ?').run(genreId)
+}
+
+export function deleteSubgenre(db: AppDatabase, subgenreId: number): void {
+  db.prepare('DELETE FROM subgenres WHERE id = ?').run(subgenreId)
+}
+
+export function renameGenre(db: AppDatabase, genreId: number, name: string): void {
+  db.prepare('UPDATE genres SET name = ? WHERE id = ?').run(name, genreId)
+}
+
+export function renameSubgenre(db: AppDatabase, subgenreId: number, name: string): void {
+  db.prepare('UPDATE subgenres SET name = ? WHERE id = ?').run(name, subgenreId)
+}
+
+export function setGenreColor(db: AppDatabase, genreId: number, color: string | null): void {
+  db.prepare('UPDATE genres SET color = ? WHERE id = ?').run(color, genreId)
+}
+
+// Counts for the "X files are tagged with it" confirmation shown before a
+// destructive rename/delete — a subgenre's count is its own direct
+// associations only (renaming/deleting it never touches the parent
+// genre's tracks).
+export function countTracksWithGenre(db: AppDatabase, genreId: number): number {
+  const row = db.prepare('SELECT COUNT(*) as count FROM track_genres WHERE genre_id = ?').get(genreId) as {
+    count: number
+  }
+  return row.count
+}
+
+export function countTracksWithSubgenre(db: AppDatabase, subgenreId: number): number {
+  const row = db
+    .prepare('SELECT COUNT(*) as count FROM track_subgenres WHERE subgenre_id = ?')
+    .get(subgenreId) as { count: number }
+  return row.count
+}
+
+export function captureSubgenreDeletionSnapshot(db: AppDatabase, subgenreId: number): SubgenreDeletionSnapshot {
+  const subgenre = db.prepare('SELECT name, genre_id FROM subgenres WHERE id = ?').get(subgenreId) as
+    | { name: string; genre_id: number }
+    | undefined
+  if (!subgenre) throw new Error(`No subgenre with id ${subgenreId}`)
+
+  const trackRows = db.prepare('SELECT track_id FROM track_subgenres WHERE subgenre_id = ?').all(subgenreId) as {
+    track_id: number
+  }[]
+
+  return {
+    subgenreName: subgenre.name,
+    genreId: subgenre.genre_id,
+    trackSubgenreAssociations: trackRows.map((r) => ({ trackId: r.track_id })),
+  }
+}
+
+export function undoSubgenreDeletion(db: AppDatabase, snapshot: SubgenreDeletionSnapshot): void {
+  runInTransaction(db, () => {
+    const newSubgenreId = createSubgenre(db, snapshot.subgenreName, snapshot.genreId)
+    for (const { trackId } of snapshot.trackSubgenreAssociations) {
+      db.prepare('INSERT INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(trackId, newSubgenreId)
+    }
+  })
 }
 
 export interface GenreDeletionSnapshot {
@@ -111,15 +168,6 @@ export function setTrackSubgenres(db: AppDatabase, trackId: number, subgenreIds:
   })
 }
 
-export function setTrackMoods(db: AppDatabase, trackId: number, moodIds: number[]): void {
-  runInTransaction(db, () => {
-    db.prepare('DELETE FROM track_moods WHERE track_id = ?').run(trackId)
-    for (const moodId of moodIds) {
-      db.prepare('INSERT INTO track_moods (track_id, mood_id) VALUES (?, ?)').run(trackId, moodId)
-    }
-  })
-}
-
 // Called after every single tag-checkbox toggle (see ipc.ts's
 // tags:setTrackGenres/Subgenres/Moods handlers) — one UNION ALL query
 // instead of three separate round trips, same pattern as ipc.ts's
@@ -127,26 +175,22 @@ export function setTrackMoods(db: AppDatabase, trackId: number, moodIds: number[
 export function getTrackTagIds(
   db: AppDatabase,
   trackId: number
-): { genreIds: number[]; subgenreIds: number[]; moodIds: number[] } {
+): { genreIds: number[]; subgenreIds: number[] } {
   const rows = db
     .prepare(
-      `SELECT genre_id, NULL as subgenre_id, NULL as mood_id FROM track_genres WHERE track_id = ?
+      `SELECT genre_id, NULL as subgenre_id FROM track_genres WHERE track_id = ?
        UNION ALL
-       SELECT NULL, subgenre_id, NULL FROM track_subgenres WHERE track_id = ?
-       UNION ALL
-       SELECT NULL, NULL, mood_id FROM track_moods WHERE track_id = ?`
+       SELECT NULL, subgenre_id FROM track_subgenres WHERE track_id = ?`
     )
-    .all(trackId, trackId, trackId) as { genre_id: number | null; subgenre_id: number | null; mood_id: number | null }[]
+    .all(trackId, trackId) as { genre_id: number | null; subgenre_id: number | null }[]
 
   const genreIds: number[] = []
   const subgenreIds: number[] = []
-  const moodIds: number[] = []
   for (const row of rows) {
     if (row.genre_id) genreIds.push(row.genre_id)
     if (row.subgenre_id) subgenreIds.push(row.subgenre_id)
-    if (row.mood_id) moodIds.push(row.mood_id)
   }
-  return { genreIds, subgenreIds, moodIds }
+  return { genreIds, subgenreIds }
 }
 
 export function addGenresToTracks(db: AppDatabase, trackIds: number[], genreIds: number[]): void {
@@ -188,12 +232,3 @@ export function addSubgenresToTracks(db: AppDatabase, trackIds: number[], subgen
   })
 }
 
-export function addMoodsToTracks(db: AppDatabase, trackIds: number[], moodIds: number[]): void {
-  runInTransaction(db, () => {
-    for (const trackId of trackIds) {
-      for (const moodId of moodIds) {
-        db.prepare('INSERT OR IGNORE INTO track_moods (track_id, mood_id) VALUES (?, ?)').run(trackId, moodId)
-      }
-    }
-  })
-}

@@ -20,6 +20,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [backups, setBackups] = useState<BackupEntry[]>([])
   const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
   const [dbFilePath, setDbFilePath] = useState<string | null>(null)
+  const [backingUp, setBackingUp] = useState(false)
 
   useEffect(() => {
     if (open) {
@@ -123,6 +124,22 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           ) : (
             <p style={{ margin: 0, color: 'var(--color-text-dim)' }}>Loading…</p>
           )}
+          <button
+            style={{ marginTop: '8px' }}
+            disabled={backingUp}
+            onClick={async () => {
+              setBackingUp(true)
+              try {
+                await window.api.runBackupNow()
+                setBackupInfo(await window.api.getBackupInfo())
+                setBackups(await window.api.listBackups())
+              } finally {
+                setBackingUp(false)
+              }
+            }}
+          >
+            {backingUp ? 'Backing up…' : 'Back up now'}
+          </button>
         </section>
 
         <section style={{ marginTop: '20px' }}>

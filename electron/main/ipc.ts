@@ -6,6 +6,7 @@ import {
   getCollectionFolder,
   setCollectionFolder,
   getLastBackupAt,
+  setLastBackupAt,
   getLastBackupError,
   getConfigFilePath,
   getEffectsSettings,
@@ -24,32 +25,37 @@ import { getDragIcon } from './dragIcon'
 import { runAnalysisQueue } from './analysis/queue'
 import { extractArtwork } from './analysis/metadata'
 import { getMediaCacheDir } from './mediaCacheDir'
-import { listBackups, restoreBackup } from './backup'
+import { listBackups, restoreBackup, runBackup } from './backup'
 import {
   createGenre,
   createSubgenre,
-  createMood,
   deleteGenre,
+  deleteSubgenre,
+  renameGenre,
+  renameSubgenre,
+  setGenreColor,
+  countTracksWithGenre,
+  countTracksWithSubgenre,
   setTrackGenres,
   setTrackSubgenres,
-  setTrackMoods,
   getTrackTagIds,
   addGenresToTracks,
   addSubgenresToTracks,
-  addMoodsToTracks,
   captureGenreDeletionSnapshot,
   undoGenreDeletion,
+  captureSubgenreDeletionSnapshot,
+  undoSubgenreDeletion,
 } from './tags'
 import { exportTagData, importTagData, type TagExportData } from './tagExport'
 import type {
   Track,
   Genre,
   Subgenre,
-  Mood,
   BackupInfo,
   BackupEntry,
   ImportResult,
   GenreDeletionSnapshot,
+  SubgenreDeletionSnapshot,
   EffectsSettings,
   MidiMappings,
   TrackTableColumnKey,
@@ -80,17 +86,13 @@ interface TrackRow {
 interface GenreRow {
   id: number
   name: string
+  color: string | null
 }
 
 interface SubgenreRow {
   id: number
   name: string
   genre_id: number
-}
-
-interface MoodRow {
-  id: number
-  name: string
 }
 
 function rowToTrack(row: TrackRow): Track {
@@ -158,6 +160,26 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   }))
 
   ipcMain.handle('backup:list', (): BackupEntry[] => listBackups(backupFolder))
+
+  // On-demand backup ("Back up now" in Settings) — the same VACUUM INTO
+  // snapshot as the automatic daily one, just triggered immediately rather
+  // than waiting for the daily check. Doesn't touch lastBackupAt, so it
+  // never suppresses (or gets suppressed by) the automatic one.
+  ipcMain.handle('backup:runNow', (): BackupEntry => {
+    const now = new Date()
+    const { dbBackupPath, configBackupPath } = runBackup(db, getConfigFilePath(), backupFolder, now)
+    setLastBackupAt(now.toISOString())
+    const entry = listBackups(backupFolder).find((e) => e.dbPath === dbBackupPath)
+    if (entry) return entry
+    // Fallback in case listBackups' filename parsing ever drifts from
+    // runBackup's own naming — still returns a usable entry rather than
+    // throwing right after a successful backup.
+    return {
+      timestamp: dbBackupPath.replace(/^.*collection-(.+)\.db$/, '$1'),
+      dbPath: dbBackupPath,
+      configPath: configBackupPath,
+    }
+  })
 
   ipcMain.handle('backup:restore', (_e, timestamp: string): void => {
     const entry = listBackups(backupFolder).find((e) => e.timestamp === timestamp)
@@ -314,7 +336,13 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     return (db.prepare('SELECT * FROM tracks WHERE present = 1').all() as unknown as TrackRow[]).map(rowToTrack)
   })
 
-  ipcMain.handle('tags:getGenres', (): Genre[] => db.prepare('SELECT * FROM genres').all() as unknown as GenreRow[])
+  ipcMain.handle('tags:getGenres', (): Genre[] =>
+    (db.prepare('SELECT * FROM genres').all() as unknown as GenreRow[]).map((r) => ({
+      id: r.id,
+      name: r.name,
+      color: r.color,
+    }))
+  )
   ipcMain.handle('tags:getSubgenres', (): Subgenre[] =>
     (db.prepare('SELECT * FROM subgenres').all() as unknown as SubgenreRow[]).map((r) => ({
       id: r.id,
@@ -322,13 +350,22 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
       genreId: r.genre_id,
     }))
   )
-  ipcMain.handle('tags:getMoods', (): Mood[] => db.prepare('SELECT * FROM moods').all() as unknown as MoodRow[])
 
   ipcMain.handle('tags:createGenre', (_e, name: string): number => createGenre(db, name))
   ipcMain.handle('tags:createSubgenre', (_e, name: string, genreId: number): number =>
     createSubgenre(db, name, genreId)
   )
-  ipcMain.handle('tags:createMood', (_e, name: string): number => createMood(db, name))
+  ipcMain.handle('tags:renameGenre', (_e, genreId: number, name: string): void => renameGenre(db, genreId, name))
+  ipcMain.handle('tags:renameSubgenre', (_e, subgenreId: number, name: string): void =>
+    renameSubgenre(db, subgenreId, name)
+  )
+  ipcMain.handle('tags:setGenreColor', (_e, genreId: number, color: string | null): void =>
+    setGenreColor(db, genreId, color)
+  )
+  ipcMain.handle('tags:countTracksWithGenre', (_e, genreId: number): number => countTracksWithGenre(db, genreId))
+  ipcMain.handle('tags:countTracksWithSubgenre', (_e, subgenreId: number): number =>
+    countTracksWithSubgenre(db, subgenreId)
+  )
   ipcMain.handle('tags:deleteGenre', (_e, genreId: number): GenreDeletionSnapshot => {
     const snapshot = captureGenreDeletionSnapshot(db, genreId)
     deleteGenre(db, genreId)
@@ -336,6 +373,14 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   })
   ipcMain.handle('tags:undoDeleteGenre', (_e, snapshot: GenreDeletionSnapshot): void =>
     undoGenreDeletion(db, snapshot)
+  )
+  ipcMain.handle('tags:deleteSubgenre', (_e, subgenreId: number): SubgenreDeletionSnapshot => {
+    const snapshot = captureSubgenreDeletionSnapshot(db, subgenreId)
+    deleteSubgenre(db, subgenreId)
+    return snapshot
+  })
+  ipcMain.handle('tags:undoDeleteSubgenre', (_e, snapshot: SubgenreDeletionSnapshot): void =>
+    undoSubgenreDeletion(db, snapshot)
   )
 
   // These return the post-write tag state (read back from the DB) rather
@@ -350,21 +395,12 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     setTrackSubgenres(db, trackId, subgenreIds)
     return { trackId, ...getTrackTagIds(db, trackId) }
   })
-  ipcMain.handle('tags:setTrackMoods', (_e, trackId: number, moodIds: number[]): TrackTagIds => {
-    setTrackMoods(db, trackId, moodIds)
-    return { trackId, ...getTrackTagIds(db, trackId) }
-  })
 
   ipcMain.handle(
     'tags:batchAddTags',
-    (
-      _e,
-      trackIds: number[],
-      tagIds: { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }
-    ): TrackTagIds[] => {
+    (_e, trackIds: number[], tagIds: { genreIds: number[]; subgenreIds: number[] }): TrackTagIds[] => {
       if (tagIds.genreIds.length) addGenresToTracks(db, trackIds, tagIds.genreIds)
       if (tagIds.subgenreIds.length) addSubgenresToTracks(db, trackIds, tagIds.subgenreIds)
-      if (tagIds.moodIds.length) addMoodsToTracks(db, trackIds, tagIds.moodIds)
       return trackIds.map((trackId) => ({ trackId, ...getTrackTagIds(db, trackId) }))
     }
   )
@@ -413,20 +449,17 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   ipcMain.handle('tracks:getAllTagIds', (): TrackTagIds[] => {
     const rows = db
       .prepare(
-        `SELECT track_id, genre_id, NULL as subgenre_id, NULL as mood_id FROM track_genres
+        `SELECT track_id, genre_id, NULL as subgenre_id FROM track_genres
          UNION ALL
-         SELECT track_id, NULL, subgenre_id, NULL FROM track_subgenres
-         UNION ALL
-         SELECT track_id, NULL, NULL, mood_id FROM track_moods`
+         SELECT track_id, NULL, subgenre_id FROM track_subgenres`
       )
-      .all() as { track_id: number; genre_id: number | null; subgenre_id: number | null; mood_id: number | null }[]
-    const byTrack = new Map<number, { genreIds: number[]; subgenreIds: number[]; moodIds: number[] }>()
+      .all() as { track_id: number; genre_id: number | null; subgenre_id: number | null }[]
+    const byTrack = new Map<number, { genreIds: number[]; subgenreIds: number[] }>()
     for (const row of rows) {
-      if (!byTrack.has(row.track_id)) byTrack.set(row.track_id, { genreIds: [], subgenreIds: [], moodIds: [] })
+      if (!byTrack.has(row.track_id)) byTrack.set(row.track_id, { genreIds: [], subgenreIds: [] })
       const entry = byTrack.get(row.track_id)!
       if (row.genre_id) entry.genreIds.push(row.genre_id)
       if (row.subgenre_id) entry.subgenreIds.push(row.subgenre_id)
-      if (row.mood_id) entry.moodIds.push(row.mood_id)
     }
     return Array.from(byTrack.entries()).map(([trackId, tags]) => ({ trackId, ...tags }))
   })
