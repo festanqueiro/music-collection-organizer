@@ -307,7 +307,25 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const learning = get().midiLearningControl
     if (learning) {
       const binding: MidiBinding = { channel, controller, kind }
-      const mappings = { ...get().midiMappings, [learning]: binding }
+      // A stale binding on another control key can already occupy this
+      // exact physical channel+controller+kind (e.g. it was tried against
+      // a different control earlier, or the same hardware button was
+      // re-learned for something else without unbinding the old one
+      // first) — handleMidiControlChange's lookup below picks the FIRST
+      // key it finds for a given channel+controller, so leaving that
+      // stale entry in place meant the button just learned here could
+      // silently keep triggering the OLD control instead, looking exactly
+      // like "I assigned it and now it does nothing". Learning a control
+      // onto a physical button always makes that button exclusively its.
+      const previousMappings = { ...get().midiMappings }
+      for (const key of Object.keys(previousMappings) as MidiControlKey[]) {
+        if (key === learning) continue
+        const existing = previousMappings[key]
+        if (existing && existing.channel === channel && existing.controller === controller && (existing.kind ?? 'cc') === kind) {
+          delete previousMappings[key]
+        }
+      }
+      const mappings = { ...previousMappings, [learning]: binding }
       set({ midiMappings: mappings, midiLearningControl: null })
       window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
       // Sync the LED to the control's current state right away, rather
