@@ -64,6 +64,21 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
     useCollectionStore.getState().handleMidiControlChange(5, 99, 127, 'cc')
     expect(useCollectionStore.getState().effectsSettings.delay.enabled).toBe(false)
   })
+
+  it('does not match a CC-bound control against a Note message on the same channel/controller number', () => {
+    // Note 25 and CC 25 are independent messages on real hardware — a
+    // control bound to one must never be reachable by the other.
+    useCollectionStore.setState({
+      midiMappings: {
+        'filter.resonance': { channel: 0, controller: 25, kind: 'cc' },
+        'player.playNext': { channel: 0, controller: 25, kind: 'note' },
+      },
+    })
+    useCollectionStore.getState().handleMidiControlChange(0, 25, 127, 'note')
+    // filter.resonance must be untouched — only player.playNext (a plain
+    // action, not observable via effectsSettings) should have matched.
+    expect(useCollectionStore.getState().effectsSettings.filter.resonance).toBe(1)
+  })
 })
 
 describe('handleMidiControlChange — delay.division (discrete, not a persisted setting)', () => {
