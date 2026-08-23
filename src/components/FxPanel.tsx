@@ -176,6 +176,17 @@ export function FxPanel({ track }: { track: Track | null }) {
         </div>
         <div style={knobRowStyle}>
           <KnobField
+            label="Mix"
+            control="eq.mix"
+            value={effectsSettings.eq.mix}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updateEq({ mix: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.eq.mix}
+            formatValue={(v) => v.toFixed(2)}
+          />
+          <KnobField
             label="Low"
             control="eq.low"
             value={effectsSettings.eq.low}
