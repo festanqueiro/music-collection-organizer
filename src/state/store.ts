@@ -32,6 +32,9 @@ import {
 // mean dozens of synchronous disk writes per second while dragging.
 let effectsSettingsSaveTimeout: ReturnType<typeof setTimeout> | null = null
 
+// Backs showToast's auto-dismiss below.
+let toastTimeout: ReturnType<typeof setTimeout> | null = null
+
 // Applies a tag IPC call's returned (server-authoritative) TrackTagIds to one
 // track's entry in the trackTags map, without reloading the whole collection
 // — tag edits are frequent and loadAll() was re-fetching every
@@ -121,6 +124,7 @@ interface CollectionState {
   addManyToPlaylist: (trackIds: number[]) => void
   playNext: (trackId: number) => void
   removeFromPlaylist: (index: number) => void
+  clearPlaylist: () => void
   movePlaylistItem: (fromIndex: number, toIndex: number) => void
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
@@ -165,6 +169,12 @@ interface CollectionState {
   // the FX panel button's pressed styling should reflect all of them.
   sirenTriggered: boolean
   setSirenTriggered: (triggered: boolean) => void
+  // Brief, auto-dismissing confirmation for a bulk action (batch tag,
+  // folder-wide analyse/queue) that would otherwise give zero feedback —
+  // a <select> snapping back to its placeholder or a context menu just
+  // closing looks identical to the click not registering at all.
+  toastMessage: string | null
+  showToast: (message: string) => void
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
@@ -226,6 +236,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playerVolume: 1,
   playbackProgress: 0,
   sirenTriggered: false,
+  toastMessage: null,
   playbackControls: null,
   delayDivisionSync: null,
   midiMappings: {},
@@ -269,6 +280,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setPlaybackProgress: (progress) => set({ playbackProgress: progress }),
 
   setSirenTriggered: (triggered) => set({ sirenTriggered: triggered }),
+
+  showToast: (message) => {
+    if (toastTimeout) clearTimeout(toastTimeout)
+    set({ toastMessage: message })
+    toastTimeout = setTimeout(() => set({ toastMessage: null }), 3000)
+  },
 
   setPlaybackControls: (controls) => set({ playbackControls: controls }),
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
@@ -588,6 +605,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   removeFromPlaylist: (index) => set({ playlist: removeFromPlaylistPure(get().playlist, index) }),
+
+  clearPlaylist: () => set({ playlist: [] }),
 
   movePlaylistItem: (fromIndex, toIndex) =>
     set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),

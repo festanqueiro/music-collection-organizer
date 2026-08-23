@@ -134,6 +134,7 @@ export function PlaylistView() {
   const advanceToNext = useCollectionStore((s) => s.advanceToNext)
   const playTrackNow = useCollectionStore((s) => s.playTrackNow)
   const removeFromPlaylist = useCollectionStore((s) => s.removeFromPlaylist)
+  const clearPlaylist = useCollectionStore((s) => s.clearPlaylist)
   const movePlaylistItem = useCollectionStore((s) => s.movePlaylistItem)
   const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
   const playbackProgress = useCollectionStore((s) => s.playbackProgress)
@@ -176,6 +177,9 @@ export function PlaylistView() {
         </label>
         <button onClick={() => advanceToNext()} disabled={playlist.length === 0} style={{ fontSize: '12px' }}>
           Play next
+        </button>
+        <button onClick={() => clearPlaylist()} disabled={playlist.length === 0} style={{ fontSize: '12px' }}>
+          Clear queue
         </button>
         {playlist.length > 0 && (
           <span style={{ fontSize: '12px', color: 'var(--color-text-dim)' }}>

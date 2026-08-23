@@ -115,6 +115,7 @@ export function FolderTree({
   const tracks = useCollectionStore((s) => s.tracks)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const addManyToPlaylist = useCollectionStore((s) => s.addManyToPlaylist)
+  const showToast = useCollectionStore((s) => s.showToast)
   const tree = useMemo(() => buildFolderTree(tracks.map((t) => t.folder), rootPath), [tracks, rootPath])
   const [contextMenu, setContextMenu] = useState<{ folder: string; isRoot: boolean; x: number; y: number } | null>(
     null
@@ -188,7 +189,10 @@ export function FolderTree({
               const ids = tracksInFolder(tracks, contextMenu.folder)
                 .filter((t) => t.cloudStatus === 'local' && (t.analysisStatus === 'pending' || t.analysisStatus === 'error'))
                 .map((t) => t.id)
-              if (ids.length > 0) runAnalysis(ids)
+              if (ids.length > 0) {
+                runAnalysis(ids)
+                showToast(`Analysing ${ids.length} track${ids.length === 1 ? '' : 's'}…`)
+              }
               setContextMenu(null)
             }}
             style={folderContextMenuItemStyle}
@@ -201,7 +205,17 @@ export function FolderTree({
           <button
             onClick={() => {
               const ids = tracksInFolder(tracks, contextMenu.folder).map((t) => t.id)
-              if (ids.length > 0) addManyToPlaylist(ids)
+              if (
+                ids.length > 50 &&
+                !window.confirm(`Add all ${ids.length} tracks to the queue?`)
+              ) {
+                setContextMenu(null)
+                return
+              }
+              if (ids.length > 0) {
+                addManyToPlaylist(ids)
+                showToast(`${ids.length} track${ids.length === 1 ? '' : 's'} queued`)
+              }
               setContextMenu(null)
             }}
             style={folderContextMenuItemStyle}

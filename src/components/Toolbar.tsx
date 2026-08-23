@@ -27,7 +27,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
       </div>
       <input
         type="text"
-        placeholder="Search title, artist, album..."
+        placeholder="Search title, artist, album, tags..."
         value={searchText}
         onChange={(e) => setSearchText(e.target.value)}
         style={{

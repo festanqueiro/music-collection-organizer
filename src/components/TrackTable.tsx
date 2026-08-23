@@ -51,6 +51,7 @@ export function TrackTable({
   const playTrackNow = useCollectionStore((s) => s.playTrackNow)
   const addToPlaylist = useCollectionStore((s) => s.addToPlaylist)
   const addManyToPlaylist = useCollectionStore((s) => s.addManyToPlaylist)
+  const showToast = useCollectionStore((s) => s.showToast)
   const playNext = useCollectionStore((s) => s.playNext)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const columnOrder = useCollectionStore((s) => s.columnOrder)
@@ -121,7 +122,8 @@ export function TrackTable({
       .filter(activeFilter)
       .filter((t) =>
         query
-          ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query))
+          ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
+            tagNamesFor(t.id).some((tag) => tag.name.toLowerCase().includes(query))
           : true
       )
       .sort((a, b) => {
@@ -130,7 +132,7 @@ export function TrackTable({
         const cmp = av < bv ? -1 : av > bv ? 1 : 0
         return sortDir === 'asc' ? cmp : -cmp
       })
-  }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir])
+  }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir, trackTags, genresById, subgenresById])
 
   // Re-analysing a track changes its BPM/Key, which can shift its sort
   // position out of the visible scroll area — clicking the track's title
@@ -289,7 +291,22 @@ export function TrackTable({
     <div style={{ overflowX: 'auto' }}>
       <div style={{ padding: '4px 8px' }}>
         <button
-          onClick={() => addManyToPlaylist(visibleTracks.map((t) => t.id))}
+          onClick={() => {
+            // Queuing dozens+ of tracks in one click is easy to trigger
+            // by accident (e.g. clicking with no folder/tag filter active
+            // queues the entire collection) and there's no bulk "clear
+            // queue" undo for a mis-click this size — a confirmation only
+            // kicks in above a threshold so the common, deliberate case
+            // (a filtered folder/tag view) stays a single click.
+            if (
+              visibleTracks.length > 50 &&
+              !window.confirm(`Add all ${visibleTracks.length} tracks to the queue?`)
+            ) {
+              return
+            }
+            addManyToPlaylist(visibleTracks.map((t) => t.id))
+            showToast(`${visibleTracks.length} track${visibleTracks.length === 1 ? '' : 's'} queued`)
+          }}
           disabled={visibleTracks.length === 0}
           style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
         >
@@ -337,6 +354,16 @@ export function TrackTable({
           </tr>
         </thead>
         <tbody>
+          {tracks.length > 0 && visibleTracks.length === 0 && (
+            <tr>
+              <td
+                colSpan={orderedColumns.length + 3}
+                style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-dim)' }}
+              >
+                No tracks match your search/filter.
+              </td>
+            </tr>
+          )}
           {visibleTracks.map((track) => (
             <tr
               key={track.id}

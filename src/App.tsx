@@ -13,6 +13,7 @@ import { PlaylistView } from './components/PlaylistView'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
+import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
 import type { Track } from './types'
@@ -36,6 +37,7 @@ export default function App() {
   const pendingGenreDeletion = useCollectionStore((s) => s.pendingGenreDeletion)
   const undoGenreDeletion = useCollectionStore((s) => s.undoGenreDeletion)
   const dismissGenreDeletionUndo = useCollectionStore((s) => s.dismissGenreDeletionUndo)
+  const toastMessage = useCollectionStore((s) => s.toastMessage)
   const pendingSubgenreDeletion = useCollectionStore((s) => s.pendingSubgenreDeletion)
   const undoSubgenreDeletion = useCollectionStore((s) => s.undoSubgenreDeletion)
   const dismissSubgenreDeletionUndo = useCollectionStore((s) => s.dismissSubgenreDeletionUndo)
@@ -53,6 +55,20 @@ export default function App() {
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [scrollToTrack, setScrollToTrack] = useState<{ trackId: number; nonce: number } | null>(null)
+
+  // Tags/Subtags' checkbox selection is local component state that resets
+  // (visually) whenever that view unmounts on a switch — but the
+  // tagFilter closure it last pushed up here previously stayed applied to
+  // TrackTable regardless, since nothing reset it. That looked exactly
+  // like a bug: filter by a Tag, switch to Subtags, and the table stays
+  // silently restricted to the old Tag's tracks while the Subtag tree
+  // shows nothing checked. Switching views now always resets the filter
+  // to "show everything" first — the newly-shown view then narrows it
+  // again the moment the user actually picks something in it.
+  function changeLeftView(view: LeftView) {
+    setLeftView(view)
+    setTagFilter(() => () => true)
+  }
 
   // Mounted once here (not inside Player, which remounts per track) so a
   // MIDI binding keeps working regardless of which track is currently
@@ -163,6 +179,7 @@ export default function App() {
           onDismiss={dismissSubgenreDeletionUndo}
         />
       )}
+      {toastMessage && <Toast message={toastMessage} />}
       <div
         className="app-layout"
         style={{
@@ -193,7 +210,7 @@ export default function App() {
             <>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
                 <button
-                  onClick={() => setLeftView('folders')}
+                  onClick={() => changeLeftView('folders')}
                   style={{
                     border: leftView === 'folders' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
                   }}
@@ -201,7 +218,7 @@ export default function App() {
                   Folders
                 </button>
                 <button
-                  onClick={() => setLeftView('tags')}
+                  onClick={() => changeLeftView('tags')}
                   style={{
                     border: leftView === 'tags' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
                   }}
@@ -209,7 +226,7 @@ export default function App() {
                   Tags
                 </button>
                 <button
-                  onClick={() => setLeftView('subtags')}
+                  onClick={() => changeLeftView('subtags')}
                   style={{
                     border: leftView === 'subtags' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
                   }}
@@ -256,7 +273,7 @@ export default function App() {
             selectedTrackId={selectedTrack?.id ?? null}
             scrollToTrack={scrollToTrack}
             onShowInFolderTree={(folder) => {
-              setLeftView('folders')
+              changeLeftView('folders')
               setSelectedFolder(folder)
             }}
           />

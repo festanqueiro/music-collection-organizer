@@ -8,6 +8,7 @@ export function BatchTagBar() {
   const addTagsToCheckedTracks = useCollectionStore((s) => s.addTagsToCheckedTracks)
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
+  const showToast = useCollectionStore((s) => s.showToast)
 
   if (checkedTrackIds.size === 0) return null
 
@@ -27,7 +28,12 @@ export function BatchTagBar() {
         value=""
         onChange={(e) => {
           const id = Number(e.target.value)
-          if (id) addTagsToCheckedTracks({ genreIds: [id], subgenreIds: [] })
+          const genre = genres.find((g) => g.id === id)
+          if (id && genre) {
+            const count = checkedTrackIds.size
+            addTagsToCheckedTracks({ genreIds: [id], subgenreIds: [] })
+            showToast(`Added "${genre.name}" to ${count} track${count === 1 ? '' : 's'}`)
+          }
         }}
       >
         <option value="">+ Add tag…</option>
@@ -41,7 +47,12 @@ export function BatchTagBar() {
         value=""
         onChange={(e) => {
           const id = Number(e.target.value)
-          if (id) addTagsToCheckedTracks({ genreIds: [], subgenreIds: [id] })
+          const subgenre = subgenres.find((sg) => sg.id === id)
+          if (id && subgenre) {
+            const count = checkedTrackIds.size
+            addTagsToCheckedTracks({ genreIds: [], subgenreIds: [id] })
+            showToast(`Added "${subgenre.name}" to ${count} track${count === 1 ? '' : 's'}`)
+          }
         }}
       >
         <option value="">+ Add subtag…</option>
@@ -51,7 +62,15 @@ export function BatchTagBar() {
           </option>
         ))}
       </select>
-      <button onClick={() => runAnalysis(Array.from(checkedTrackIds))}>Analyse</button>
+      <button
+        onClick={() => {
+          const count = checkedTrackIds.size
+          runAnalysis(Array.from(checkedTrackIds))
+          showToast(`Analysing ${count} track${count === 1 ? '' : 's'}…`)
+        }}
+      >
+        Analyse
+      </button>
       <button onClick={clearCheckedTracks}>Clear selection</button>
     </div>
   )
