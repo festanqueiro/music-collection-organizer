@@ -183,6 +183,15 @@ export interface EffectsSettings {
   // 1 (fully wet) matches the EQ's original always-fully-applied behavior.
   eq: { enabled: boolean; low: number; mid: number; high: number; mix: number }
   siren: SirenSettings
+  // Global output gain applied at the very end of the chain, after every
+  // FX send (delay/reverb wet, filter/EQ wet+dry) — unlike the footer
+  // Player's Volume control (dryGain, right at the start of the chain,
+  // pre-FX), pulling this down attenuates an already-ringing delay repeat
+  // or reverb tail immediately, not just new signal entering them. Kept
+  // out of the footer on purpose (a plain volume slider there would look
+  // identical to Player Volume despite behaving very differently) — lives
+  // in FxPanel as its own MIDI-mappable knob instead.
+  masterVolume: number
 }
 
 export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
@@ -194,10 +203,12 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1, mix: 1 },
   eq: { enabled: true, low: 0, mid: 0, high: 0, mix: 1 },
   siren: DEFAULT_SIREN_SETTINGS,
+  masterVolume: 1,
 }
 
 export type MidiControlKey =
   | 'volume'
+  | 'master.volume'
   | 'delay.enabled'
   | 'delay.timeMs'
   | 'delay.feedback'

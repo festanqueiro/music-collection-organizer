@@ -33,6 +33,7 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
           echoFeedback: 0.45,
           beat: 'off',
         },
+        masterVolume: 1,
       },
     })
   })
@@ -172,6 +173,7 @@ describe('handleMidiControlChange — continuous knobs are coalesced to one comm
       echoFeedback: 0.45,
       beat: 'off' as const,
     },
+    masterVolume: 1,
   }
 
   beforeEach(() => {

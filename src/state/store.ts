@@ -649,6 +649,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         const es = get().effectsSettings
         get().setEffectsSettings({ ...es, siren: { ...es.siren, echoFeedback: scaled } })
       })
+    } else if (match === 'master.volume') {
+      scheduleMidiCommit('master.volume', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, masterVolume: scaled })
+      })
     }
   },
 

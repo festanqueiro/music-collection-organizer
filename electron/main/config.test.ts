@@ -76,6 +76,7 @@ describe('config store', () => {
       filter: { enabled: true, lowpass: 0.5, highpass: 0, resonance: 3, mix: 1 },
       eq: { enabled: true, low: 4, mid: -2, high: 1.5, mix: 1 },
       siren: { ...DEFAULT_SIREN_SETTINGS, enabled: true, mode: 'bomb' as const },
+      masterVolume: 0.8,
     }
     setEffectsSettings(settings)
     expect(getEffectsSettings()).toEqual(settings)
@@ -122,6 +123,19 @@ describe('config store', () => {
       decaySeconds: DEFAULT_EFFECTS_SETTINGS.reverb.decaySeconds,
       preDelayMs: DEFAULT_EFFECTS_SETTINGS.reverb.preDelayMs,
     })
+  })
+
+  it('defaults masterVolume for a stored blob predating it', () => {
+    const store = new Store({ name: `test-premaster-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    store.set('effectsSettings', {
+      delay: DEFAULT_EFFECTS_SETTINGS.delay,
+      reverb: DEFAULT_EFFECTS_SETTINGS.reverb,
+      siren: DEFAULT_SIREN_SETTINGS,
+    })
+    __setStoreForTests(store)
+    expect(getEffectsSettings().masterVolume).toBe(DEFAULT_EFFECTS_SETTINGS.masterVolume)
   })
 
   it('fills in the whole filter default for a stored blob with no filter key at all (pre-filter config)', () => {

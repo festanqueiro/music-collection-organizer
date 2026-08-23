@@ -107,10 +107,20 @@ export class EffectsChain {
   private convolver: ConvolverNode
   private reverbWetGain: GainNode
   private lastDecaySeconds: number
+  private masterGain: GainNode
 
   constructor(audioElement: HTMLAudioElement) {
     this.context = new AudioContext()
     const source = this.context.createMediaElementSource(audioElement)
+
+    // The true final stage, after every FX send (filter/EQ wet+dry, delay
+    // wet, reverb wet) — unlike dryGain (setVolume/playerVolume, right at
+    // the start of the chain), pulling masterGain down attenuates an
+    // already-ringing delay repeat or reverb tail immediately, since
+    // those sends land here downstream of themselves rather than upstream.
+    this.masterGain = this.context.createGain()
+    this.masterGain.gain.value = 1
+    this.masterGain.connect(this.context.destination)
 
     this.dryGain = this.context.createGain()
     this.dryGain.gain.value = 1
@@ -163,8 +173,8 @@ export class EffectsChain {
     this.eqDryGain.connect(this.filterDryGain)
     this.lowpassNode.connect(this.highpassNode)
     this.highpassNode.connect(this.filterWetGain)
-    this.filterWetGain.connect(this.context.destination)
-    this.filterDryGain.connect(this.context.destination)
+    this.filterWetGain.connect(this.masterGain)
+    this.filterDryGain.connect(this.masterGain)
 
     this.delayNode = this.context.createDelay(MAX_DELAY_SECONDS)
     this.delayFeedbackGain = this.context.createGain()
@@ -175,7 +185,7 @@ export class EffectsChain {
     this.delayNode.connect(this.delayFeedbackGain)
     this.delayFeedbackGain.connect(this.delayNode)
     this.delayNode.connect(this.delayWetGain)
-    this.delayWetGain.connect(this.context.destination)
+    this.delayWetGain.connect(this.masterGain)
 
     this.lastDecaySeconds = 2
     this.preDelayNode = this.context.createDelay(MAX_PRE_DELAY_SECONDS)
@@ -187,7 +197,7 @@ export class EffectsChain {
     this.filterDryGain.connect(this.preDelayNode)
     this.preDelayNode.connect(this.convolver)
     this.convolver.connect(this.reverbWetGain)
-    this.reverbWetGain.connect(this.context.destination)
+    this.reverbWetGain.connect(this.masterGain)
   }
 
   update(settings: EffectsSettings): void {
@@ -248,6 +258,7 @@ export class EffectsChain {
     const filterWet = enabled ? mix : 0
     this.filterWetGain.gain.setTargetAtTime(filterWet, now, FILTER_PARAM_TAU)
     this.filterDryGain.gain.setTargetAtTime(1 - filterWet, now, FILTER_PARAM_TAU)
+    this.masterGain.gain.setTargetAtTime(settings.masterVolume, now, FILTER_PARAM_TAU)
   }
 
   setVolume(value: number): void {

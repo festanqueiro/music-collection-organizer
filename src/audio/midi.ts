@@ -144,6 +144,7 @@ export function sendMidiFeedback(binding: MidiBinding, on: boolean): void {
 
 export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: number }> = {
   volume: { min: 0, max: 1 },
+  'master.volume': { min: 0, max: 1 },
   'delay.enabled': { min: 0, max: 1 },
   'delay.timeMs': { min: 0, max: 1000 },
   'delay.feedback': { min: 0, max: 0.9 },

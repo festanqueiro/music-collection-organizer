@@ -92,6 +92,7 @@ export function getEffectsSettings(): EffectsSettings {
     filter: { ...DEFAULT_EFFECTS_SETTINGS.filter, ...stored.filter },
     eq: { ...DEFAULT_EFFECTS_SETTINGS.eq, ...stored.eq },
     siren: { ...DEFAULT_SIREN_SETTINGS, ...stored.siren },
+    masterVolume: stored.masterVolume ?? DEFAULT_EFFECTS_SETTINGS.masterVolume,
   }
 }
 

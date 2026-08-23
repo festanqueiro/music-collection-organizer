@@ -166,6 +166,26 @@ export function FxPanel({ track }: { track: Track | null }) {
     <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
       <div style={{ ...sectionStyle, borderTop: 'none', paddingTop: 0 }}>
         <div style={headerRowStyle}>
+          <h4 style={{ margin: 0 }}>Master</h4>
+          <MidiLearnBadge control="master.volume" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField
+            label="Volume"
+            control="master.volume"
+            value={effectsSettings.masterVolume}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => setEffectsSettings({ ...effectsSettings, masterVolume: v })}
+            defaultValue={DEFAULT_EFFECTS_SETTINGS.masterVolume}
+            formatValue={(v) => v.toFixed(2)}
+          />
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
           <ToggleSwitch
             checked={effectsSettings.eq.enabled}
             onChange={(checked) => updateEq({ enabled: checked })}
@@ -475,7 +495,7 @@ export function FxPanel({ track }: { track: Track | null }) {
             formatValue={(v) => v.toFixed(2)}
           />
           <KnobField
-            label="Level"
+            label="Mix"
             control="siren.level"
             value={effectsSettings.siren.level}
             min={0}
