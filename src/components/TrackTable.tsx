@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { formatDuration, decodeHtmlEntities } from '../format'
+import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 
 type SortKey = TrackTableColumnKey
@@ -19,6 +19,37 @@ const contextMenuItemStyle = {
 }
 
 const contextMenuIconStyle = { fontSize: '16px' }
+
+const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
+  title: 260,
+  filename: 220,
+  artist: 160,
+  tags: 200,
+  bpm: 70,
+  musicalKey: 70,
+  format: 80,
+  duration: 90,
+  dateAdded: 120,
+  dateModified: 120,
+}
+const MIN_COLUMN_WIDTH = 50
+const CHECKBOX_COL_WIDTH = 36
+const STATUS_COL_WIDTH = 90
+const CLOUD_COL_WIDTH = 70
+// Per-viewer sizing convenience, not collection data — plain localStorage
+// rather than the electron-store-backed column *order*, which is shared
+// config synced through the main process.
+const COLUMN_WIDTHS_STORAGE_KEY = 'mco-track-table-column-widths'
+
+function loadColumnWidths(): Record<TrackTableColumnKey, number> {
+  try {
+    const stored = localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY)
+    if (!stored) return { ...DEFAULT_COLUMN_WIDTHS }
+    return { ...DEFAULT_COLUMN_WIDTHS, ...JSON.parse(stored) }
+  } catch {
+    return { ...DEFAULT_COLUMN_WIDTHS }
+  }
+}
 
 export function TrackTable({
   onSelect,
@@ -63,6 +94,41 @@ export function TrackTable({
   const sortKey = sortState.key
   const sortDir = sortState.direction
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
+  // Anchor for shift-click range checking — the last row whose checkbox
+  // was explicitly clicked (not the one currently selected/detail-panel
+  // focused, so shift-click ranges follow checkbox clicks specifically).
+  const [lastCheckedTrackId, setLastCheckedTrackId] = useState<number | null>(null)
+  const [columnWidths, setColumnWidths] = useState<Record<TrackTableColumnKey, number>>(loadColumnWidths)
+
+  // Drag-to-resize a column's header border. Reads/writes columnWidths via
+  // functional updates so the window listeners (attached once per drag,
+  // not re-subscribed on every width change) never close over a stale value.
+  function handleResizeStart(key: TrackTableColumnKey, startEvent: React.MouseEvent) {
+    startEvent.preventDefault()
+    startEvent.stopPropagation()
+    const startX = startEvent.clientX
+    const startWidth = columnWidths[key]
+
+    function handleMouseMove(e: MouseEvent) {
+      const nextWidth = Math.max(MIN_COLUMN_WIDTH, startWidth + (e.clientX - startX))
+      setColumnWidths((prev) => ({ ...prev, [key]: nextWidth }))
+    }
+    function handleMouseUp() {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      setColumnWidths((prev) => {
+        try {
+          localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
+        } catch {
+          // Best-effort persistence — losing a resize on a full/blocked
+          // localStorage isn't worth surfacing to the user.
+        }
+        return prev
+      })
+    }
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+  }
 
   useEffect(() => {
     if (!contextMenu) return
@@ -113,6 +179,8 @@ export function TrackTable({
   // lookup every other column uses.
   function sortValueFor(track: Track, key: SortKey): string | number {
     if (key === 'tags') return tagNamesFor(track.id).map((t) => t.name).join(', ')
+    if (key === 'dateAdded') return track.birthtime ?? 0
+    if (key === 'dateModified') return track.mtime ?? 0
     return track[key] ?? ''
   }
 
@@ -180,12 +248,51 @@ export function TrackTable({
     musicalKey: 'Key',
     format: 'Format',
     duration: 'Duration',
+    dateAdded: 'Date Added',
+    dateModified: 'Date Modified',
   }
   const orderedColumns = columnOrder.map((key) => ({ key, label: columnLabels[key] }))
 
   const cellStyle = { padding: '8px', whiteSpace: 'nowrap' as const }
-  const titleCellStyle = { ...cellStyle, maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis' as const }
-  const tagsCellStyle = { ...cellStyle, maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis' as const }
+  // Keeps the header row pinned to the top of the scroll container (the
+  // .pane it's rendered inside, which owns the vertical scroll) as the
+  // table's rows scroll underneath it. Needs an opaque background so
+  // scrolled-past rows don't show through.
+  const stickyHeaderStyle = { position: 'sticky' as const, top: 0, background: 'var(--color-bg)', zIndex: 1 }
+
+  // Checks every row between anchorId and trackId (inclusive), matching
+  // Finder/Explorer range selection. Returns false (no-op) if either
+  // endpoint isn't in the current filtered/sorted view, so callers can
+  // fall back to their own single-row behavior.
+  function checkRange(anchorId: number, trackId: number): boolean {
+    const fromIndex = visibleTracks.findIndex((t) => t.id === anchorId)
+    const toIndex = visibleTracks.findIndex((t) => t.id === trackId)
+    if (fromIndex === -1 || toIndex === -1) return false
+    const [start, end] = fromIndex <= toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex]
+    const rangeIds = visibleTracks.slice(start, end + 1).map((t) => t.id)
+    setTracksChecked(rangeIds, true)
+    setLastCheckedTrackId(trackId)
+    return true
+  }
+
+  // Shift-clicking a row's checkbox checks every row between it and the
+  // last-clicked checkbox (inclusive) — falls back to a plain toggle if
+  // there's no prior anchor or the range check couldn't resolve.
+  function handleCheckboxClick(trackId: number, shiftKey: boolean) {
+    if (shiftKey && lastCheckedTrackId != null && checkRange(lastCheckedTrackId, trackId)) return
+    toggleTrackChecked(trackId)
+    setLastCheckedTrackId(trackId)
+  }
+
+  // Shift-clicking a row itself (not just its checkbox) also range-checks,
+  // anchored off the last checkbox click, falling back to the currently
+  // selected row so a shift-click works even before any checkbox was
+  // touched. A plain click still just moves the detail-panel selection.
+  function handleRowClick(track: Track, shiftKey: boolean) {
+    const anchorId = lastCheckedTrackId ?? selectedTrackId
+    if (shiftKey && anchorId != null) checkRange(anchorId, track.id)
+    onSelect(track)
+  }
 
   function renderCell(track: Track, key: TrackTableColumnKey) {
     switch (key) {
@@ -273,13 +380,16 @@ export function TrackTable({
         return track.format
       case 'duration':
         return track.duration ? formatDuration(track.duration) : '—'
+      case 'dateAdded':
+        return formatDate(track.birthtime)
+      case 'dateModified':
+        return formatDate(track.mtime)
     }
   }
 
   function cellStyleFor(key: TrackTableColumnKey) {
-    if (key === 'title' || key === 'filename') return titleCellStyle
-    if (key === 'tags') return tagsCellStyle
-    return cellStyle
+    const width = columnWidths[key]
+    return { ...cellStyle, width, maxWidth: width, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const }
   }
 
   function handleColumnDrop(targetKey: TrackTableColumnKey) {
@@ -297,7 +407,16 @@ export function TrackTable({
   }
 
   return (
-    <div style={{ overflowX: 'auto' }}>
+    // This div (not the ambient .pane it sits in, which App.tsx now makes
+    // a column flexbox around it and BatchTagBar) is the actual scroll
+    // container on both axes — flex:1 + minHeight:0 gives it a real
+    // bounded height to scroll within, which sticky-header positioning
+    // below depends on. Without a bounded height (e.g. a plain height:auto
+    // div with just overflowX set), the div's overflow-y gets silently
+    // promoted to 'auto' too (CSS spec) but never actually scrolls, so a
+    // sticky child inside it never visibly sticks — the ancestor .pane
+    // scrolls past it instead.
+    <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
       <div style={{ padding: '4px 8px' }}>
         <button
           onClick={() => {
@@ -325,10 +444,20 @@ export function TrackTable({
           Add all to queue
         </button>
       </div>
-      <table style={{ borderCollapse: 'collapse', width: 'max-content', minWidth: '100%' }}>
+      <table
+        style={{
+          borderCollapse: 'collapse',
+          tableLayout: 'fixed',
+          width:
+            CHECKBOX_COL_WIDTH +
+            orderedColumns.reduce((sum, col) => sum + columnWidths[col.key], 0) +
+            STATUS_COL_WIDTH +
+            CLOUD_COL_WIDTH,
+        }}
+      >
         <thead>
           <tr>
-            <th style={cellStyle}>
+            <th style={{ ...cellStyle, width: CHECKBOX_COL_WIDTH, ...stickyHeaderStyle }}>
               <input
                 type="checkbox"
                 checked={visibleTracks.length > 0 && visibleTracks.every((t) => checkedTrackIds.has(t.id))}
@@ -349,17 +478,34 @@ export function TrackTable({
                 title="Click to sort, drag to reorder"
                 style={{
                   ...cellStyle,
+                  ...stickyHeaderStyle,
                   cursor: 'pointer',
                   textAlign: 'left',
                   opacity: draggedColumn === col.key ? 0.5 : 1,
+                  width: columnWidths[col.key],
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 }}
               >
                 {col.label}
                 {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                <div
+                  onMouseDown={(e) => handleResizeStart(col.key, e)}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Drag to resize"
+                  style={{
+                    position: 'absolute',
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: '6px',
+                    cursor: 'col-resize',
+                  }}
+                />
               </th>
             ))}
-            <th style={cellStyle}>Status</th>
-            <th style={cellStyle}>Cloud</th>
+            <th style={{ ...cellStyle, width: STATUS_COL_WIDTH, ...stickyHeaderStyle }}>Status</th>
+            <th style={{ ...cellStyle, width: CLOUD_COL_WIDTH, ...stickyHeaderStyle }}>Cloud</th>
           </tr>
         </thead>
         <tbody>
@@ -378,7 +524,7 @@ export function TrackTable({
               key={track.id}
               data-track-id={track.id}
               className={`track-row${track.id === selectedTrackId ? ' selected' : ''}`}
-              onClick={() => onSelect(track)}
+              onClick={(e) => handleRowClick(track, e.shiftKey)}
               onContextMenu={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -387,11 +533,17 @@ export function TrackTable({
               draggable
               onDragStart={(e) => {
                 // Native OS drag (to Finder, a DAW, etc.) hands off the
-                // track's existing file path — it's a reference, not a
+                // tracks' existing file paths — it's a reference, not a
                 // copy; preventDefault stops the browser's own HTML5 drag
-                // image/ghost from also kicking in alongside it.
+                // image/ghost from also kicking in alongside it. If the
+                // dragged row is part of a multi-checked selection, drag
+                // all checked tracks; otherwise just this one row.
                 e.preventDefault()
-                window.api.startTrackDrag(track.id)
+                const ids =
+                  checkedTrackIds.has(track.id) && checkedTrackIds.size > 1
+                    ? Array.from(checkedTrackIds)
+                    : [track.id]
+                window.api.startTrackDrag(ids)
               }}
               style={{ cursor: 'pointer' }}
             >
@@ -399,7 +551,11 @@ export function TrackTable({
                 <input
                   type="checkbox"
                   checked={checkedTrackIds.has(track.id)}
-                  onChange={() => toggleTrackChecked(track.id)}
+                  onChange={() => {}}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    handleCheckboxClick(track.id, e.shiftKey)
+                  }}
                 />
               </td>
               {orderedColumns.map((col) => (

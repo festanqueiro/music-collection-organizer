@@ -166,7 +166,18 @@ describe('config store', () => {
   })
 
   it('persists a set column order', () => {
-    const order = ['artist', 'title', 'bpm', 'musicalKey', 'format', 'duration', 'filename', 'tags'] as const
+    const order = [
+      'artist',
+      'title',
+      'bpm',
+      'musicalKey',
+      'format',
+      'duration',
+      'filename',
+      'tags',
+      'dateAdded',
+      'dateModified',
+    ] as const
     setColumnOrder([...order])
     expect(getColumnOrder()).toEqual(order)
   })

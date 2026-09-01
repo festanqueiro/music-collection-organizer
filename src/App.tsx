@@ -278,8 +278,10 @@ export default function App() {
           )}
         </div>
 
-        <div className="pane" style={{ gridArea: 'center' }}>
-          <BatchTagBar />
+        <div className="pane" style={{ gridArea: 'center', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flexShrink: 0 }}>
+            <BatchTagBar />
+          </div>
           <TrackTable
             onSelect={setSelectedTrack}
             selectedFolder={selectedFolder}

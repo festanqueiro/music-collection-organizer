@@ -111,17 +111,37 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           padding: '24px',
-          minWidth: '360px',
+          width: '480px',
+          height: '520px',
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '16px',
+            flexShrink: 0,
+          }}
+        >
           <h2 style={{ margin: 0 }}>Settings</h2>
           <button onClick={onClose}>
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px' }}>
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px',
+            marginBottom: '16px',
+            borderBottom: '1px solid var(--color-border)',
+            paddingBottom: '12px',
+            flexShrink: 0,
+          }}
+        >
           {SETTINGS_TABS.map((tab) => (
             <button
               key={tab.key}
@@ -136,6 +156,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           ))}
         </div>
 
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
         {activeTab === 'general' && (
           <>
             <section style={{ marginBottom: '20px' }}>
@@ -301,6 +322,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
             </section>
           </>
         )}
+        </div>
       </div>
     </div>
   )

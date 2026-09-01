@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite'
+import { statSync } from 'node:fs'
 
 export type AppDatabase = DatabaseSync
 
@@ -11,6 +12,7 @@ CREATE TABLE IF NOT EXISTS tracks (
   format TEXT NOT NULL,
   size INTEGER NOT NULL,
   mtime INTEGER NOT NULL,
+  birthtime INTEGER,
   duration REAL,
   title TEXT,
   artist TEXT,
@@ -80,6 +82,23 @@ function migrate(db: AppDatabase): void {
 
   if (!trackColumnNames.has('present')) {
     db.exec('ALTER TABLE tracks ADD COLUMN present INTEGER NOT NULL DEFAULT 1')
+  }
+
+  if (!trackColumnNames.has('birthtime')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN birthtime INTEGER')
+    // Backfill from the filesystem for rows that predate this column, so
+    // existing collections get a "date added" without needing a rescan.
+    // Best-effort: a track whose file is currently missing/unmounted is
+    // left with birthtime = NULL and picked up on its next successful scan.
+    const rows = db.prepare('SELECT id, path FROM tracks').all() as { id: number; path: string }[]
+    const backfillStmt = db.prepare('UPDATE tracks SET birthtime = ? WHERE id = ?')
+    for (const row of rows) {
+      try {
+        backfillStmt.run(Math.floor(statSync(row.path).birthtimeMs), row.id)
+      } catch {
+        // File not reachable right now — leave birthtime NULL.
+      }
+    }
   }
 
   const genreColumns = db.prepare('PRAGMA table_info(genres)').all() as { name: string }[]

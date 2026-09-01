@@ -45,6 +45,7 @@ export function walkAudioFiles(rootPath: string): DiskFileWithBlocks[] {
             path: fullPath,
             size: stats.size,
             mtime: Math.floor(stats.mtimeMs),
+            birthtime: Math.floor(stats.birthtimeMs),
             blocks: (stats as unknown as { blocks?: number }).blocks ?? 0,
           })
         } catch (err) {

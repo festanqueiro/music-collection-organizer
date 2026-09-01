@@ -26,11 +26,11 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
   const diff = diffScan(diskFiles, trackRows)
 
   const insertStmt = db.prepare(`
-    INSERT INTO tracks (path, filename, folder, format, size, mtime, cloud_status, analysis_status)
-    VALUES (@path, @filename, @folder, @format, @size, @mtime, @cloud_status, 'pending')
+    INSERT INTO tracks (path, filename, folder, format, size, mtime, birthtime, cloud_status, analysis_status)
+    VALUES (@path, @filename, @folder, @format, @size, @mtime, @birthtime, @cloud_status, 'pending')
   `)
   const updateStmt = db.prepare(`
-    UPDATE tracks SET size = @size, mtime = @mtime, cloud_status = @cloud_status, analysis_status = 'pending', present = 1
+    UPDATE tracks SET size = @size, mtime = @mtime, birthtime = @birthtime, cloud_status = @cloud_status, analysis_status = 'pending', present = 1
     WHERE path = @path
   `)
   const markMissingStmt = db.prepare('UPDATE tracks SET present = 0 WHERE path = ?')
@@ -47,6 +47,7 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
       format: extname(file.path).slice(1).toLowerCase(),
       size: file.size,
       mtime: file.mtime,
+      birthtime: file.birthtime,
       cloud_status: cloudStatus,
     }
   }
@@ -64,7 +65,13 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
       // so this can't just pass toRow(file) — it has filename/folder/format
       // too, which this statement doesn't set.
       const row = toRow(file)
-      updateStmt.run({ path: row.path, size: row.size, mtime: row.mtime, cloud_status: row.cloud_status })
+      updateStmt.run({
+        path: row.path,
+        size: row.size,
+        mtime: row.mtime,
+        birthtime: row.birthtime,
+        cloud_status: row.cloud_status,
+      })
     }
     for (const path of diff.toRemove) markMissingStmt.run(path)
     for (const file of toRevive) reviveStmt.run(file.path)

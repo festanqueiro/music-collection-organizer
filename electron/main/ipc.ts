@@ -75,6 +75,7 @@ interface TrackRow {
   format: string
   size: number
   mtime: number
+  birthtime: number | null
   duration: number | null
   title: string | null
   artist: string | null
@@ -109,6 +110,7 @@ function rowToTrack(row: TrackRow): Track {
     format: row.format,
     size: row.size,
     mtime: row.mtime,
+    birthtime: row.birthtime,
     duration: row.duration,
     title: row.title,
     artist: row.artist,
@@ -425,17 +427,20 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     await downloadTrack(db, trackId, getMediaCacheDir())
   })
 
-  // Native OS file drag (e.g. dragging a row out to Finder, a DAW, or any
-  // other app) — this hands the OS the track's existing on-disk path, the
-  // same as dragging a file out of Finder itself. Nothing is copied or
+  // Native OS file drag (e.g. dragging rows out to Finder, a DAW, or any
+  // other app) — this hands the OS the tracks' existing on-disk paths, the
+  // same as dragging files out of Finder itself. Nothing is copied or
   // moved by this app; the receiving app/Finder decides what happens next,
   // exactly like any other native file drag. `ipcMain.on` (not `handle`)
   // matches Electron's own recipe for startDrag: fire-and-forget, no
   // renderer-side await needed.
-  ipcMain.on('tracks:startDrag', (event, trackId: number) => {
-    const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
-    if (!row) return
-    event.sender.startDrag({ file: row.path, icon: getDragIcon() })
+  ipcMain.on('tracks:startDrag', (event, trackIds: number[]) => {
+    const placeholders = trackIds.map(() => '?').join(',')
+    const rows = db
+      .prepare(`SELECT path FROM tracks WHERE id IN (${placeholders})`)
+      .all(...trackIds) as { path: string }[]
+    if (rows.length === 0) return
+    event.sender.startDrag({ file: rows[0].path, files: rows.map((r) => r.path), icon: getDragIcon() })
   })
 
   // Reveals the track's file in Finder (highlighted, folder already open)

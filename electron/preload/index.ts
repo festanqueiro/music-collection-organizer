@@ -78,10 +78,10 @@ const api = {
   // Only a trackId — the main process looks up the actual path from its
   // own DB row rather than trusting one supplied over IPC.
   downloadTrack: (trackId: number): Promise<void> => ipcRenderer.invoke('tracks:download', trackId),
-  // Fire-and-forget: kicks off the OS's native file-drag session for this
-  // track's row, same mechanism as dragging a file out of Finder — no
+  // Fire-and-forget: kicks off the OS's native file-drag session for these
+  // track rows, same mechanism as dragging files out of Finder — no
   // response is awaited.
-  startTrackDrag: (trackId: number): void => ipcRenderer.send('tracks:startDrag', trackId),
+  startTrackDrag: (trackIds: number[]): void => ipcRenderer.send('tracks:startDrag', trackIds),
   showTrackInFolder: (trackId: number): void => ipcRenderer.send('tracks:showInFolder', trackId),
   getTrackArtwork: (trackId: number): Promise<string | null> => ipcRenderer.invoke('tracks:getArtwork', trackId),
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
