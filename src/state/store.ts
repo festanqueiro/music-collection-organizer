@@ -36,6 +36,43 @@ let effectsSettingsSaveTimeout: ReturnType<typeof setTimeout> | null = null
 // Backs showToast's auto-dismiss below.
 let toastTimeout: ReturnType<typeof setTimeout> | null = null
 
+// Coalesces rapid MIDI CC bursts to at most one store update per animation
+// frame, per control — a touch-sensitive hardware knob/fader can send
+// hundreds of CC messages a second, and applying every single one
+// synchronously (a full setEffectsSettings call: re-renders every knob in
+// FxPanel, which subscribes to the whole effectsSettings object, plus
+// reschedules the debounced-save timer) floods the render loop far faster
+// than the UI can keep up — the on-screen knob visibly lags well behind
+// the physical one. This is the same reasoning as FxPanel's own
+// useRafThrottledCommit for mouse-dragged knobs, just applied at the
+// actual bottleneck (every MIDI-driven continuous control, not only the
+// two knobs that hook happens to cover) — mouse drags fire at the
+// browser's own pointermove rate (already frame-aligned-ish), MIDI CC
+// bursts don't. Keyed per control so turning two knobs in the same frame
+// commits both, and each commit re-reads the store fresh when it actually
+// runs (not a snapshot captured back when it was scheduled), so neither
+// clobbers a change the other already applied earlier in the same frame.
+const pendingMidiCommits = new Map<string, () => void>()
+let midiRafScheduled = false
+
+function scheduleMidiCommit(key: string, commit: () => void): void {
+  pendingMidiCommits.set(key, commit)
+  if (midiRafScheduled) return
+  midiRafScheduled = true
+  const flush = () => {
+    midiRafScheduled = false
+    const commits = [...pendingMidiCommits.values()]
+    pendingMidiCommits.clear()
+    for (const c of commits) c()
+  }
+  // requestAnimationFrame doesn't exist outside a real browser environment
+  // (e.g. this module under Vitest's node environment) — a ~60fps
+  // setTimeout fallback keeps the same coalescing behavior there instead
+  // of throwing.
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(flush)
+  else setTimeout(flush, 16)
+}
+
 // Applies a tag IPC call's returned (server-authoritative) TrackTagIds to one
 // track's entry in the trackTags map, without reloading the whole collection
 // — tag edits are frequent and loadAll() was re-fetching every
@@ -473,7 +510,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
     const scaled = scaleMidiValue(match, value)
     if (match === 'volume') {
-      get().setPlayerVolume(scaled)
+      scheduleMidiCommit('volume', () => get().setPlayerVolume(scaled))
       return
     }
 
@@ -484,6 +521,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // the raw value directly made the effect only stay on while physically
     // held. Toggle once on the press edge instead, and ignore the release
     // message entirely, so one tap flips the state and it stays there.
+    // These are one-shot presses, not a continuous stream, so — unlike
+    // every branch below — they apply immediately rather than through
+    // scheduleMidiCommit.
     if (match === 'delay.enabled') {
       if (value === 0) return
       get().setEffectsSettings({
@@ -491,11 +531,20 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         delay: { ...effectsSettings.delay, enabled: !effectsSettings.delay.enabled },
       })
     } else if (match === 'delay.timeMs') {
-      get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, timeMs: scaled } })
+      scheduleMidiCommit('delay.timeMs', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, delay: { ...es.delay, timeMs: scaled } })
+      })
     } else if (match === 'delay.feedback') {
-      get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, feedback: scaled } })
+      scheduleMidiCommit('delay.feedback', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, delay: { ...es.delay, feedback: scaled } })
+      })
     } else if (match === 'delay.mix') {
-      get().setEffectsSettings({ ...effectsSettings, delay: { ...effectsSettings.delay, mix: scaled } })
+      scheduleMidiCommit('delay.mix', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, delay: { ...es.delay, mix: scaled } })
+      })
     } else if (match === 'reverb.enabled') {
       if (value === 0) return
       get().setEffectsSettings({
@@ -503,11 +552,20 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         reverb: { ...effectsSettings.reverb, enabled: !effectsSettings.reverb.enabled },
       })
     } else if (match === 'reverb.mix') {
-      get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, mix: scaled } })
+      scheduleMidiCommit('reverb.mix', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, reverb: { ...es.reverb, mix: scaled } })
+      })
     } else if (match === 'reverb.decaySeconds') {
-      get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, decaySeconds: scaled } })
+      scheduleMidiCommit('reverb.decaySeconds', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, reverb: { ...es.reverb, decaySeconds: scaled } })
+      })
     } else if (match === 'reverb.preDelayMs') {
-      get().setEffectsSettings({ ...effectsSettings, reverb: { ...effectsSettings.reverb, preDelayMs: scaled } })
+      scheduleMidiCommit('reverb.preDelayMs', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, reverb: { ...es.reverb, preDelayMs: scaled } })
+      })
     } else if (match === 'filter.enabled') {
       if (value === 0) return
       get().setEffectsSettings({
@@ -515,11 +573,25 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         filter: { ...effectsSettings.filter, enabled: !effectsSettings.filter.enabled },
       })
     } else if (match === 'filter.lowpass') {
-      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, lowpass: scaled } })
+      scheduleMidiCommit('filter.lowpass', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, filter: { ...es.filter, lowpass: scaled } })
+      })
     } else if (match === 'filter.highpass') {
-      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, highpass: scaled } })
+      scheduleMidiCommit('filter.highpass', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, filter: { ...es.filter, highpass: scaled } })
+      })
     } else if (match === 'filter.resonance') {
-      get().setEffectsSettings({ ...effectsSettings, filter: { ...effectsSettings.filter, resonance: scaled } })
+      scheduleMidiCommit('filter.resonance', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, filter: { ...es.filter, resonance: scaled } })
+      })
+    } else if (match === 'filter.mix') {
+      scheduleMidiCommit('filter.mix', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, filter: { ...es.filter, mix: scaled } })
+      })
     } else if (match === 'eq.enabled') {
       if (value === 0) return
       get().setEffectsSettings({
@@ -527,13 +599,25 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         eq: { ...effectsSettings.eq, enabled: !effectsSettings.eq.enabled },
       })
     } else if (match === 'eq.low') {
-      get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, low: scaled } })
+      scheduleMidiCommit('eq.low', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, eq: { ...es.eq, low: scaled } })
+      })
     } else if (match === 'eq.mid') {
-      get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, mid: scaled } })
+      scheduleMidiCommit('eq.mid', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, eq: { ...es.eq, mid: scaled } })
+      })
     } else if (match === 'eq.high') {
-      get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, high: scaled } })
+      scheduleMidiCommit('eq.high', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, eq: { ...es.eq, high: scaled } })
+      })
     } else if (match === 'eq.mix') {
-      get().setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, mix: scaled } })
+      scheduleMidiCommit('eq.mix', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, eq: { ...es.eq, mix: scaled } })
+      })
     } else if (match === 'siren.enabled') {
       if (value === 0) return
       get().setEffectsSettings({
@@ -541,15 +625,35 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         siren: { ...effectsSettings.siren, enabled: !effectsSettings.siren.enabled },
       })
     } else if (match === 'siren.pitchHz') {
-      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, pitchHz: scaled } })
+      scheduleMidiCommit('siren.pitchHz', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, siren: { ...es.siren, pitchHz: scaled } })
+      })
     } else if (match === 'siren.speedHz') {
-      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, speedHz: scaled } })
+      scheduleMidiCommit('siren.speedHz', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, siren: { ...es.siren, speedHz: scaled } })
+      })
     } else if (match === 'siren.depth') {
-      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, depth: scaled } })
+      scheduleMidiCommit('siren.depth', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, siren: { ...es.siren, depth: scaled } })
+      })
     } else if (match === 'siren.level') {
-      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, level: scaled } })
+      scheduleMidiCommit('siren.level', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, siren: { ...es.siren, level: scaled } })
+      })
     } else if (match === 'siren.echoFeedback') {
-      get().setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, echoFeedback: scaled } })
+      scheduleMidiCommit('siren.echoFeedback', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, siren: { ...es.siren, echoFeedback: scaled } })
+      })
+    } else if (match === 'master.volume') {
+      scheduleMidiCommit('master.volume', () => {
+        const es = get().effectsSettings
+        get().setEffectsSettings({ ...es, masterVolume: scaled })
+      })
     }
   },
 

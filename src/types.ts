@@ -169,8 +169,11 @@ export interface EffectsSettings {
   // the node's type, so there's no crossover to click at. enabled is a
   // hard global bypass on top of both (e.g. a MIDI-mapped on/off button)
   // — disabled forces both fully open without losing the dialed-in
-  // amounts.
-  filter: { enabled: boolean; lowpass: number; highpass: number; resonance: number }
+  // amounts. mix (0..1) blends the filtered signal back against the
+  // pre-filter one, same dry/wet convention as delay.mix/reverb.mix/
+  // eq.mix; 1 (fully wet) matches the filter's original always-fully-
+  // applied behavior.
+  filter: { enabled: boolean; lowpass: number; highpass: number; resonance: number; mix: number }
   // Standard 3-band channel-strip EQ, dB gain per band (-24..+24, 0 flat).
   // enabled is a hard bypass on top, same convention as filter.enabled —
   // forces all three bands flat without losing the dialed-in gains. mix
@@ -180,6 +183,15 @@ export interface EffectsSettings {
   // 1 (fully wet) matches the EQ's original always-fully-applied behavior.
   eq: { enabled: boolean; low: number; mid: number; high: number; mix: number }
   siren: SirenSettings
+  // Global output gain applied at the very end of the chain, after every
+  // FX send (delay/reverb wet, filter/EQ wet+dry) — unlike the footer
+  // Player's Volume control (dryGain, right at the start of the chain,
+  // pre-FX), pulling this down attenuates an already-ringing delay repeat
+  // or reverb tail immediately, not just new signal entering them. Kept
+  // out of the footer on purpose (a plain volume slider there would look
+  // identical to Player Volume despite behaving very differently) — lives
+  // in FxPanel as its own MIDI-mappable knob instead.
+  masterVolume: number
 }
 
 export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
@@ -188,13 +200,15 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   // synthetic impulse, no pre-delay), so existing configs/behavior are
   // unchanged until someone actually touches the new controls.
   reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
-  filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1 },
+  filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1, mix: 1 },
   eq: { enabled: true, low: 0, mid: 0, high: 0, mix: 1 },
   siren: DEFAULT_SIREN_SETTINGS,
+  masterVolume: 1,
 }
 
 export type MidiControlKey =
   | 'volume'
+  | 'master.volume'
   | 'delay.enabled'
   | 'delay.timeMs'
   | 'delay.feedback'
@@ -208,6 +222,7 @@ export type MidiControlKey =
   | 'filter.lowpass'
   | 'filter.highpass'
   | 'filter.resonance'
+  | 'filter.mix'
   | 'eq.enabled'
   | 'eq.low'
   | 'eq.mid'

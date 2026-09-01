@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { scaleMidiValue } from '../audio/midi'
 
 // store.ts is written for the renderer, where `window.api` (the preload
 // bridge) always exists — stub just enough of it for the MIDI-handling
@@ -20,7 +21,7 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
       effectsSettings: {
         delay: { enabled: false, timeMs: 300, feedback: 0.3, mix: 0.3 },
         reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
-        filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1 },
+        filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1, mix: 1 },
         eq: { enabled: true, low: 0, mid: 0, high: 0, mix: 1 },
         siren: {
           enabled: false,
@@ -32,6 +33,7 @@ describe('handleMidiControlChange — delay.enabled/reverb.enabled toggle', () =
           echoFeedback: 0.45,
           beat: 'off',
         },
+        masterVolume: 1,
       },
     })
   })
@@ -152,5 +154,65 @@ describe('handleMidiControlChange — player.playPause/playNext', () => {
       playbackControls: null,
     })
     expect(() => useCollectionStore.getState().handleMidiControlChange(1, 20, 127, 'note')).not.toThrow()
+  })
+})
+
+describe('handleMidiControlChange — continuous knobs are coalesced to one commit per frame', () => {
+  const baseEffectsSettings = {
+    delay: { enabled: false, timeMs: 300, feedback: 0.3, mix: 0.3 },
+    reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
+    filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1, mix: 1 },
+    eq: { enabled: true, low: 0, mid: 0, high: 0, mix: 1 },
+    siren: {
+      enabled: false,
+      mode: 'siren' as const,
+      pitchHz: 350,
+      speedHz: 6,
+      depth: 1,
+      level: 0.8,
+      echoFeedback: 0.45,
+      beat: 'off' as const,
+    },
+    masterVolume: 1,
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    useCollectionStore.setState({
+      midiMappings: {
+        'filter.resonance': { channel: 0, controller: 30, kind: 'cc' },
+        'eq.low': { channel: 0, controller: 31, kind: 'cc' },
+      },
+      effectsSettings: baseEffectsSettings,
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not apply a continuous value synchronously — only after the frame flushes', () => {
+    useCollectionStore.getState().handleMidiControlChange(0, 30, 100, 'cc')
+    expect(useCollectionStore.getState().effectsSettings.filter.resonance).toBe(1) // unchanged so far
+    vi.advanceTimersByTime(16)
+    expect(useCollectionStore.getState().effectsSettings.filter.resonance).not.toBe(1)
+  })
+
+  it('a burst of messages for the same knob only commits the latest value once', () => {
+    for (const v of [10, 40, 70, 100]) {
+      useCollectionStore.getState().handleMidiControlChange(0, 30, v, 'cc')
+    }
+    vi.advanceTimersByTime(16)
+    const expected = scaleMidiValue('filter.resonance', 100)
+    expect(useCollectionStore.getState().effectsSettings.filter.resonance).toBeCloseTo(expected)
+  })
+
+  it('two different knobs moved within the same frame both commit without clobbering each other', () => {
+    useCollectionStore.getState().handleMidiControlChange(0, 30, 127, 'cc') // filter.resonance
+    useCollectionStore.getState().handleMidiControlChange(0, 31, 127, 'cc') // eq.low
+    vi.advanceTimersByTime(16)
+    const settings = useCollectionStore.getState().effectsSettings
+    expect(settings.filter.resonance).not.toBe(baseEffectsSettings.filter.resonance)
+    expect(settings.eq.low).not.toBe(baseEffectsSettings.eq.low)
   })
 })
