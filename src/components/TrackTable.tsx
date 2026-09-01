@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
@@ -98,6 +98,12 @@ export function TrackTable({
   // was explicitly clicked (not the one currently selected/detail-panel
   // focused, so shift-click ranges follow checkbox clicks specifically).
   const [lastCheckedTrackId, setLastCheckedTrackId] = useState<number | null>(null)
+  // Captured on mousedown (not read from the click/change event itself) so
+  // the checkbox can keep its native toggle behavior — onChange just reads
+  // this instead of us calling preventDefault() and re-implementing the
+  // toggle ourselves, which is a fragile pattern for something as basic as
+  // a checkbox click.
+  const shiftKeyRef = useRef(false)
   const [columnWidths, setColumnWidths] = useState<Record<TrackTableColumnKey, number>>(loadColumnWidths)
 
   // Drag-to-resize a column's header border. Reads/writes columnWidths via
@@ -551,11 +557,10 @@ export function TrackTable({
                 <input
                   type="checkbox"
                   checked={checkedTrackIds.has(track.id)}
-                  onChange={() => {}}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    handleCheckboxClick(track.id, e.shiftKey)
+                  onMouseDown={(e) => {
+                    shiftKeyRef.current = e.shiftKey
                   }}
+                  onChange={() => handleCheckboxClick(track.id, shiftKeyRef.current)}
                 />
               </td>
               {orderedColumns.map((col) => (
