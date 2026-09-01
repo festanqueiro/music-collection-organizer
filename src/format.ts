@@ -18,6 +18,11 @@ export function decodeHtmlEntities(text: string): string {
   return entityDecoderEl.value
 }
 
+export function formatDate(epochMs: number | null): string {
+  if (!epochMs) return '—'
+  return new Date(epochMs).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 export function formatDuration(totalSeconds: number): string {
   const total = Math.round(totalSeconds)
   const hours = Math.floor(total / 3600)

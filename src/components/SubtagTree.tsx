@@ -89,6 +89,11 @@ export function SubtagTree({ onFilterChange }: { onFilterChange: (filter: (track
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, cursor: 'pointer' }}>
                 <input type="checkbox" checked={isSelected} onChange={() => toggleSubgenreFilter(sg.id)} />
                 {sg.name}
+                {genreNameById.get(sg.genreId) && (
+                  <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                    ({genreNameById.get(sg.genreId)})
+                  </span>
+                )}
               </label>
             </div>
             {isExpanded &&

@@ -2,6 +2,9 @@ export interface DiskFile {
   path: string
   size: number
   mtime: number
+  // Filesystem creation time (macOS APFS birthtime) — the closest available
+  // proxy for "when this file was added to the drive".
+  birthtime: number
 }
 
 export interface DbTrackRow {

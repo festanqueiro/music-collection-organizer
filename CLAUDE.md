@@ -22,6 +22,10 @@ macOS only for now.
   batch of work rather than one PR per tiny change.
 - Always verify with `npx tsc -b --noEmit` (see gotcha below) and `npm test`
   before considering a change done.
+- After finishing a change (feature, fix, tweak — whatever the user asked
+  for), run `npm run dist:beta` so the BETA app on disk is rebuilt and
+  reinstalled with the change, ready for the user to test immediately
+  without asking.
 
 ## Key gotchas
 

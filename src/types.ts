@@ -6,6 +6,10 @@ export interface Track {
   format: string
   size: number
   mtime: number
+  // Filesystem creation time (macOS APFS birthtime) — the closest available
+  // proxy for "when this file was added to the drive"; null for rows
+  // written before this column existed and never revisited by a scan.
+  birthtime: number | null
   duration: number | null
   title: string | null
   artist: string | null
@@ -24,7 +28,17 @@ export interface Track {
 // see config.ts's getColumnOrder for how a stored order missing a column
 // (e.g. one added in a later version) or containing an unknown one is
 // reconciled back against this.
-export type TrackTableColumnKey = 'title' | 'filename' | 'artist' | 'tags' | 'bpm' | 'musicalKey' | 'format' | 'duration'
+export type TrackTableColumnKey =
+  | 'title'
+  | 'filename'
+  | 'artist'
+  | 'tags'
+  | 'bpm'
+  | 'musicalKey'
+  | 'format'
+  | 'duration'
+  | 'dateAdded'
+  | 'dateModified'
 export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = [
   'title',
   'filename',
@@ -34,6 +48,8 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
   'musicalKey',
   'format',
   'duration',
+  'dateAdded',
+  'dateModified',
 ]
 
 export interface TrackTableSortState {

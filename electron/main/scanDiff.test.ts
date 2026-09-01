@@ -3,24 +3,24 @@ import { diffScan } from './scanDiff'
 
 describe('diffScan', () => {
   it('flags new files as toInsert', () => {
-    const result = diffScan([{ path: '/a.wav', size: 100, mtime: 1 }], [])
-    expect(result.toInsert).toEqual([{ path: '/a.wav', size: 100, mtime: 1 }])
+    const result = diffScan([{ path: '/a.wav', size: 100, mtime: 1, birthtime: 1 }], [])
+    expect(result.toInsert).toEqual([{ path: '/a.wav', size: 100, mtime: 1, birthtime: 1 }])
     expect(result.toUpdate).toEqual([])
     expect(result.toRemove).toEqual([])
   })
 
   it('flags changed files as toUpdate', () => {
     const result = diffScan(
-      [{ path: '/a.wav', size: 200, mtime: 2 }],
+      [{ path: '/a.wav', size: 200, mtime: 2, birthtime: 1 }],
       [{ path: '/a.wav', size: 100, mtime: 1 }]
     )
-    expect(result.toUpdate).toEqual([{ path: '/a.wav', size: 200, mtime: 2 }])
+    expect(result.toUpdate).toEqual([{ path: '/a.wav', size: 200, mtime: 2, birthtime: 1 }])
     expect(result.toInsert).toEqual([])
   })
 
   it('leaves unchanged files alone', () => {
     const result = diffScan(
-      [{ path: '/a.wav', size: 100, mtime: 1 }],
+      [{ path: '/a.wav', size: 100, mtime: 1, birthtime: 1 }],
       [{ path: '/a.wav', size: 100, mtime: 1 }]
     )
     expect(result.toInsert).toEqual([])
