@@ -1,6 +1,6 @@
 {
   "name": "music-collection-organizer",
-  "version": "1.0.20",
+  "version": "1.0.21",
   "description": "Electron desktop app to organize a DJ's music collection. macOS only for now.",
   "private": true,
   "main": "out/main/index.js",
