@@ -1,5 +1,5 @@
 {
-  "name": "v1-library-organizer",
+  "name": "music-collection-organizer",
   "version": "1.0.19",
   "description": "Electron desktop app to organize a DJ's music collection. macOS only for now.",
   "private": true,
@@ -13,7 +13,7 @@
     "dist:beta": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.appId=com.local.music-collection-organizer.beta -c.productName=\"MCO - Music Collection Organizer BETA\" -c.mac.icon=resources/icon-beta.png -c.extraMetadata.name=v1-library-organizer-beta && scripts/install-beta.sh"
   },
   "keywords": [],
-  "author": "",
+  "author": "Francisco Estanqueiro",
   "license": "ISC",
   "type": "module",
   "build": {

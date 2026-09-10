@@ -4,6 +4,7 @@ out/
 build/
 release/
 .DS_Store
+**/.DS_Store
 *.log
 .env
 .env.local
