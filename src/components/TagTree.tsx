@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { matchesTagFilter, type TagFilterState } from '../state/tagFilter'
+import { matchesTagFilter, type TagFilterMode, type TagFilterState } from '../state/tagFilter'
 import type { Track } from '../types'
 
 // Drops any id from `ids` that no longer exists in `existing` — e.g. after
@@ -26,6 +26,7 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
 
   const [genreIds, setGenreIds] = useState<Set<number>>(new Set())
   const [subgenreIds, setSubgenreIds] = useState<Set<number>>(new Set())
+  const [filterMode, setFilterMode] = useState<TagFilterMode>('OR')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
   const colorInputRef = useRef<HTMLInputElement>(null)
   // Set when "Choose color…" is clicked, not read off contextMenu at
@@ -42,10 +43,10 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
     return map
   }, [subgenres])
 
-  function applyFilter(next: TagFilterState) {
+  function applyFilter(next: TagFilterState, mode: TagFilterMode) {
     onFilterChange((track: Track) => {
       const tags = trackTags.get(track.id) ?? { trackId: track.id, genreIds: [], subgenreIds: [] }
-      return matchesTagFilter(tags, next, subgenreIdsByGenreId)
+      return matchesTagFilter(tags, next, subgenreIdsByGenreId, mode)
     })
   }
 
@@ -56,12 +57,15 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
   // current filter selection whenever trackTags (or the genre/subgenre
   // lists themselves, e.g. after a delete) changes keeps it live.
   useEffect(() => {
-    applyFilter({
-      genreIds: intersectWithExisting(genreIds, genres),
-      subgenreIds: intersectWithExisting(subgenreIds, subgenres),
-    })
+    applyFilter(
+      {
+        genreIds: intersectWithExisting(genreIds, genres),
+        subgenreIds: intersectWithExisting(subgenreIds, subgenres),
+      },
+      filterMode
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trackTags, genres, subgenres])
+  }, [trackTags, genres, subgenres, filterMode])
 
   useEffect(() => {
     if (!contextMenu) return
@@ -85,7 +89,7 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
       genreIds: intersectWithExisting(key === 'genre' ? next : genreIds, genres),
       subgenreIds: intersectWithExisting(key === 'subgenre' ? next : subgenreIds, subgenres),
     }
-    applyFilter(filterState)
+    applyFilter(filterState, filterMode)
   }
 
   async function handleRename(target: ContextMenuTarget) {
@@ -153,7 +157,38 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
           if (colorTargetGenreId.current != null) setGenreColor(colorTargetGenreId.current, e.target.value)
         }}
       />
-      <div style={{ fontWeight: 600, margin: '8px 0' }}>Tag</div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '8px 0' }}>
+        <span style={{ fontWeight: 600 }}>Tag</span>
+        {genreIds.size + subgenreIds.size > 1 && (
+          <div
+            title={filterMode === 'AND' ? 'Match tracks with all selected tags' : 'Match tracks with any selected tag'}
+            style={{ display: 'flex', border: '1px solid var(--color-border)', borderRadius: '4px', overflow: 'hidden' }}
+          >
+            {(['OR', 'AND'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => {
+                  setFilterMode(mode)
+                  applyFilter(
+                    { genreIds: intersectWithExisting(genreIds, genres), subgenreIds: intersectWithExisting(subgenreIds, subgenres) },
+                    mode
+                  )
+                }}
+                style={{
+                  border: 'none',
+                  padding: '2px 8px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  background: filterMode === mode ? 'var(--color-accent)' : 'none',
+                  color: filterMode === mode ? 'var(--color-bg)' : 'var(--color-text-dim)',
+                }}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
       {genres.map((genre) => (
         <div key={genre.id}>
           <label

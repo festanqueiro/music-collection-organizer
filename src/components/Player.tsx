@@ -71,20 +71,34 @@ export function Player({ track }: { track: Track }) {
     if (!audio) return
     if (playing) {
       audio.pause()
-      setPlaying(false)
     } else {
       // AudioContext starts suspended until a user gesture resumes it —
       // this click is that gesture.
       effectsChainRef.current?.resume()
-      // audio.play() can reject (missing/blocked file, unsupported format) —
-      // only flip to "playing" once it actually starts, so a failed play
-      // doesn't leave the button showing pause while nothing plays.
-      audio.play().then(
-        () => setPlaying(true),
-        () => setPlaying(false)
-      )
+      // Rejection (missing/blocked file, unsupported format) just means no
+      // 'play' event fires below, so `playing` correctly never flips true.
+      audio.play().catch(() => {})
     }
   }
+
+  // `playing` mirrors the <audio> element's own play/pause events rather
+  // than being set directly inside toggle() — playback can also start or
+  // stop from outside a click on this button: OS media keys, a Bluetooth
+  // headset's remote (AirPods pause button), or Media Session action
+  // handlers below. Without this, those external changes silently paused
+  // the audio while the UI kept showing the "playing" state.
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    const onPlay = () => setPlaying(true)
+    const onPause = () => setPlaying(false)
+    audio.addEventListener('play', onPlay)
+    audio.addEventListener('pause', onPause)
+    return () => {
+      audio.removeEventListener('play', onPlay)
+      audio.removeEventListener('pause', onPause)
+    }
+  }, [])
 
   // Registers this mount's toggle as the store's imperative playback
   // control, so a MIDI-bound player.playPause can reach it — toggle is
@@ -131,10 +145,7 @@ export function Player({ track }: { track: Track }) {
     const audio = audioRef.current
     if (!audio) return
     effectsChainRef.current?.resume()
-    audio.play().then(
-      () => setPlaying(true),
-      () => setPlaying(false)
-    )
+    audio.play().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -169,12 +180,46 @@ export function Player({ track }: { track: Track }) {
       if (e.key === ' ') {
         e.preventDefault()
         toggle()
+      } else if (e.key === 'ArrowRight' && hasNext) {
+        e.preventDefault()
+        advanceToNext()
       }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playing, modalOpen])
+  }, [playing, modalOpen, hasNext])
+
+  // Wires OS-level media controls (keyboard media keys, Touch Bar,
+  // Bluetooth headset remotes like AirPods) to this track's transport —
+  // without a registered Media Session, those controls have nothing to
+  // call into and silently no-op (or, for a headset's pause button, act
+  // directly on the <audio> element while this UI has no way to know).
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: decodeHtmlEntities(track.title ?? track.filename),
+      artist: track.artist ? decodeHtmlEntities(track.artist) : undefined,
+      artwork: artworkUrl ? [{ src: artworkUrl }] : [],
+    })
+    navigator.mediaSession.setActionHandler('play', () => toggleRef.current())
+    navigator.mediaSession.setActionHandler('pause', () => toggleRef.current())
+    navigator.mediaSession.setActionHandler('nexttrack', hasNext ? () => advanceToNext() : null)
+    return () => {
+      navigator.mediaSession.setActionHandler('play', null)
+      navigator.mediaSession.setActionHandler('pause', null)
+      navigator.mediaSession.setActionHandler('nexttrack', null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track, artworkUrl, hasNext])
+
+  // Keeps the OS Now Playing indicator (and AirPods' own play/pause state)
+  // in sync with in-app changes, same event source as the `playing` state
+  // sync effect above.
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) return
+    navigator.mediaSession.playbackState = playing ? 'playing' : 'paused'
+  }, [playing])
 
   function seekToClientX(clientX: number, target: HTMLElement | SVGSVGElement) {
     const audio = audioRef.current
