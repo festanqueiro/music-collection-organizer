@@ -343,6 +343,7 @@ export function Player({ track }: { track: Track }) {
         <button onClick={() => setVisualizerOpen(true)} title="Open visualizer (full screen)">
           <span className="material-symbols-outlined">graphic_eq</span>
         </button>
+        <span style={{ width: '1px', height: '24px', background: 'var(--color-border)', flexShrink: 0 }} />
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
