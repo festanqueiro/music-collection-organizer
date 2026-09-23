@@ -4,10 +4,11 @@ import { hasTagWord } from '../tagMatch'
 import type { AudioFrame, ThemeInstance, VisualizerTheme } from '../types'
 
 // A Jamaican-style sound system stack, modelled on a classic outdoor set —
-// cabinets stacked on pallets in front of a corrugated-metal wall with
-// graffiti — but dressed in the app's own palette (src/theme.css): slate
-// cabinets with accent-teal and secondary-purple baffles, at night under
-// teal/purple lights. Every row of boxes answers to its own slice of the
+// cabinets stacked on pallets in daylight, in front of a corrugated-metal
+// wall with graffiti — but painted in the app's own palette
+// (src/theme.css): slate cabinets with accent-teal and secondary-purple
+// baffles, as worn paint over plywood (grain showing through, brush
+// strokes, chips). Every row of boxes answers to its own slice of the
 // spectrum:
 //
 //   top horn + tweeter bars   → tops      (domes shimmer, horn throats glow)
@@ -21,8 +22,6 @@ import type { AudioFrame, ThemeInstance, VisualizerTheme } from '../types'
 // Everything is procedural (geometry + canvas textures) — no assets.
 
 // App palette — mirrors the CSS custom properties in src/theme.css.
-const APP_BG = 0x12151a // --color-bg
-const APP_SURFACE = '#1b1f26' // --color-surface
 const APP_SURFACE_RAISED = '#232833' // --color-surface-raised
 const APP_BORDER = '#2b3140' // --color-border
 const APP_TEXT_DIM = 0x9aa3b2 // --color-text-dim
@@ -30,6 +29,9 @@ const APP_ACCENT = 0x2dd4bf // --color-accent
 const APP_ACCENT_STRONG = 0x14b8a6 // --color-accent-strong
 const APP_SECONDARY = 0xa78bfa // --color-secondary
 const BLACK = 0x0a0c10
+const BARE_WOOD = '#b98a5a'
+
+const hex = (color: number) => `#${color.toString(16).padStart(6, '0')}`
 
 // Band indices into the 5 log-spaced SpectrumBars (30Hz..16kHz):
 // ~30-106Hz, ~106-374Hz, ~374Hz-1.3k, ~1.3-4.7k, ~4.7-16k.
@@ -106,9 +108,113 @@ function plywoodTexture(base: string, seed: number): THREE.CanvasTexture {
   })
 }
 
-// Graffiti tags in the accent colours. Drawn into both the wall's colour
-// map and its emissive map, so the paint glows faintly (like UV paint)
-// under the night lighting.
+// Greyscale plywood grain (mid-grey = flat). It's the bump map under the
+// paint, and is overlaid into the colour so the grain reads through.
+function drawGrain(ctx: CanvasRenderingContext2D, w: number, h: number, random: () => number): void {
+  ctx.fillStyle = '#808080'
+  ctx.fillRect(0, 0, w, h)
+  for (let i = 0; i < 140; i++) {
+    const y = random() * h
+    const amplitude = 3 + random() * 10
+    const phase = random() * Math.PI * 2
+    const shade = random() < 0.6 ? 70 + random() * 40 : 150 + random() * 40
+    ctx.strokeStyle = `rgba(${shade},${shade},${shade},${0.25 + random() * 0.45})`
+    ctx.lineWidth = 0.8 + random() * 3
+    ctx.beginPath()
+    for (let x = 0; x <= w; x += 8) {
+      const yy = y + Math.sin(x / 70 + phase) * amplitude + Math.sin(x / 13 + phase * 2) * 0.8
+      if (x === 0) ctx.moveTo(x, yy)
+      else ctx.lineTo(x, yy)
+    }
+    ctx.stroke()
+  }
+}
+
+// Worn paint over plywood: a solid coat with brush strokes, the grain
+// telegraphing through it, and chips/scratches back to bare wood. Returns
+// the colour map plus the grain as a bump map, so the sun picks out the
+// relief.
+function paintedWood(paint: string, seed: number): { map: THREE.CanvasTexture; bumpMap: THREE.CanvasTexture } {
+  const size = 512
+  const grainCanvas = document.createElement('canvas')
+  grainCanvas.width = grainCanvas.height = size
+  drawGrain(grainCanvas.getContext('2d')!, size, size, mulberry32(seed))
+
+  const map = canvasTexture(
+    size,
+    size,
+    (ctx, w, h) => {
+      const random = mulberry32(seed + 101)
+      ctx.fillStyle = paint
+      ctx.fillRect(0, 0, w, h)
+      // Brush strokes: long, mostly horizontal drags a shade lighter or
+      // darker than the coat.
+      for (let i = 0; i < 260; i++) {
+        const light = random() < 0.5
+        ctx.strokeStyle = light ? `rgba(255,255,255,${0.03 + random() * 0.06})` : `rgba(0,0,0,${0.04 + random() * 0.08})`
+        ctx.lineWidth = 2 + random() * 9
+        ctx.lineCap = 'round'
+        const x = random() * w
+        const y = random() * h
+        const length = 60 + random() * 320
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.quadraticCurveTo(x + length / 2, y + (random() - 0.5) * 10, x + length, y + (random() - 0.5) * 6)
+        ctx.stroke()
+      }
+      // Grain showing through the paint.
+      ctx.globalCompositeOperation = 'overlay'
+      ctx.globalAlpha = 0.4
+      ctx.drawImage(grainCanvas, 0, 0)
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.globalAlpha = 1
+      // Chips back to bare wood, each with a darker, grimy rim.
+      for (let i = 0; i < 26; i++) {
+        const cx = random() * w
+        const cy = random() * h
+        const radius = 2 + random() * 9
+        ctx.beginPath()
+        for (let k = 0; k < 9; k++) {
+          const angle = (k / 9) * Math.PI * 2
+          const r = radius * (0.5 + random() * 0.8)
+          const px = cx + Math.cos(angle) * r * 1.6
+          const py = cy + Math.sin(angle) * r
+          if (k === 0) ctx.moveTo(px, py)
+          else ctx.lineTo(px, py)
+        }
+        ctx.closePath()
+        ctx.fillStyle = BARE_WOOD
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(40,25,10,0.5)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+      }
+      // Scratches.
+      for (let i = 0; i < 40; i++) {
+        ctx.strokeStyle = `rgba(185,138,90,${0.25 + random() * 0.4})`
+        ctx.lineWidth = 0.6 + random() * 1.2
+        const x = random() * w
+        const y = random() * h
+        const angle = (random() - 0.5) * 1.2
+        const length = 8 + random() * 40
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length)
+        ctx.stroke()
+      }
+    },
+    [1, 1],
+  )
+  const bumpMap = new THREE.CanvasTexture(grainCanvas)
+  bumpMap.wrapS = bumpMap.wrapT = THREE.RepeatWrapping
+  return { map, bumpMap }
+}
+
+function paintedWoodMaterial(paint: string, seed: number): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({ ...paintedWood(paint, seed), bumpScale: 1.5, roughness: 0.62 })
+}
+
+// Graffiti tags in the accent colours, sprayed on the wall.
 function drawGraffiti(ctx: CanvasRenderingContext2D, w: number, h: number): void {
   const random = mulberry32(17)
   ctx.save()
@@ -147,32 +253,24 @@ function drawGraffiti(ctx: CanvasRenderingContext2D, w: number, h: number): void
   }
 }
 
-// Corrugated sheet colour (dark slate, faint streaks) with graffiti.
+// Corrugated sheet colour (weathered grey + rust streaks) with graffiti.
 function wallTexture(): THREE.CanvasTexture {
   return canvasTexture(2048, 768, (ctx, w, h) => {
     const random = mulberry32(7)
-    ctx.fillStyle = APP_SURFACE
+    ctx.fillStyle = '#b3aea3'
     ctx.fillRect(0, 0, w, h)
     for (let i = 0; i < 40; i++) {
       const x = random() * w
       const gradient = ctx.createLinearGradient(0, 0, 0, h)
-      gradient.addColorStop(0, `rgba(0,0,0,${0.1 + random() * 0.2})`)
-      gradient.addColorStop(1, 'rgba(0,0,0,0)')
+      gradient.addColorStop(0, `rgba(130,80,40,${0.05 + random() * 0.15})`)
+      gradient.addColorStop(1, 'rgba(130,80,40,0)')
       ctx.fillStyle = gradient
       ctx.fillRect(x, 0, 6 + random() * 30, h * (0.3 + random() * 0.7))
     }
     for (let i = 0; i < 6; i++) {
-      ctx.fillStyle = `rgba(200,215,235,${0.02 + random() * 0.03})`
+      ctx.fillStyle = `rgba(${150 + random() * 40},${150 + random() * 40},${140 + random() * 30},0.35)`
       ctx.fillRect(random() * w, 0, 60 + random() * 200, h)
     }
-    drawGraffiti(ctx, w, h)
-  })
-}
-
-function graffitiGlowTexture(): THREE.CanvasTexture {
-  return canvasTexture(2048, 768, (ctx, w, h) => {
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, w, h)
     drawGraffiti(ctx, w, h)
   })
 }
@@ -183,7 +281,7 @@ function stoneTexture(): THREE.CanvasTexture {
     256,
     (ctx, w, h) => {
       const random = mulberry32(3)
-      ctx.fillStyle = '#0d0f13'
+      ctx.fillStyle = '#6f6a60'
       ctx.fillRect(0, 0, w, h)
       let y = 0
       while (y < h) {
@@ -191,8 +289,8 @@ function stoneTexture(): THREE.CanvasTexture {
         let x = -random() * 40
         while (x < w) {
           const stoneWidth = 30 + random() * 60
-          const shade = 30 + random() * 24
-          ctx.fillStyle = `rgb(${shade},${shade + 4},${shade + 10})`
+          const shade = 120 + random() * 60
+          ctx.fillStyle = `rgb(${shade},${shade - 6},${shade - 16})`
           ctx.beginPath()
           ctx.roundRect(x + 2, y + 2, stoneWidth - 4, rowHeight - 4, 6)
           ctx.fill()
@@ -211,11 +309,11 @@ function groundTexture(): THREE.CanvasTexture {
     256,
     (ctx, w, h) => {
       const random = mulberry32(11)
-      ctx.fillStyle = APP_SURFACE
+      ctx.fillStyle = '#8f877a'
       ctx.fillRect(0, 0, w, h)
       for (let i = 0; i < 2500; i++) {
-        const shade = 20 + random() * 30
-        ctx.fillStyle = `rgba(${shade},${shade + 3},${shade + 8},0.5)`
+        const shade = 110 + random() * 70
+        ctx.fillStyle = `rgba(${shade},${shade - 8},${shade - 18},0.5)`
         ctx.fillRect(random() * w, random() * h, 1 + random() * 3, 1 + random() * 3)
       }
     },
@@ -459,15 +557,14 @@ void main() {
 
 function create(): ThemeInstance {
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(APP_BG)
-  scene.fog = new THREE.Fog(APP_BG, 14, 32)
+  scene.background = new THREE.Color(0xcfdde6)
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
 
   const materials: Materials = {
-    cabinet: new THREE.MeshStandardMaterial({ map: plywoodTexture(APP_SURFACE_RAISED, 1), roughness: 0.7 }),
-    cabinetLight: new THREE.MeshStandardMaterial({ map: plywoodTexture(APP_BORDER, 2), roughness: 0.7 }),
-    teal: new THREE.MeshStandardMaterial({ color: APP_ACCENT_STRONG, roughness: 0.5 }),
-    purple: new THREE.MeshStandardMaterial({ color: APP_SECONDARY, roughness: 0.5 }),
+    cabinet: paintedWoodMaterial(APP_SURFACE_RAISED, 1),
+    cabinetLight: paintedWoodMaterial(APP_BORDER, 2),
+    teal: paintedWoodMaterial(hex(APP_ACCENT_STRONG), 3),
+    purple: paintedWoodMaterial(hex(APP_SECONDARY), 4),
     black: new THREE.MeshStandardMaterial({ color: BLACK, roughness: 0.9, side: THREE.DoubleSide }),
     cone: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.35, metalness: 0.2, side: THREE.DoubleSide }),
     rubber: new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8 }),
@@ -483,31 +580,18 @@ function create(): ThemeInstance {
   }
 
   // --- Environment -------------------------------------------------------
-  scene.add(new THREE.HemisphereLight(0x3a4250, 0x0a0c10, 0.7))
-  // Cool key light from the front, casting the stack's shadow on the wall.
-  const keyLight = new THREE.DirectionalLight(0xdfe8ff, 1.4)
-  keyLight.position.set(3, 9, 9)
-  keyLight.castShadow = true
-  keyLight.shadow.mapSize.set(2048, 2048)
-  keyLight.shadow.camera.left = -8
-  keyLight.shadow.camera.right = 8
-  keyLight.shadow.camera.top = 8
-  keyLight.shadow.camera.bottom = -2
-  keyLight.shadow.camera.far = 30
-  keyLight.shadow.bias = -0.0005
-  scene.add(keyLight)
-  // Accent-teal and secondary-purple spots washing the stack from either
-  // side; they pulse with the music (see update).
-  const stageLights = [
-    { color: APP_ACCENT, x: -5.5 },
-    { color: APP_SECONDARY, x: 5.5 },
-  ].map(({ color, x }) => {
-    const light = new THREE.SpotLight(color, 0, 0, 0.55, 0.7, 1.6)
-    light.position.set(x, 6.5, 5)
-    light.target.position.set(0, 2.4, 0)
-    scene.add(light, light.target)
-    return light
-  })
+  scene.add(new THREE.HemisphereLight(0xe6eef5, 0x8a7a66, 1.1))
+  const sun = new THREE.DirectionalLight(0xfff0d8, 2.6)
+  sun.position.set(5, 9, 8)
+  sun.castShadow = true
+  sun.shadow.mapSize.set(2048, 2048)
+  sun.shadow.camera.left = -8
+  sun.shadow.camera.right = 8
+  sun.shadow.camera.top = 8
+  sun.shadow.camera.bottom = -2
+  sun.shadow.camera.far = 30
+  sun.shadow.bias = -0.0005
+  scene.add(sun)
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(40, 40),
@@ -526,29 +610,21 @@ function create(): ThemeInstance {
   stone.position.set(0, STONE_HEIGHT / 2, WALL_Z - 0.2)
   stone.receiveShadow = true
   scene.add(stone)
-  // Real corrugation (displaced vertices), so the lights rake across ridges.
+  // Real corrugation (displaced vertices), so the sun rakes across ridges.
   const sheetGeometry = new THREE.PlaneGeometry(18, 6, 600, 1)
   const sheetPositions = sheetGeometry.attributes.position as THREE.BufferAttribute
   for (let i = 0; i < sheetPositions.count; i++) {
     sheetPositions.setZ(i, Math.sin((sheetPositions.getX(i) / 0.16) * Math.PI * 2) * 0.035)
   }
   sheetGeometry.computeVertexNormals()
-  const sheetMaterial = new THREE.MeshStandardMaterial({
-    map: wallTexture(),
-    emissiveMap: graffitiGlowTexture(),
-    emissive: 0xffffff,
-    emissiveIntensity: 0.1,
-    roughness: 0.6,
-    metalness: 0.35,
-  })
-  const sheet = new THREE.Mesh(sheetGeometry, sheetMaterial)
+  const sheet = new THREE.Mesh(sheetGeometry, new THREE.MeshStandardMaterial({ map: wallTexture(), roughness: 0.6, metalness: 0.35 }))
   sheet.position.set(0, STONE_HEIGHT + 3, WALL_Z - 0.35)
   sheet.receiveShadow = true
   scene.add(sheet)
 
   // Pallets under the stack.
   const PALLET_HEIGHT = 0.14
-  const palletMaterial = new THREE.MeshStandardMaterial({ map: plywoodTexture(APP_BORDER, 5), roughness: 0.9 })
+  const palletMaterial = new THREE.MeshStandardMaterial({ map: plywoodTexture('#b89a72', 5), roughness: 0.9 })
   for (const px of [-1.6, 0, 1.6]) {
     for (let s = 0; s < 7; s++) {
       const slat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.03, 0.14), palletMaterial)
@@ -760,7 +836,7 @@ function create(): ThemeInstance {
   const dust = new THREE.Points(
     dustGeometry,
     new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: new THREE.Color(APP_TEXT_DIM) } },
+      uniforms: { uColor: { value: new THREE.Color(0xd8ccb4) } },
       vertexShader: DUST_VERTEX_SHADER,
       fragmentShader: DUST_FRAGMENT_SHADER,
       transparent: true,
@@ -924,11 +1000,7 @@ function create(): ThemeInstance {
     )
     camera.lookAt(0, 2.5, 0)
 
-    const mid = levels[MID]
-    for (const light of stageLights) light.intensity = 25 + mid * 60 + kick * 90
-    sheetMaterial.emissiveIntensity = 0.06 + mid * 0.1
-
-    return 0.35 + top * 0.45 + kick * 0.3
+    return 0.15 + top * 0.35 + kick * 0.15
   }
 
   return {
