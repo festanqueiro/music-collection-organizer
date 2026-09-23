@@ -329,16 +329,9 @@ export function Player({ track }: { track: Track }) {
           </span>
         )}
         <button
-          onClick={() => setVisualizerOpen(true)}
-          title="Open visualizer (full screen)"
-          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-        >
-          <span className="material-symbols-outlined">graphic_eq</span>
-        </button>
-        <button
           onClick={() => setPlayerExpanded(!playerExpanded)}
           title={playerExpanded ? 'Collapse queue' : 'Expand queue'}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
         >
           <span className="material-symbols-outlined">
             {playerExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_up'}
@@ -347,6 +340,9 @@ export function Player({ track }: { track: Track }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button onClick={() => setVisualizerOpen(true)} title="Open visualizer (full screen)">
+          <span className="material-symbols-outlined">graphic_eq</span>
+        </button>
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
