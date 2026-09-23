@@ -230,10 +230,9 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           <div style={{ fontSize: '22px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {decodeHtmlEntities(track.title ?? track.filename)}
           </div>
-          <div style={{ fontSize: '14px', opacity: 0.7, marginTop: '4px' }}>
-            {track.artist ? decodeHtmlEntities(track.artist) : ''}
-            {track.bpm ? `${track.artist ? ' · ' : ''}${Math.round(track.bpm)} BPM` : ''}
-          </div>
+          {track.artist && (
+            <div style={{ fontSize: '14px', opacity: 0.7, marginTop: '4px' }}>{decodeHtmlEntities(track.artist)}</div>
+          )}
         </div>
       )}
       <div
