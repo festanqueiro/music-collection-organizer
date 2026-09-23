@@ -10,6 +10,7 @@ import { VISUALIZER_THEMES, getVisualizerTheme } from '../visualizer/themes'
 import type { AudioFrame, ThemeInstance } from '../visualizer/types'
 import { useCollectionStore } from '../state/store'
 import { decodeHtmlEntities } from '../format'
+import { ToggleSwitch } from './ToggleSwitch'
 import type { Track } from '../types'
 
 const UI_HIDE_DELAY_MS = 2500
@@ -28,6 +29,8 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const [uiVisible, setUiVisible] = useState(true)
   const themeId = useCollectionStore((s) => s.visualizerTheme)
   const setThemeId = useCollectionStore((s) => s.setVisualizerTheme)
+  const hideTrackInfo = useCollectionStore((s) => s.visualizerHideTrackInfo)
+  const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   // Set by the renderer effect; the theme effect swaps what it renders.
@@ -67,8 +70,9 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     }
   }, [])
 
-  // Track info, theme picker and close button fade out (and the cursor
-  // hides) after a moment without mouse movement.
+  // The theme picker, hide switch and close button fade out (and the
+  // cursor hides) after a moment without mouse movement. Track info is
+  // separate — it stays up unless visualizerHideTrackInfo is on.
   useEffect(() => {
     let timeout = setTimeout(() => setUiVisible(false), UI_HIDE_DELAY_MS)
     function onMouseMove() {
@@ -82,13 +86,6 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       window.removeEventListener('mousemove', onMouseMove)
     }
   }, [])
-
-  // Show the track info again whenever a new track starts.
-  useEffect(() => {
-    setUiVisible(true)
-    const timeout = setTimeout(() => setUiVisible(false), UI_HIDE_DELAY_MS * 2)
-    return () => clearTimeout(timeout)
-  }, [track?.id])
 
   // Renderer, bloom and render loop — created once for the overlay's
   // lifetime; themes are swapped underneath it.
@@ -215,38 +212,56 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       }}
     >
       <div ref={canvasHostRef} style={{ position: 'absolute', inset: 0 }} />
+      {track && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '24px',
+            left: '28px',
+            // Leaves room for the controls on the right.
+            maxWidth: 'calc(100% - 520px)',
+            color: '#fff',
+            opacity: hideTrackInfo ? 0 : 1,
+            transition: 'opacity 400ms ease',
+            pointerEvents: 'none',
+            textShadow: '0 1px 8px rgba(0,0,0,0.8)',
+          }}
+        >
+          <div style={{ fontSize: '22px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {decodeHtmlEntities(track.title ?? track.filename)}
+          </div>
+          <div style={{ fontSize: '14px', opacity: 0.7, marginTop: '4px' }}>
+            {track.artist ? decodeHtmlEntities(track.artist) : ''}
+            {track.bpm ? `${track.artist ? ' · ' : ''}${Math.round(track.bpm)} BPM` : ''}
+          </div>
+        </div>
+      )}
       <div
         style={{
           position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
+          top: '24px',
+          right: '28px',
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           gap: '16px',
-          padding: '24px 28px',
           color: '#fff',
           opacity: uiVisible ? 1 : 0,
           transition: 'opacity 600ms ease',
           pointerEvents: uiVisible ? 'auto' : 'none',
-          textShadow: '0 1px 8px rgba(0,0,0,0.8)',
         }}
       >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {track && (
-            <>
-              <div
-                style={{ fontSize: '22px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              >
-                {decodeHtmlEntities(track.title ?? track.filename)}
-              </div>
-              <div style={{ fontSize: '14px', opacity: 0.7, marginTop: '4px' }}>
-                {track.artist ? decodeHtmlEntities(track.artist) : ''}
-                {track.bpm ? `${track.artist ? ' · ' : ''}${Math.round(track.bpm)} BPM` : ''}
-              </div>
-            </>
-          )}
-        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+          Hide track info
+          <ToggleSwitch
+            checked={hideTrackInfo}
+            onChange={(checked) => {
+              setHideTrackInfo(checked)
+              // Otherwise the focused switch swallows Space (play/pause).
+              ;(document.activeElement as HTMLElement | null)?.blur()
+            }}
+            title="Hide track info"
+          />
+        </label>
         <div
           style={{
             display: 'flex',
@@ -254,7 +269,6 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             padding: '4px',
             borderRadius: '20px',
             background: 'rgba(255,255,255,0.08)',
-            flexShrink: 0,
           }}
         >
           {VISUALIZER_THEMES.map((theme, i) => (
@@ -294,7 +308,6 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            flexShrink: 0,
           }}
         >
           <span className="material-symbols-outlined">close</span>

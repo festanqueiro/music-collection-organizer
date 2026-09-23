@@ -178,6 +178,11 @@ interface CollectionState {
   setVisualizerOpen: (open: boolean) => void
   visualizerTheme: VisualizerThemeId
   setVisualizerTheme: (theme: VisualizerThemeId) => void
+  // Track title/artist/BPM stays on screen in the Visualizer unless this
+  // is switched on — unlike the theme picker/close controls, which fade
+  // out whenever the mouse is idle.
+  visualizerHideTrackInfo: boolean
+  setVisualizerHideTrackInfo: (hide: boolean) => void
   // Imperative escape hatch so a MIDI-bound player.playPause control (and
   // eventually the spacebar/other external triggers) can toggle playback
   // without lifting the actual playing/paused boolean — which the <audio>
@@ -289,6 +294,15 @@ function loadVisualizerTheme(): VisualizerThemeId {
   return 'nebula'
 }
 
+const VISUALIZER_HIDE_TRACK_INFO_KEY = 'visualizerHideTrackInfo'
+function loadVisualizerHideTrackInfo(): boolean {
+  try {
+    return localStorage.getItem(VISUALIZER_HIDE_TRACK_INFO_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
 export const useCollectionStore = create<CollectionState>((set, get) => ({
   tracks: [],
   genres: [],
@@ -302,6 +316,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playerExpanded: false,
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
+  visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -790,6 +805,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setPlayerExpanded: (value) => set({ playerExpanded: value }),
 
   setVisualizerOpen: (open) => set({ visualizerOpen: open }),
+
+  setVisualizerHideTrackInfo: (hide) => {
+    set({ visualizerHideTrackInfo: hide })
+    try {
+      localStorage.setItem(VISUALIZER_HIDE_TRACK_INFO_KEY, String(hide))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
 
   setVisualizerTheme: (theme) => {
     set({ visualizerTheme: theme })
