@@ -49,6 +49,8 @@ interface Palette {
   cabinetLight: Finish // tweeter bars
   accentA: Finish // scoop tops, side mid boxes, horn box
   accentB: Finish // row-2 driver panels, centre mid box
+  scoopInner: Finish | null // inside the scoops' horn cells (null = matte black)
+  scoopEdge: Finish // the scoop cells' front edge strips
   glow: number // horn throats + tweeter domes
   ring: number // pressure rings
 }
@@ -59,6 +61,8 @@ const PALETTES: Record<string, Palette> = {
     cabinetLight: { color: APP_BORDER, worn: true },
     accentA: { color: hex(APP_ACCENT_STRONG), worn: true },
     accentB: { color: hex(APP_SECONDARY), worn: true },
+    scoopInner: null,
+    scoopEdge: { color: hex(APP_ACCENT_STRONG), worn: true },
     glow: APP_ACCENT,
     ring: APP_ACCENT,
   },
@@ -67,6 +71,8 @@ const PALETTES: Record<string, Palette> = {
     cabinetLight: { color: APP_BORDER, worn: true },
     accentA: { color: hex(APP_ACCENT_STRONG), worn: true },
     accentB: { color: PINK_PAINT, worn: true },
+    scoopInner: null,
+    scoopEdge: { color: hex(APP_ACCENT_STRONG), worn: true },
     glow: APP_ACCENT,
     ring: 0xffc3c5,
   },
@@ -75,6 +81,9 @@ const PALETTES: Record<string, Palette> = {
     cabinetLight: { color: '#d6a36c', worn: false },
     accentA: { color: '#16181b', worn: true },
     accentB: { color: '#c48a4f', worn: false },
+    // Bare wood inside the horn cells, like the row-2 cells.
+    scoopInner: { color: '#c48a4f', worn: false },
+    scoopEdge: { color: '#c48a4f', worn: false },
     glow: 0xffc070,
     ring: 0xffffff,
   },
@@ -400,6 +409,8 @@ interface Materials {
   cabinetLight: THREE.MeshStandardMaterial
   accentA: THREE.MeshStandardMaterial
   accentB: THREE.MeshStandardMaterial
+  scoopInner: THREE.MeshStandardMaterial
+  scoopEdge: THREE.MeshStandardMaterial
   black: THREE.MeshStandardMaterial
   cone: THREE.MeshStandardMaterial
   rubber: THREE.MeshStandardMaterial
@@ -620,6 +631,8 @@ function create(): ThemeInstance {
     cabinetLight: new THREE.MeshStandardMaterial({ bumpScale: 1.5, roughness: 0.62 }),
     accentA: new THREE.MeshStandardMaterial({ bumpScale: 1.5, roughness: 0.62 }),
     accentB: new THREE.MeshStandardMaterial({ bumpScale: 1.5, roughness: 0.62 }),
+    scoopInner: new THREE.MeshStandardMaterial({ bumpScale: 1.5, roughness: 0.62 }),
+    scoopEdge: new THREE.MeshStandardMaterial({ bumpScale: 1.5, roughness: 0.62 }),
     black: new THREE.MeshStandardMaterial({ color: BLACK, roughness: 0.9, side: THREE.DoubleSide }),
     cone: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.45, metalness: 0.2, side: THREE.DoubleSide }),
     rubber: new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8 }),
@@ -794,7 +807,7 @@ function create(): ThemeInstance {
     baffle.position.set(0, ROW1_H / 2 - baffleH / 2, ROW1_D / 2 - 0.03)
     group.add(baffle)
     const scoopDriver = addDriver(group, 0, ROW1_H / 2 - baffleH / 2, ROW1_D / 2 - 0.005, 0.4, SUB, 0.18, 0)
-    const cells = makeCells(ROW1_W - 0.06, ROW1_H - baffleH - 0.04, 0.9, 2, 2, materials.black, materials.accentA)
+    const cells = makeCells(ROW1_W - 0.06, ROW1_H - baffleH - 0.04, 0.9, 2, 2, materials.scoopInner, materials.scoopEdge)
     cells.group.position.set(0, -ROW1_H / 2 + (ROW1_H - baffleH) / 2, ROW1_D / 2 - 0.01)
     group.add(cells.group)
     const position = new THREE.Vector3(x, row1Y, 0)
@@ -968,7 +981,17 @@ function create(): ThemeInstance {
     }
     return entry
   }
-  function applyFinish(material: THREE.MeshStandardMaterial, finish: Finish, seed: number) {
+  function applyFinish(material: THREE.MeshStandardMaterial, finish: Finish | null, seed: number) {
+    if (!finish) {
+      material.map = null
+      material.bumpMap = null
+      material.color.setHex(BLACK)
+      material.roughness = 0.9
+      material.needsUpdate = true
+      return
+    }
+    material.color.setHex(0xffffff)
+    material.roughness = 0.62
     const { map, bumpMap } = cached(`${finish.color}|${finish.worn}|${seed}`, () => paintedWood(finish.color, seed, finish.worn))
     material.map = map
     material.bumpMap = bumpMap ?? null
@@ -981,6 +1004,8 @@ function create(): ThemeInstance {
     applyFinish(materials.cabinetLight, palette.cabinetLight, 2)
     applyFinish(materials.accentA, palette.accentA, 3)
     applyFinish(materials.accentB, palette.accentB, 4)
+    applyFinish(materials.scoopInner, palette.scoopInner, 5)
+    applyFinish(materials.scoopEdge, palette.scoopEdge, 6)
     for (const ring of pressureRings) (ring.mesh.material as THREE.MeshBasicMaterial).color.setHex(palette.ring)
     for (const { material } of hornGlows) material.emissive.setHex(palette.glow)
   }
