@@ -211,7 +211,7 @@ export function PlaylistView() {
           style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>skip_next</span>
-          Play now next in the queue
+          Play next in queue
         </button>
         <button
           onClick={() => clearPlaylist()}
