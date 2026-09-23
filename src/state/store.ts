@@ -275,6 +275,9 @@ interface CollectionState {
   // Removes every binding at once (Settings → Audio → MIDI, behind a
   // confirmation) and cancels any in-progress learn.
   resetMidiMappings: () => void
+  // Replaces every binding with an imported set (Settings → Audio → MIDI →
+  // Import, after the file's been read and validated in main).
+  replaceMidiMappings: (mappings: MidiMappings) => void
   handleMidiControlChange: (channel: number, controller: number, value: number, kind: 'cc' | 'note') => void
   loadCollectionFolder: () => Promise<void>
   pickCollectionFolder: () => Promise<boolean>
@@ -473,9 +476,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
   },
 
-  resetMidiMappings: () => {
-    set({ midiMappings: {}, midiLearningControl: null })
-    window.api.setMidiMappings({}).catch((err) => console.error('failed to save midi mappings', err))
+  resetMidiMappings: () => get().replaceMidiMappings({}),
+
+  replaceMidiMappings: (mappings) => {
+    set({ midiMappings: mappings, midiLearningControl: null })
+    window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
   },
 
   // Called by the single global MIDI listener mounted in App.tsx — either

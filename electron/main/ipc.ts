@@ -51,6 +51,7 @@ import {
   undoSubgenreDeletion,
 } from './tags'
 import { exportTagData, importTagData, type TagExportData } from './tagExport'
+import { buildMidiExport, parseMidiExportText } from './midiExport'
 import type {
   Track,
   Genre,
@@ -62,6 +63,7 @@ import type {
   SubgenreDeletionSnapshot,
   EffectsSettings,
   MidiMappings,
+  MidiImportResult,
   TrackTableColumnKey,
   TrackTableSortState,
 } from '../../src/types'
@@ -156,6 +158,27 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
   ipcMain.handle('config:getMidiMappings', (): MidiMappings => getMidiMappings())
   ipcMain.handle('config:setMidiMappings', (_e, mappings: MidiMappings): void => setMidiMappings(mappings))
+
+  ipcMain.handle('midi:exportMappings', async (): Promise<{ path: string } | null> => {
+    const result = await dialog.showSaveDialog(getMainWindow(), {
+      defaultPath: 'mco-midi-mappings.json',
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+    writeFileSync(result.filePath, JSON.stringify(buildMidiExport(getMidiMappings()), null, 2))
+    return { path: result.filePath }
+  })
+
+  // Only reads and validates — the renderer applies the result (after
+  // confirming, if it would replace existing bindings).
+  ipcMain.handle('midi:readMappingsFile', async (): Promise<MidiImportResult | null> => {
+    const result = await dialog.showOpenDialog(getMainWindow(), {
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return parseMidiExportText(readFileSync(result.filePaths[0], 'utf-8'))
+  })
 
   ipcMain.handle('config:getColumnOrder', (): TrackTableColumnKey[] => getColumnOrder())
   ipcMain.handle('config:setColumnOrder', (_e, order: TrackTableColumnKey[]): void => setColumnOrder(order))

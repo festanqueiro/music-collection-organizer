@@ -206,39 +206,44 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   masterVolume: 1,
 }
 
-export type MidiControlKey =
-  | 'volume'
-  | 'master.volume'
-  | 'delay.enabled'
-  | 'delay.timeMs'
-  | 'delay.feedback'
-  | 'delay.mix'
-  | 'delay.division'
-  | 'reverb.enabled'
-  | 'reverb.mix'
-  | 'reverb.decaySeconds'
-  | 'reverb.preDelayMs'
-  | 'filter.enabled'
-  | 'filter.lowpass'
-  | 'filter.highpass'
-  | 'filter.resonance'
-  | 'filter.mix'
-  | 'eq.enabled'
-  | 'eq.low'
-  | 'eq.mid'
-  | 'eq.high'
-  | 'eq.mix'
-  | 'siren.enabled'
-  | 'siren.mode'
-  | 'siren.pitchHz'
-  | 'siren.speedHz'
-  | 'siren.depth'
-  | 'siren.level'
-  | 'siren.echoFeedback'
-  | 'siren.beat'
-  | 'siren.trigger'
-  | 'player.playPause'
-  | 'player.playNext'
+// Every MIDI-mappable control. A runtime list (not just a union type) so
+// imported mapping files can be validated against it.
+export const MIDI_CONTROL_KEYS = [
+  'volume',
+  'master.volume',
+  'delay.enabled',
+  'delay.timeMs',
+  'delay.feedback',
+  'delay.mix',
+  'delay.division',
+  'reverb.enabled',
+  'reverb.mix',
+  'reverb.decaySeconds',
+  'reverb.preDelayMs',
+  'filter.enabled',
+  'filter.lowpass',
+  'filter.highpass',
+  'filter.resonance',
+  'filter.mix',
+  'eq.enabled',
+  'eq.low',
+  'eq.mid',
+  'eq.high',
+  'eq.mix',
+  'siren.enabled',
+  'siren.mode',
+  'siren.pitchHz',
+  'siren.speedHz',
+  'siren.depth',
+  'siren.level',
+  'siren.echoFeedback',
+  'siren.beat',
+  'siren.trigger',
+  'player.playPause',
+  'player.playNext',
+] as const
+
+export type MidiControlKey = (typeof MIDI_CONTROL_KEYS)[number]
 
 export interface MidiBinding {
   channel: number
@@ -252,3 +257,7 @@ export interface MidiBinding {
 }
 
 export type MidiMappings = Partial<Record<MidiControlKey, MidiBinding>>
+
+// Result of reading a MIDI mappings file (Settings → Audio → MIDI →
+// Import) — `skipped` names bindings that were dropped as unknown/invalid.
+export type MidiImportResult = { mappings: MidiMappings; skipped: string[] } | { error: string }

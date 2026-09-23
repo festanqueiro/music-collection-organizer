@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ToggleSwitch } from './ToggleSwitch'
 import { ConfirmDialog } from './ConfirmDialog'
-import type { BackupInfo, BackupEntry } from '../types'
+import type { BackupInfo, BackupEntry, MidiMappings } from '../types'
 
 // Backup filenames use `now.toISOString().replace(/[:.]/g, '-')` (see
 // electron/main/backup.ts) — undo that by re-inserting the standard ISO
@@ -36,8 +36,38 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const setShowMidiControls = useCollectionStore((s) => s.setShowMidiControls)
   const midiBindingCount = useCollectionStore((s) => Object.keys(s.midiMappings).length)
   const resetMidiMappings = useCollectionStore((s) => s.resetMidiMappings)
+  const replaceMidiMappings = useCollectionStore((s) => s.replaceMidiMappings)
   const showToast = useCollectionStore((s) => s.showToast)
-  const [confirmingMidiReset, setConfirmingMidiReset] = useState(false)
+  // Both reset and an import that would overwrite existing bindings go
+  // through the same warning popup.
+  const [midiConfirm, setMidiConfirm] = useState<
+    { kind: 'reset' } | { kind: 'import'; mappings: MidiMappings; skipped: string[] } | null
+  >(null)
+  const [midiMessage, setMidiMessage] = useState<string | null>(null)
+
+  function applyMidiImport(mappings: MidiMappings, skipped: string[]) {
+    replaceMidiMappings(mappings)
+    const count = Object.keys(mappings).length
+    setMidiMessage(
+      `Imported ${count} binding${count === 1 ? '' : 's'}` +
+        (skipped.length > 0 ? ` — skipped ${skipped.length} unknown/invalid: ${skipped.join(', ')}` : '')
+    )
+  }
+
+  async function handleMidiImport() {
+    const result = await window.api.readMidiMappingsFile()
+    if (!result) return
+    if ('error' in result) {
+      setMidiMessage(result.error)
+      return
+    }
+    if (Object.keys(result.mappings).length === 0) {
+      setMidiMessage("That file doesn't contain any bindings this version can use.")
+      return
+    }
+    if (midiBindingCount > 0) setMidiConfirm({ kind: 'import', ...result })
+    else applyMidiImport(result.mappings, result.skipped)
+  }
   const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([])
   const [audioDevicesError, setAudioDevicesError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
@@ -240,26 +270,58 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 The small MIDI-learn buttons next to the player and FX controls. Hiding them doesn't remove any
                 bindings — a mapped controller keeps working.
               </p>
-              <button
-                onClick={() => setConfirmingMidiReset(true)}
-                disabled={midiBindingCount === 0}
-                title={midiBindingCount === 0 ? 'No MIDI bindings to reset' : undefined}
-                style={{ marginTop: '12px' }}
-              >
-                Reset all MIDI bindings…
-              </button>
-              {confirmingMidiReset && (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                <button
+                  onClick={async () => {
+                    const result = await window.api.exportMidiMappings()
+                    if (result) setMidiMessage(`Exported to ${result.path}`)
+                  }}
+                  disabled={midiBindingCount === 0}
+                  title={midiBindingCount === 0 ? 'No MIDI bindings to export' : undefined}
+                >
+                  Export…
+                </button>
+                <button onClick={handleMidiImport}>Import…</button>
+                <button
+                  onClick={() => setMidiConfirm({ kind: 'reset' })}
+                  disabled={midiBindingCount === 0}
+                  title={midiBindingCount === 0 ? 'No MIDI bindings to reset' : undefined}
+                >
+                  Reset all MIDI bindings…
+                </button>
+              </div>
+              {midiMessage && (
+                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px', wordBreak: 'break-all' }}>
+                  {midiMessage}
+                </p>
+              )}
+              {midiConfirm?.kind === 'reset' && (
                 <ConfirmDialog
                   title="Reset all MIDI bindings?"
-                  onCancel={() => setConfirmingMidiReset(false)}
+                  onCancel={() => setMidiConfirm(null)}
                   onConfirm={() => {
                     resetMidiMappings()
-                    setConfirmingMidiReset(false)
+                    setMidiConfirm(null)
+                    setMidiMessage(null)
                     showToast('All MIDI bindings removed')
                   }}
                 >
                   This removes all {midiBindingCount} MIDI binding{midiBindingCount === 1 ? '' : 's'} — every mapped
                   knob, fader and button will stop controlling the app until you map it again. This can't be undone.
+                </ConfirmDialog>
+              )}
+              {midiConfirm?.kind === 'import' && (
+                <ConfirmDialog
+                  title="Replace your MIDI bindings?"
+                  onCancel={() => setMidiConfirm(null)}
+                  onConfirm={() => {
+                    applyMidiImport(midiConfirm.mappings, midiConfirm.skipped)
+                    setMidiConfirm(null)
+                  }}
+                >
+                  Importing replaces all {midiBindingCount} current MIDI binding{midiBindingCount === 1 ? '' : 's'} with
+                  the {Object.keys(midiConfirm.mappings).length} in this file. Export first if you want to keep the
+                  current ones — this can't be undone.
                 </ConfirmDialog>
               )}
             </section>
