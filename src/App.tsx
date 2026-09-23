@@ -312,7 +312,7 @@ export default function App() {
           />
         </div>
 
-        <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)' }}>
+        <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)', position: 'relative' }}>
           {(() => {
             // Driven by the playlist queue's head, not row selection — the
             // player is independent, so browsing/checking details on other
@@ -347,7 +347,23 @@ export default function App() {
               </div>
             )
           })()}
-          {analysisProgress && <AnalysisProgressBar progress={analysisProgress} />}
+          {analysisProgress && (
+            // Floats just above the footer (over the bottom of the panes)
+            // instead of sitting in its flow — otherwise the player bar
+            // jumps every time an analysis run starts or finishes.
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 20,
+                boxShadow: '0 -4px 12px rgba(0,0,0,0.3)',
+              }}
+            >
+              <AnalysisProgressBar progress={analysisProgress} />
+            </div>
+          )}
         </div>
       </div>
     </>
