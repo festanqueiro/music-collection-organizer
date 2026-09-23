@@ -267,6 +267,16 @@ export function Player({ track }: { track: Track }) {
       />
 
       <div style={{ display: 'flex', alignItems: 'center' }}>
+        <button
+          onClick={() => setVisualizerOpen(true)}
+          title="Open visualizer (full screen)"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, display: 'flex' }}
+        >
+          <span className="material-symbols-outlined">graphic_eq</span>
+        </button>
+        <span
+          style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 10px', flexShrink: 0 }}
+        />
         {artworkUrl && (
           <img
             src={artworkUrl}
@@ -340,10 +350,6 @@ export function Player({ track }: { track: Track }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button onClick={() => setVisualizerOpen(true)} title="Open visualizer (full screen)">
-          <span className="material-symbols-outlined">graphic_eq</span>
-        </button>
-        <span style={{ width: '1px', height: '24px', background: 'var(--color-border)', flexShrink: 0 }} />
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
