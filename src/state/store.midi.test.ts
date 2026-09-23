@@ -216,3 +216,23 @@ describe('handleMidiControlChange — continuous knobs are coalesced to one comm
     expect(settings.eq.low).not.toBe(baseEffectsSettings.eq.low)
   })
 })
+
+describe('resetMidiMappings', () => {
+  it('clears every binding, cancels an in-progress learn, and persists the empty set', () => {
+    const setMidiMappings = (globalThis as unknown as { window: { api: { setMidiMappings: ReturnType<typeof vi.fn> } } })
+      .window.api.setMidiMappings
+    setMidiMappings.mockClear()
+    useCollectionStore.setState({
+      midiMappings: {
+        volume: { channel: 0, controller: 21, kind: 'cc' },
+        'delay.enabled': { channel: 0, controller: 1, kind: 'cc' },
+      },
+      midiLearningControl: 'reverb.enabled',
+    })
+    useCollectionStore.getState().resetMidiMappings()
+    const state = useCollectionStore.getState()
+    expect(state.midiMappings).toEqual({})
+    expect(state.midiLearningControl).toBeNull()
+    expect(setMidiMappings).toHaveBeenCalledWith({})
+  })
+})

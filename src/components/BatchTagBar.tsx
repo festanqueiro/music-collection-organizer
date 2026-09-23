@@ -1,7 +1,11 @@
 // src/components/BatchTagBar.tsx
 import { useCollectionStore } from '../state/store'
 
-export function BatchTagBar() {
+// The selection half of TrackTable's always-visible toolbar — only
+// renders when tracks are checked. `visibleTrackIds` is the table's
+// current display order, so "Add to queue" queues checked tracks in the
+// order they're shown rather than the order they were ticked.
+export function BatchTagBar({ visibleTrackIds }: { visibleTrackIds: number[] }) {
   const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
@@ -9,20 +13,13 @@ export function BatchTagBar() {
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const showToast = useCollectionStore((s) => s.showToast)
+  const requestAddManyToQueue = useCollectionStore((s) => s.requestAddManyToQueue)
 
   if (checkedTrackIds.size === 0) return null
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        padding: '8px',
-        borderBottom: '1px solid var(--color-border)',
-        background: 'var(--color-surface)',
-      }}
-    >
+    <>
+      <span style={{ width: '1px', alignSelf: 'stretch', background: 'var(--color-border)' }} />
       <span>{checkedTrackIds.size} selected</span>
       <select
         value=""
@@ -71,7 +68,19 @@ export function BatchTagBar() {
       >
         Analyse
       </button>
+      <button
+        onClick={() => {
+          // Checked tracks hidden by the current filter still get queued,
+          // after the visible ones.
+          const visibleChecked = visibleTrackIds.filter((id) => checkedTrackIds.has(id))
+          const visibleSet = new Set(visibleChecked)
+          const ids = [...visibleChecked, ...Array.from(checkedTrackIds).filter((id) => !visibleSet.has(id))]
+          requestAddManyToQueue(ids)
+        }}
+      >
+        Add to queue
+      </button>
       <button onClick={clearCheckedTracks}>Clear selection</button>
-    </div>
+    </>
   )
 }

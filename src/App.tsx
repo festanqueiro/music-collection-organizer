@@ -6,10 +6,11 @@ import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
 import { TrackTable } from './components/TrackTable'
-import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
 import { PlaylistView } from './components/PlaylistView'
+import { Visualizer } from './components/Visualizer'
+import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
@@ -51,6 +52,8 @@ export default function App() {
   const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
+  const visualizerOpen = useCollectionStore((s) => s.visualizerOpen)
+  const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -169,9 +172,16 @@ export default function App() {
     refreshTracks,
   ])
 
+  const currentTrackId = playlist[0]
+  const currentTrack = currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null
+
   return (
     <>
       <ScanPrompt />
+      <QueueDialog />
+      {/* Rendered here, not inside Player, so it stays open across track
+          changes (Player remounts per track). */}
+      {visualizerOpen && <Visualizer track={currentTrack} onClose={() => setVisualizerOpen(false)} />}
       <SettingsModal
         open={settingsOpen}
         onClose={() => {
@@ -279,9 +289,6 @@ export default function App() {
         </div>
 
         <div className="pane" style={{ gridArea: 'center', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flexShrink: 0 }}>
-            <BatchTagBar />
-          </div>
           <TrackTable
             onSelect={setSelectedTrack}
             selectedFolder={selectedFolder}
@@ -303,7 +310,7 @@ export default function App() {
           />
         </div>
 
-        <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)' }}>
+        <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)', position: 'relative' }}>
           {(() => {
             // Driven by the playlist queue's head, not row selection — the
             // player is independent, so browsing/checking details on other
@@ -314,8 +321,6 @@ export default function App() {
             // when the current track changes — otherwise the playing/
             // progress state (and the underlying <audio> element) carries
             // over from the previous track instead of resetting.
-            const currentTrackId = playlist[0]
-            const currentTrack = currentTrackId != null ? tracks.find((t) => t.id === currentTrackId) : null
             return currentTrack ? (
               <Player key={currentTrack.id} track={currentTrack} />
             ) : (
@@ -340,7 +345,23 @@ export default function App() {
               </div>
             )
           })()}
-          {analysisProgress && <AnalysisProgressBar progress={analysisProgress} />}
+          {analysisProgress && (
+            // Floats just above the footer (over the bottom of the panes)
+            // instead of sitting in its flow — otherwise the player bar
+            // jumps every time an analysis run starts or finishes.
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: 0,
+                right: 0,
+                zIndex: 20,
+                boxShadow: '0 -4px 12px rgba(0,0,0,0.3)',
+              }}
+            >
+              <AnalysisProgressBar progress={analysisProgress} />
+            </div>
+          )}
         </div>
       </div>
     </>

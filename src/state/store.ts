@@ -18,6 +18,7 @@ import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
+import type { VisualizerThemeId } from '../visualizer/types'
 import {
   playTrackNow as playTrackNowPure,
   addToPlaylist as addToPlaylistPure,
@@ -26,6 +27,9 @@ import {
   removeFromPlaylist as removeFromPlaylistPure,
   movePlaylistItem as movePlaylistItemPure,
   advanceToNext as advanceToNextPure,
+  shufflePlaylist as shufflePlaylistPure,
+  playQueueItemNow as playQueueItemNowPure,
+  playQueueItemNext as playQueueItemNextPure,
 } from './playlist'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
@@ -105,12 +109,18 @@ function triggerBackgroundAnalysis(get: StoreApi<CollectionState>['getState'], t
 // Batches every track that actually needs it into a single analysis:run
 // call — used for "Add all to queue" so queueing a whole folder doesn't
 // fire off one IPC round-trip per track.
-function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getState'], trackIds: number[]): void {
-  const tracks = get().tracks
-  const ids = trackIds.filter((id) => {
-    const track = tracks.find((t) => t.id === id)
+// Local tracks that haven't been (successfully) analysed yet. Cloud-only
+// tracks are skipped — they're analysed once downloaded, which happens
+// when they're loaded in the player (see ensureTrackReady).
+function tracksNeedingAnalysis(tracks: Track[], trackIds: number[]): number[] {
+  const byId = new Map(tracks.map((t) => [t.id, t]))
+  return trackIds.filter((id) => {
+    const track = byId.get(id)
     return track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')
   })
+}
+function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getState'], trackIds: number[]): void {
+  const ids = tracksNeedingAnalysis(get().tracks, trackIds)
   if (ids.length === 0) return
   get()
     .runAnalysis(ids)
@@ -159,14 +169,49 @@ interface CollectionState {
   playerExpanded: boolean
   playTrackNow: (trackId: number) => Promise<void>
   addToPlaylist: (trackId: number) => void
-  addManyToPlaylist: (trackIds: number[]) => void
+  // `analyse` (default true) also starts analysing any not-yet-analysed
+  // queued tracks right away; false leaves each to be analysed when it's
+  // loaded in the player.
+  addManyToPlaylist: (trackIds: number[], options?: { analyse?: boolean }) => void
+  // Bulk "add to queue" goes through a dialog (QueueDialog) that asks
+  // whether to analyse everything now — unless there's nothing to decide
+  // (all analysed and a small batch), in which case it queues directly.
+  queueRequest: { trackIds: number[]; unanalysedCount: number } | null
+  requestAddManyToQueue: (trackIds: number[]) => void
+  resolveQueueRequest: (choice: 'analyse' | 'queue-only' | 'cancel') => void
   playNext: (trackId: number) => void
   removeFromPlaylist: (index: number) => void
   clearPlaylist: () => void
   movePlaylistItem: (fromIndex: number, toIndex: number) => void
+  shufflePlaylist: () => void
+  // Queue-view actions on an entry already in the queue (by index) — they
+  // move the entry rather than copying it; see playlist.ts.
+  playQueueItemNow: (index: number) => Promise<void>
+  playQueueItemNext: (index: number) => void
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
   setPlayerExpanded: (value: boolean) => void
+  // Full-screen Visualizer overlay. Only the open/closed flag lives here —
+  // the per-frame audio data is read straight from the AnalyserNode inside
+  // the Visualizer's render loop (see audio/audioAnalysis.ts), since
+  // pushing it through the store would re-render React ~60 times a second.
+  visualizerOpen: boolean
+  setVisualizerOpen: (open: boolean) => void
+  visualizerTheme: VisualizerThemeId
+  setVisualizerTheme: (theme: VisualizerThemeId) => void
+  // Chosen value per theme option (see VisualizerTheme.options); an option
+  // with no entry uses its first value.
+  visualizerThemeOptions: Partial<Record<VisualizerThemeId, Record<string, string>>>
+  setVisualizerThemeOption: (theme: VisualizerThemeId, optionId: string, valueId: string) => void
+  // Track title/artist stays on screen in the Visualizer unless this
+  // is switched on — unlike the theme picker/close controls, which fade
+  // out whenever the mouse is idle.
+  visualizerHideTrackInfo: boolean
+  setVisualizerHideTrackInfo: (hide: boolean) => void
+  // Whether MIDI-learn badges are shown next to mappable controls
+  // (Settings → Audio). Purely visual — bindings keep working when hidden.
+  showMidiControls: boolean
+  setShowMidiControls: (show: boolean) => void
   // Imperative escape hatch so a MIDI-bound player.playPause control (and
   // eventually the spacebar/other external triggers) can toggle playback
   // without lifting the actual playing/paused boolean — which the <audio>
@@ -231,6 +276,12 @@ interface CollectionState {
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
+  // Removes every binding at once (Settings → Audio → MIDI, behind a
+  // confirmation) and cancels any in-progress learn.
+  resetMidiMappings: () => void
+  // Replaces every binding with an imported set (Settings → Audio → MIDI →
+  // Import, after the file's been read and validated in main).
+  replaceMidiMappings: (mappings: MidiMappings) => void
   handleMidiControlChange: (channel: number, controller: number, value: number, kind: 'cc' | 'note') => void
   loadCollectionFolder: () => Promise<void>
   pickCollectionFolder: () => Promise<boolean>
@@ -263,6 +314,77 @@ interface CollectionState {
   importTagData: () => Promise<ImportResult | null>
 }
 
+// A purely cosmetic renderer-side preference, so plain localStorage
+// (per-app userData, like everything else) rather than an electron-store
+// IPC round-trip.
+const VISUALIZER_THEME_KEY = 'visualizerTheme'
+const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem']
+function loadVisualizerTheme(): VisualizerThemeId {
+  try {
+    const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
+    if (stored && (VISUALIZER_THEME_IDS as string[]).includes(stored)) return stored as VisualizerThemeId
+  } catch {
+    // localStorage unavailable (e.g. under Vitest's node environment).
+  }
+  return 'nebula'
+}
+
+const VISUALIZER_THEME_OPTIONS_KEY = 'visualizerThemeOptions'
+// Before options, a theme had a single "variant" — Sound System's colour
+// scheme — stored per theme under this key; read once as a fallback.
+const LEGACY_VISUALIZER_THEME_VARIANTS_KEY = 'visualizerThemeVariants'
+function loadVisualizerThemeOptions(): Partial<Record<VisualizerThemeId, Record<string, string>>> {
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+  try {
+    const stored = localStorage.getItem(VISUALIZER_THEME_OPTIONS_KEY)
+    if (stored !== null) {
+      const parsed: unknown = JSON.parse(stored)
+      if (!isRecord(parsed)) return {}
+      // Unknown ids are harmless — the Visualizer falls back to each
+      // option's first value — so only the shape is checked here.
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+          .map(([theme, values]) => [theme, Object.fromEntries(Object.entries(values).filter(([, v]) => typeof v === 'string'))]),
+      ) as Partial<Record<VisualizerThemeId, Record<string, string>>>
+    }
+    const legacy: unknown = JSON.parse(localStorage.getItem(LEGACY_VISUALIZER_THEME_VARIANTS_KEY) ?? '{}')
+    if (!isRecord(legacy)) return {}
+    return Object.fromEntries(
+      Object.entries(legacy)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        .map(([theme, variant]) => [theme, { colours: variant }]),
+    ) as Partial<Record<VisualizerThemeId, Record<string, string>>>
+  } catch {
+    return {}
+  }
+}
+
+const VISUALIZER_HIDE_TRACK_INFO_KEY = 'visualizerHideTrackInfo'
+function loadVisualizerHideTrackInfo(): boolean {
+  try {
+    return localStorage.getItem(VISUALIZER_HIDE_TRACK_INFO_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
+const SHOW_MIDI_CONTROLS_KEY = 'showMidiControls'
+function loadShowMidiControls(): boolean {
+  try {
+    return localStorage.getItem(SHOW_MIDI_CONTROLS_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+// Queuing more than this many tracks in one click always goes through
+// the confirmation dialog, even when there's no analysis choice to make —
+// with no folder/tag filter active, "Add all to queue" is the entire
+// collection, and there's no undo for a mis-click that size.
+const BULK_QUEUE_CONFIRM_THRESHOLD = 50
+
 export const useCollectionStore = create<CollectionState>((set, get) => ({
   tracks: [],
   genres: [],
@@ -274,6 +396,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playlist: [],
   continuousPlay: true,
   playerExpanded: false,
+  queueRequest: null,
+  visualizerOpen: false,
+  visualizerTheme: loadVisualizerTheme(),
+  visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
+  visualizerThemeOptions: loadVisualizerThemeOptions(),
+  showMidiControls: loadShowMidiControls(),
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -382,6 +510,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const mappings = { ...get().midiMappings }
     delete mappings[control]
     set({ midiMappings: mappings })
+    window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
+  },
+
+  resetMidiMappings: () => get().replaceMidiMappings({}),
+
+  replaceMidiMappings: (mappings) => {
+    set({ midiMappings: mappings, midiLearningControl: null })
     window.api.setMidiMappings(mappings).catch((err) => console.error('failed to save midi mappings', err))
   },
 
@@ -730,9 +865,32 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     triggerBackgroundAnalysis(get, trackId)
   },
 
-  addManyToPlaylist: (trackIds) => {
+  addManyToPlaylist: (trackIds, options) => {
     set({ playlist: addManyToPlaylistPure(get().playlist, trackIds) })
-    triggerBackgroundAnalysisForMany(get, trackIds)
+    if (options?.analyse ?? true) triggerBackgroundAnalysisForMany(get, trackIds)
+  },
+
+  requestAddManyToQueue: (trackIds) => {
+    if (trackIds.length === 0) return
+    const unanalysedCount = tracksNeedingAnalysis(get().tracks, trackIds).length
+    // Nothing to ask: no analysis choice to make, and small enough that
+    // an accidental click is cheap to undo.
+    if (unanalysedCount === 0 && trackIds.length <= BULK_QUEUE_CONFIRM_THRESHOLD) {
+      get().addManyToPlaylist(trackIds)
+      get().showToast(`${trackIds.length} track${trackIds.length === 1 ? '' : 's'} queued`)
+      return
+    }
+    set({ queueRequest: { trackIds, unanalysedCount }, modalOpen: true })
+  },
+
+  resolveQueueRequest: (choice) => {
+    const request = get().queueRequest
+    set({ queueRequest: null, modalOpen: false })
+    if (!request || choice === 'cancel') return
+    const analyse = choice === 'analyse'
+    get().addManyToPlaylist(request.trackIds, { analyse })
+    const queued = `${request.trackIds.length} track${request.trackIds.length === 1 ? '' : 's'} queued`
+    get().showToast(analyse && request.unanalysedCount > 0 ? `${queued} — analysing ${request.unanalysedCount}` : queued)
   },
 
   playNext: (trackId) => {
@@ -747,6 +905,18 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   movePlaylistItem: (fromIndex, toIndex) =>
     set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),
 
+  shufflePlaylist: () => set({ playlist: shufflePlaylistPure(get().playlist) }),
+
+  playQueueItemNow: async (index) => {
+    const before = get().playlist
+    const after = playQueueItemNowPure(before, index)
+    if (after === before) return
+    set({ playlist: after })
+    await ensureTrackReady(set, get, after[0])
+  },
+
+  playQueueItemNext: (index) => set({ playlist: playQueueItemNextPure(get().playlist, index) }),
+
   advanceToNext: async () => {
     const before = get().playlist
     const after = advanceToNextPure(before)
@@ -758,6 +928,48 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setContinuousPlay: (value) => set({ continuousPlay: value }),
 
   setPlayerExpanded: (value) => set({ playerExpanded: value }),
+
+  setVisualizerOpen: (open) => set({ visualizerOpen: open }),
+
+  setVisualizerHideTrackInfo: (hide) => {
+    set({ visualizerHideTrackInfo: hide })
+    try {
+      localStorage.setItem(VISUALIZER_HIDE_TRACK_INFO_KEY, String(hide))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setShowMidiControls: (show) => {
+    // Hiding the badges mid-learn would leave an invisible listener that
+    // silently binds the next knob moved.
+    set(show ? { showMidiControls: true } : { showMidiControls: false, midiLearningControl: null })
+    try {
+      localStorage.setItem(SHOW_MIDI_CONTROLS_KEY, String(show))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setVisualizerThemeOption: (theme, optionId, valueId) => {
+    const all = get().visualizerThemeOptions
+    const options = { ...all, [theme]: { ...all[theme], [optionId]: valueId } }
+    set({ visualizerThemeOptions: options })
+    try {
+      localStorage.setItem(VISUALIZER_THEME_OPTIONS_KEY, JSON.stringify(options))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setVisualizerTheme: (theme) => {
+    set({ visualizerTheme: theme })
+    try {
+      localStorage.setItem(VISUALIZER_THEME_KEY, theme)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
 
   loadAppVersion: async () => {
     const version = await window.api.getAppVersion()

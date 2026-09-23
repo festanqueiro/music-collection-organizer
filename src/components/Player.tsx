@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
+import { getActiveAnalyser, setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
@@ -42,6 +43,7 @@ export function Player({ track }: { track: Track }) {
   const hasNext = playlist.length > 1
   const setPlaybackControls = useCollectionStore((s) => s.setPlaybackControls)
   const midiMappings = useCollectionStore((s) => s.midiMappings)
+  const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
 
   // Player remounts fresh per track, so this also resets the shared
   // progress back to 0 as soon as a new track takes over, rather than
@@ -130,7 +132,12 @@ export function Player({ track }: { track: Track }) {
     chain.update(effectsSettings)
     chain.setVolume(playerVolume)
     effectsChainRef.current = chain
+    const analyser = chain.getAnalyser()
+    setActiveAnalyser(analyser)
     return () => {
+      // Only clear it if the next track's Player hasn't already registered
+      // its own — don't depend on React's unmount/mount ordering.
+      if (getActiveAnalyser() === analyser) setActiveAnalyser(null)
       chain.close()
       effectsChainRef.current = null
     }
@@ -263,6 +270,22 @@ export function Player({ track }: { track: Track }) {
       />
 
       <div style={{ display: 'flex', alignItems: 'center' }}>
+        <button
+          onClick={(e) => {
+            setVisualizerOpen(true)
+            // Otherwise focus stays on this button behind the overlay, and
+            // the Space shortcut (which ignores focused buttons) stops
+            // toggling play/pause while the visualizer is up.
+            e.currentTarget.blur()
+          }}
+          title="Open visualizer (full screen)"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, display: 'flex' }}
+        >
+          <span className="material-symbols-outlined">graphic_eq</span>
+        </button>
+        <span
+          style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 10px', flexShrink: 0 }}
+        />
         {artworkUrl && (
           <img
             src={artworkUrl}
@@ -341,7 +364,7 @@ export function Player({ track }: { track: Track }) {
         </button>
         <MidiLearnBadge control="player.playPause" />
 
-        <button onClick={() => advanceToNext()} disabled={!hasNext} title="Play next">
+        <button onClick={() => advanceToNext()} disabled={!hasNext} title="Play next in queue">
           <span className="material-symbols-outlined">skip_next</span>
         </button>
         <MidiLearnBadge control="player.playNext" />

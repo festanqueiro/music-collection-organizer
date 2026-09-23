@@ -7,6 +7,9 @@ import {
   removeFromPlaylist,
   movePlaylistItem,
   advanceToNext,
+  shufflePlaylist,
+  playQueueItemNow,
+  playQueueItemNext,
 } from './playlist'
 
 describe('playTrackNow', () => {
@@ -94,5 +97,48 @@ describe('advanceToNext', () => {
   it('returns the same array reference when already empty', () => {
     const playlist: number[] = []
     expect(advanceToNext(playlist)).toBe(playlist)
+  })
+})
+
+describe('shufflePlaylist', () => {
+  it('returns the same array when there is nothing to reorder', () => {
+    const empty: number[] = []
+    const one = [1]
+    const two = [1, 2]
+    expect(shufflePlaylist(empty)).toBe(empty)
+    expect(shufflePlaylist(one)).toBe(one)
+    expect(shufflePlaylist(two)).toBe(two)
+  })
+
+  it('keeps the head in place and permutes the rest', () => {
+    const result = shufflePlaylist([1, 2, 3, 4, 5], () => 0)
+    expect(result[0]).toBe(1)
+    expect(result).toEqual([1, 3, 4, 5, 2])
+    expect([...result].sort()).toEqual([1, 2, 3, 4, 5])
+  })
+})
+
+describe('playQueueItemNow', () => {
+  it('moves the entry to the head, replacing the current track, without duplicating it', () => {
+    expect(playQueueItemNow([1, 2, 3, 4], 2)).toEqual([3, 2, 4])
+  })
+
+  it('is a no-op (same array) for the head or an out-of-range index', () => {
+    const playlist = [1, 2, 3]
+    expect(playQueueItemNow(playlist, 0)).toBe(playlist)
+    expect(playQueueItemNow(playlist, 5)).toBe(playlist)
+  })
+})
+
+describe('playQueueItemNext', () => {
+  it('moves the entry to right after the current track', () => {
+    expect(playQueueItemNext([1, 2, 3, 4], 3)).toEqual([1, 4, 2, 3])
+  })
+
+  it('is a no-op (same array) for the head, the entry already next, or an out-of-range index', () => {
+    const playlist = [1, 2, 3]
+    expect(playQueueItemNext(playlist, 0)).toBe(playlist)
+    expect(playQueueItemNext(playlist, 1)).toBe(playlist)
+    expect(playQueueItemNext(playlist, 9)).toBe(playlist)
   })
 })
