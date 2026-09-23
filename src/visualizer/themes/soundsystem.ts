@@ -3,13 +3,13 @@ import { SpectrumBars, disposeScene } from '../shared'
 import { hasTagWord } from '../tagMatch'
 import type { AudioFrame, ThemeInstance, VisualizerTheme } from '../types'
 
-// A Jamaican-style sound system stack, modelled on a classic outdoor set —
-// cabinets stacked on pallets in daylight, in front of a corrugated-metal
-// wall with graffiti. The paint job is user-selectable (see PALETTES —
-// the app's teal/purple, teal/pink from the app icon, or natural wood and
-// black), rendered as worn paint over plywood: grain showing through,
-// brush strokes, chips. Every row of boxes answers to its own slice of
-// the spectrum:
+// A Jamaican-style sound system stack, modelled on a classic outdoor set,
+// out in a festival field in full sun: grass, a black scrim fence, trees,
+// guy lines down from the top. The paint job is user-selectable (see
+// PALETTES — the app's teal/purple, teal/pink from the app icon, or
+// natural wood and black), rendered as worn paint over plywood: grain
+// showing through, brush strokes, chips. Every row of boxes answers to its
+// own slice of the spectrum:
 //
 //   top horn + tweeter bars   → tops      (domes shimmer, horn throats glow)
 //   row 3 (2×10" boxes)       → low-mids (centre) / mids (sides)
@@ -28,9 +28,9 @@ const APP_TEXT_DIM = 0x9aa3b2 // --color-text-dim
 const APP_ACCENT = 0x2dd4bf // --color-accent
 const APP_ACCENT_STRONG = 0x14b8a6 // --color-accent-strong
 const APP_SECONDARY = 0xa78bfa // --color-secondary
-const ICON_PINK = '#ffc3c5' // the "MCO" lettering in resources/icon.png
-// The icon pink is nearly white — in full sun it blows past the bloom
-// threshold — so painted surfaces use a deeper shade of it.
+// A deeper shade of the app icon's pink ("MCO" lettering, #ffc3c5) —
+// the icon's own pink is nearly white and blows past the bloom threshold
+// in full sun.
 const PINK_PAINT = '#f29aa6'
 const BLACK = 0x0a0c10
 const BARE_WOOD = '#b98a5a'
@@ -49,7 +49,6 @@ interface Palette {
   cabinetLight: Finish // tweeter bars
   accentA: Finish // scoop tops, side mid boxes, horn box
   accentB: Finish // row-2 driver panels, centre mid box
-  graffiti: [string, string]
   glow: number // horn throats + tweeter domes
   ring: number // pressure rings
 }
@@ -60,7 +59,6 @@ const PALETTES: Record<string, Palette> = {
     cabinetLight: { color: APP_BORDER, worn: true },
     accentA: { color: hex(APP_ACCENT_STRONG), worn: true },
     accentB: { color: hex(APP_SECONDARY), worn: true },
-    graffiti: [hex(APP_ACCENT), hex(APP_SECONDARY)],
     glow: APP_ACCENT,
     ring: APP_ACCENT,
   },
@@ -69,7 +67,6 @@ const PALETTES: Record<string, Palette> = {
     cabinetLight: { color: APP_BORDER, worn: true },
     accentA: { color: hex(APP_ACCENT_STRONG), worn: true },
     accentB: { color: PINK_PAINT, worn: true },
-    graffiti: [hex(APP_ACCENT), ICON_PINK],
     glow: APP_ACCENT,
     ring: 0xffc3c5,
   },
@@ -78,7 +75,6 @@ const PALETTES: Record<string, Palette> = {
     cabinetLight: { color: '#d6a36c', worn: false },
     accentA: { color: '#16181b', worn: true },
     accentB: { color: '#c48a4f', worn: false },
-    graffiti: ['#141414', '#141414'],
     glow: 0xffc070,
     ring: 0xffffff,
   },
@@ -285,113 +281,92 @@ function paintedWood(
 }
 
 
-// Graffiti tags in the accent colours, sprayed on the wall.
-function drawGraffiti(ctx: CanvasRenderingContext2D, w: number, h: number, colors: [string, string]): void {
-  const random = mulberry32(17)
-  ctx.save()
-  ctx.translate(w * 0.62, h * 0.52)
-  ctx.rotate(-0.08)
-  ctx.font = 'bold 300px "Marker Felt", "Chalkboard SE", Impact, sans-serif'
-  ctx.textAlign = 'center'
-  ctx.lineJoin = 'round'
-  ctx.lineWidth = 26
-  ctx.strokeStyle = colors[0]
-  ctx.strokeText('DUB', 0, 0)
-  ctx.restore()
-  ctx.save()
-  ctx.translate(w * 0.22, h * 0.35)
-  ctx.rotate(0.05)
-  ctx.font = 'bold 150px "Marker Felt", "Chalkboard SE", Impact, sans-serif'
-  ctx.lineJoin = 'round'
-  ctx.lineWidth = 12
-  ctx.strokeStyle = colors[1]
-  ctx.strokeText('MCO', 0, 0)
-  ctx.restore()
-  ctx.lineCap = 'round'
-  for (let i = 0; i < 14; i++) {
-    ctx.strokeStyle = colors[i % 2]
-    ctx.globalAlpha = 0.55
-    ctx.lineWidth = 6 + random() * 10
-    ctx.beginPath()
-    let x = w * (0.1 + random() * 0.8)
-    let y = h * (0.2 + random() * 0.6)
-    ctx.moveTo(x, y)
-    for (let s = 0; s < 5; s++) {
-      x += (random() - 0.5) * 220
-      y += (random() - 0.5) * 160
-      ctx.quadraticCurveTo(x + (random() - 0.5) * 120, y + (random() - 0.5) * 120, x, y)
-    }
-    ctx.stroke()
-  }
-  ctx.globalAlpha = 1
-}
-
-// Corrugated sheet colour (weathered grey + rust streaks) with graffiti.
-function wallTexture(graffiti: [string, string]): THREE.CanvasTexture {
-  return canvasTexture(2048, 768, (ctx, w, h) => {
-    const random = mulberry32(7)
-    ctx.fillStyle = '#b3aea3'
+// Clear summer sky: deep blue overhead, paling toward the horizon. Used
+// as the (screen-space) scene background.
+function skyTexture(): THREE.CanvasTexture {
+  return canvasTexture(4, 512, (ctx, w, h) => {
+    const gradient = ctx.createLinearGradient(0, 0, 0, h)
+    gradient.addColorStop(0, '#0f4fc4')
+    gradient.addColorStop(0.55, '#2f80e2')
+    gradient.addColorStop(1, '#9cc6f2')
+    ctx.fillStyle = gradient
     ctx.fillRect(0, 0, w, h)
-    for (let i = 0; i < 40; i++) {
-      const x = random() * w
-      const gradient = ctx.createLinearGradient(0, 0, 0, h)
-      gradient.addColorStop(0, `rgba(130,80,40,${0.05 + random() * 0.15})`)
-      gradient.addColorStop(1, 'rgba(130,80,40,0)')
-      ctx.fillStyle = gradient
-      ctx.fillRect(x, 0, 6 + random() * 30, h * (0.3 + random() * 0.7))
-    }
-    for (let i = 0; i < 6; i++) {
-      ctx.fillStyle = `rgba(${150 + random() * 40},${150 + random() * 40},${140 + random() * 30},0.35)`
-      ctx.fillRect(random() * w, 0, 60 + random() * 200, h)
-    }
-    drawGraffiti(ctx, w, h, graffiti)
   })
 }
 
-function stoneTexture(): THREE.CanvasTexture {
-  return canvasTexture(
-    512,
-    256,
-    (ctx, w, h) => {
-      const random = mulberry32(3)
-      ctx.fillStyle = '#6f6a60'
-      ctx.fillRect(0, 0, w, h)
-      let y = 0
-      while (y < h) {
-        const rowHeight = 22 + random() * 26
-        let x = -random() * 40
-        while (x < w) {
-          const stoneWidth = 30 + random() * 60
-          const shade = 120 + random() * 60
-          ctx.fillStyle = `rgb(${shade},${shade - 6},${shade - 16})`
-          ctx.beginPath()
-          ctx.roundRect(x + 2, y + 2, stoneWidth - 4, rowHeight - 4, 6)
-          ctx.fill()
-          x += stoneWidth
-        }
-        y += rowHeight
-      }
-    },
-    [4, 1.2],
-  )
-}
-
-function groundTexture(): THREE.CanvasTexture {
+function grassTexture(): THREE.CanvasTexture {
   return canvasTexture(
     256,
     256,
     (ctx, w, h) => {
       const random = mulberry32(11)
-      ctx.fillStyle = '#8f877a'
+      ctx.fillStyle = '#4c8a2c'
       ctx.fillRect(0, 0, w, h)
-      for (let i = 0; i < 2500; i++) {
-        const shade = 110 + random() * 70
-        ctx.fillStyle = `rgba(${shade},${shade - 8},${shade - 18},0.5)`
-        ctx.fillRect(random() * w, random() * h, 1 + random() * 3, 1 + random() * 3)
+      for (let i = 0; i < 4000; i++) {
+        const g = 110 + random() * 80
+        ctx.strokeStyle = `rgba(${40 + random() * 50},${g},${20 + random() * 30},0.6)`
+        ctx.lineWidth = 1
+        const x = random() * w
+        const y = random() * h
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.lineTo(x + (random() - 0.5) * 3, y - 2 - random() * 5)
+        ctx.stroke()
       }
     },
-    [10, 10],
+    [40, 40],
   )
+}
+
+// Black scrim on festival fencing: near-black with soft horizontal folds
+// and a faint weave.
+function fenceTexture(): THREE.CanvasTexture {
+  return canvasTexture(
+    512,
+    128,
+    (ctx, w, h) => {
+      const random = mulberry32(21)
+      ctx.fillStyle = '#16181a'
+      ctx.fillRect(0, 0, w, h)
+      for (let i = 0; i < 18; i++) {
+        const y = random() * h
+        const gradient = ctx.createLinearGradient(0, y - 6, 0, y + 6)
+        gradient.addColorStop(0, 'rgba(255,255,255,0)')
+        gradient.addColorStop(0.5, `rgba(255,255,255,${0.03 + random() * 0.05})`)
+        gradient.addColorStop(1, 'rgba(255,255,255,0)')
+        ctx.fillStyle = gradient
+        ctx.fillRect(0, y - 6, w, 12)
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.025)'
+      for (let x = 0; x < w; x += 3) ctx.fillRect(x, 0, 1, h)
+    },
+    [8, 1],
+  )
+}
+
+// A leafy broadleaf tree: trunk plus a cluster of low-poly foliage blobs.
+function makeTree(scale: number, seed: number): THREE.Group {
+  const random = mulberry32(seed)
+  const tree = new THREE.Group()
+  const bark = new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 1 })
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.28, 3, 8), bark)
+  trunk.position.y = 1.5
+  trunk.castShadow = true
+  tree.add(trunk)
+  const greens = [0x2f6b22, 0x3b7d2a, 0x285c1d, 0x4a8b33]
+  for (let i = 0; i < 12; i++) {
+    const blob = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(0.9 + random() * 0.8, 1),
+      new THREE.MeshStandardMaterial({ color: greens[i % greens.length], roughness: 0.9, flatShading: true }),
+    )
+    const angle = random() * Math.PI * 2
+    const spread = random() * 1.4
+    blob.position.set(Math.cos(angle) * spread, 3.2 + random() * 1.8, Math.sin(angle) * spread * 0.7)
+    blob.castShadow = true
+    tree.add(blob)
+  }
+  tree.scale.setScalar(scale)
+  return tree
 }
 
 // Perforated black grille (alpha-tested holes) for the row-2 drivers.
@@ -630,7 +605,8 @@ void main() {
 
 function create(): ThemeInstance {
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0xcfdde6)
+  const sky = skyTexture()
+  scene.background = sky
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
 
   const materials: Materials = {
@@ -654,66 +630,97 @@ function create(): ThemeInstance {
   }
 
   // --- Environment -------------------------------------------------------
-  scene.add(new THREE.HemisphereLight(0xe6eef5, 0x8a7a66, 1.1))
-  const sun = new THREE.DirectionalLight(0xfff0d8, 2.6)
-  sun.position.set(5, 9, 8)
+  scene.add(new THREE.HemisphereLight(0xa8cfff, 0x4d6b2c, 1.0))
+  const sun = new THREE.DirectionalLight(0xfff3e0, 2.8)
+  sun.position.set(4, 10, 7)
   sun.castShadow = true
   sun.shadow.mapSize.set(2048, 2048)
-  sun.shadow.camera.left = -8
-  sun.shadow.camera.right = 8
-  sun.shadow.camera.top = 8
-  sun.shadow.camera.bottom = -2
-  sun.shadow.camera.far = 30
+  sun.shadow.camera.left = -10
+  sun.shadow.camera.right = 10
+  sun.shadow.camera.top = 10
+  sun.shadow.camera.bottom = -4
+  sun.shadow.camera.far = 40
   sun.shadow.bias = -0.0005
   scene.add(sun)
 
   const ground = new THREE.Mesh(
-    new THREE.PlaneGeometry(40, 40),
-    new THREE.MeshStandardMaterial({ map: groundTexture(), roughness: 1 }),
+    new THREE.PlaneGeometry(120, 120),
+    new THREE.MeshStandardMaterial({ map: grassTexture(), roughness: 1 }),
   )
   ground.rotation.x = -Math.PI / 2
   ground.receiveShadow = true
   scene.add(ground)
 
-  const WALL_Z = -1.3
-  const STONE_HEIGHT = 2.3
-  const stone = new THREE.Mesh(
-    new THREE.BoxGeometry(18, STONE_HEIGHT, 0.4),
-    new THREE.MeshStandardMaterial({ map: stoneTexture(), roughness: 0.95 }),
-  )
-  stone.position.set(0, STONE_HEIGHT / 2, WALL_Z - 0.2)
-  stone.receiveShadow = true
-  scene.add(stone)
-  // Real corrugation (displaced vertices), so the sun rakes across ridges.
-  const sheetGeometry = new THREE.PlaneGeometry(18, 6, 600, 1)
-  const sheetPositions = sheetGeometry.attributes.position as THREE.BufferAttribute
-  for (let i = 0; i < sheetPositions.count; i++) {
-    sheetPositions.setZ(i, Math.sin((sheetPositions.getX(i) / 0.16) * Math.PI * 2) * 0.035)
+  // Festival fencing with black scrim behind the stack — gently wavy, on
+  // posts.
+  const FENCE_Z = -4.5
+  const FENCE_HEIGHT = 1.9
+  const fenceGeometry = new THREE.PlaneGeometry(40, FENCE_HEIGHT, 160, 1)
+  const fencePositions = fenceGeometry.attributes.position as THREE.BufferAttribute
+  for (let i = 0; i < fencePositions.count; i++) {
+    fencePositions.setZ(i, Math.sin(fencePositions.getX(i) * 1.3) * 0.06)
   }
-  sheetGeometry.computeVertexNormals()
-  const sheetMaterial = new THREE.MeshStandardMaterial({ roughness: 0.6, metalness: 0.35 })
-  const sheet = new THREE.Mesh(sheetGeometry, sheetMaterial)
-  sheet.position.set(0, STONE_HEIGHT + 3, WALL_Z - 0.35)
-  sheet.receiveShadow = true
-  scene.add(sheet)
+  fenceGeometry.computeVertexNormals()
+  const fence = new THREE.Mesh(
+    fenceGeometry,
+    new THREE.MeshStandardMaterial({ map: fenceTexture(), roughness: 0.75, side: THREE.DoubleSide }),
+  )
+  fence.position.set(0, FENCE_HEIGHT / 2 + 0.05, FENCE_Z)
+  fence.receiveShadow = true
+  scene.add(fence)
+  const postMaterial = new THREE.MeshStandardMaterial({ color: 0x8c9096, roughness: 0.4, metalness: 0.7 })
+  for (let x = -20; x <= 20; x += 3.5) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, FENCE_HEIGHT + 0.15, 6), postMaterial)
+    post.position.set(x, (FENCE_HEIGHT + 0.15) / 2, FENCE_Z + 0.05)
+    scene.add(post)
+  }
 
-  // Pallets under the stack.
-  const PALLET_HEIGHT = 0.14
-  const palletMaterial = new THREE.MeshStandardMaterial({ map: plywoodTexture('#b89a72', 5), roughness: 0.9 })
-  for (const px of [-1.6, 0, 1.6]) {
-    for (let s = 0; s < 7; s++) {
-      const slat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.03, 0.14), palletMaterial)
-      slat.position.set(px, PALLET_HEIGHT - 0.015, -0.55 + s * 0.19)
-      slat.castShadow = true
-      slat.receiveShadow = true
-      scene.add(slat)
-    }
-    for (const bz of [-0.55, 0, 0.55]) {
-      const block = new THREE.Mesh(new THREE.BoxGeometry(1.5, PALLET_HEIGHT - 0.03, 0.1), palletMaterial)
-      block.position.set(px, (PALLET_HEIGHT - 0.03) / 2, bz)
-      block.castShadow = true
-      scene.add(block)
-    }
+  // Trees: the big one left of the stack, plus a scattered tree line
+  // beyond the fence. They sway a touch in the breeze (see update).
+  const trees: Array<{ tree: THREE.Group; phase: number }> = []
+  for (const [x, z, scale, seed] of [
+    [-8.5, -8.5, 1.1, 1],
+    [9, -12, 1.1, 2],
+    [-15, -16, 1.4, 3],
+    [15, -18, 1.3, 4],
+    [3, -22, 1.5, 5],
+    [-4, -24, 1.2, 6],
+  ] as const) {
+    const tree = makeTree(scale, seed)
+    tree.position.set(x, 0, z)
+    tree.rotation.y = seed
+    scene.add(tree)
+    trees.push({ tree, phase: seed * 1.7 })
+  }
+
+  // Timber platform under the stack.
+  const PLATFORM_HEIGHT = 0.14
+  const deckMaterial = new THREE.MeshStandardMaterial({ map: plywoodTexture('#b89a72', 5), roughness: 0.9 })
+  for (let s = 0; s < 10; s++) {
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(5.6, 0.035, 0.2), deckMaterial)
+    plank.position.set(0, PLATFORM_HEIGHT - 0.0175, -0.95 + s * 0.21)
+    plank.castShadow = true
+    plank.receiveShadow = true
+    scene.add(plank)
+  }
+  for (const bx of [-2.6, -0.9, 0.9, 2.6]) {
+    const joist = new THREE.Mesh(new THREE.BoxGeometry(0.1, PLATFORM_HEIGHT - 0.035, 2.1), deckMaterial)
+    joist.position.set(bx, (PLATFORM_HEIGHT - 0.035) / 2, 0)
+    joist.castShadow = true
+    scene.add(joist)
+  }
+
+  // Guy lines from the top of the stack down to stakes either side.
+  const lineMaterial = new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 0.8 })
+  for (const side of [-1, 1]) {
+    const from = new THREE.Vector3(side * 0.35, 4.85, 0)
+    const to = new THREE.Vector3(side * 5.4, 0.02, -0.6)
+    const length = from.distanceTo(to)
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, length, 5), lineMaterial)
+    line.position.copy(from).add(to).multiplyScalar(0.5)
+    line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize())
+    line.castShadow = true
+    scene.add(line)
   }
 
   // --- The stack -----------------------------------------------------------
@@ -770,7 +777,7 @@ function create(): ThemeInstance {
   const ROW1_W = 1.15
   const ROW1_H = 2.0
   const ROW1_D = 1.2
-  const row1Y = PALLET_HEIGHT + ROW1_H / 2
+  const row1Y = PLATFORM_HEIGHT + ROW1_H / 2
   for (let i = 0; i < 4; i++) {
     const x = (i - 1.5) * (ROW1_W + 0.02)
     const group = makeShell(ROW1_W, ROW1_H, ROW1_D, materials.cabinet)
@@ -795,7 +802,7 @@ function create(): ThemeInstance {
   const ROW2_W = 2.3
   const ROW2_H = 1.0
   const ROW2_D = 1.05
-  const row2Y = PALLET_HEIGHT + ROW1_H + ROW2_H / 2
+  const row2Y = PLATFORM_HEIGHT + ROW1_H + ROW2_H / 2
   for (const side of [-1, 1]) {
     const x = side * (ROW2_W / 2 + 0.01)
     const group = makeShell(ROW2_W, ROW2_H, ROW2_D, materials.cabinet)
@@ -817,7 +824,7 @@ function create(): ThemeInstance {
   const ROW3_W = 1.3
   const ROW3_H = 0.62
   const ROW3_D = 0.8
-  const row3Y = PALLET_HEIGHT + ROW1_H + ROW2_H + ROW3_H / 2
+  const row3Y = PLATFORM_HEIGHT + ROW1_H + ROW2_H + ROW3_H / 2
   for (const slot of [-1, 0, 1]) {
     const band = slot === 0 ? LOW_MID : MID
     const group = makeShell(ROW3_W, ROW3_H, ROW3_D, materials.cabinet)
@@ -841,7 +848,7 @@ function create(): ThemeInstance {
   }
 
   // Row 4: tweeter bars on the sides, teal horn box in the middle.
-  const row4Base = PALLET_HEIGHT + ROW1_H + ROW2_H + ROW3_H
+  const row4Base = PLATFORM_HEIGHT + ROW1_H + ROW2_H + ROW3_H
   for (const side of [-1, 1]) {
     const w = 1.05
     const h = 0.34
@@ -966,8 +973,6 @@ function create(): ThemeInstance {
     applyFinish(materials.cabinetLight, palette.cabinetLight, 2)
     applyFinish(materials.accentA, palette.accentA, 3)
     applyFinish(materials.accentB, palette.accentB, 4)
-    sheetMaterial.map = cached(`wall|${palette.graffiti.join('|')}`, () => ({ map: wallTexture(palette.graffiti) })).map
-    sheetMaterial.needsUpdate = true
     for (const ring of pressureRings) (ring.mesh.material as THREE.MeshBasicMaterial).color.setHex(palette.ring)
     for (const { material } of hornGlows) material.emissive.setHex(palette.glow)
   }
@@ -1104,6 +1109,8 @@ function create(): ThemeInstance {
     dustGeometry.attributes.alpha.needsUpdate = true
     dustGeometry.attributes.size.needsUpdate = true
 
+    for (const { tree, phase } of trees) tree.rotation.z = Math.sin(t * 0.5 + phase) * 0.012
+
     // Slow, low, admiring camera — plus a thump on the kick.
     const jolt = kick * 0.03
     camera.position.set(
@@ -1125,6 +1132,7 @@ function create(): ThemeInstance {
     setVariant,
     dispose: () => {
       ringGeometry.dispose()
+      sky.dispose()
       disposeScene(scene)
       // Cached textures for palettes not currently applied aren't
       // reachable from the scene.
