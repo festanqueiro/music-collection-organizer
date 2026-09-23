@@ -133,7 +133,19 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     renderer.shadowMap.type = THREE.PCFShadowMap
     host.appendChild(renderer.domElement)
 
-    const composer = new EffectComposer(renderer)
+    // The composer renders into its own off-screen targets, so the
+    // renderer's `antialias` never applies — without a multisampled
+    // target every edge is aliased and crawls as the camera drifts.
+    // Sized in device pixels; later composer.setSize() calls (CSS pixels)
+    // are scaled by the renderer's pixel ratio.
+    const pixelRatio = renderer.getPixelRatio()
+    const composer = new EffectComposer(
+      renderer,
+      new THREE.WebGLRenderTarget(host.clientWidth * pixelRatio, host.clientHeight * pixelRatio, {
+        samples: 4,
+        type: THREE.HalfFloatType,
+      }),
+    )
     const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera())
     composer.addPass(renderPass)
     const bloom = new UnrealBloomPass(new THREE.Vector2(host.clientWidth, host.clientHeight), 1, 0.5, 0.3)

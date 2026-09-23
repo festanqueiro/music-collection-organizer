@@ -96,6 +96,11 @@ const TOP = 4
 
 const DUST_COUNT = 900
 
+// Horn-cell edge strips sit this far proud of the cabinet front, so their
+// faces are never coplanar with the shell's front edges (which z-fights —
+// flickering stripes along the corners).
+const STRIP_PROUD = 0.004
+
 // Bass cone spring (see update): stiffness sets how quickly a cone chases
 // the level, damping just under critical gives a soft overshoot per kick.
 const SPRING_STIFFNESS = 140
@@ -547,7 +552,7 @@ function makeCells(
     divider.position.set(x, 0, -depth / 2)
     add(divider)
     const strip = new THREE.Mesh(new THREE.BoxGeometry(t + 0.01, h, 0.02), edge)
-    strip.position.set(x, 0, 0)
+    strip.position.set(x, 0, STRIP_PROUD)
     add(strip)
   }
   for (let r = 0; r <= rows; r++) {
@@ -556,7 +561,7 @@ function makeCells(
     divider.position.set(0, y, -depth / 2)
     add(divider)
     const strip = new THREE.Mesh(new THREE.BoxGeometry(w, t + 0.01, 0.02), edge)
-    strip.position.set(0, y, 0)
+    strip.position.set(0, y, STRIP_PROUD)
     add(strip)
   }
   const mouths: THREE.Vector3[] = []
@@ -616,9 +621,9 @@ function create(): ThemeInstance {
     accentA: new THREE.MeshStandardMaterial({ bumpScale: 1.5, roughness: 0.62 }),
     accentB: new THREE.MeshStandardMaterial({ bumpScale: 1.5, roughness: 0.62 }),
     black: new THREE.MeshStandardMaterial({ color: BLACK, roughness: 0.9, side: THREE.DoubleSide }),
-    cone: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.35, metalness: 0.2, side: THREE.DoubleSide }),
+    cone: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.45, metalness: 0.2, side: THREE.DoubleSide }),
     rubber: new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8 }),
-    metal: new THREE.MeshStandardMaterial({ color: APP_TEXT_DIM, roughness: 0.3, metalness: 0.8 }),
+    metal: new THREE.MeshStandardMaterial({ color: APP_TEXT_DIM, roughness: 0.45, metalness: 0.8 }),
     grille: new THREE.MeshStandardMaterial({
       color: 0x111111,
       roughness: 0.6,
@@ -641,6 +646,9 @@ function create(): ThemeInstance {
   sun.shadow.camera.bottom = -4
   sun.shadow.camera.far = 40
   sun.shadow.bias = -0.0005
+  // Offsets along the normal too — plain depth bias alone left shadow
+  // acne shimmering on the cabinets as they recoil.
+  sun.shadow.normalBias = 0.02
   scene.add(sun)
 
   const ground = new THREE.Mesh(
