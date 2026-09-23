@@ -205,10 +205,20 @@ export function PlaylistView() {
           />
           Continuous play
         </label>
-        <button onClick={() => advanceToNext()} disabled={playlist.length === 0} style={{ fontSize: '12px' }}>
+        <button
+          onClick={() => advanceToNext()}
+          disabled={playlist.length === 0}
+          style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>skip_next</span>
           Play now next in the queue
         </button>
-        <button onClick={() => clearPlaylist()} disabled={playlist.length === 0} style={{ fontSize: '12px' }}>
+        <button
+          onClick={() => clearPlaylist()}
+          disabled={playlist.length === 0}
+          style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>clear_all</span>
           Clear queue
         </button>
         <button
