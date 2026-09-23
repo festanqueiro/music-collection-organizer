@@ -63,3 +63,25 @@ not a commitment list.
 - **`node:sqlite` stability watch** — still flagged experimental in the
   Node versions this app currently targets; keep an eye on it as
   Electron/Node versions move forward (already noted in `TODO.md`).
+
+## Visualizer: Sound System theme from a Blender model
+
+Convert `~/Downloads/SYSTEM_MB.blend` (Blender 4.3 file) into a Sound System
+theme/variant, replacing or alongside the procedural stack in
+`src/visualizer/themes/soundsystem.ts`.
+
+What's known so far:
+- three.js can't load `.blend` — it needs exporting to glTF (`.glb`). Blender
+  isn't installed here; `brew install --cask blender` would allow a headless
+  export (and inspecting/renaming objects via Blender's Python).
+- The model looks like a SketchUp import: ~208 `G-Object.*` and ~89
+  `C-Component#*` objects with generic names — nothing identifies the
+  speaker cones. To animate cones per band, either name them in Blender
+  (e.g. `sub_cone_1`, `mid_cone_1`, `tweeter_1`) or detect them by geometry.
+- Textures (Wood_Lumber_ButtJoined, Fencing_Diamond_Mesh, Stone_Vein_Gray,
+  Wood_Bamboo_Medium) point at a Windows temp path and are probably not
+  packed, so expect to re-apply the theme's own painted-wood materials
+  (which also keeps the Colours option working).
+- Plan: load via GLTFLoader from a bundled asset, keep the Field/Urban
+  backgrounds and FX (pressure rings, dust), map palette by material name,
+  compress the .glb (Draco/meshopt) to keep the bundle small.
