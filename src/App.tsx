@@ -10,6 +10,7 @@ import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
 import { PlaylistView } from './components/PlaylistView'
 import { Visualizer } from './components/Visualizer'
+import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
@@ -177,6 +178,7 @@ export default function App() {
   return (
     <>
       <ScanPrompt />
+      <QueueDialog />
       {/* Rendered here, not inside Player, so it stays open across track
           changes (Player remounts per track). */}
       {visualizerOpen && <Visualizer track={currentTrack} onClose={() => setVisualizerOpen(false)} />}

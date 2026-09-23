@@ -107,12 +107,18 @@ function triggerBackgroundAnalysis(get: StoreApi<CollectionState>['getState'], t
 // Batches every track that actually needs it into a single analysis:run
 // call — used for "Add all to queue" so queueing a whole folder doesn't
 // fire off one IPC round-trip per track.
-function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getState'], trackIds: number[]): void {
-  const tracks = get().tracks
-  const ids = trackIds.filter((id) => {
-    const track = tracks.find((t) => t.id === id)
+// Local tracks that haven't been (successfully) analysed yet. Cloud-only
+// tracks are skipped — they're analysed once downloaded, which happens
+// when they're loaded in the player (see ensureTrackReady).
+function tracksNeedingAnalysis(tracks: Track[], trackIds: number[]): number[] {
+  const byId = new Map(tracks.map((t) => [t.id, t]))
+  return trackIds.filter((id) => {
+    const track = byId.get(id)
     return track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')
   })
+}
+function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getState'], trackIds: number[]): void {
+  const ids = tracksNeedingAnalysis(get().tracks, trackIds)
   if (ids.length === 0) return
   get()
     .runAnalysis(ids)
@@ -161,7 +167,16 @@ interface CollectionState {
   playerExpanded: boolean
   playTrackNow: (trackId: number) => Promise<void>
   addToPlaylist: (trackId: number) => void
-  addManyToPlaylist: (trackIds: number[]) => void
+  // `analyse` (default true) also starts analysing any not-yet-analysed
+  // queued tracks right away; false leaves each to be analysed when it's
+  // loaded in the player.
+  addManyToPlaylist: (trackIds: number[], options?: { analyse?: boolean }) => void
+  // Bulk "add to queue" goes through a dialog (QueueDialog) that asks
+  // whether to analyse everything now — unless there's nothing to decide
+  // (all analysed and a small batch), in which case it queues directly.
+  queueRequest: { trackIds: number[]; unanalysedCount: number } | null
+  requestAddManyToQueue: (trackIds: number[]) => void
+  resolveQueueRequest: (choice: 'analyse' | 'queue-only' | 'cancel') => void
   playNext: (trackId: number) => void
   removeFromPlaylist: (index: number) => void
   clearPlaylist: () => void
@@ -178,7 +193,7 @@ interface CollectionState {
   setVisualizerOpen: (open: boolean) => void
   visualizerTheme: VisualizerThemeId
   setVisualizerTheme: (theme: VisualizerThemeId) => void
-  // Track title/artist/BPM stays on screen in the Visualizer unless this
+  // Track title/artist stays on screen in the Visualizer unless this
   // is switched on — unlike the theme picker/close controls, which fade
   // out whenever the mouse is idle.
   visualizerHideTrackInfo: boolean
@@ -303,6 +318,12 @@ function loadVisualizerHideTrackInfo(): boolean {
   }
 }
 
+// Queuing more than this many tracks in one click always goes through
+// the confirmation dialog, even when there's no analysis choice to make —
+// with no folder/tag filter active, "Add all to queue" is the entire
+// collection, and there's no undo for a mis-click that size.
+const BULK_QUEUE_CONFIRM_THRESHOLD = 50
+
 export const useCollectionStore = create<CollectionState>((set, get) => ({
   tracks: [],
   genres: [],
@@ -314,6 +335,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playlist: [],
   continuousPlay: true,
   playerExpanded: false,
+  queueRequest: null,
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
@@ -773,9 +795,32 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     triggerBackgroundAnalysis(get, trackId)
   },
 
-  addManyToPlaylist: (trackIds) => {
+  addManyToPlaylist: (trackIds, options) => {
     set({ playlist: addManyToPlaylistPure(get().playlist, trackIds) })
-    triggerBackgroundAnalysisForMany(get, trackIds)
+    if (options?.analyse ?? true) triggerBackgroundAnalysisForMany(get, trackIds)
+  },
+
+  requestAddManyToQueue: (trackIds) => {
+    if (trackIds.length === 0) return
+    const unanalysedCount = tracksNeedingAnalysis(get().tracks, trackIds).length
+    // Nothing to ask: no analysis choice to make, and small enough that
+    // an accidental click is cheap to undo.
+    if (unanalysedCount === 0 && trackIds.length <= BULK_QUEUE_CONFIRM_THRESHOLD) {
+      get().addManyToPlaylist(trackIds)
+      get().showToast(`${trackIds.length} track${trackIds.length === 1 ? '' : 's'} queued`)
+      return
+    }
+    set({ queueRequest: { trackIds, unanalysedCount }, modalOpen: true })
+  },
+
+  resolveQueueRequest: (choice) => {
+    const request = get().queueRequest
+    set({ queueRequest: null, modalOpen: false })
+    if (!request || choice === 'cancel') return
+    const analyse = choice === 'analyse'
+    get().addManyToPlaylist(request.trackIds, { analyse })
+    const queued = `${request.trackIds.length} track${request.trackIds.length === 1 ? '' : 's'} queued`
+    get().showToast(analyse && request.unanalysedCount > 0 ? `${queued} — analysing ${request.unanalysedCount}` : queued)
   },
 
   playNext: (trackId) => {

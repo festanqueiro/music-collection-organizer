@@ -82,8 +82,7 @@ export function TrackTable({
   const playlist = useCollectionStore((s) => s.playlist)
   const playTrackNow = useCollectionStore((s) => s.playTrackNow)
   const addToPlaylist = useCollectionStore((s) => s.addToPlaylist)
-  const addManyToPlaylist = useCollectionStore((s) => s.addManyToPlaylist)
-  const showToast = useCollectionStore((s) => s.showToast)
+  const requestAddManyToQueue = useCollectionStore((s) => s.requestAddManyToQueue)
   const playNext = useCollectionStore((s) => s.playNext)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const columnOrder = useCollectionStore((s) => s.columnOrder)
@@ -433,22 +432,8 @@ export function TrackTable({
         }}
       >
         <button
-          onClick={() => {
-            // Queuing dozens+ of tracks in one click is easy to trigger
-            // by accident (e.g. clicking with no folder/tag filter active
-            // queues the entire collection) and there's no bulk "clear
-            // queue" undo for a mis-click this size — a confirmation only
-            // kicks in above a threshold so the common, deliberate case
-            // (a filtered folder/tag view) stays a single click.
-            if (
-              visibleTracks.length > 50 &&
-              !window.confirm(`Add all ${visibleTracks.length} tracks to the queue?`)
-            ) {
-              return
-            }
-            addManyToPlaylist(visibleTracks.map((t) => t.id))
-            showToast(`${visibleTracks.length} track${visibleTracks.length === 1 ? '' : 's'} queued`)
-          }}
+          // Confirmation / analyse-now choice handled by QueueDialog.
+          onClick={() => requestAddManyToQueue(visibleTrackIds)}
           disabled={visibleTracks.length === 0}
           style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
         >

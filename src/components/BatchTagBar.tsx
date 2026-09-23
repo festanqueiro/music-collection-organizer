@@ -13,7 +13,7 @@ export function BatchTagBar({ visibleTrackIds }: { visibleTrackIds: number[] }) 
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const showToast = useCollectionStore((s) => s.showToast)
-  const addManyToPlaylist = useCollectionStore((s) => s.addManyToPlaylist)
+  const requestAddManyToQueue = useCollectionStore((s) => s.requestAddManyToQueue)
 
   if (checkedTrackIds.size === 0) return null
 
@@ -75,8 +75,7 @@ export function BatchTagBar({ visibleTrackIds }: { visibleTrackIds: number[] }) 
           const visibleChecked = visibleTrackIds.filter((id) => checkedTrackIds.has(id))
           const visibleSet = new Set(visibleChecked)
           const ids = [...visibleChecked, ...Array.from(checkedTrackIds).filter((id) => !visibleSet.has(id))]
-          addManyToPlaylist(ids)
-          showToast(`${ids.length} track${ids.length === 1 ? '' : 's'} queued`)
+          requestAddManyToQueue(ids)
         }}
       >
         Add to queue
