@@ -7,6 +7,7 @@ import {
   removeFromPlaylist,
   movePlaylistItem,
   advanceToNext,
+  shufflePlaylist,
 } from './playlist'
 
 describe('playTrackNow', () => {
@@ -94,5 +95,23 @@ describe('advanceToNext', () => {
   it('returns the same array reference when already empty', () => {
     const playlist: number[] = []
     expect(advanceToNext(playlist)).toBe(playlist)
+  })
+})
+
+describe('shufflePlaylist', () => {
+  it('returns the same array when there is nothing to reorder', () => {
+    const empty: number[] = []
+    const one = [1]
+    const two = [1, 2]
+    expect(shufflePlaylist(empty)).toBe(empty)
+    expect(shufflePlaylist(one)).toBe(one)
+    expect(shufflePlaylist(two)).toBe(two)
+  })
+
+  it('keeps the head in place and permutes the rest', () => {
+    const result = shufflePlaylist([1, 2, 3, 4, 5], () => 0)
+    expect(result[0]).toBe(1)
+    expect(result).toEqual([1, 3, 4, 5, 2])
+    expect([...result].sort()).toEqual([1, 2, 3, 4, 5])
   })
 })

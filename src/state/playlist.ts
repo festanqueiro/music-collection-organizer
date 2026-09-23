@@ -53,3 +53,16 @@ export function advanceToNext(playlist: PlaylistState): PlaylistState {
   if (playlist.length === 0) return playlist
   return playlist.slice(1)
 }
+
+// Shuffles everything queued AFTER the head — the current track keeps
+// playing uninterrupted, only the upcoming order changes. Fisher-Yates;
+// `random` is injectable so tests can make it deterministic.
+export function shufflePlaylist(playlist: PlaylistState, random: () => number = Math.random): PlaylistState {
+  if (playlist.length <= 2) return playlist
+  const rest = playlist.slice(1)
+  for (let i = rest.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    ;[rest[i], rest[j]] = [rest[j], rest[i]]
+  }
+  return [playlist[0], ...rest]
+}

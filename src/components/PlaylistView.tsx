@@ -136,6 +136,7 @@ export function PlaylistView() {
   const removeFromPlaylist = useCollectionStore((s) => s.removeFromPlaylist)
   const clearPlaylist = useCollectionStore((s) => s.clearPlaylist)
   const movePlaylistItem = useCollectionStore((s) => s.movePlaylistItem)
+  const shufflePlaylist = useCollectionStore((s) => s.shufflePlaylist)
   const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
   const playbackProgress = useCollectionStore((s) => s.playbackProgress)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
@@ -180,6 +181,15 @@ export function PlaylistView() {
         </button>
         <button onClick={() => clearPlaylist()} disabled={playlist.length === 0} style={{ fontSize: '12px' }}>
           Clear queue
+        </button>
+        <button
+          onClick={() => shufflePlaylist()}
+          disabled={playlist.length <= 2}
+          title="Shuffle upcoming tracks (the current track keeps playing)"
+          style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>shuffle</span>
+          Shuffle
         </button>
         {playlist.length > 0 && (
           <span style={{ fontSize: '12px', color: 'var(--color-text-dim)' }}>

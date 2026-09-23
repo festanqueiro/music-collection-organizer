@@ -26,6 +26,7 @@ import {
   removeFromPlaylist as removeFromPlaylistPure,
   movePlaylistItem as movePlaylistItemPure,
   advanceToNext as advanceToNextPure,
+  shufflePlaylist as shufflePlaylistPure,
 } from './playlist'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
@@ -164,6 +165,7 @@ interface CollectionState {
   removeFromPlaylist: (index: number) => void
   clearPlaylist: () => void
   movePlaylistItem: (fromIndex: number, toIndex: number) => void
+  shufflePlaylist: () => void
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
   setPlayerExpanded: (value: boolean) => void
@@ -746,6 +748,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   movePlaylistItem: (fromIndex, toIndex) =>
     set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),
+
+  shufflePlaylist: () => set({ playlist: shufflePlaylistPure(get().playlist) }),
 
   advanceToNext: async () => {
     const before = get().playlist
