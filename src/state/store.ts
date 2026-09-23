@@ -203,6 +203,10 @@ interface CollectionState {
   // current track doesn't qualify for.
   visualizerRegularTheme: VisualizerThemeId
   setVisualizerTheme: (theme: VisualizerThemeId) => void
+  // Chosen variant (see VisualizerTheme.variants) per theme; a theme with
+  // no entry uses its first variant.
+  visualizerThemeVariants: Partial<Record<VisualizerThemeId, string>>
+  setVisualizerThemeVariant: (theme: VisualizerThemeId, variantId: string) => void
   // Track title/artist stays on screen in the Visualizer unless this
   // is switched on — unlike the theme picker/close controls, which fade
   // out whenever the mouse is idle.
@@ -330,6 +334,19 @@ function loadVisualizerTheme(key: string = VISUALIZER_THEME_KEY): VisualizerThem
   return 'nebula'
 }
 
+const VISUALIZER_THEME_VARIANTS_KEY = 'visualizerThemeVariants'
+function loadVisualizerThemeVariants(): Partial<Record<VisualizerThemeId, string>> {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(VISUALIZER_THEME_VARIANTS_KEY) ?? '{}')
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+    // Unknown variant ids are harmless — the Visualizer falls back to the
+    // theme's first variant — so only the value types are checked here.
+    return Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === 'string'))
+  } catch {
+    return {}
+  }
+}
+
 const VISUALIZER_HIDE_TRACK_INFO_KEY = 'visualizerHideTrackInfo'
 function loadVisualizerHideTrackInfo(): boolean {
   try {
@@ -373,6 +390,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     return SPECIAL_VISUALIZER_THEME_IDS.includes(stored) ? 'nebula' : stored
   })(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
+  visualizerThemeVariants: loadVisualizerThemeVariants(),
   showMidiControls: loadShowMidiControls(),
   searchText: '',
   collectionFolder: null,
@@ -918,6 +936,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set(show ? { showMidiControls: true } : { showMidiControls: false, midiLearningControl: null })
     try {
       localStorage.setItem(SHOW_MIDI_CONTROLS_KEY, String(show))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setVisualizerThemeVariant: (theme, variantId) => {
+    const variants = { ...get().visualizerThemeVariants, [theme]: variantId }
+    set({ visualizerThemeVariants: variants })
+    try {
+      localStorage.setItem(VISUALIZER_THEME_VARIANTS_KEY, JSON.stringify(variants))
     } catch {
       // Non-essential preference — fine to lose.
     }

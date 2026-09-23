@@ -54,6 +54,17 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       : themes[0].id
   const themesRef = useRef(themes)
   themesRef.current = themes
+
+  // The active theme's variant (e.g. Sound System's colour scheme) — a
+  // stored choice that's no longer a valid variant falls back to the first.
+  const activeTheme = getVisualizerTheme(activeThemeId)
+  const storedVariantId = useCollectionStore((s) => s.visualizerThemeVariants[activeThemeId])
+  const setThemeVariant = useCollectionStore((s) => s.setVisualizerThemeVariant)
+  const variants = activeTheme.variants ?? []
+  const variantId = variants.some((v) => v.id === storedVariantId) ? storedVariantId : variants[0]?.id
+  const variantIdRef = useRef(variantId)
+  variantIdRef.current = variantId
+  const instanceRef = useRef<ThemeInstance | null>(null)
   // Set by the renderer effect; the theme effect swaps what it renders.
   const rendererRef = useRef<{ renderPass: RenderPass; setTheme: (instance: ThemeInstance) => void } | null>(null)
 
@@ -221,9 +232,19 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   // Declared after the renderer effect so it runs after it on mount.
   useEffect(() => {
     const instance = getVisualizerTheme(activeThemeId).create()
+    if (variantIdRef.current) instance.setVariant?.(variantIdRef.current)
     rendererRef.current?.setTheme(instance)
-    return () => instance.dispose()
+    instanceRef.current = instance
+    return () => {
+      instanceRef.current = null
+      instance.dispose()
+    }
   }, [activeThemeId])
+
+  // Switching variant recolours the live instance in place.
+  useEffect(() => {
+    if (variantId) instanceRef.current?.setVariant?.(variantId)
+  }, [variantId])
 
   return (
     <div
@@ -272,6 +293,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           opacity: uiVisible ? 1 : 0,
           transition: 'opacity 600ms ease',
           pointerEvents: uiVisible ? 'auto' : 'none',
+          textShadow: '0 1px 8px rgba(0,0,0,0.8)',
         }}
       >
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
@@ -292,7 +314,8 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             gap: '4px',
             padding: '4px',
             borderRadius: '20px',
-            background: 'rgba(255,255,255,0.08)',
+            // Dark, so the labels stay readable over bright (daylight) scenes.
+            background: 'rgba(0,0,0,0.35)',
           }}
         >
           {themes.map((theme, i) => (
@@ -337,6 +360,55 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
+      {variants.length > 1 && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '24px',
+            right: '28px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            color: '#fff',
+            opacity: uiVisible ? 1 : 0,
+            transition: 'opacity 600ms ease',
+            pointerEvents: uiVisible ? 'auto' : 'none',
+          }}
+        >
+          <span style={{ fontSize: '13px', textShadow: '0 1px 8px rgba(0,0,0,0.8)' }}>Colours</span>
+          <div
+            style={{
+              display: 'flex',
+              gap: '4px',
+              padding: '4px',
+              borderRadius: '20px',
+              background: 'rgba(0,0,0,0.35)',
+            }}
+          >
+            {variants.map((variant) => (
+              <button
+                key={variant.id}
+                onClick={(e) => {
+                  setThemeVariant(activeThemeId, variant.id)
+                  // Otherwise the focused button swallows Space (play/pause).
+                  e.currentTarget.blur()
+                }}
+                style={{
+                  border: 'none',
+                  borderRadius: '16px',
+                  padding: '6px 14px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  color: '#fff',
+                  background: variant.id === variantId ? 'rgba(255,255,255,0.3)' : 'transparent',
+                }}
+              >
+                {variant.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
