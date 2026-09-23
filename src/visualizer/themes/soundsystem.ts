@@ -6,7 +6,7 @@ import type { AudioFrame, ThemeInstance, VisualizerTheme } from '../types'
 // A Jamaican-style sound system stack, modelled on a classic outdoor set,
 // out in a festival field in full sun: grass, a black scrim fence, trees,
 // guy lines down from the top. The paint job is user-selectable (see
-// PALETTES — the app's teal/purple, teal/pink from the app icon, or
+// PALETTES — black and white, teal/pink from the app icon, or
 // natural wood and black), rendered as worn paint over plywood: grain
 // showing through, brush strokes, chips. Every row of boxes answers to its
 // own slice of the spectrum:
@@ -27,11 +27,13 @@ const APP_BORDER = '#2b3140' // --color-border
 const APP_TEXT_DIM = 0x9aa3b2 // --color-text-dim
 const APP_ACCENT = 0x2dd4bf // --color-accent
 const APP_ACCENT_STRONG = 0x14b8a6 // --color-accent-strong
-const APP_SECONDARY = 0xa78bfa // --color-secondary
 // A deeper shade of the app icon's pink ("MCO" lettering, #ffc3c5) —
 // the icon's own pink is nearly white and blows past the bloom threshold
 // in full sun.
 const PINK_PAINT = '#f29aa6'
+const BLACK_PAINT = '#16181b'
+// Off-white for the same reason as the pink: true white blooms in full sun.
+const WHITE_PAINT = '#d8d8d4'
 const BLACK = 0x0a0c10
 const BARE_WOOD = '#b98a5a'
 
@@ -56,13 +58,14 @@ interface Palette {
 }
 
 const PALETTES: Record<string, Palette> = {
+  // Black cabinets, white fronts; the app's teal accent in the glows.
   app: {
-    cabinet: { color: APP_SURFACE_RAISED, worn: true },
-    cabinetLight: { color: APP_BORDER, worn: true },
-    accentA: { color: hex(APP_ACCENT_STRONG), worn: true },
-    accentB: { color: hex(APP_SECONDARY), worn: true },
+    cabinet: { color: BLACK_PAINT, worn: true },
+    cabinetLight: { color: BLACK_PAINT, worn: true },
+    accentA: { color: WHITE_PAINT, worn: true },
+    accentB: { color: WHITE_PAINT, worn: true },
     scoopInner: null,
-    scoopEdge: { color: hex(APP_ACCENT_STRONG), worn: true },
+    scoopEdge: { color: WHITE_PAINT, worn: true },
     glow: APP_ACCENT,
     ring: APP_ACCENT,
   },
@@ -79,7 +82,7 @@ const PALETTES: Record<string, Palette> = {
   natural: {
     cabinet: { color: '#c48a4f', worn: false },
     cabinetLight: { color: '#d6a36c', worn: false },
-    accentA: { color: '#16181b', worn: true },
+    accentA: { color: BLACK_PAINT, worn: true },
     accentB: { color: '#c48a4f', worn: false },
     // Bare wood inside the horn cells, like the row-2 cells.
     scoopInner: { color: '#c48a4f', worn: false },
