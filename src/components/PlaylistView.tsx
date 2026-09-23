@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { FxPanel } from './FxPanel'
 import { formatDuration, decodeHtmlEntities } from '../format'
+import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 
 // Fetched lazily and cached across the whole queue, not per-row state —
 // the same track can appear (and its row remount) any number of times as
@@ -37,6 +38,7 @@ function QueueRow({
   onDragStartRow,
   onDropRow,
   onDoubleClickRow,
+  onContextMenuRow,
   onRemove,
 }: {
   trackId: number
@@ -46,6 +48,7 @@ function QueueRow({
   onDragStartRow: () => void
   onDropRow: () => void
   onDoubleClickRow: () => void
+  onContextMenuRow: (e: React.MouseEvent) => void
   onRemove: () => void
 }) {
   const artworkUrl = useTrackArtwork(track?.id)
@@ -60,6 +63,7 @@ function QueueRow({
         onDropRow()
       }}
       onDoubleClick={onDoubleClickRow}
+      onContextMenu={onContextMenuRow}
       style={{
         padding: '8px 16px',
         borderBottom: '1px solid var(--color-border)',
@@ -132,14 +136,39 @@ export function PlaylistView() {
   const continuousPlay = useCollectionStore((s) => s.continuousPlay)
   const setContinuousPlay = useCollectionStore((s) => s.setContinuousPlay)
   const advanceToNext = useCollectionStore((s) => s.advanceToNext)
-  const playTrackNow = useCollectionStore((s) => s.playTrackNow)
   const removeFromPlaylist = useCollectionStore((s) => s.removeFromPlaylist)
   const clearPlaylist = useCollectionStore((s) => s.clearPlaylist)
   const movePlaylistItem = useCollectionStore((s) => s.movePlaylistItem)
   const shufflePlaylist = useCollectionStore((s) => s.shufflePlaylist)
+  const playQueueItemNow = useCollectionStore((s) => s.playQueueItemNow)
+  const playQueueItemNext = useCollectionStore((s) => s.playQueueItemNext)
   const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
   const playbackProgress = useCollectionStore((s) => s.playbackProgress)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
+  // trackId is kept alongside index so an action from a menu opened just
+  // before the queue shifted (current track ended, etc.) doesn't hit
+  // whichever entry has since slid into that index.
+  const [contextMenu, setContextMenu] = useState<{ index: number; trackId: number; x: number; y: number } | null>(null)
+
+  useEffect(() => {
+    if (!contextMenu) return
+    function close() {
+      setContextMenu(null)
+    }
+    // Same reasoning as TrackTable's menu: no window 'contextmenu'
+    // listener, since right-clicking another row reopens the menu itself.
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [contextMenu])
+
+  function runMenuAction(action: (index: number) => void) {
+    if (contextMenu && playlist[contextMenu.index] === contextMenu.trackId) action(contextMenu.index)
+    setContextMenu(null)
+  }
 
   const currentTrack = playlist[0] != null ? (tracks.find((t) => t.id === playlist[0]) ?? null) : null
 
@@ -224,7 +253,11 @@ export function PlaylistView() {
                   if (dragIndex !== null && dragIndex !== index) movePlaylistItem(dragIndex, index)
                   setDragIndex(null)
                 }}
-                onDoubleClickRow={() => playTrackNow(trackId)}
+                onDoubleClickRow={() => playQueueItemNow(index)}
+                onContextMenuRow={(e) => {
+                  e.preventDefault()
+                  setContextMenu({ index, trackId, x: e.clientX, y: e.clientY })
+                }}
                 onRemove={() => removeFromPlaylist(index)}
               />
             ))
@@ -235,6 +268,42 @@ export function PlaylistView() {
           <FxPanel track={currentTrack} />
         </div>
       </div>
+
+      {contextMenu && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{ ...contextMenuStyle, top: contextMenu.y, left: contextMenu.x }}
+        >
+          {/* Neither applies to the entry that's already playing. */}
+          {contextMenu.index > 0 && (
+            <>
+              <button onClick={() => runMenuAction(playQueueItemNow)} style={contextMenuItemStyle}>
+                <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                  play_arrow
+                </span>
+                Play track now
+              </button>
+              <button
+                onClick={() => runMenuAction(playQueueItemNext)}
+                disabled={contextMenu.index === 1}
+                title={contextMenu.index === 1 ? 'Already next in the queue' : undefined}
+                style={{ ...contextMenuItemStyle, opacity: contextMenu.index === 1 ? 0.5 : 1 }}
+              >
+                <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                  skip_next
+                </span>
+                Add to top of the queue
+              </button>
+            </>
+          )}
+          <button onClick={() => runMenuAction(removeFromPlaylist)} style={contextMenuItemStyle}>
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              close
+            </span>
+            Remove from queue
+          </button>
+        </div>
+      )}
     </div>
   )
 }

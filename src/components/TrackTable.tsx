@@ -1,25 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { BatchTagBar } from './BatchTagBar'
+import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 
 type SortKey = TrackTableColumnKey
-
-const contextMenuItemStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '6px',
-  width: '100%',
-  textAlign: 'left' as const,
-  background: 'none',
-  border: 'none',
-  padding: '4px 8px',
-  cursor: 'pointer',
-  whiteSpace: 'nowrap' as const,
-}
-
-const contextMenuIconStyle = { fontSize: '16px' }
 
 const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   title: 260,
@@ -596,16 +582,7 @@ export function TrackTable({
         {contextMenu && (
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'fixed',
-              top: contextMenu.y,
-              left: contextMenu.x,
-              background: 'var(--color-surface-raised)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '6px',
-              padding: '4px',
-              zIndex: 20,
-            }}
+            style={{ ...contextMenuStyle, top: contextMenu.y, left: contextMenu.x }}
           >
             <button
               onClick={() => {
@@ -641,7 +618,7 @@ export function TrackTable({
               <span className="material-symbols-outlined" style={contextMenuIconStyle}>
                 skip_next
               </span>
-              Play next
+              Add to top of the queue
             </button>
             <button
               onClick={() => {

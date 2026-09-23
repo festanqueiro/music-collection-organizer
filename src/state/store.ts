@@ -28,6 +28,8 @@ import {
   movePlaylistItem as movePlaylistItemPure,
   advanceToNext as advanceToNextPure,
   shufflePlaylist as shufflePlaylistPure,
+  playQueueItemNow as playQueueItemNowPure,
+  playQueueItemNext as playQueueItemNextPure,
 } from './playlist'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
@@ -182,6 +184,10 @@ interface CollectionState {
   clearPlaylist: () => void
   movePlaylistItem: (fromIndex: number, toIndex: number) => void
   shufflePlaylist: () => void
+  // Queue-view actions on an entry already in the queue (by index) — they
+  // move the entry rather than copying it; see playlist.ts.
+  playQueueItemNow: (index: number) => Promise<void>
+  playQueueItemNext: (index: number) => void
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
   setPlayerExpanded: (value: boolean) => void
@@ -836,6 +842,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),
 
   shufflePlaylist: () => set({ playlist: shufflePlaylistPure(get().playlist) }),
+
+  playQueueItemNow: async (index) => {
+    const before = get().playlist
+    const after = playQueueItemNowPure(before, index)
+    if (after === before) return
+    set({ playlist: after })
+    await ensureTrackReady(set, get, after[0])
+  },
+
+  playQueueItemNext: (index) => set({ playlist: playQueueItemNextPure(get().playlist, index) }),
 
   advanceToNext: async () => {
     const before = get().playlist

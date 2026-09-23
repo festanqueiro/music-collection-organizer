@@ -66,3 +66,21 @@ export function shufflePlaylist(playlist: PlaylistState, random: () => number = 
   }
   return [playlist[0], ...rest]
 }
+
+// "Play now" on an entry already in the queue: MOVES that entry to the
+// head, replacing the current track (same as playTrackNow's head-replace
+// semantics) — rather than copying it, which would leave a duplicate
+// behind at its old position.
+export function playQueueItemNow(playlist: PlaylistState, index: number): PlaylistState {
+  if (index <= 0 || index >= playlist.length) return playlist
+  const trackId = playlist[index]
+  const rest = playlist.filter((_, i) => i !== index)
+  return [trackId, ...rest.slice(1)]
+}
+
+// "Play next" on an entry already in the queue: moves it to right after
+// the current (head) track.
+export function playQueueItemNext(playlist: PlaylistState, index: number): PlaylistState {
+  if (index <= 1 || index >= playlist.length) return playlist
+  return movePlaylistItem(playlist, index, 1)
+}
