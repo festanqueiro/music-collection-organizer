@@ -6,7 +6,6 @@ import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
 import { TrackTable } from './components/TrackTable'
-import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
 import { PlaylistView } from './components/PlaylistView'
@@ -288,9 +287,6 @@ export default function App() {
         </div>
 
         <div className="pane" style={{ gridArea: 'center', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ flexShrink: 0 }}>
-            <BatchTagBar />
-          </div>
           <TrackTable
             onSelect={setSelectedTrack}
             selectedFolder={selectedFolder}

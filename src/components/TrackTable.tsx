@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { BatchTagBar } from './BatchTagBar'
 import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 
@@ -208,6 +209,7 @@ export function TrackTable({
         return sortDir === 'asc' ? cmp : -cmp
       })
   }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir, trackTags, genresById, subgenresById])
+  const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
   // Re-analysing a track changes its BPM/Key, which can shift its sort
   // position out of the visible scroll area — clicking the track's title
@@ -413,17 +415,23 @@ export function TrackTable({
   }
 
   return (
-    // This div (not the ambient .pane it sits in, which App.tsx now makes
-    // a column flexbox around it and BatchTagBar) is the actual scroll
-    // container on both axes — flex:1 + minHeight:0 gives it a real
-    // bounded height to scroll within, which sticky-header positioning
-    // below depends on. Without a bounded height (e.g. a plain height:auto
-    // div with just overflowX set), the div's overflow-y gets silently
-    // promoted to 'auto' too (CSS spec) but never actually scrolls, so a
-    // sticky child inside it never visibly sticks — the ancestor .pane
-    // scrolls past it instead.
-    <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
-      <div style={{ padding: '4px 8px' }}>
+    <>
+      {/* Toolbar lives outside the scroll container so it never scrolls
+          away. "Add all to queue" is always here; the selection actions
+          (BatchTagBar) join it whenever tracks are checked. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '8px',
+          padding: '6px 8px',
+          borderBottom: '1px solid var(--color-border)',
+          background: checkedTrackIds.size > 0 ? 'var(--color-surface)' : undefined,
+          flexShrink: 0,
+          minHeight: '40px',
+        }}
+      >
         <button
           onClick={() => {
             // Queuing dozens+ of tracks in one click is easy to trigger
@@ -449,238 +457,249 @@ export function TrackTable({
           </span>
           Add all to queue
         </button>
+        <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>
-      <table
-        style={{
-          borderCollapse: 'collapse',
-          tableLayout: 'fixed',
-          width:
-            CHECKBOX_COL_WIDTH +
-            orderedColumns.reduce((sum, col) => sum + columnWidths[col.key], 0) +
-            STATUS_COL_WIDTH +
-            CLOUD_COL_WIDTH,
-        }}
-      >
-        <thead>
-          <tr>
-            <th style={{ ...cellStyle, width: CHECKBOX_COL_WIDTH, ...stickyHeaderStyle }}>
-              <input
-                type="checkbox"
-                checked={visibleTracks.length > 0 && visibleTracks.every((t) => checkedTrackIds.has(t.id))}
-                onChange={(e) => setTracksChecked(visibleTracks.map((t) => t.id), e.target.checked)}
-              />
-            </th>
-            {orderedColumns.map((col) => (
-              <th
-                key={col.key}
-                onClick={() => handleSort(col.key)}
-                draggable
-                onDragStart={() => setDraggedColumn(col.key)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  handleColumnDrop(col.key)
-                }}
-                title="Click to sort, drag to reorder"
-                style={{
-                  ...cellStyle,
-                  ...stickyHeaderStyle,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  opacity: draggedColumn === col.key ? 0.5 : 1,
-                  width: columnWidths[col.key],
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-              >
-                {col.label}
-                {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                <div
-                  onMouseDown={(e) => handleResizeStart(col.key, e)}
-                  onClick={(e) => e.stopPropagation()}
-                  title="Drag to resize"
-                  style={{
-                    position: 'absolute',
-                    right: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: '6px',
-                    cursor: 'col-resize',
-                  }}
-                />
-              </th>
-            ))}
-            <th style={{ ...cellStyle, width: STATUS_COL_WIDTH, ...stickyHeaderStyle }}>Status</th>
-            <th style={{ ...cellStyle, width: CLOUD_COL_WIDTH, ...stickyHeaderStyle }}>Cloud</th>
-          </tr>
-        </thead>
-        <tbody>
-          {tracks.length > 0 && visibleTracks.length === 0 && (
-            <tr>
-              <td
-                colSpan={orderedColumns.length + 3}
-                style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-dim)' }}
-              >
-                No tracks match your search/filter.
-              </td>
-            </tr>
-          )}
-          {visibleTracks.map((track) => (
-            <tr
-              key={track.id}
-              data-track-id={track.id}
-              className={`track-row${track.id === selectedTrackId ? ' selected' : ''}`}
-              onClick={(e) => handleRowClick(track, e.shiftKey)}
-              onContextMenu={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                setContextMenu({ trackId: track.id, x: e.clientX, y: e.clientY })
-              }}
-              draggable
-              onDragStart={(e) => {
-                // Native OS drag (to Finder, a DAW, etc.) hands off the
-                // tracks' existing file paths — it's a reference, not a
-                // copy; preventDefault stops the browser's own HTML5 drag
-                // image/ghost from also kicking in alongside it. If the
-                // dragged row is part of a multi-checked selection, drag
-                // all checked tracks; otherwise just this one row.
-                e.preventDefault()
-                const ids =
-                  checkedTrackIds.has(track.id) && checkedTrackIds.size > 1
-                    ? Array.from(checkedTrackIds)
-                    : [track.id]
-                window.api.startTrackDrag(ids)
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  checked={checkedTrackIds.has(track.id)}
-                  onMouseDown={(e) => {
-                    shiftKeyRef.current = e.shiftKey
-                  }}
-                  onChange={() => handleCheckboxClick(track.id, shiftKeyRef.current)}
-                />
-              </td>
-              {orderedColumns.map((col) => (
-                <td key={col.key} style={cellStyleFor(col.key)}>
-                  {renderCell(track, col.key)}
-                </td>
-              ))}
-              <td style={cellStyle}>
-                {track.analysisStatus === 'analyzing' ? (
-                  <span className="material-symbols-outlined spin" style={{ fontSize: '16px' }} title="Analyzing…">
-                    progress_activity
-                  </span>
-                ) : track.analysisStatus === 'error' ? (
-                  <span
-                    className="material-symbols-outlined"
-                    style={{ fontSize: '16px', color: '#f87171' }}
-                    title="Analysis failed"
-                  >
-                    error
-                  </span>
-                ) : null}
-              </td>
-              <td style={cellStyle}>
-                {track.cloudStatus === 'cloud_only' ? <span className="material-symbols-outlined">cloud</span> : null}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {contextMenu && (
-        <div
-          onClick={(e) => e.stopPropagation()}
+      {/* This div (not the ambient .pane it sits in, which App.tsx makes a
+          column flexbox) is the actual scroll container on both axes —
+          flex:1 + minHeight:0 gives it a real bounded height to scroll
+          within, which sticky-header positioning below depends on. Without
+          a bounded height (e.g. a plain height:auto div with just overflowX
+          set), the div's overflow-y gets silently promoted to 'auto' too
+          (CSS spec) but never actually scrolls, so a sticky child inside it
+          never visibly sticks — the ancestor .pane scrolls past it instead. */}
+      <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
+        <table
           style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            background: 'var(--color-surface-raised)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '6px',
-            padding: '4px',
-            zIndex: 20,
+            borderCollapse: 'collapse',
+            tableLayout: 'fixed',
+            width:
+              CHECKBOX_COL_WIDTH +
+              orderedColumns.reduce((sum, col) => sum + columnWidths[col.key], 0) +
+              STATUS_COL_WIDTH +
+              CLOUD_COL_WIDTH,
           }}
         >
-          <button
-            onClick={() => {
-              playTrackNow(contextMenu.trackId)
-              setContextMenu(null)
+          <thead>
+            <tr>
+              <th style={{ ...cellStyle, width: CHECKBOX_COL_WIDTH, ...stickyHeaderStyle }}>
+                <input
+                  type="checkbox"
+                  checked={visibleTracks.length > 0 && visibleTracks.every((t) => checkedTrackIds.has(t.id))}
+                  onChange={(e) => setTracksChecked(visibleTracks.map((t) => t.id), e.target.checked)}
+                />
+              </th>
+              {orderedColumns.map((col) => (
+                <th
+                  key={col.key}
+                  onClick={() => handleSort(col.key)}
+                  draggable
+                  onDragStart={() => setDraggedColumn(col.key)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    handleColumnDrop(col.key)
+                  }}
+                  title="Click to sort, drag to reorder"
+                  style={{
+                    ...cellStyle,
+                    ...stickyHeaderStyle,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    opacity: draggedColumn === col.key ? 0.5 : 1,
+                    width: columnWidths[col.key],
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {col.label}
+                  {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  <div
+                    onMouseDown={(e) => handleResizeStart(col.key, e)}
+                    onClick={(e) => e.stopPropagation()}
+                    title="Drag to resize"
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 0,
+                      bottom: 0,
+                      width: '6px',
+                      cursor: 'col-resize',
+                    }}
+                  />
+                </th>
+              ))}
+              <th style={{ ...cellStyle, width: STATUS_COL_WIDTH, ...stickyHeaderStyle }}>Status</th>
+              <th style={{ ...cellStyle, width: CLOUD_COL_WIDTH, ...stickyHeaderStyle }}>Cloud</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tracks.length > 0 && visibleTracks.length === 0 && (
+              <tr>
+                <td
+                  colSpan={orderedColumns.length + 3}
+                  style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-dim)' }}
+                >
+                  No tracks match your search/filter.
+                </td>
+              </tr>
+            )}
+            {visibleTracks.map((track) => (
+              <tr
+                key={track.id}
+                data-track-id={track.id}
+                className={`track-row${track.id === selectedTrackId ? ' selected' : ''}`}
+                onClick={(e) => handleRowClick(track, e.shiftKey)}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setContextMenu({ trackId: track.id, x: e.clientX, y: e.clientY })
+                }}
+                draggable
+                onDragStart={(e) => {
+                  // Native OS drag (to Finder, a DAW, etc.) hands off the
+                  // tracks' existing file paths — it's a reference, not a
+                  // copy; preventDefault stops the browser's own HTML5 drag
+                  // image/ghost from also kicking in alongside it. If the
+                  // dragged row is part of a multi-checked selection, drag
+                  // all checked tracks; otherwise just this one row.
+                  e.preventDefault()
+                  const ids =
+                    checkedTrackIds.has(track.id) && checkedTrackIds.size > 1
+                      ? Array.from(checkedTrackIds)
+                      : [track.id]
+                  window.api.startTrackDrag(ids)
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
+                  <input
+                    type="checkbox"
+                    checked={checkedTrackIds.has(track.id)}
+                    onMouseDown={(e) => {
+                      shiftKeyRef.current = e.shiftKey
+                    }}
+                    onChange={() => handleCheckboxClick(track.id, shiftKeyRef.current)}
+                  />
+                </td>
+                {orderedColumns.map((col) => (
+                  <td key={col.key} style={cellStyleFor(col.key)}>
+                    {renderCell(track, col.key)}
+                  </td>
+                ))}
+                <td style={cellStyle}>
+                  {track.analysisStatus === 'analyzing' ? (
+                    <span className="material-symbols-outlined spin" style={{ fontSize: '16px' }} title="Analyzing…">
+                      progress_activity
+                    </span>
+                  ) : track.analysisStatus === 'error' ? (
+                    <span
+                      className="material-symbols-outlined"
+                      style={{ fontSize: '16px', color: '#f87171' }}
+                      title="Analysis failed"
+                    >
+                      error
+                    </span>
+                  ) : null}
+                </td>
+                <td style={cellStyle}>
+                  {track.cloudStatus === 'cloud_only' ? <span className="material-symbols-outlined">cloud</span> : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {contextMenu && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'fixed',
+              top: contextMenu.y,
+              left: contextMenu.x,
+              background: 'var(--color-surface-raised)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '6px',
+              padding: '4px',
+              zIndex: 20,
             }}
-            style={contextMenuItemStyle}
           >
-            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-              play_arrow
-            </span>
-            Play track now
-          </button>
-          <button
-            onClick={() => {
-              addToPlaylist(contextMenu.trackId)
-              setContextMenu(null)
-            }}
-            style={contextMenuItemStyle}
-          >
-            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-              playlist_add
-            </span>
-            Add to queue
-          </button>
-          <button
-            onClick={() => {
-              playNext(contextMenu.trackId)
-              setContextMenu(null)
-            }}
-            style={contextMenuItemStyle}
-          >
-            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-              skip_next
-            </span>
-            Play next
-          </button>
-          <button
-            onClick={() => {
-              runAnalysis([contextMenu.trackId])
-              setContextMenu(null)
-            }}
-            style={contextMenuItemStyle}
-          >
-            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-              graphic_eq
-            </span>
-            {tracks.find((t) => t.id === contextMenu.trackId)?.analysisStatus === 'done'
-              ? 'Re-analyse track'
-              : 'Analyse track'}
-          </button>
-          <button
-            onClick={() => {
-              window.api.showTrackInFolder(contextMenu.trackId)
-              setContextMenu(null)
-            }}
-            style={contextMenuItemStyle}
-          >
-            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-              folder_open
-            </span>
-            Show in File Explorer
-          </button>
-          <button
-            onClick={() => {
-              const track = tracks.find((t) => t.id === contextMenu.trackId)
-              if (track) onShowInFolderTree(track.folder)
-              setContextMenu(null)
-            }}
-            style={contextMenuItemStyle}
-          >
-            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-              account_tree
-            </span>
-            Show in Folder Tree View
-          </button>
-        </div>
-      )}
-    </div>
+            <button
+              onClick={() => {
+                playTrackNow(contextMenu.trackId)
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                play_arrow
+              </span>
+              Play track now
+            </button>
+            <button
+              onClick={() => {
+                addToPlaylist(contextMenu.trackId)
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                playlist_add
+              </span>
+              Add to queue
+            </button>
+            <button
+              onClick={() => {
+                playNext(contextMenu.trackId)
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                skip_next
+              </span>
+              Play next
+            </button>
+            <button
+              onClick={() => {
+                runAnalysis([contextMenu.trackId])
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                graphic_eq
+              </span>
+              {tracks.find((t) => t.id === contextMenu.trackId)?.analysisStatus === 'done'
+                ? 'Re-analyse track'
+                : 'Analyse track'}
+            </button>
+            <button
+              onClick={() => {
+                window.api.showTrackInFolder(contextMenu.trackId)
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                folder_open
+              </span>
+              Show in File Explorer
+            </button>
+            <button
+              onClick={() => {
+                const track = tracks.find((t) => t.id === contextMenu.trackId)
+                if (track) onShowInFolderTree(track.folder)
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                account_tree
+              </span>
+              Show in Folder Tree View
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   )
 }
