@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
+import { setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
@@ -42,6 +43,7 @@ export function Player({ track }: { track: Track }) {
   const hasNext = playlist.length > 1
   const setPlaybackControls = useCollectionStore((s) => s.setPlaybackControls)
   const midiMappings = useCollectionStore((s) => s.midiMappings)
+  const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
 
   // Player remounts fresh per track, so this also resets the shared
   // progress back to 0 as soon as a new track takes over, rather than
@@ -130,7 +132,9 @@ export function Player({ track }: { track: Track }) {
     chain.update(effectsSettings)
     chain.setVolume(playerVolume)
     effectsChainRef.current = chain
+    setActiveAnalyser(chain.getAnalyser())
     return () => {
+      setActiveAnalyser(null)
       chain.close()
       effectsChainRef.current = null
     }
@@ -325,9 +329,16 @@ export function Player({ track }: { track: Track }) {
           </span>
         )}
         <button
+          onClick={() => setVisualizerOpen(true)}
+          title="Open visualizer (full screen)"
+          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+        >
+          <span className="material-symbols-outlined">graphic_eq</span>
+        </button>
+        <button
           onClick={() => setPlayerExpanded(!playerExpanded)}
           title={playerExpanded ? 'Collapse queue' : 'Expand queue'}
-          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
         >
           <span className="material-symbols-outlined">
             {playerExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_up'}

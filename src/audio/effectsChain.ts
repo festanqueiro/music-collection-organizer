@@ -108,6 +108,7 @@ export class EffectsChain {
   private reverbWetGain: GainNode
   private lastDecaySeconds: number
   private masterGain: GainNode
+  private analyser: AnalyserNode
 
   constructor(audioElement: HTMLAudioElement) {
     this.context = new AudioContext()
@@ -121,6 +122,15 @@ export class EffectsChain {
     this.masterGain = this.context.createGain()
     this.masterGain.gain.value = 1
     this.masterGain.connect(this.context.destination)
+
+    // Read-only tap for the Visualizer, after masterGain so it reflects
+    // exactly what's heard (FX tails included, silent when muted). An
+    // AnalyserNode doesn't need a path to destination to keep processing,
+    // so it's a dead-end branch — it can't affect the audio at all.
+    this.analyser = this.context.createAnalyser()
+    this.analyser.fftSize = 2048
+    this.analyser.smoothingTimeConstant = 0.8
+    this.masterGain.connect(this.analyser)
 
     this.dryGain = this.context.createGain()
     this.dryGain.gain.value = 1
@@ -259,6 +269,10 @@ export class EffectsChain {
     this.filterWetGain.gain.setTargetAtTime(filterWet, now, FILTER_PARAM_TAU)
     this.filterDryGain.gain.setTargetAtTime(1 - filterWet, now, FILTER_PARAM_TAU)
     this.masterGain.gain.setTargetAtTime(settings.masterVolume, now, FILTER_PARAM_TAU)
+  }
+
+  getAnalyser(): AnalyserNode {
+    return this.analyser
   }
 
   setVolume(value: number): void {

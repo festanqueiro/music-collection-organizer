@@ -18,6 +18,7 @@ import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
+import type { VisualizerThemeId } from '../visualizer/types'
 import {
   playTrackNow as playTrackNowPure,
   addToPlaylist as addToPlaylistPure,
@@ -169,6 +170,14 @@ interface CollectionState {
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
   setPlayerExpanded: (value: boolean) => void
+  // Full-screen Visualizer overlay. Only the open/closed flag lives here —
+  // the per-frame audio data is read straight from the AnalyserNode inside
+  // the Visualizer's render loop (see audio/audioAnalysis.ts), since
+  // pushing it through the store would re-render React ~60 times a second.
+  visualizerOpen: boolean
+  setVisualizerOpen: (open: boolean) => void
+  visualizerTheme: VisualizerThemeId
+  setVisualizerTheme: (theme: VisualizerThemeId) => void
   // Imperative escape hatch so a MIDI-bound player.playPause control (and
   // eventually the spacebar/other external triggers) can toggle playback
   // without lifting the actual playing/paused boolean — which the <audio>
@@ -265,6 +274,21 @@ interface CollectionState {
   importTagData: () => Promise<ImportResult | null>
 }
 
+// A purely cosmetic renderer-side preference, so plain localStorage
+// (per-app userData, like everything else) rather than an electron-store
+// IPC round-trip.
+const VISUALIZER_THEME_KEY = 'visualizerTheme'
+const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon']
+function loadVisualizerTheme(): VisualizerThemeId {
+  try {
+    const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
+    if (stored && (VISUALIZER_THEME_IDS as string[]).includes(stored)) return stored as VisualizerThemeId
+  } catch {
+    // localStorage unavailable (e.g. under Vitest's node environment).
+  }
+  return 'nebula'
+}
+
 export const useCollectionStore = create<CollectionState>((set, get) => ({
   tracks: [],
   genres: [],
@@ -276,6 +300,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playlist: [],
   continuousPlay: true,
   playerExpanded: false,
+  visualizerOpen: false,
+  visualizerTheme: loadVisualizerTheme(),
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -762,6 +788,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setContinuousPlay: (value) => set({ continuousPlay: value }),
 
   setPlayerExpanded: (value) => set({ playerExpanded: value }),
+
+  setVisualizerOpen: (open) => set({ visualizerOpen: open }),
+
+  setVisualizerTheme: (theme) => {
+    set({ visualizerTheme: theme })
+    try {
+      localStorage.setItem(VISUALIZER_THEME_KEY, theme)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
 
   loadAppVersion: async () => {
     const version = await window.api.getAppVersion()

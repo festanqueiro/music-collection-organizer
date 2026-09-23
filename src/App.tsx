@@ -10,6 +10,7 @@ import { BatchTagBar } from './components/BatchTagBar'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
 import { PlaylistView } from './components/PlaylistView'
+import { Visualizer } from './components/Visualizer'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { UndoToast } from './components/UndoToast'
@@ -51,6 +52,8 @@ export default function App() {
   const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
+  const visualizerOpen = useCollectionStore((s) => s.visualizerOpen)
+  const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -169,9 +172,15 @@ export default function App() {
     refreshTracks,
   ])
 
+  const currentTrackId = playlist[0]
+  const currentTrack = currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null
+
   return (
     <>
       <ScanPrompt />
+      {/* Rendered here, not inside Player, so it stays open across track
+          changes (Player remounts per track). */}
+      {visualizerOpen && <Visualizer track={currentTrack} onClose={() => setVisualizerOpen(false)} />}
       <SettingsModal
         open={settingsOpen}
         onClose={() => {
@@ -314,8 +323,6 @@ export default function App() {
             // when the current track changes — otherwise the playing/
             // progress state (and the underlying <audio> element) carries
             // over from the previous track instead of resetting.
-            const currentTrackId = playlist[0]
-            const currentTrack = currentTrackId != null ? tracks.find((t) => t.id === currentTrackId) : null
             return currentTrack ? (
               <Player key={currentTrack.id} track={currentTrack} />
             ) : (

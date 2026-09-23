@@ -1,0 +1,305 @@
+// src/components/Visualizer.tsx
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
+import { getActiveAnalyser, computeBands, BeatDetector, follow } from '../audio/audioAnalysis'
+import { VISUALIZER_THEMES, getVisualizerTheme } from '../visualizer/themes'
+import type { AudioFrame, ThemeInstance } from '../visualizer/types'
+import { useCollectionStore } from '../state/store'
+import { decodeHtmlEntities } from '../format'
+import type { Track } from '../types'
+
+const UI_HIDE_DELAY_MS = 2500
+
+// Full-screen audio-reactive overlay. This shell owns everything shared
+// across themes — fullscreen, the WebGL renderer + bloom, the render
+// loop, and per-frame audio analysis (bands, beats, hue drift) — and
+// hands each frame to the active theme (src/visualizer/themes/), which
+// owns its own scene and camera. Reads the current track's AnalyserNode
+// every frame (getActiveAnalyser) rather than capturing one, so it keeps
+// running seamlessly across track changes and idles gently when nothing
+// is playing.
+export function Visualizer({ track, onClose }: { track: Track | null; onClose: () => void }) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const canvasHostRef = useRef<HTMLDivElement>(null)
+  const [uiVisible, setUiVisible] = useState(true)
+  const themeId = useCollectionStore((s) => s.visualizerTheme)
+  const setThemeId = useCollectionStore((s) => s.setVisualizerTheme)
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+  // Set by the renderer effect; the theme effect swaps what it renders.
+  const rendererRef = useRef<{ renderPass: RenderPass; setTheme: (instance: ThemeInstance) => void } | null>(null)
+
+  // Fullscreen + exit handling. Esc while fullscreen is swallowed by the
+  // browser to exit fullscreen (no keydown reaches us), so leaving
+  // fullscreen by any means is treated as closing the visualizer.
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+    let enteredFullscreen = false
+    function onFullscreenChange() {
+      if (document.fullscreenElement) enteredFullscreen = true
+      else if (enteredFullscreen) onCloseRef.current()
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onCloseRef.current()
+        return
+      }
+      // 1..N pick a theme directly.
+      const index = Number(e.key) - 1
+      if (Number.isInteger(index) && index >= 0 && index < VISUALIZER_THEMES.length) {
+        useCollectionStore.getState().setVisualizerTheme(VISUALIZER_THEMES[index].id)
+      }
+    }
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    window.addEventListener('keydown', onKeyDown)
+    container.requestFullscreen().catch(() => {
+      // Not fatal — the overlay still covers the whole window.
+    })
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      window.removeEventListener('keydown', onKeyDown)
+      if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+    }
+  }, [])
+
+  // Track info, theme picker and close button fade out (and the cursor
+  // hides) after a moment without mouse movement.
+  useEffect(() => {
+    let timeout = setTimeout(() => setUiVisible(false), UI_HIDE_DELAY_MS)
+    function onMouseMove() {
+      setUiVisible(true)
+      clearTimeout(timeout)
+      timeout = setTimeout(() => setUiVisible(false), UI_HIDE_DELAY_MS)
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    return () => {
+      clearTimeout(timeout)
+      window.removeEventListener('mousemove', onMouseMove)
+    }
+  }, [])
+
+  // Show the track info again whenever a new track starts.
+  useEffect(() => {
+    setUiVisible(true)
+    const timeout = setTimeout(() => setUiVisible(false), UI_HIDE_DELAY_MS * 2)
+    return () => clearTimeout(timeout)
+  }, [track?.id])
+
+  // Renderer, bloom and render loop — created once for the overlay's
+  // lifetime; themes are swapped underneath it.
+  useEffect(() => {
+    const host = canvasHostRef.current
+    if (!host) return
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    renderer.setSize(host.clientWidth, host.clientHeight)
+    renderer.setClearColor(0x000000, 1)
+    host.appendChild(renderer.domElement)
+
+    const composer = new EffectComposer(renderer)
+    const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera())
+    composer.addPass(renderPass)
+    const bloom = new UnrealBloomPass(new THREE.Vector2(host.clientWidth, host.clientHeight), 1, 0.5, 0.3)
+    composer.addPass(bloom)
+    composer.addPass(new OutputPass())
+
+    let theme: ThemeInstance | null = null
+    function fitCamera() {
+      if (!host || !theme) return
+      theme.camera.aspect = host.clientWidth / host.clientHeight
+      theme.camera.updateProjectionMatrix()
+    }
+    function setTheme(instance: ThemeInstance) {
+      theme = instance
+      renderPass.scene = instance.scene
+      renderPass.camera = instance.camera
+      fitCamera()
+    }
+    rendererRef.current = { renderPass, setTheme }
+
+    const resizeObserver = new ResizeObserver(() => {
+      renderer.setSize(host.clientWidth, host.clientHeight)
+      composer.setSize(host.clientWidth, host.clientHeight)
+      fitCamera()
+    })
+    resizeObserver.observe(host)
+
+    const beatDetector = new BeatDetector()
+    const frame: AudioFrame = {
+      t: 0,
+      dt: 0,
+      bass: 0,
+      mid: 0,
+      high: 0,
+      energy: 0,
+      beat: false,
+      flash: 0,
+      hue: Math.random(),
+      freq: new Uint8Array(0),
+      sampleRate: 48000,
+    }
+    let freq: Uint8Array<ArrayBuffer> = new Uint8Array(0)
+    const silent = new Uint8Array(0)
+    let lastMs = performance.now()
+    let raf = 0
+
+    function tick() {
+      raf = requestAnimationFrame(tick)
+      const nowMs = performance.now()
+      frame.dt = Math.min(0.05, (nowMs - lastMs) / 1000)
+      frame.t = nowMs / 1000
+      lastMs = nowMs
+
+      const analyser = getActiveAnalyser()
+      let bands = { bass: 0, mid: 0, high: 0 }
+      if (analyser) {
+        if (freq.length !== analyser.frequencyBinCount) freq = new Uint8Array(analyser.frequencyBinCount)
+        analyser.getByteFrequencyData(freq)
+        frame.freq = freq
+        frame.sampleRate = analyser.context.sampleRate
+        bands = computeBands(freq, frame.sampleRate)
+      } else {
+        frame.freq = silent
+      }
+      frame.bass = follow(frame.bass, bands.bass)
+      frame.mid = follow(frame.mid, bands.mid)
+      frame.high = follow(frame.high, bands.high)
+      frame.energy = (frame.bass + frame.mid + frame.high) / 3
+      frame.beat = beatDetector.update(bands.bass, nowMs)
+      if (frame.beat) {
+        frame.flash = 1
+        frame.hue = (frame.hue + 0.06) % 1
+      }
+      frame.flash = Math.max(0, frame.flash - frame.dt * 3)
+      frame.hue = (frame.hue + frame.dt * 0.01) % 1
+
+      if (!theme) return
+      bloom.strength = theme.update(frame)
+      composer.render()
+    }
+    tick()
+
+    return () => {
+      cancelAnimationFrame(raf)
+      resizeObserver.disconnect()
+      rendererRef.current = null
+      composer.dispose()
+      bloom.dispose()
+      renderer.dispose()
+      renderer.domElement.remove()
+    }
+  }, [])
+
+  // Declared after the renderer effect so it runs after it on mount.
+  useEffect(() => {
+    const instance = getVisualizerTheme(themeId).create()
+    rendererRef.current?.setTheme(instance)
+    return () => instance.dispose()
+  }, [themeId])
+
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 1000,
+        background: '#000',
+        cursor: uiVisible ? 'default' : 'none',
+      }}
+    >
+      <div ref={canvasHostRef} style={{ position: 'absolute', inset: 0 }} />
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '16px',
+          padding: '24px 28px',
+          color: '#fff',
+          opacity: uiVisible ? 1 : 0,
+          transition: 'opacity 600ms ease',
+          pointerEvents: uiVisible ? 'auto' : 'none',
+          textShadow: '0 1px 8px rgba(0,0,0,0.8)',
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {track && (
+            <>
+              <div
+                style={{ fontSize: '22px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {decodeHtmlEntities(track.title ?? track.filename)}
+              </div>
+              <div style={{ fontSize: '14px', opacity: 0.7, marginTop: '4px' }}>
+                {track.artist ? decodeHtmlEntities(track.artist) : ''}
+                {track.bpm ? `${track.artist ? ' · ' : ''}${Math.round(track.bpm)} BPM` : ''}
+              </div>
+            </>
+          )}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: '4px',
+            padding: '4px',
+            borderRadius: '20px',
+            background: 'rgba(255,255,255,0.08)',
+            flexShrink: 0,
+          }}
+        >
+          {VISUALIZER_THEMES.map((theme, i) => (
+            <button
+              key={theme.id}
+              onClick={(e) => {
+                setThemeId(theme.id)
+                // Otherwise the focused button swallows Space (play/pause).
+                e.currentTarget.blur()
+              }}
+              title={`${theme.name} (${i + 1})`}
+              style={{
+                border: 'none',
+                borderRadius: '16px',
+                padding: '6px 14px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                color: '#fff',
+                background: theme.id === themeId ? 'rgba(255,255,255,0.25)' : 'transparent',
+              }}
+            >
+              {theme.name}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onClose}
+          title="Close visualizer (Esc)"
+          style={{
+            background: 'rgba(255,255,255,0.1)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            cursor: 'pointer',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <span className="material-symbols-outlined">close</span>
+        </button>
+      </div>
+    </div>
+  )
+}
