@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { ToggleSwitch } from './ToggleSwitch'
 import type { BackupInfo, BackupEntry } from '../types'
 
 // Backup filenames use `now.toISOString().replace(/[:.]/g, '-')` (see
@@ -30,6 +31,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [backingUp, setBackingUp] = useState(false)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const setAudioOutputDeviceId = useCollectionStore((s) => s.setAudioOutputDeviceId)
+  const showMidiControls = useCollectionStore((s) => s.showMidiControls)
+  const setShowMidiControls = useCollectionStore((s) => s.setShowMidiControls)
   const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([])
   const [audioDevicesError, setAudioDevicesError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<SettingsTab>('general')
@@ -197,29 +200,43 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         )}
 
         {activeTab === 'audio' && (
-          <section>
-            <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Audio Output</h3>
-            <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-              Route playback to a specific audio interface instead of the system default — applies to both track
-              playback and the Dub Siren.
-            </p>
-            <select
-              value={audioOutputDeviceId ?? ''}
-              onChange={(e) => setAudioOutputDeviceId(e.target.value || null)}
-            >
-              <option value="">System default</option>
-              {audioOutputDevices.map((d, i) => (
-                <option key={d.deviceId} value={d.deviceId}>
-                  {d.label || `Audio output ${i + 1}`}
-                </option>
-              ))}
-            </select>
-            {audioDevicesError && (
-              <p style={{ margin: '8px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
-                {audioDevicesError}
+          <>
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Audio Output</h3>
+              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                Route playback to a specific audio interface instead of the system default — applies to both track
+                playback and the Dub Siren.
               </p>
-            )}
-          </section>
+              <select
+                value={audioOutputDeviceId ?? ''}
+                onChange={(e) => setAudioOutputDeviceId(e.target.value || null)}
+              >
+                <option value="">System default</option>
+                {audioOutputDevices.map((d, i) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `Audio output ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+              {audioDevicesError && (
+                <p style={{ margin: '8px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
+                  {audioDevicesError}
+                </p>
+              )}
+            </section>
+
+            <section>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>MIDI</h3>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <ToggleSwitch checked={showMidiControls} onChange={setShowMidiControls} title="Show MIDI mapping buttons" />
+                Show MIDI mapping buttons
+              </label>
+              <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                The small MIDI-learn buttons next to the player and FX controls. Hiding them doesn't remove any
+                bindings — a mapped controller keeps working.
+              </p>
+            </section>
+          </>
         )}
 
         {activeTab === 'backups' && (

@@ -204,6 +204,10 @@ interface CollectionState {
   // out whenever the mouse is idle.
   visualizerHideTrackInfo: boolean
   setVisualizerHideTrackInfo: (hide: boolean) => void
+  // Whether MIDI-learn badges are shown next to mappable controls
+  // (Settings → Audio). Purely visual — bindings keep working when hidden.
+  showMidiControls: boolean
+  setShowMidiControls: (show: boolean) => void
   // Imperative escape hatch so a MIDI-bound player.playPause control (and
   // eventually the spacebar/other external triggers) can toggle playback
   // without lifting the actual playing/paused boolean — which the <audio>
@@ -324,6 +328,15 @@ function loadVisualizerHideTrackInfo(): boolean {
   }
 }
 
+const SHOW_MIDI_CONTROLS_KEY = 'showMidiControls'
+function loadShowMidiControls(): boolean {
+  try {
+    return localStorage.getItem(SHOW_MIDI_CONTROLS_KEY) !== 'false'
+  } catch {
+    return true
+  }
+}
+
 // Queuing more than this many tracks in one click always goes through
 // the confirmation dialog, even when there's no analysis choice to make —
 // with no folder/tag filter active, "Add all to queue" is the entire
@@ -345,6 +358,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
+  showMidiControls: loadShowMidiControls(),
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -871,6 +885,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ visualizerHideTrackInfo: hide })
     try {
       localStorage.setItem(VISUALIZER_HIDE_TRACK_INFO_KEY, String(hide))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setShowMidiControls: (show) => {
+    // Hiding the badges mid-learn would leave an invisible listener that
+    // silently binds the next knob moved.
+    set(show ? { showMidiControls: true } : { showMidiControls: false, midiLearningControl: null })
+    try {
+      localStorage.setItem(SHOW_MIDI_CONTROLS_KEY, String(show))
     } catch {
       // Non-essential preference — fine to lose.
     }
