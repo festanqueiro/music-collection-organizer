@@ -1,7 +1,8 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { SpectrumBars, disposeScene } from '../shared'
 import { hasTagWord } from '../tagMatch'
-import type { AudioFrame, ThemeInstance, VisualizerTheme } from '../types'
+import type { AudioFrame, ThemeInstance, ThemeOption, VisualizerTheme } from '../types'
 
 // A Jamaican-style sound system stack, modelled on a classic outdoor set,
 // out in a festival field in full sun: grass, a black scrim fence, trees,
@@ -89,10 +90,24 @@ const PALETTES: Record<string, Palette> = {
   },
 }
 
-const VARIANTS = [
-  { id: 'app', name: 'App' },
-  { id: 'black-white', name: 'Black & White' },
-  { id: 'natural', name: 'Natural' },
+const OPTIONS: ThemeOption[] = [
+  {
+    id: 'colours',
+    name: 'Colours',
+    values: [
+      { id: 'app', name: 'App' },
+      { id: 'black-white', name: 'Black & White' },
+      { id: 'natural', name: 'Natural' },
+    ],
+  },
+  {
+    id: 'background',
+    name: 'Background',
+    values: [
+      { id: 'field', name: 'Field' },
+      { id: 'urban', name: 'Urban' },
+    ],
+  },
 ]
 
 // Band indices into the 5 log-spaced SpectrumBars (30Hz..16kHz):
@@ -383,6 +398,341 @@ function makeTree(scale: number, seed: number): THREE.Group {
   return tree
 }
 
+// --- Urban backdrop: a European street fair ---------------------------------
+// Built lazily the first time "Urban" is picked (see setBackground).
+
+const FACADE_SHADE = 0.78
+// The street is full of large, pale, sunlit surfaces that all cross the
+// bloom threshold; bloom is scaled down while it's showing so the town
+// doesn't turn to haze. (The horn glow is emissive, so it survives.)
+const URBAN_BLOOM_SCALE = 0.35
+
+function asphaltTexture(): THREE.CanvasTexture {
+  return canvasTexture(
+    256,
+    256,
+    (ctx, w, h) => {
+      const random = mulberry32(31)
+      ctx.fillStyle = '#3d3f42'
+      ctx.fillRect(0, 0, w, h)
+      for (let i = 0; i < 5000; i++) {
+        const shade = 40 + random() * 60
+        ctx.fillStyle = `rgba(${shade},${shade},${shade + 3},0.6)`
+        ctx.fillRect(random() * w, random() * h, 1 + random() * 2, 1 + random() * 2)
+      }
+      for (let i = 0; i < 5; i++) {
+        ctx.fillStyle = `rgba(20,20,22,${0.15 + random() * 0.2})`
+        ctx.beginPath()
+        ctx.ellipse(random() * w, random() * h, 10 + random() * 30, 6 + random() * 20, random() * Math.PI, 0, Math.PI * 2)
+        ctx.fill()
+      }
+    },
+    [30, 30],
+  )
+}
+
+function pavingTexture(): THREE.CanvasTexture {
+  return canvasTexture(
+    256,
+    256,
+    (ctx, w, h) => {
+      const random = mulberry32(37)
+      ctx.fillStyle = '#8c8b86'
+      ctx.fillRect(0, 0, w, h)
+      const slab = 64
+      for (let y = 0; y < h; y += slab) {
+        for (let x = 0; x < w; x += slab) {
+          const shade = 160 + random() * 30
+          ctx.fillStyle = `rgb(${shade},${shade - 2},${shade - 8})`
+          ctx.fillRect(x + 2, y + 2, slab - 4, slab - 4)
+        }
+      }
+    },
+    [30, 1.2],
+  )
+}
+
+// A town-house front: floors of shuttered windows over a shopfront.
+function facadeTexture(color: string, widthM: number, heightM: number, seed: number): THREE.CanvasTexture {
+  const scale = 40 // px per metre
+  return canvasTexture(Math.round(widthM * scale), Math.round(heightM * scale), (ctx, w, h) => {
+    const random = mulberry32(seed)
+    ctx.fillStyle = color
+    ctx.fillRect(0, 0, w, h)
+    for (let i = 0; i < 600; i++) {
+      ctx.fillStyle = random() < 0.5 ? 'rgba(0,0,0,0.04)' : 'rgba(255,255,255,0.05)'
+      ctx.fillRect(random() * w, random() * h, 2 + random() * 8, 2 + random() * 8)
+    }
+    const floor = 3 * scale
+    const shutters = random() < 0.6 ? ['#3f6b4a', '#6b4a32', '#4a5f7a'][Math.floor(random() * 3)] : null
+    // Upper floors.
+    const columns = Math.max(2, Math.floor(widthM / 1.7))
+    const pitch = w / columns
+    for (let top = h - floor * 2; top > floor * 0.3; top -= floor) {
+      for (let c = 0; c < columns; c++) {
+        const ww = 0.8 * scale
+        const wh = 1.5 * scale
+        const x = c * pitch + (pitch - ww) / 2
+        const y = top + floor * 0.25
+        if (shutters) {
+          ctx.fillStyle = shutters
+          ctx.fillRect(x - ww * 0.45, y, ww * 0.42, wh)
+          ctx.fillRect(x + ww * 1.03, y, ww * 0.42, wh)
+        }
+        ctx.fillStyle = '#f2efe8'
+        ctx.fillRect(x - 3, y - 3, ww + 6, wh + 6)
+        const glass = ctx.createLinearGradient(x, y, x + ww, y + wh)
+        glass.addColorStop(0, '#5d7486')
+        glass.addColorStop(1, '#2c3a47')
+        ctx.fillStyle = glass
+        ctx.fillRect(x, y, ww, wh)
+        ctx.fillStyle = '#f2efe8'
+        ctx.fillRect(x + ww / 2 - 1.5, y, 3, wh)
+        ctx.fillRect(x - 6, y + wh + 3, ww + 12, 5)
+      }
+    }
+    // Ground-floor shopfront.
+    ctx.fillStyle = 'rgba(0,0,0,0.18)'
+    ctx.fillRect(0, h - floor, w, 6)
+    const shopX = w * 0.1
+    const shopW = w * 0.62
+    const shopTop = h - floor * 0.78
+    const shopGlass = ctx.createLinearGradient(0, shopTop, 0, h)
+    shopGlass.addColorStop(0, '#3a4a58')
+    shopGlass.addColorStop(1, '#1c242c')
+    ctx.fillStyle = '#2a2a2a'
+    ctx.fillRect(shopX - 4, shopTop - 4, shopW + 8, h - shopTop + 4)
+    ctx.fillStyle = shopGlass
+    ctx.fillRect(shopX, shopTop, shopW, h - shopTop)
+    ctx.fillStyle = '#4a3326'
+    ctx.fillRect(w * 0.78, h - floor * 0.72, w * 0.12, floor * 0.72)
+    // Cornice band.
+    ctx.fillStyle = 'rgba(0,0,0,0.15)'
+    ctx.fillRect(0, 0, w, 10)
+  })
+}
+
+// Striped canvas for awnings and the fair stalls' roofs.
+function stripeTexture(a: string, b: string): THREE.CanvasTexture {
+  return canvasTexture(
+    64,
+    8,
+    (ctx, w, h) => {
+      ctx.fillStyle = a
+      ctx.fillRect(0, 0, w, h)
+      ctx.fillStyle = b
+      for (let x = 0; x < w; x += 16) ctx.fillRect(x, 0, 8, h)
+    },
+    [4, 1],
+  )
+}
+
+// A galvanised crowd-control barrier (the see-through "Vauban" kind),
+// merged into a single geometry: end posts, rails, bars and feet.
+function barrierGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = []
+  const width = 2
+  const height = 1.1
+  const bar = (length: number, radius: number, x: number, y: number, horizontal: boolean) => {
+    const g = new THREE.CylinderGeometry(radius, radius, length, 6)
+    if (horizontal) g.rotateZ(Math.PI / 2)
+    g.translate(x, y, 0)
+    parts.push(g)
+  }
+  for (const x of [-width / 2, width / 2]) bar(height, 0.02, x, height / 2 + 0.05, false)
+  bar(width, 0.018, 0, height, true)
+  bar(width, 0.018, 0, 0.25, true)
+  for (let i = 1; i < 14; i++) bar(height - 0.25, 0.007, -width / 2 + (i / 14) * width, (height + 0.25) / 2, false)
+  for (const x of [-width / 2, width / 2]) {
+    const foot = new THREE.BoxGeometry(0.05, 0.03, 0.7)
+    foot.translate(x, 0.015, 0)
+    parts.push(foot)
+  }
+  const merged = mergeGeometries(parts)!
+  for (const part of parts) part.dispose()
+  return merged
+}
+
+function makeStreetLamp(material: THREE.Material): THREE.Group {
+  const lamp = new THREE.Group()
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, 4.2, 8), material)
+  pole.position.y = 2.1
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8, 6), material)
+  arm.rotation.z = Math.PI / 2
+  arm.position.set(0.35, 4.1, 0)
+  const lantern = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.2, 0.35, 6), material)
+  lantern.position.set(0.7, 3.95, 0)
+  lamp.add(pole, arm, lantern)
+  lamp.traverse((object) => (object.castShadow = true))
+  return lamp
+}
+
+// A pop-up fair stall: four legs and a striped pyramid roof.
+function makeStall(roof: THREE.Material, legs: THREE.Material): THREE.Group {
+  const stall = new THREE.Group()
+  const size = 2.6
+  for (const x of [-1, 1]) {
+    for (const z of [-1, 1]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6), legs)
+      leg.position.set((x * size) / 2, 1.1, (z * size) / 2)
+      stall.add(leg)
+    }
+  }
+  const top = new THREE.Mesh(new THREE.ConeGeometry(size * 0.72, 0.9, 4, 1, true), roof)
+  top.rotation.y = Math.PI / 4
+  top.position.y = 2.2 + 0.45
+  stall.add(top)
+  stall.traverse((object) => (object.castShadow = true))
+  return stall
+}
+
+interface UrbanBackdrop {
+  group: THREE.Group
+  flags: Array<{ mesh: THREE.Mesh; phase: number }>
+}
+
+function buildUrban(barrierMaterial: THREE.Material): UrbanBackdrop {
+  const group = new THREE.Group()
+  const random = mulberry32(41)
+
+  const street = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), new THREE.MeshStandardMaterial({ map: asphaltTexture(), roughness: 0.95 }))
+  street.rotation.x = -Math.PI / 2
+  street.receiveShadow = true
+  group.add(street)
+
+  // Faded centre line.
+  const lineMaterial = new THREE.MeshStandardMaterial({ color: 0xd9d6cc, roughness: 0.9 })
+  for (let x = -30; x <= 30; x += 3) {
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.004, 0.12), lineMaterial)
+    dash.position.set(x, 0.002, 6)
+    dash.receiveShadow = true
+    group.add(dash)
+  }
+
+  // Pavement + kerb along the building line.
+  const FRONT_Z = -9.5
+  const pavement = new THREE.Mesh(new THREE.BoxGeometry(60, 0.14, 2.6), new THREE.MeshStandardMaterial({ map: pavingTexture(), roughness: 0.9 }))
+  pavement.position.set(0, 0.07, FRONT_Z + 1.3)
+  pavement.receiveShadow = true
+  group.add(pavement)
+  const kerb = new THREE.Mesh(new THREE.BoxGeometry(60, 0.16, 0.18), new THREE.MeshStandardMaterial({ color: 0xb8b6ae, roughness: 0.8 }))
+  kerb.position.set(0, 0.08, FRONT_Z + 2.6)
+  group.add(kerb)
+
+  // A terrace of town houses.
+  const colors = ['#e8c9a0', '#d98f6f', '#f0e2c4', '#a9c1cc', '#b7c4a0', '#e6b8a2', '#cfc6b8', '#d9b36c']
+  const awningColors: Array<[string, string]> = [
+    ['#b83a3a', '#f2ede4'],
+    ['#2f6b4f', '#f2ede4'],
+    ['#2c4f7c', '#f2ede4'],
+  ]
+  let x = -26
+  let index = 0
+  while (x < 26) {
+    const width = 4.5 + random() * 3
+    const height = 9 + Math.floor(random() * 3) * 3
+    const depth = 8
+    const color = colors[index % colors.length]
+    // Pale render in full sun reads as haze through the bloom — take the
+    // facades down a notch (the map is multiplied by `color`).
+    const plain = new THREE.MeshStandardMaterial({ color: new THREE.Color(color).multiplyScalar(FACADE_SHADE), roughness: 0.9 })
+    const front = new THREE.MeshStandardMaterial({
+      map: facadeTexture(color, width, height, 50 + index),
+      color: new THREE.Color(FACADE_SHADE, FACADE_SHADE, FACADE_SHADE),
+      roughness: 0.85,
+    })
+    // BoxGeometry face order: +x, -x, +y, -y, +z (front), -z.
+    const building = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), [plain, plain, plain, plain, front, plain])
+    building.position.set(x + width / 2, height / 2, FRONT_Z - depth / 2)
+    building.receiveShadow = true
+    group.add(building)
+    const cornice = new THREE.Mesh(new THREE.BoxGeometry(width + 0.2, 0.35, 0.4), new THREE.MeshStandardMaterial({ color: 0xe9e4d8, roughness: 0.8 }))
+    cornice.position.set(x + width / 2, height - 0.2, FRONT_Z + 0.15)
+    group.add(cornice)
+    if (random() < 0.55) {
+      const [a, b] = awningColors[Math.floor(random() * awningColors.length)]
+      const awning = new THREE.Mesh(
+        new THREE.PlaneGeometry(width * 0.7, 1.3),
+        new THREE.MeshStandardMaterial({ map: stripeTexture(a, b), roughness: 0.8, side: THREE.DoubleSide }),
+      )
+      awning.rotation.x = -Math.PI / 2 + 0.45
+      awning.position.set(x + width * 0.46, 2.95, FRONT_Z + 0.6)
+      awning.castShadow = true
+      group.add(awning)
+    }
+    x += width
+    index++
+  }
+
+  const iron = new THREE.MeshStandardMaterial({ color: 0x1c1d1f, roughness: 0.5, metalness: 0.6 })
+  for (const lx of [-10, 10]) {
+    const lamp = makeStreetLamp(iron)
+    lamp.position.set(lx, 0.14, FRONT_Z + 2.2)
+    if (lx > 0) lamp.rotation.y = Math.PI
+    group.add(lamp)
+  }
+
+  // Fair stalls either side.
+  const stallLegs = new THREE.MeshStandardMaterial({ color: 0xd8d8d8, roughness: 0.4, metalness: 0.6 })
+  for (const [sx, a, b] of [
+    [-8.2, '#b83a3a', '#f2ede4'],
+    [8.4, '#2c4f7c', '#f2ede4'],
+  ] as const) {
+    const stall = makeStall(new THREE.MeshStandardMaterial({ map: stripeTexture(a, b), roughness: 0.8, side: THREE.DoubleSide }), stallLegs)
+    stall.position.set(sx, 0, -3.5)
+    stall.rotation.y = sx > 0 ? -0.2 : 0.2
+    group.add(stall)
+  }
+
+  // Crowd barriers penning the stack in: a front row and both sides.
+  const geometry = barrierGeometry()
+  const place = (bx: number, bz: number, rotation: number) => {
+    const barrier = new THREE.Mesh(geometry, barrierMaterial)
+    barrier.position.set(bx, 0, bz)
+    barrier.rotation.y = rotation
+    barrier.castShadow = true
+    group.add(barrier)
+  }
+  for (let i = 0; i < 5; i++) place(-4 + i * 2.02, 4.6, (random() - 0.5) * 0.06)
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 3; i++) place(side * 5.05, 3.55 - i * 2.02, Math.PI / 2 + (random() - 0.5) * 0.06)
+  }
+
+  // Bunting strung across the street.
+  const flags: UrbanBackdrop['flags'] = []
+  const flagColors = [0xd6453d, 0xf2c14e, 0x3a86c8, 0x3aa56b, 0xf2ede4, 0xe07a3f]
+  const flagGeometry = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-0.16, 0, 0),
+    new THREE.Vector3(0.16, 0, 0),
+    new THREE.Vector3(0, -0.38, 0),
+  ])
+  flagGeometry.computeVertexNormals()
+  const flagMaterials = flagColors.map((color) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, side: THREE.DoubleSide }))
+  const cord = new THREE.LineBasicMaterial({ color: 0x2a2a2a })
+  for (const [z, y, span, sag] of [
+    [-8.2, 8.2, 30, 1.4],
+    [-2.5, 7.4, 26, 1.1],
+  ] as const) {
+    const count = Math.round(span / 0.55)
+    const points: THREE.Vector3[] = []
+    for (let i = 0; i <= count; i++) {
+      const f = i / count
+      const px = -span / 2 + f * span
+      const py = y - sag * 4 * f * (1 - f)
+      points.push(new THREE.Vector3(px, py, z))
+      if (i > 0 && i < count) {
+        const flag = new THREE.Mesh(flagGeometry, flagMaterials[i % flagMaterials.length])
+        flag.position.set(px, py, z)
+        group.add(flag)
+        flags.push({ mesh: flag, phase: i * 0.7 + z })
+      }
+    }
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), cord))
+  }
+
+  return { group, flags }
+}
+
 // Perforated black grille (alpha-tested holes) for the row-2 drivers.
 function grilleTexture(): THREE.CanvasTexture {
   return canvasTexture(
@@ -648,6 +998,10 @@ function create(): ThemeInstance {
   }
 
   // --- Environment -------------------------------------------------------
+  // Two switchable backdrops (see setBackground): the festival field below,
+  // and an urban street fair built on first use.
+  const fieldEnv = new THREE.Group()
+  scene.add(fieldEnv)
   scene.add(new THREE.HemisphereLight(0xa8cfff, 0x4d6b2c, 1.0))
   const sun = new THREE.DirectionalLight(0xfff3e0, 2.8)
   sun.position.set(4, 10, 7)
@@ -670,7 +1024,7 @@ function create(): ThemeInstance {
   )
   ground.rotation.x = -Math.PI / 2
   ground.receiveShadow = true
-  scene.add(ground)
+  fieldEnv.add(ground)
 
   // Festival fencing with black scrim behind the stack — gently wavy, on
   // posts.
@@ -688,12 +1042,12 @@ function create(): ThemeInstance {
   )
   fence.position.set(0, FENCE_HEIGHT / 2 + 0.05, FENCE_Z)
   fence.receiveShadow = true
-  scene.add(fence)
+  fieldEnv.add(fence)
   const postMaterial = new THREE.MeshStandardMaterial({ color: 0x8c9096, roughness: 0.4, metalness: 0.7 })
   for (let x = -20; x <= 20; x += 3.5) {
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, FENCE_HEIGHT + 0.15, 6), postMaterial)
     post.position.set(x, (FENCE_HEIGHT + 0.15) / 2, FENCE_Z + 0.05)
-    scene.add(post)
+    fieldEnv.add(post)
   }
 
   // Trees: the big one left of the stack, plus a scattered tree line
@@ -710,7 +1064,7 @@ function create(): ThemeInstance {
     const tree = makeTree(scale, seed)
     tree.position.set(x, 0, z)
     tree.rotation.y = seed
-    scene.add(tree)
+    fieldEnv.add(tree)
     trees.push({ tree, phase: seed * 1.7 })
   }
 
@@ -998,8 +1352,13 @@ function create(): ThemeInstance {
     material.needsUpdate = true
   }
   let palette = PALETTES.app
-  function setVariant(variantId: string) {
-    palette = PALETTES[variantId] ?? PALETTES.app
+  let appliedPaletteId: string | null = null
+  function setColours(paletteId: string) {
+    // The shell re-sends every option whenever any one changes; re-applying
+    // the same palette would needlessly recompile the materials.
+    if (paletteId === appliedPaletteId) return
+    appliedPaletteId = paletteId
+    palette = PALETTES[paletteId] ?? PALETTES.app
     applyFinish(materials.cabinet, palette.cabinet, 1)
     applyFinish(materials.cabinetLight, palette.cabinetLight, 2)
     applyFinish(materials.accentA, palette.accentA, 3)
@@ -1009,7 +1368,24 @@ function create(): ThemeInstance {
     for (const ring of pressureRings) (ring.mesh.material as THREE.MeshBasicMaterial).color.setHex(palette.ring)
     for (const { material } of hornGlows) material.emissive.setHex(palette.glow)
   }
-  setVariant('app')
+  setColours('app')
+
+  let urban: UrbanBackdrop | null = null
+  const barrierMaterial = new THREE.MeshStandardMaterial({ color: 0xb9bdc2, roughness: 0.35, metalness: 0.85 })
+  function setBackground(backgroundId: string) {
+    const isUrban = backgroundId === 'urban'
+    if (isUrban && !urban) {
+      urban = buildUrban(barrierMaterial)
+      scene.add(urban.group)
+    }
+    fieldEnv.visible = !isUrban
+    if (urban) urban.group.visible = isUrban
+  }
+
+  function setOption(optionId: string, valueId: string) {
+    if (optionId === 'colours') setColours(valueId)
+    else if (optionId === 'background') setBackground(valueId)
+  }
 
   function update(frame: AudioFrame): number {
     const { t, dt, flash } = frame
@@ -1142,7 +1518,10 @@ function create(): ThemeInstance {
     dustGeometry.attributes.alpha.needsUpdate = true
     dustGeometry.attributes.size.needsUpdate = true
 
-    for (const { tree, phase } of trees) tree.rotation.z = Math.sin(t * 0.5 + phase) * 0.012
+    if (fieldEnv.visible) for (const { tree, phase } of trees) tree.rotation.z = Math.sin(t * 0.5 + phase) * 0.012
+    if (urban?.group.visible) {
+      for (const { mesh, phase } of urban.flags) mesh.rotation.x = Math.sin(t * 1.6 + phase) * 0.35
+    }
 
     // Slow, low, admiring camera — plus a thump on the kick.
     const jolt = kick * 0.03
@@ -1153,7 +1532,8 @@ function create(): ThemeInstance {
     )
     camera.lookAt(0, 2.5, 0)
 
-    return 0.1 + top * 0.3 + kick * 0.1
+    const bloom = 0.1 + top * 0.3 + kick * 0.1
+    return urban?.group.visible ? bloom * URBAN_BLOOM_SCALE : bloom
   }
 
   return {
@@ -1162,10 +1542,11 @@ function create(): ThemeInstance {
     update,
     shadows: true,
     toneMapping: THREE.ACESFilmicToneMapping,
-    setVariant,
+    setOption,
     dispose: () => {
       ringGeometry.dispose()
       sky.dispose()
+      barrierMaterial.dispose()
       disposeScene(scene)
       // Cached textures for palettes not currently applied aren't
       // reachable from the scene.
@@ -1182,5 +1563,5 @@ export const soundSystemTheme: VisualizerTheme = {
   name: 'Sound System',
   create,
   isAvailable: (tagNames) => hasTagWord(tagNames, 'dub'),
-  variants: VARIANTS,
+  options: OPTIONS,
 }

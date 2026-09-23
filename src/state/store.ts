@@ -203,10 +203,10 @@ interface CollectionState {
   // current track doesn't qualify for.
   visualizerRegularTheme: VisualizerThemeId
   setVisualizerTheme: (theme: VisualizerThemeId) => void
-  // Chosen variant (see VisualizerTheme.variants) per theme; a theme with
-  // no entry uses its first variant.
-  visualizerThemeVariants: Partial<Record<VisualizerThemeId, string>>
-  setVisualizerThemeVariant: (theme: VisualizerThemeId, variantId: string) => void
+  // Chosen value per theme option (see VisualizerTheme.options); an option
+  // with no entry uses its first value.
+  visualizerThemeOptions: Partial<Record<VisualizerThemeId, Record<string, string>>>
+  setVisualizerThemeOption: (theme: VisualizerThemeId, optionId: string, valueId: string) => void
   // Track title/artist stays on screen in the Visualizer unless this
   // is switched on — unlike the theme picker/close controls, which fade
   // out whenever the mouse is idle.
@@ -334,14 +334,33 @@ function loadVisualizerTheme(key: string = VISUALIZER_THEME_KEY): VisualizerThem
   return 'nebula'
 }
 
-const VISUALIZER_THEME_VARIANTS_KEY = 'visualizerThemeVariants'
-function loadVisualizerThemeVariants(): Partial<Record<VisualizerThemeId, string>> {
+const VISUALIZER_THEME_OPTIONS_KEY = 'visualizerThemeOptions'
+// Before options, a theme had a single "variant" — Sound System's colour
+// scheme — stored per theme under this key; read once as a fallback.
+const LEGACY_VISUALIZER_THEME_VARIANTS_KEY = 'visualizerThemeVariants'
+function loadVisualizerThemeOptions(): Partial<Record<VisualizerThemeId, Record<string, string>>> {
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value)
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(VISUALIZER_THEME_VARIANTS_KEY) ?? '{}')
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
-    // Unknown variant ids are harmless — the Visualizer falls back to the
-    // theme's first variant — so only the value types are checked here.
-    return Object.fromEntries(Object.entries(parsed).filter(([, v]) => typeof v === 'string'))
+    const stored = localStorage.getItem(VISUALIZER_THEME_OPTIONS_KEY)
+    if (stored !== null) {
+      const parsed: unknown = JSON.parse(stored)
+      if (!isRecord(parsed)) return {}
+      // Unknown ids are harmless — the Visualizer falls back to each
+      // option's first value — so only the shape is checked here.
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
+          .map(([theme, values]) => [theme, Object.fromEntries(Object.entries(values).filter(([, v]) => typeof v === 'string'))]),
+      ) as Partial<Record<VisualizerThemeId, Record<string, string>>>
+    }
+    const legacy: unknown = JSON.parse(localStorage.getItem(LEGACY_VISUALIZER_THEME_VARIANTS_KEY) ?? '{}')
+    if (!isRecord(legacy)) return {}
+    return Object.fromEntries(
+      Object.entries(legacy)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        .map(([theme, variant]) => [theme, { colours: variant }]),
+    ) as Partial<Record<VisualizerThemeId, Record<string, string>>>
   } catch {
     return {}
   }
@@ -390,7 +409,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     return SPECIAL_VISUALIZER_THEME_IDS.includes(stored) ? 'nebula' : stored
   })(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
-  visualizerThemeVariants: loadVisualizerThemeVariants(),
+  visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
   searchText: '',
   collectionFolder: null,
@@ -941,11 +960,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }
   },
 
-  setVisualizerThemeVariant: (theme, variantId) => {
-    const variants = { ...get().visualizerThemeVariants, [theme]: variantId }
-    set({ visualizerThemeVariants: variants })
+  setVisualizerThemeOption: (theme, optionId, valueId) => {
+    const all = get().visualizerThemeOptions
+    const options = { ...all, [theme]: { ...all[theme], [optionId]: valueId } }
+    set({ visualizerThemeOptions: options })
     try {
-      localStorage.setItem(VISUALIZER_THEME_VARIANTS_KEY, JSON.stringify(variants))
+      localStorage.setItem(VISUALIZER_THEME_OPTIONS_KEY, JSON.stringify(options))
     } catch {
       // Non-essential preference — fine to lose.
     }

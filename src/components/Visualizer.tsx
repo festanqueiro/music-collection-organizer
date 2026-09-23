@@ -55,16 +55,26 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const themesRef = useRef(themes)
   themesRef.current = themes
 
-  // The active theme's variant (e.g. Sound System's colour scheme) — a
-  // stored choice that's no longer a valid variant falls back to the first.
+  // The active theme's options (e.g. Sound System's Colours/Background) —
+  // a stored choice that's no longer valid falls back to the first value.
   const activeTheme = getVisualizerTheme(activeThemeId)
-  const storedVariantId = useCollectionStore((s) => s.visualizerThemeVariants[activeThemeId])
-  const setThemeVariant = useCollectionStore((s) => s.setVisualizerThemeVariant)
-  const variants = activeTheme.variants ?? []
-  const variantId = variants.some((v) => v.id === storedVariantId) ? storedVariantId : variants[0]?.id
-  const variantIdRef = useRef(variantId)
-  variantIdRef.current = variantId
+  const storedOptions = useCollectionStore((s) => s.visualizerThemeOptions[activeThemeId])
+  const setThemeOption = useCollectionStore((s) => s.setVisualizerThemeOption)
+  const themeOptions = activeTheme.options ?? []
+  const selectedOptions = useMemo(
+    () =>
+      Object.fromEntries(
+        themeOptions.map((option) => {
+          const stored = storedOptions?.[option.id]
+          return [option.id, option.values.some((v) => v.id === stored) ? stored! : option.values[0].id]
+        }),
+      ),
+    [themeOptions, storedOptions]
+  )
+  const selectedOptionsRef = useRef(selectedOptions)
+  selectedOptionsRef.current = selectedOptions
   const instanceRef = useRef<ThemeInstance | null>(null)
+  const fpsRef = useRef<HTMLSpanElement>(null)
   // Set by the renderer effect; the theme effect swaps what it renders.
   const rendererRef = useRef<{ renderPass: RenderPass; setTheme: (instance: ThemeInstance) => void } | null>(null)
 
@@ -193,6 +203,10 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     const silent = new Uint8Array(0)
     let lastMs = performance.now()
     let raf = 0
+    // FPS readout: written straight to the DOM once a second rather than
+    // through React state, so it doesn't re-render the overlay.
+    let fpsFrames = 0
+    let fpsSince = lastMs
 
     function tick() {
       raf = requestAnimationFrame(tick)
@@ -200,6 +214,12 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       frame.dt = Math.min(0.05, (nowMs - lastMs) / 1000)
       frame.t = nowMs / 1000
       lastMs = nowMs
+      fpsFrames++
+      if (nowMs - fpsSince >= 1000) {
+        if (fpsRef.current) fpsRef.current.textContent = `${Math.round((fpsFrames * 1000) / (nowMs - fpsSince))} fps`
+        fpsFrames = 0
+        fpsSince = nowMs
+      }
 
       const analyser = getActiveAnalyser()
       let bands = { bass: 0, mid: 0, high: 0 }
@@ -244,7 +264,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   // Declared after the renderer effect so it runs after it on mount.
   useEffect(() => {
     const instance = getVisualizerTheme(activeThemeId).create()
-    if (variantIdRef.current) instance.setVariant?.(variantIdRef.current)
+    for (const [optionId, valueId] of Object.entries(selectedOptionsRef.current)) instance.setOption?.(optionId, valueId)
     rendererRef.current?.setTheme(instance)
     instanceRef.current = instance
     return () => {
@@ -253,10 +273,11 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     }
   }, [activeThemeId])
 
-  // Switching variant recolours the live instance in place.
+  // Changing an option updates the live instance in place. Themes make
+  // re-applying an unchanged value cheap, so this just re-sends them all.
   useEffect(() => {
-    if (variantId) instanceRef.current?.setVariant?.(variantId)
-  }, [variantId])
+    for (const [optionId, valueId] of Object.entries(selectedOptions)) instanceRef.current?.setOption?.(optionId, valueId)
+  }, [selectedOptions])
 
   return (
     <div
@@ -372,53 +393,77 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
-      {variants.length > 1 && (
+      <span
+        ref={fpsRef}
+        style={{
+          position: 'absolute',
+          bottom: '24px',
+          left: '28px',
+          padding: '4px 10px',
+          borderRadius: '12px',
+          background: 'rgba(0,0,0,0.35)',
+          color: '#fff',
+          fontSize: '12px',
+          fontVariantNumeric: 'tabular-nums',
+          opacity: uiVisible ? 1 : 0,
+          transition: 'opacity 600ms ease',
+          pointerEvents: 'none',
+        }}
+      >
+        — fps
+      </span>
+      {themeOptions.length > 0 && (
         <div
           style={{
             position: 'absolute',
             bottom: '24px',
             right: '28px',
             display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: '8px',
             color: '#fff',
             opacity: uiVisible ? 1 : 0,
             transition: 'opacity 600ms ease',
             pointerEvents: uiVisible ? 'auto' : 'none',
           }}
         >
-          <span style={{ fontSize: '13px', textShadow: '0 1px 8px rgba(0,0,0,0.8)' }}>Colours</span>
-          <div
-            style={{
-              display: 'flex',
-              gap: '4px',
-              padding: '4px',
-              borderRadius: '20px',
-              background: 'rgba(0,0,0,0.35)',
-            }}
-          >
-            {variants.map((variant) => (
-              <button
-                key={variant.id}
-                onClick={(e) => {
-                  setThemeVariant(activeThemeId, variant.id)
-                  // Otherwise the focused button swallows Space (play/pause).
-                  e.currentTarget.blur()
-                }}
+          {themeOptions.map((option) => (
+            <div key={option.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '13px', textShadow: '0 1px 8px rgba(0,0,0,0.8)' }}>{option.name}</span>
+              <div
                 style={{
-                  border: 'none',
-                  borderRadius: '16px',
-                  padding: '6px 14px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: '#fff',
-                  background: variant.id === variantId ? 'rgba(255,255,255,0.3)' : 'transparent',
+                  display: 'flex',
+                  gap: '4px',
+                  padding: '4px',
+                  borderRadius: '20px',
+                  background: 'rgba(0,0,0,0.35)',
                 }}
               >
-                {variant.name}
-              </button>
-            ))}
-          </div>
+                {option.values.map((value) => (
+                  <button
+                    key={value.id}
+                    onClick={(e) => {
+                      setThemeOption(activeThemeId, option.id, value.id)
+                      // Otherwise the focused button swallows Space (play/pause).
+                      e.currentTarget.blur()
+                    }}
+                    style={{
+                      border: 'none',
+                      borderRadius: '16px',
+                      padding: '6px 14px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      color: '#fff',
+                      background: value.id === selectedOptions[option.id] ? 'rgba(255,255,255,0.3)' : 'transparent',
+                    }}
+                  >
+                    {value.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

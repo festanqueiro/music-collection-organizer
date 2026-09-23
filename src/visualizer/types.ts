@@ -37,8 +37,18 @@ export interface ThemeInstance {
   // emissive/bloom themes want neither.
   shadows?: boolean
   toneMapping?: THREE.ToneMapping
-  // Switches to one of the theme's `variants` in place (no rebuild).
-  setVariant?: (variantId: string) => void
+  // Applies one of the theme's `options` (see VisualizerTheme) in place —
+  // no rebuild, so the animation carries on uninterrupted.
+  setOption?: (optionId: string, valueId: string) => void
+}
+
+// A user-selectable setting a theme offers (e.g. Colours, Background),
+// shown as a picker in the Visualizer's bottom-right corner while the
+// theme is active. The first value is the default.
+export interface ThemeOption {
+  id: string
+  name: string
+  values: Array<{ id: string; name: string }>
 }
 
 export interface VisualizerTheme {
@@ -48,8 +58,5 @@ export interface VisualizerTheme {
   // Omitted = always available. Otherwise shown only for tracks whose tag
   // and subtag names satisfy it.
   isAvailable?: (tagNames: string[]) => boolean
-  // Optional user-selectable looks (e.g. colour schemes), shown in the
-  // Visualizer's bottom-right picker while this theme is active. The
-  // first is the default.
-  variants?: Array<{ id: string; name: string }>
+  options?: ThemeOption[]
 }
