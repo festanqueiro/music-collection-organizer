@@ -80,28 +80,15 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     }
   }, [open])
 
-  // Device *labels* only come back non-blank once the page holds (or has
-  // held) an active getUserMedia() permission of some kind — a browser
-  // privacy measure that isn't specific to microphones, but there's no
-  // "grant output-device-labels-only" permission to ask for instead. This
-  // briefly opens a mic stream purely to unlock those labels, then
-  // immediately stops it — the mic itself is never read from. Falls back
-  // to unlabeled entries (still fully usable, just less readable) if the
-  // permission is denied rather than blocking the picker entirely.
+  // Real device names come from main's 'media' permission-check grant
+  // (see registerPermissionHandlers in electron/main/index.ts) — no mic
+  // stream is ever opened, which would otherwise drop Bluetooth
+  // headphones into their low-quality hands-free profile.
   useEffect(() => {
-    // Only requested once the Audio tab is actually opened, not just
-    // whenever Settings opens at all — a user who only ever looks at
-    // Backups/Tags shouldn't see a mic-permission prompt they never asked
-    // for.
+    // Only listed once the Audio tab is actually opened.
     if (!open || activeTab !== 'audio') return
     let cancelled = false
     async function loadDevices() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stream.getTracks().forEach((t) => t.stop())
-      } catch (err) {
-        console.error('microphone permission (for output device labels) denied', err)
-      }
       try {
         const devices = await navigator.mediaDevices.enumerateDevices()
         if (cancelled) return

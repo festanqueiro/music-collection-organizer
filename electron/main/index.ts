@@ -188,23 +188,23 @@ function createWindow(onShown?: () => void): void {
 // prompt-style request (setPermissionRequestHandler), depending on the
 // API.
 //
-// 'media' (grouped mic+camera in Electron's permission model — there's
-// no way to grant audio-only here) is also allowed: enumerateDevices()
-// only returns real output device labels (vs. blank strings) once the
-// page has an active/previously-granted getUserMedia() permission of any
-// kind, per browser privacy design — SettingsModal's audio output device
-// picker briefly opens (and immediately closes) a mic stream purely to
-// unlock those labels for the *output* device list; the mic itself is
-// never read from. macOS's own system privacy prompt still gates this
-// once regardless of this grant — this only lets the request reach that
-// OS-level check instead of being silently blocked before it does.
+// 'media' is granted to permission *checks* only, never to *requests*.
+// enumerateDevices() consults the check to decide whether to expose real
+// output device labels/IDs (and AudioContext.setSinkId() needs those IDs),
+// so granting it there gives the Settings → Audio output picker real
+// device names without ever opening an input stream. Requests
+// (getUserMedia — mic/camera) stay denied: this app never records, and
+// merely opening a mic stream makes macOS switch Bluetooth headphones
+// (AirPods, etc.) into their low-quality hands-free profile, which is
+// audible as a sudden drop in playback quality.
 function registerPermissionHandlers(): void {
-  const grantedPermissions = new Set(['midi', 'midiSysex', 'media'])
+  const grantedRequests = new Set(['midi', 'midiSysex'])
+  const grantedChecks = new Set(['midi', 'midiSysex', 'media'])
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(grantedPermissions.has(permission))
+    callback(grantedRequests.has(permission))
   })
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
-    return grantedPermissions.has(permission)
+    return grantedChecks.has(permission)
   })
 }
 
