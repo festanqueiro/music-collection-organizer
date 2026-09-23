@@ -6,8 +6,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { getActiveAnalyser, computeBands, BeatDetector, follow } from '../audio/audioAnalysis'
-import { availableThemes, getVisualizerTheme } from '../visualizer/themes'
-import { trackTagNames } from '../visualizer/tagMatch'
+import { VISUALIZER_THEMES, getVisualizerTheme } from '../visualizer/themes'
 import type { AudioFrame, ThemeInstance } from '../visualizer/types'
 import { useCollectionStore } from '../state/store'
 import { decodeHtmlEntities } from '../format'
@@ -30,30 +29,12 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const [uiVisible, setUiVisible] = useState(true)
   const themeId = useCollectionStore((s) => s.visualizerTheme)
   const setThemeId = useCollectionStore((s) => s.setVisualizerTheme)
-  const regularThemeId = useCollectionStore((s) => s.visualizerRegularTheme)
-  const trackTags = useCollectionStore((s) => s.trackTags)
-  const genres = useCollectionStore((s) => s.genres)
-  const subgenres = useCollectionStore((s) => s.subgenres)
   const hideTrackInfo = useCollectionStore((s) => s.visualizerHideTrackInfo)
   const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 
-  // Special themes (e.g. Sound System for Dub) only show for tracks whose
-  // tags qualify. The chosen theme is kept as the preference either way:
-  // on a track that doesn't qualify, the last regular theme plays instead,
-  // and the special one comes back on the next track that does.
-  const themes = useMemo(
-    () => availableThemes(track ? trackTagNames(track.id, trackTags, genres, subgenres) : []),
-    [track, trackTags, genres, subgenres]
-  )
-  const activeThemeId = themes.some((t) => t.id === themeId)
-    ? themeId
-    : themes.some((t) => t.id === regularThemeId)
-      ? regularThemeId
-      : themes[0].id
-  const themesRef = useRef(themes)
-  themesRef.current = themes
+  const activeThemeId = getVisualizerTheme(themeId).id
 
   // The active theme's options (e.g. Sound System's Colours/Background) —
   // a stored choice that's no longer valid falls back to the first value.
@@ -94,11 +75,10 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
         onCloseRef.current()
         return
       }
-      // 1..N pick a theme directly, numbered over the available ones.
+      // 1..N pick a theme directly.
       const index = Number(e.key) - 1
-      const available = themesRef.current
-      if (Number.isInteger(index) && index >= 0 && index < available.length) {
-        useCollectionStore.getState().setVisualizerTheme(available[index].id)
+      if (Number.isInteger(index) && index >= 0 && index < VISUALIZER_THEMES.length) {
+        useCollectionStore.getState().setVisualizerTheme(VISUALIZER_THEMES[index].id)
       }
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
@@ -351,7 +331,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             background: 'rgba(0,0,0,0.35)',
           }}
         >
-          {themes.map((theme, i) => (
+          {VISUALIZER_THEMES.map((theme, i) => (
             <button
               key={theme.id}
               onClick={(e) => {

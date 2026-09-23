@@ -13,6 +13,11 @@ import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './
 // (collapsing and re-expanding the queue).
 const artworkCache = new Map<number, string | null>()
 
+// Approximate size of the queue entry's right-click menu, for keeping it
+// inside the window.
+const QUEUE_MENU_HEIGHT = 100
+const QUEUE_MENU_WIDTH = 220
+
 function useTrackArtwork(trackId: number | undefined): string | null {
   const [, forceUpdate] = useState(0)
   useEffect(() => {
@@ -282,7 +287,13 @@ export function PlaylistView() {
       {contextMenu && (
         <div
           onClick={(e) => e.stopPropagation()}
-          style={{ ...contextMenuStyle, top: contextMenu.y, left: contextMenu.x }}
+          style={{
+            ...contextMenuStyle,
+            // Keep it on screen when opened on one of the last rows / near
+            // the right edge (it's ~3 items tall).
+            top: Math.min(contextMenu.y, window.innerHeight - QUEUE_MENU_HEIGHT),
+            left: Math.min(contextMenu.x, window.innerWidth - QUEUE_MENU_WIDTH),
+          }}
         >
           {/* Neither applies to the entry that's already playing. */}
           {contextMenu.index > 0 && (

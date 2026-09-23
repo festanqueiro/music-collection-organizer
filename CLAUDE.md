@@ -7,7 +7,8 @@ Project instructions for Claude Code working in this repo (MCO — Music Collect
 Electron + `electron-vite` + React + TypeScript. `node:sqlite` (Node's built-in
 synchronous SQLite, no native module to compile) for the DB, `electron-store`
 for app config, `zustand` for renderer state, Vitest for tests, `ffmpeg-static`
-for audio decode/transcode, `essentia.js` (WASM) for BPM/key analysis.
+for audio decode/transcode, `essentia.js` (WASM) for BPM/key analysis,
+`three` for the full-screen visualizer (`src/visualizer/`).
 macOS only for now.
 
 ## Working preferences

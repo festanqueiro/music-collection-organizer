@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
-import { setActiveAnalyser } from '../audio/audioAnalysis'
+import { getActiveAnalyser, setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
@@ -132,9 +132,12 @@ export function Player({ track }: { track: Track }) {
     chain.update(effectsSettings)
     chain.setVolume(playerVolume)
     effectsChainRef.current = chain
-    setActiveAnalyser(chain.getAnalyser())
+    const analyser = chain.getAnalyser()
+    setActiveAnalyser(analyser)
     return () => {
-      setActiveAnalyser(null)
+      // Only clear it if the next track's Player hasn't already registered
+      // its own — don't depend on React's unmount/mount ordering.
+      if (getActiveAnalyser() === analyser) setActiveAnalyser(null)
       chain.close()
       effectsChainRef.current = null
     }
@@ -268,7 +271,13 @@ export function Player({ track }: { track: Track }) {
 
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <button
-          onClick={() => setVisualizerOpen(true)}
+          onClick={(e) => {
+            setVisualizerOpen(true)
+            // Otherwise focus stays on this button behind the overlay, and
+            // the Space shortcut (which ignores focused buttons) stops
+            // toggling play/pause while the visualizer is up.
+            e.currentTarget.blur()
+          }}
           title="Open visualizer (full screen)"
           style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, display: 'flex' }}
         >

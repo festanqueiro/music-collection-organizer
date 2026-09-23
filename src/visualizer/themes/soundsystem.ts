@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { SpectrumBars, disposeScene } from '../shared'
-import { hasTagWord } from '../tagMatch'
 import type { AudioFrame, ThemeInstance, ThemeOption, VisualizerTheme } from '../types'
 
 // A Jamaican-style sound system stack, modelled on a classic outdoor set,
@@ -1562,6 +1561,5 @@ export const soundSystemTheme: VisualizerTheme = {
   id: 'soundsystem',
   name: 'Sound System',
   create,
-  isAvailable: (tagNames) => hasTagWord(tagNames, 'dub'),
   options: OPTIONS,
 }

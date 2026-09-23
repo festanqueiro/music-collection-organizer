@@ -18,7 +18,7 @@ import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
-import { SPECIAL_VISUALIZER_THEME_IDS, type VisualizerThemeId } from '../visualizer/types'
+import type { VisualizerThemeId } from '../visualizer/types'
 import {
   playTrackNow as playTrackNowPure,
   addToPlaylist as addToPlaylistPure,
@@ -198,10 +198,6 @@ interface CollectionState {
   visualizerOpen: boolean
   setVisualizerOpen: (open: boolean) => void
   visualizerTheme: VisualizerThemeId
-  // The last regular (always-available) theme picked — what the
-  // Visualizer falls back to while visualizerTheme is a special theme the
-  // current track doesn't qualify for.
-  visualizerRegularTheme: VisualizerThemeId
   setVisualizerTheme: (theme: VisualizerThemeId) => void
   // Chosen value per theme option (see VisualizerTheme.options); an option
   // with no entry uses its first value.
@@ -322,11 +318,10 @@ interface CollectionState {
 // (per-app userData, like everything else) rather than an electron-store
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
-const VISUALIZER_REGULAR_THEME_KEY = 'visualizerRegularTheme'
 const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem']
-function loadVisualizerTheme(key: string = VISUALIZER_THEME_KEY): VisualizerThemeId {
+function loadVisualizerTheme(): VisualizerThemeId {
   try {
-    const stored = localStorage.getItem(key)
+    const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
     if (stored && (VISUALIZER_THEME_IDS as string[]).includes(stored)) return stored as VisualizerThemeId
   } catch {
     // localStorage unavailable (e.g. under Vitest's node environment).
@@ -404,10 +399,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   queueRequest: null,
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
-  visualizerRegularTheme: (() => {
-    const stored = loadVisualizerTheme(VISUALIZER_REGULAR_THEME_KEY)
-    return SPECIAL_VISUALIZER_THEME_IDS.includes(stored) ? 'nebula' : stored
-  })(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
@@ -972,11 +963,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setVisualizerTheme: (theme) => {
-    const isRegular = !SPECIAL_VISUALIZER_THEME_IDS.includes(theme)
-    set(isRegular ? { visualizerTheme: theme, visualizerRegularTheme: theme } : { visualizerTheme: theme })
+    set({ visualizerTheme: theme })
     try {
       localStorage.setItem(VISUALIZER_THEME_KEY, theme)
-      if (isRegular) localStorage.setItem(VISUALIZER_REGULAR_THEME_KEY, theme)
     } catch {
       // Non-essential preference — fine to lose.
     }

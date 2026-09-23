@@ -2,11 +2,6 @@ import type * as THREE from 'three'
 
 export type VisualizerThemeId = 'nebula' | 'warp' | 'horizon' | 'soundsystem'
 
-// Themes that only appear for some tracks (see VisualizerTheme.isAvailable).
-// Listed here, not derived from the theme modules, so the store can tell
-// special from regular themes without importing three.js.
-export const SPECIAL_VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['soundsystem']
-
 // Everything a theme needs from the audio for one frame. Computed once
 // by the Visualizer shell (so themes don't each redo band/beat analysis),
 // already smoothed where that matters.
@@ -55,8 +50,5 @@ export interface VisualizerTheme {
   id: VisualizerThemeId
   name: string
   create(): ThemeInstance
-  // Omitted = always available. Otherwise shown only for tracks whose tag
-  // and subtag names satisfy it.
-  isAvailable?: (tagNames: string[]) => boolean
   options?: ThemeOption[]
 }
