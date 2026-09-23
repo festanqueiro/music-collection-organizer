@@ -1,12 +1,13 @@
 // src/components/Visualizer.tsx
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
 import { getActiveAnalyser, computeBands, BeatDetector, follow } from '../audio/audioAnalysis'
-import { VISUALIZER_THEMES, getVisualizerTheme } from '../visualizer/themes'
+import { availableThemes, getVisualizerTheme } from '../visualizer/themes'
+import { trackTagNames } from '../visualizer/tagMatch'
 import type { AudioFrame, ThemeInstance } from '../visualizer/types'
 import { useCollectionStore } from '../state/store'
 import { decodeHtmlEntities } from '../format'
@@ -29,10 +30,30 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const [uiVisible, setUiVisible] = useState(true)
   const themeId = useCollectionStore((s) => s.visualizerTheme)
   const setThemeId = useCollectionStore((s) => s.setVisualizerTheme)
+  const regularThemeId = useCollectionStore((s) => s.visualizerRegularTheme)
+  const trackTags = useCollectionStore((s) => s.trackTags)
+  const genres = useCollectionStore((s) => s.genres)
+  const subgenres = useCollectionStore((s) => s.subgenres)
   const hideTrackInfo = useCollectionStore((s) => s.visualizerHideTrackInfo)
   const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+
+  // Special themes (e.g. Sound System for Dub) only show for tracks whose
+  // tags qualify. The chosen theme is kept as the preference either way:
+  // on a track that doesn't qualify, the last regular theme plays instead,
+  // and the special one comes back on the next track that does.
+  const themes = useMemo(
+    () => availableThemes(track ? trackTagNames(track.id, trackTags, genres, subgenres) : []),
+    [track, trackTags, genres, subgenres]
+  )
+  const activeThemeId = themes.some((t) => t.id === themeId)
+    ? themeId
+    : themes.some((t) => t.id === regularThemeId)
+      ? regularThemeId
+      : themes[0].id
+  const themesRef = useRef(themes)
+  themesRef.current = themes
   // Set by the renderer effect; the theme effect swaps what it renders.
   const rendererRef = useRef<{ renderPass: RenderPass; setTheme: (instance: ThemeInstance) => void } | null>(null)
 
@@ -52,10 +73,11 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
         onCloseRef.current()
         return
       }
-      // 1..N pick a theme directly.
+      // 1..N pick a theme directly, numbered over the available ones.
       const index = Number(e.key) - 1
-      if (Number.isInteger(index) && index >= 0 && index < VISUALIZER_THEMES.length) {
-        useCollectionStore.getState().setVisualizerTheme(VISUALIZER_THEMES[index].id)
+      const available = themesRef.current
+      if (Number.isInteger(index) && index >= 0 && index < available.length) {
+        useCollectionStore.getState().setVisualizerTheme(available[index].id)
       }
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
@@ -97,6 +119,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.setSize(host.clientWidth, host.clientHeight)
     renderer.setClearColor(0x000000, 1)
+    renderer.shadowMap.type = THREE.PCFShadowMap
     host.appendChild(renderer.domElement)
 
     const composer = new EffectComposer(renderer)
@@ -114,6 +137,8 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     }
     function setTheme(instance: ThemeInstance) {
       theme = instance
+      renderer.shadowMap.enabled = !!instance.shadows
+      renderer.toneMapping = instance.toneMapping ?? THREE.NoToneMapping
       renderPass.scene = instance.scene
       renderPass.camera = instance.camera
       fitCamera()
@@ -195,10 +220,10 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
 
   // Declared after the renderer effect so it runs after it on mount.
   useEffect(() => {
-    const instance = getVisualizerTheme(themeId).create()
+    const instance = getVisualizerTheme(activeThemeId).create()
     rendererRef.current?.setTheme(instance)
     return () => instance.dispose()
-  }, [themeId])
+  }, [activeThemeId])
 
   return (
     <div
@@ -270,7 +295,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             background: 'rgba(255,255,255,0.08)',
           }}
         >
-          {VISUALIZER_THEMES.map((theme, i) => (
+          {themes.map((theme, i) => (
             <button
               key={theme.id}
               onClick={(e) => {
@@ -286,7 +311,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
                 cursor: 'pointer',
                 fontSize: '13px',
                 color: '#fff',
-                background: theme.id === themeId ? 'rgba(255,255,255,0.25)' : 'transparent',
+                background: theme.id === activeThemeId ? 'rgba(255,255,255,0.25)' : 'transparent',
               }}
             >
               {theme.name}

@@ -1,6 +1,11 @@
 import type * as THREE from 'three'
 
-export type VisualizerThemeId = 'nebula' | 'warp' | 'horizon'
+export type VisualizerThemeId = 'nebula' | 'warp' | 'horizon' | 'soundsystem'
+
+// Themes that only appear for some tracks (see VisualizerTheme.isAvailable).
+// Listed here, not derived from the theme modules, so the store can tell
+// special from regular themes without importing three.js.
+export const SPECIAL_VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['soundsystem']
 
 // Everything a theme needs from the audio for one frame. Computed once
 // by the Visualizer shell (so themes don't each redo band/beat analysis),
@@ -27,10 +32,18 @@ export interface ThemeInstance {
   // Advances the scene one frame; returns the bloom strength to use.
   update(frame: AudioFrame): number
   dispose(): void
+  // Renderer settings the shell applies while this theme is active —
+  // lit, daylight scenes want shadows and filmic tone mapping; the
+  // emissive/bloom themes want neither.
+  shadows?: boolean
+  toneMapping?: THREE.ToneMapping
 }
 
 export interface VisualizerTheme {
   id: VisualizerThemeId
   name: string
   create(): ThemeInstance
+  // Omitted = always available. Otherwise shown only for tracks whose tag
+  // and subtag names satisfy it.
+  isAvailable?: (tagNames: string[]) => boolean
 }
