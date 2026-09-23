@@ -3,24 +3,33 @@ import { SpectrumBars, disposeScene } from '../shared'
 import { hasTagWord } from '../tagMatch'
 import type { AudioFrame, ThemeInstance, VisualizerTheme } from '../types'
 
-// A Jamaican-style sound system stack, modelled on a classic outdoor set:
-// orange-plywood cabinets with teal baffles, stacked on pallets in front
-// of a corrugated-metal wall with graffiti. Every row of boxes answers to
-// its own slice of the spectrum:
+// A Jamaican-style sound system stack, modelled on a classic outdoor set —
+// cabinets stacked on pallets in front of a corrugated-metal wall with
+// graffiti — but dressed in the app's own palette (src/theme.css): slate
+// cabinets with accent-teal and secondary-purple baffles, at night under
+// teal/purple lights. Every row of boxes answers to its own slice of the
+// spectrum:
 //
 //   top horn + tweeter bars   → tops      (domes shimmer, horn throats glow)
 //   row 3 (2×10" boxes)       → low-mids (centre) / mids (sides)
 //   row 2 (grille + horn cells) → bass    (cones pump, pressure rings)
-//   row 1 (four scoops)       → sub       (big excursion, box shake,
-//                                           pressure rings, dust puffed
-//                                           out of the horn mouths)
+//   row 1 (four scoops)       → sub       (big spring-driven excursion,
+//                                           box recoil, pressure rings and
+//                                           dust puffed out of the horn
+//                                           mouths on hard pushes)
 //
 // Everything is procedural (geometry + canvas textures) — no assets.
 
-const ORANGE = '#c8742c'
-const ORANGE_PALE = '#d9a066'
-const TEAL = 0x1d6a5c
-const BLACK = 0x0c0c0c
+// App palette — mirrors the CSS custom properties in src/theme.css.
+const APP_BG = 0x12151a // --color-bg
+const APP_SURFACE = '#1b1f26' // --color-surface
+const APP_SURFACE_RAISED = '#232833' // --color-surface-raised
+const APP_BORDER = '#2b3140' // --color-border
+const APP_TEXT_DIM = 0x9aa3b2 // --color-text-dim
+const APP_ACCENT = 0x2dd4bf // --color-accent
+const APP_ACCENT_STRONG = 0x14b8a6 // --color-accent-strong
+const APP_SECONDARY = 0xa78bfa // --color-secondary
+const BLACK = 0x0a0c10
 
 // Band indices into the 5 log-spaced SpectrumBars (30Hz..16kHz):
 // ~30-106Hz, ~106-374Hz, ~374Hz-1.3k, ~1.3-4.7k, ~4.7-16k.
@@ -31,6 +40,18 @@ const MID = 3
 const TOP = 4
 
 const DUST_COUNT = 900
+
+// Bass cone spring (see update): stiffness sets how quickly a cone chases
+// the level, damping just under critical gives a soft overshoot per kick.
+const SPRING_STIFFNESS = 140
+const SPRING_DAMPING = 2 * 0.6 * Math.sqrt(SPRING_STIFFNESS)
+
+// A pressure ring fires when its driver's spring is past this excursion
+// (in level units, ~0..1.2) and still moving outward faster than this —
+// see update. The interval stops one push from firing twice.
+const RING_MIN_EXCURSION = 0.5
+const RING_MIN_VELOCITY = 1.5
+const RING_MIN_INTERVAL = 0.3
 
 // Deterministic PRNG so textures look the same every time the theme opens.
 function mulberry32(seed: number): () => number {
@@ -72,7 +93,7 @@ function plywoodTexture(base: string, seed: number): THREE.CanvasTexture {
       const y = random() * h
       const amplitude = 2 + random() * 6
       const phase = random() * Math.PI * 2
-      ctx.strokeStyle = random() < 0.5 ? `rgba(110,55,15,${0.08 + random() * 0.18})` : `rgba(255,220,170,${0.06 + random() * 0.1})`
+      ctx.strokeStyle = random() < 0.5 ? `rgba(0,0,0,${0.1 + random() * 0.2})` : `rgba(200,215,235,${0.03 + random() * 0.05})`
       ctx.lineWidth = 0.5 + random() * 2.5
       ctx.beginPath()
       for (let x = 0; x <= w; x += 8) {
@@ -85,58 +106,74 @@ function plywoodTexture(base: string, seed: number): THREE.CanvasTexture {
   })
 }
 
-// Corrugated sheet colour (weathered grey + rust streaks) with graffiti.
+// Graffiti tags in the accent colours. Drawn into both the wall's colour
+// map and its emissive map, so the paint glows faintly (like UV paint)
+// under the night lighting.
+function drawGraffiti(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const random = mulberry32(17)
+  ctx.save()
+  ctx.translate(w * 0.62, h * 0.52)
+  ctx.rotate(-0.08)
+  ctx.font = 'bold 300px "Marker Felt", "Chalkboard SE", Impact, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 26
+  ctx.strokeStyle = '#2dd4bf'
+  ctx.strokeText('DUB', 0, 0)
+  ctx.restore()
+  ctx.save()
+  ctx.translate(w * 0.22, h * 0.35)
+  ctx.rotate(0.05)
+  ctx.font = 'bold 150px "Marker Felt", "Chalkboard SE", Impact, sans-serif'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 12
+  ctx.strokeStyle = '#a78bfa'
+  ctx.strokeText('MCO', 0, 0)
+  ctx.restore()
+  ctx.lineCap = 'round'
+  for (let i = 0; i < 14; i++) {
+    ctx.strokeStyle = i % 2 === 0 ? 'rgba(45,212,191,0.55)' : 'rgba(167,139,250,0.55)'
+    ctx.lineWidth = 6 + random() * 10
+    ctx.beginPath()
+    let x = w * (0.1 + random() * 0.8)
+    let y = h * (0.2 + random() * 0.6)
+    ctx.moveTo(x, y)
+    for (let s = 0; s < 5; s++) {
+      x += (random() - 0.5) * 220
+      y += (random() - 0.5) * 160
+      ctx.quadraticCurveTo(x + (random() - 0.5) * 120, y + (random() - 0.5) * 120, x, y)
+    }
+    ctx.stroke()
+  }
+}
+
+// Corrugated sheet colour (dark slate, faint streaks) with graffiti.
 function wallTexture(): THREE.CanvasTexture {
   return canvasTexture(2048, 768, (ctx, w, h) => {
     const random = mulberry32(7)
-    ctx.fillStyle = '#b3aea3'
+    ctx.fillStyle = APP_SURFACE
     ctx.fillRect(0, 0, w, h)
     for (let i = 0; i < 40; i++) {
       const x = random() * w
       const gradient = ctx.createLinearGradient(0, 0, 0, h)
-      gradient.addColorStop(0, `rgba(130,80,40,${0.05 + random() * 0.15})`)
-      gradient.addColorStop(1, 'rgba(130,80,40,0)')
+      gradient.addColorStop(0, `rgba(0,0,0,${0.1 + random() * 0.2})`)
+      gradient.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = gradient
       ctx.fillRect(x, 0, 6 + random() * 30, h * (0.3 + random() * 0.7))
     }
     for (let i = 0; i < 6; i++) {
-      ctx.fillStyle = `rgba(${150 + random() * 40},${150 + random() * 40},${140 + random() * 30},0.35)`
+      ctx.fillStyle = `rgba(200,215,235,${0.02 + random() * 0.03})`
       ctx.fillRect(random() * w, 0, 60 + random() * 200, h)
     }
-    // Graffiti tags.
-    ctx.save()
-    ctx.translate(w * 0.62, h * 0.52)
-    ctx.rotate(-0.08)
-    ctx.font = 'bold 300px "Marker Felt", "Chalkboard SE", Impact, sans-serif'
-    ctx.textAlign = 'center'
-    ctx.lineJoin = 'round'
-    ctx.lineWidth = 26
-    ctx.strokeStyle = '#141414'
-    ctx.strokeText('DUB', 0, 0)
-    ctx.restore()
-    ctx.save()
-    ctx.translate(w * 0.22, h * 0.35)
-    ctx.rotate(0.05)
-    ctx.font = 'bold 150px "Marker Felt", "Chalkboard SE", Impact, sans-serif'
-    ctx.lineWidth = 12
-    ctx.strokeStyle = '#1a1a1a'
-    ctx.strokeText('MCO', 0, 0)
-    ctx.restore()
-    ctx.strokeStyle = 'rgba(20,20,20,0.85)'
-    ctx.lineCap = 'round'
-    for (let i = 0; i < 14; i++) {
-      ctx.lineWidth = 6 + random() * 10
-      ctx.beginPath()
-      let x = w * (0.1 + random() * 0.8)
-      let y = h * (0.2 + random() * 0.6)
-      ctx.moveTo(x, y)
-      for (let s = 0; s < 5; s++) {
-        x += (random() - 0.5) * 220
-        y += (random() - 0.5) * 160
-        ctx.quadraticCurveTo(x + (random() - 0.5) * 120, y + (random() - 0.5) * 120, x, y)
-      }
-      ctx.stroke()
-    }
+    drawGraffiti(ctx, w, h)
+  })
+}
+
+function graffitiGlowTexture(): THREE.CanvasTexture {
+  return canvasTexture(2048, 768, (ctx, w, h) => {
+    ctx.fillStyle = '#000000'
+    ctx.fillRect(0, 0, w, h)
+    drawGraffiti(ctx, w, h)
   })
 }
 
@@ -146,7 +183,7 @@ function stoneTexture(): THREE.CanvasTexture {
     256,
     (ctx, w, h) => {
       const random = mulberry32(3)
-      ctx.fillStyle = '#6f6a60'
+      ctx.fillStyle = '#0d0f13'
       ctx.fillRect(0, 0, w, h)
       let y = 0
       while (y < h) {
@@ -154,8 +191,8 @@ function stoneTexture(): THREE.CanvasTexture {
         let x = -random() * 40
         while (x < w) {
           const stoneWidth = 30 + random() * 60
-          const shade = 120 + random() * 60
-          ctx.fillStyle = `rgb(${shade},${shade - 6},${shade - 16})`
+          const shade = 30 + random() * 24
+          ctx.fillStyle = `rgb(${shade},${shade + 4},${shade + 10})`
           ctx.beginPath()
           ctx.roundRect(x + 2, y + 2, stoneWidth - 4, rowHeight - 4, 6)
           ctx.fill()
@@ -174,11 +211,11 @@ function groundTexture(): THREE.CanvasTexture {
     256,
     (ctx, w, h) => {
       const random = mulberry32(11)
-      ctx.fillStyle = '#8f877a'
+      ctx.fillStyle = APP_SURFACE
       ctx.fillRect(0, 0, w, h)
       for (let i = 0; i < 2500; i++) {
-        const shade = 110 + random() * 70
-        ctx.fillStyle = `rgba(${shade},${shade - 8},${shade - 18},0.5)`
+        const shade = 20 + random() * 30
+        ctx.fillStyle = `rgba(${shade},${shade + 3},${shade + 8},0.5)`
         ctx.fillRect(random() * w, random() * h, 1 + random() * 3, 1 + random() * 3)
       }
     },
@@ -208,9 +245,10 @@ function grilleTexture(): THREE.CanvasTexture {
 }
 
 interface Materials {
-  plywood: THREE.MeshStandardMaterial
-  plywoodPale: THREE.MeshStandardMaterial
+  cabinet: THREE.MeshStandardMaterial
+  cabinetLight: THREE.MeshStandardMaterial
   teal: THREE.MeshStandardMaterial
+  purple: THREE.MeshStandardMaterial
   black: THREE.MeshStandardMaterial
   cone: THREE.MeshStandardMaterial
   rubber: THREE.MeshStandardMaterial
@@ -221,6 +259,7 @@ interface Materials {
 interface Driver {
   group: THREE.Group
   cone: THREE.Group
+  surround: THREE.Mesh
   dome?: THREE.Mesh
   radius: number
 }
@@ -260,14 +299,14 @@ function makeDriver(radius: number, materials: Materials, options: { grille?: bo
 
   if (options.grille) {
     const grille = new THREE.Mesh(new THREE.CircleGeometry(radius * 1.02, 48), materials.grille)
-    grille.position.z = radius * 0.08
+    grille.position.z = radius * 0.45
     group.add(grille)
   }
   group.traverse((object) => {
     object.castShadow = true
     object.receiveShadow = true
   })
-  return { group, cone, dome: options.tweeter ? dome : undefined, radius }
+  return { group, cone, surround, dome: options.tweeter ? dome : undefined, radius }
 }
 
 // Five-sided plywood shell (open front) so recessed horn cells can sit
@@ -420,17 +459,19 @@ void main() {
 
 function create(): ThemeInstance {
   const scene = new THREE.Scene()
-  scene.background = new THREE.Color(0xcfdde6)
+  scene.background = new THREE.Color(APP_BG)
+  scene.fog = new THREE.Fog(APP_BG, 14, 32)
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100)
 
   const materials: Materials = {
-    plywood: new THREE.MeshStandardMaterial({ map: plywoodTexture(ORANGE, 1), roughness: 0.7 }),
-    plywoodPale: new THREE.MeshStandardMaterial({ map: plywoodTexture(ORANGE_PALE, 2), roughness: 0.7 }),
-    teal: new THREE.MeshStandardMaterial({ color: TEAL, roughness: 0.55 }),
+    cabinet: new THREE.MeshStandardMaterial({ map: plywoodTexture(APP_SURFACE_RAISED, 1), roughness: 0.7 }),
+    cabinetLight: new THREE.MeshStandardMaterial({ map: plywoodTexture(APP_BORDER, 2), roughness: 0.7 }),
+    teal: new THREE.MeshStandardMaterial({ color: APP_ACCENT_STRONG, roughness: 0.5 }),
+    purple: new THREE.MeshStandardMaterial({ color: APP_SECONDARY, roughness: 0.5 }),
     black: new THREE.MeshStandardMaterial({ color: BLACK, roughness: 0.9, side: THREE.DoubleSide }),
     cone: new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.35, metalness: 0.2, side: THREE.DoubleSide }),
     rubber: new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.8 }),
-    metal: new THREE.MeshStandardMaterial({ color: 0x9a9a9a, roughness: 0.3, metalness: 0.8 }),
+    metal: new THREE.MeshStandardMaterial({ color: APP_TEXT_DIM, roughness: 0.3, metalness: 0.8 }),
     grille: new THREE.MeshStandardMaterial({
       color: 0x111111,
       roughness: 0.6,
@@ -442,18 +483,31 @@ function create(): ThemeInstance {
   }
 
   // --- Environment -------------------------------------------------------
-  scene.add(new THREE.HemisphereLight(0xe6eef5, 0x8a7a66, 1.1))
-  const sun = new THREE.DirectionalLight(0xfff0d8, 2.6)
-  sun.position.set(5, 9, 8)
-  sun.castShadow = true
-  sun.shadow.mapSize.set(2048, 2048)
-  sun.shadow.camera.left = -8
-  sun.shadow.camera.right = 8
-  sun.shadow.camera.top = 8
-  sun.shadow.camera.bottom = -2
-  sun.shadow.camera.far = 30
-  sun.shadow.bias = -0.0005
-  scene.add(sun)
+  scene.add(new THREE.HemisphereLight(0x3a4250, 0x0a0c10, 0.7))
+  // Cool key light from the front, casting the stack's shadow on the wall.
+  const keyLight = new THREE.DirectionalLight(0xdfe8ff, 1.4)
+  keyLight.position.set(3, 9, 9)
+  keyLight.castShadow = true
+  keyLight.shadow.mapSize.set(2048, 2048)
+  keyLight.shadow.camera.left = -8
+  keyLight.shadow.camera.right = 8
+  keyLight.shadow.camera.top = 8
+  keyLight.shadow.camera.bottom = -2
+  keyLight.shadow.camera.far = 30
+  keyLight.shadow.bias = -0.0005
+  scene.add(keyLight)
+  // Accent-teal and secondary-purple spots washing the stack from either
+  // side; they pulse with the music (see update).
+  const stageLights = [
+    { color: APP_ACCENT, x: -5.5 },
+    { color: APP_SECONDARY, x: 5.5 },
+  ].map(({ color, x }) => {
+    const light = new THREE.SpotLight(color, 0, 0, 0.55, 0.7, 1.6)
+    light.position.set(x, 6.5, 5)
+    light.target.position.set(0, 2.4, 0)
+    scene.add(light, light.target)
+    return light
+  })
 
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(40, 40),
@@ -472,21 +526,29 @@ function create(): ThemeInstance {
   stone.position.set(0, STONE_HEIGHT / 2, WALL_Z - 0.2)
   stone.receiveShadow = true
   scene.add(stone)
-  // Real corrugation (displaced vertices), so the sun rakes across ridges.
+  // Real corrugation (displaced vertices), so the lights rake across ridges.
   const sheetGeometry = new THREE.PlaneGeometry(18, 6, 600, 1)
   const sheetPositions = sheetGeometry.attributes.position as THREE.BufferAttribute
   for (let i = 0; i < sheetPositions.count; i++) {
     sheetPositions.setZ(i, Math.sin((sheetPositions.getX(i) / 0.16) * Math.PI * 2) * 0.035)
   }
   sheetGeometry.computeVertexNormals()
-  const sheet = new THREE.Mesh(sheetGeometry, new THREE.MeshStandardMaterial({ map: wallTexture(), roughness: 0.6, metalness: 0.35 }))
+  const sheetMaterial = new THREE.MeshStandardMaterial({
+    map: wallTexture(),
+    emissiveMap: graffitiGlowTexture(),
+    emissive: 0xffffff,
+    emissiveIntensity: 0.1,
+    roughness: 0.6,
+    metalness: 0.35,
+  })
+  const sheet = new THREE.Mesh(sheetGeometry, sheetMaterial)
   sheet.position.set(0, STONE_HEIGHT + 3, WALL_Z - 0.35)
   sheet.receiveShadow = true
   scene.add(sheet)
 
   // Pallets under the stack.
   const PALLET_HEIGHT = 0.14
-  const palletMaterial = new THREE.MeshStandardMaterial({ map: plywoodTexture('#b89a72', 5), roughness: 0.9 })
+  const palletMaterial = new THREE.MeshStandardMaterial({ map: plywoodTexture(APP_BORDER, 5), roughness: 0.9 })
   for (const px of [-1.6, 0, 1.6]) {
     for (let s = 0; s < 7; s++) {
       const slat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.03, 0.14), palletMaterial)
@@ -511,21 +573,30 @@ function create(): ThemeInstance {
     shake: number
   }
   const boxes: Box[] = []
-  const drivers: Array<{ driver: Driver; band: number; throw: number; flutter: number }> = []
-  const pressureRings: Array<{ mesh: THREE.Mesh; age: number; radius: number; origin: THREE.Vector3; band: number }> = []
+  // `position`/`velocity` are the bass drivers' spring state (see update).
+  interface DriverEntry {
+    driver: Driver
+    band: number
+    throw: number
+    flutter: number
+    position: number
+    velocity: number
+  }
+  const drivers: DriverEntry[] = []
+  const pressureRings: Array<{ mesh: THREE.Mesh; age: number; radius: number; origin: THREE.Vector3; source: DriverEntry }> = []
   const dustEmitters: THREE.Vector3[] = []
   const hornGlows: Array<{ material: THREE.MeshStandardMaterial }> = []
   const tweeterDomes: THREE.Mesh[] = []
 
   const ringGeometry = new THREE.RingGeometry(0.92, 1, 64)
-  function addPressureRing(worldCenter: THREE.Vector3, radius: number, band: number) {
+  function addPressureRing(worldCenter: THREE.Vector3, radius: number, source: DriverEntry) {
     const mesh = new THREE.Mesh(
       ringGeometry,
-      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }),
+      new THREE.MeshBasicMaterial({ color: APP_ACCENT, transparent: true, opacity: 0, depthWrite: false, toneMapped: false }),
     )
     mesh.position.copy(worldCenter)
     scene.add(mesh)
-    pressureRings.push({ mesh, age: Infinity, radius, origin: worldCenter.clone(), band })
+    pressureRings.push({ mesh, age: Infinity, radius, origin: worldCenter.clone(), source })
   }
 
   function addBox(group: THREE.Group, position: THREE.Vector3, band: number, shake: number) {
@@ -538,9 +609,10 @@ function create(): ThemeInstance {
     const driver = makeDriver(radius, materials, options)
     driver.group.position.set(x, y, z)
     parent.add(driver.group)
-    drivers.push({ driver, band, throw: throwAmount, flutter })
+    const entry: DriverEntry = { driver, band, throw: throwAmount, flutter, position: 0, velocity: 0 }
+    drivers.push(entry)
     if (driver.dome) tweeterDomes.push(driver.dome)
-    return driver
+    return entry
   }
 
   // Row 1: four scoops — teal top baffle with an 18", black horn cells below.
@@ -550,13 +622,13 @@ function create(): ThemeInstance {
   const row1Y = PALLET_HEIGHT + ROW1_H / 2
   for (let i = 0; i < 4; i++) {
     const x = (i - 1.5) * (ROW1_W + 0.02)
-    const group = makeShell(ROW1_W, ROW1_H, ROW1_D, materials.plywood)
+    const group = makeShell(ROW1_W, ROW1_H, ROW1_D, materials.cabinet)
     const baffleH = 0.9
     const baffle = makeBaffle(ROW1_W - 0.06, baffleH - 0.04, materials.teal, [{ x: 0, y: 0, r: 0.4 }])
     baffle.position.set(0, ROW1_H / 2 - baffleH / 2, ROW1_D / 2 - 0.03)
     group.add(baffle)
-    addDriver(group, 0, ROW1_H / 2 - baffleH / 2, ROW1_D / 2 - 0.005, 0.4, SUB, 0.14, 0.012)
-    const cells = makeCells(ROW1_W - 0.06, ROW1_H - baffleH - 0.04, 0.9, 2, 2, materials.black, materials.plywood)
+    const scoopDriver = addDriver(group, 0, ROW1_H / 2 - baffleH / 2, ROW1_D / 2 - 0.005, 0.4, SUB, 0.34, 0)
+    const cells = makeCells(ROW1_W - 0.06, ROW1_H - baffleH - 0.04, 0.9, 2, 2, materials.black, materials.teal)
     cells.group.position.set(0, -ROW1_H / 2 + (ROW1_H - baffleH) / 2, ROW1_D / 2 - 0.01)
     group.add(cells.group)
     const position = new THREE.Vector3(x, row1Y, 0)
@@ -564,7 +636,7 @@ function create(): ThemeInstance {
     for (const mouth of cells.mouths) {
       dustEmitters.push(mouth.clone().add(cells.group.position).add(position))
     }
-    addPressureRing(new THREE.Vector3(x, row1Y + ROW1_H / 2 - baffleH / 2, ROW1_D / 2 + 0.05), 0.4, SUB)
+    addPressureRing(new THREE.Vector3(x, row1Y + ROW1_H / 2 - baffleH / 2, ROW1_D / 2 + 0.05), 0.4, scoopDriver)
   }
 
   // Row 2: two wide boxes — grilled driver on the inner half, orange horn
@@ -575,18 +647,18 @@ function create(): ThemeInstance {
   const row2Y = PALLET_HEIGHT + ROW1_H + ROW2_H / 2
   for (const side of [-1, 1]) {
     const x = side * (ROW2_W / 2 + 0.01)
-    const group = makeShell(ROW2_W, ROW2_H, ROW2_D, materials.plywood)
+    const group = makeShell(ROW2_W, ROW2_H, ROW2_D, materials.cabinet)
     const half = ROW2_W / 2
     const driverX = -side * half / 2
-    const baffle = makeBaffle(half - 0.04, ROW2_H - 0.06, materials.plywood, [{ x: 0, y: 0, r: 0.4 }])
+    const baffle = makeBaffle(half - 0.04, ROW2_H - 0.06, materials.purple, [{ x: 0, y: 0, r: 0.4 }])
     baffle.position.set(driverX, 0, ROW2_D / 2 - 0.02)
     group.add(baffle)
-    addDriver(group, driverX, 0, ROW2_D / 2 - 0.002, 0.4, BASS, 0.09, 0.01, { grille: true })
-    const cells = makeCells(half - 0.04, ROW2_H - 0.06, 0.8, 2, 2, materials.plywood, materials.plywood)
+    const bassDriver = addDriver(group, driverX, 0, ROW2_D / 2 - 0.002, 0.4, BASS, 0.14, 0, { grille: true })
+    const cells = makeCells(half - 0.04, ROW2_H - 0.06, 0.8, 2, 2, materials.cabinet, materials.purple)
     cells.group.position.set(side * half / 2, 0, ROW2_D / 2 - 0.01)
     group.add(cells.group)
     addBox(group, new THREE.Vector3(x, row2Y, 0), BASS, 0.006)
-    addPressureRing(new THREE.Vector3(x + driverX, row2Y, ROW2_D / 2 + 0.1), 0.4, BASS)
+    addPressureRing(new THREE.Vector3(x + driverX, row2Y, ROW2_D / 2 + 0.2), 0.4, bassDriver)
   }
 
   // Row 3: three boxes with two 10"s each — teal sides (mids), orange
@@ -597,9 +669,9 @@ function create(): ThemeInstance {
   const row3Y = PALLET_HEIGHT + ROW1_H + ROW2_H + ROW3_H / 2
   for (const slot of [-1, 0, 1]) {
     const band = slot === 0 ? LOW_MID : MID
-    const group = makeShell(ROW3_W, ROW3_H, ROW3_D, materials.plywood)
+    const group = makeShell(ROW3_W, ROW3_H, ROW3_D, materials.cabinet)
     const holeRadius = slot === 0 ? 0.27 : 0.21
-    const baffle = makeBaffle(ROW3_W - 0.06, ROW3_H - 0.06, slot === 0 ? materials.plywood : materials.teal, [
+    const baffle = makeBaffle(ROW3_W - 0.06, ROW3_H - 0.06, slot === 0 ? materials.purple : materials.teal, [
       { x: -0.3, y: 0, r: holeRadius },
       { x: 0.3, y: 0, r: holeRadius },
     ])
@@ -623,12 +695,12 @@ function create(): ThemeInstance {
     const w = 1.05
     const h = 0.34
     const d = 0.6
-    const group = makeShell(w, h, d, materials.plywoodPale)
+    const group = makeShell(w, h, d, materials.cabinetLight)
     const tweeterXs = [-0.33, -0.11, 0.11, 0.33]
     const baffle = makeBaffle(
       w - 0.05,
       h - 0.05,
-      materials.plywoodPale,
+      materials.cabinetLight,
       tweeterXs.map((x) => ({ x, y: 0, r: 0.085 })),
     )
     baffle.position.set(0, 0, d / 2 - 0.02)
@@ -640,7 +712,7 @@ function create(): ThemeInstance {
     const w = 1.2
     const h = 0.55
     const d = 0.7
-    const group = makeShell(w, h, d, materials.plywood)
+    const group = makeShell(w, h, d, materials.cabinet)
     const tweeterSpots = [-0.47, 0.47].flatMap((x) => [-0.12, 0.12].map((y) => ({ x, y })))
     const baffle = makeBaffle(w - 0.05, h - 0.05, materials.teal, [
       { x: 0, y: 0.02, w: 0.62, h: 0.4 },
@@ -651,7 +723,7 @@ function create(): ThemeInstance {
     const horn = makeHorn(0.62, 0.4, 0.25, 0.45, materials.black)
     horn.position.set(0, 0.02, d / 2 - 0.004)
     group.add(horn)
-    const glowMaterial = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffc070, emissiveIntensity: 0 })
+    const glowMaterial = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: APP_ACCENT, emissiveIntensity: 0 })
     const throat = new THREE.Mesh(new THREE.PlaneGeometry(0.62 * 0.25 * 0.9, 0.4 * 0.25 * 0.9), glowMaterial)
     throat.position.set(0, 0.02, d / 2 - 0.45)
     group.add(throat)
@@ -663,11 +735,11 @@ function create(): ThemeInstance {
     const topW = 0.95
     const topH = 0.62
     const topD = 0.8
-    const top = makeShell(topW, topH, topD, materials.plywood)
+    const top = makeShell(topW, topH, topD, materials.cabinet)
     const topHorn = makeHorn(topW - 0.08, topH - 0.08, 0.2, 0.6, materials.black)
     topHorn.position.set(0, 0, topD / 2)
     top.add(topHorn)
-    const topGlowMaterial = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffb060, emissiveIntensity: 0 })
+    const topGlowMaterial = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: APP_ACCENT, emissiveIntensity: 0 })
     const topThroat = new THREE.Mesh(new THREE.PlaneGeometry((topW - 0.08) * 0.2 * 0.9, (topH - 0.08) * 0.2 * 0.9), topGlowMaterial)
     topThroat.position.set(0, 0, topD / 2 - 0.6)
     top.add(topThroat)
@@ -688,7 +760,7 @@ function create(): ThemeInstance {
   const dust = new THREE.Points(
     dustGeometry,
     new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: new THREE.Color(0xd8ccb4) } },
+      uniforms: { uColor: { value: new THREE.Color(APP_TEXT_DIM) } },
       vertexShader: DUST_VERTEX_SHADER,
       fragmentShader: DUST_FRAGMENT_SHADER,
       transparent: true,
@@ -718,37 +790,74 @@ function create(): ThemeInstance {
   let dustAccumulator = 0
 
   function update(frame: AudioFrame): number {
-    const { t, dt, beat, flash } = frame
+    const { t, dt, flash } = frame
     // Fast attack so cones visibly punch on kicks.
     const levels = spectrum.update(frame, 0.75, 0.25)
     const sub = levels[SUB]
     const bass = levels[BASS]
     const top = levels[TOP]
+    // The beat detector's flash, scaled by how loud the sub actually is —
+    // it fires on bass rising above its recent average, which happens as
+    // readily in a quiet passage as in a heavy one; weighting by level
+    // keeps the kick effects (lights, camera, cone punch) to loud kicks.
+    const kick = flash * sub
 
-    // Cones: excursion from their band level, plus a fast flutter that
-    // reads as the cone vibrating rather than sliding.
-    for (const { driver, band, throw: throwAmount, flutter } of drivers) {
+    // Bass cones ride a slightly under-damped spring toward their level:
+    // smooth, big excursion that pushes the cone right out past the baffle
+    // on heavy sub, with a little overshoot on each kick — rather than
+    // tracking the (jittery) level directly. The surround follows at half
+    // travel, so it reads as stretching rather than the cone detaching.
+    // Mids/tops stay direct, with a fast flutter that reads as vibration.
+    let subExcursion = 0
+    let subCount = 0
+    for (const entry of drivers) {
+      const { driver, band, throw: throwAmount, flutter } = entry
       const level = levels[band]
-      const punch = band <= BASS ? flash * 0.35 : 0
-      const shaped = Math.pow(level, 1.6) + punch
-      const vibration = Math.sin(t * (band <= BASS ? 38 : 70) + driver.radius * 50) * flutter * level
-      driver.cone.position.z = shaped * throwAmount + vibration
+      if (band <= BASS) {
+        const target = Math.pow(level, 1.3) + kick * 0.2
+        const steps = 2
+        const h = dt / steps
+        for (let step = 0; step < steps; step++) {
+          entry.velocity += ((target - entry.position) * SPRING_STIFFNESS - entry.velocity * SPRING_DAMPING) * h
+          entry.position += entry.velocity * h
+        }
+        const excursion = Math.max(-0.1, entry.position) * throwAmount
+        driver.cone.position.z = excursion
+        driver.surround.position.z = excursion * 0.5
+        // Head-on, forward travel alone barely reads — a slight swell
+        // sells the cone coming out at the viewer.
+        driver.cone.scale.setScalar(1 + excursion * 0.45)
+        driver.surround.scale.set(1 + excursion * 0.2, 1 + excursion * 0.2, 0.6)
+        if (band === SUB) {
+          subExcursion += excursion
+          subCount++
+        }
+      } else {
+        const vibration = Math.sin(t * 70 + driver.radius * 50) * flutter * level
+        driver.cone.position.z = Math.pow(level, 1.6) * throwAmount + vibration
+      }
     }
+    subExcursion /= Math.max(1, subCount)
 
     // Tweeter domes shimmer with the tops.
     for (const dome of tweeterDomes) {
       const material = dome.material as THREE.MeshStandardMaterial
-      material.emissive.setRGB(1, 0.95, 0.85)
+      material.emissive.setHex(APP_ACCENT)
       material.emissiveIntensity = Math.pow(top, 1.5) * 1.6
       dome.scale.setScalar(1 + top * 0.25)
       dome.scale.z = 0.9 + top * 0.3
     }
-    for (const { material } of hornGlows) material.emissiveIntensity = Math.pow(top, 1.3) * 4 + flash * 0.4
+    for (const { material } of hornGlows) material.emissiveIntensity = Math.pow(top, 1.3) * 4 + kick * 0.4
 
-    // Cabinets rattle with their band; the scoops also hop a touch on kicks.
+    // The scoops recoil smoothly against their cones' push; the smaller
+    // boxes rattle with their band.
     for (const box of boxes) {
+      if (box.band === SUB) {
+        box.group.position.set(box.base.x, box.base.y, box.base.z - subExcursion * 0.06)
+        continue
+      }
       const level = levels[box.band]
-      const amount = box.shake * (level * level + (box.band === SUB ? flash * 0.8 : 0))
+      const amount = box.shake * level * level
       box.group.position.set(
         box.base.x + (Math.random() - 0.5) * amount,
         box.base.y + (Math.random() - 0.5) * amount,
@@ -756,9 +865,19 @@ function create(): ThemeInstance {
       )
     }
 
-    // Pressure rings off the bass drivers on each kick.
-    if (beat) for (const ring of pressureRings) ring.age = 0
+    // Pressure rings fire off the cones themselves: only when a cone is
+    // already well out AND still being thrown forward fast — i.e. a real,
+    // loud push. (Keying them off the beat detector instead fired mostly
+    // in quiet passages: it looks for bass jumping above its own recent
+    // average, which a sustained heavy bassline rarely does, while any
+    // bass returning after a breakdown does.)
+    let subPush = false
     for (const ring of pressureRings) {
+      const { position, velocity } = ring.source
+      if (position > RING_MIN_EXCURSION && velocity > RING_MIN_VELOCITY && ring.age > RING_MIN_INTERVAL) {
+        ring.age = 0
+        if (ring.source.band === SUB) subPush = true
+      }
       ring.age += dt
       const material = ring.mesh.material as THREE.MeshBasicMaterial
       const life = 1 - ring.age / 0.55
@@ -766,7 +885,7 @@ function create(): ThemeInstance {
         material.opacity = 0
         continue
       }
-      const strength = ring.band === SUB ? sub : bass
+      const strength = ring.source.band === SUB ? sub : bass
       ring.mesh.scale.setScalar(ring.radius * (1 + ring.age * 4))
       ring.mesh.position.set(ring.origin.x, ring.origin.y, ring.origin.z + ring.age * 1.8)
       material.opacity = life * life * 0.35 * (0.4 + strength)
@@ -776,7 +895,7 @@ function create(): ThemeInstance {
     dustAccumulator += dt * sub * sub * 120
     const steady = Math.floor(dustAccumulator)
     dustAccumulator -= steady
-    emitDust(steady + (beat ? 35 : 0), 0.5 + sub)
+    emitDust(steady + (subPush ? 35 : 0), 0.5 + sub)
     for (let i = 0; i < DUST_COUNT; i++) {
       if (dustLife[i] <= 0) {
         dustAlpha[i] = 0
@@ -797,15 +916,19 @@ function create(): ThemeInstance {
     dustGeometry.attributes.size.needsUpdate = true
 
     // Slow, low, admiring camera — plus a thump on the kick.
-    const kick = flash * 0.03
+    const jolt = kick * 0.03
     camera.position.set(
-      Math.sin(t * 0.11) * 1.3 + (Math.random() - 0.5) * kick,
-      1.9 + Math.sin(t * 0.07) * 0.25 + (Math.random() - 0.5) * kick,
+      Math.sin(t * 0.11) * 1.3 + (Math.random() - 0.5) * jolt,
+      1.9 + Math.sin(t * 0.07) * 0.25 + (Math.random() - 0.5) * jolt,
       9.2 - Math.sin(t * 0.05) * 0.9,
     )
     camera.lookAt(0, 2.5, 0)
 
-    return 0.15 + top * 0.35 + flash * 0.15
+    const mid = levels[MID]
+    for (const light of stageLights) light.intensity = 25 + mid * 60 + kick * 90
+    sheetMaterial.emissiveIntensity = 0.06 + mid * 0.1
+
+    return 0.35 + top * 0.45 + kick * 0.3
   }
 
   return {
