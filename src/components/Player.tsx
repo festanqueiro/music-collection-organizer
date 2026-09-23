@@ -352,7 +352,7 @@ export function Player({ track }: { track: Track }) {
         </button>
         <MidiLearnBadge control="player.playPause" />
 
-        <button onClick={() => advanceToNext()} disabled={!hasNext} title="Play next">
+        <button onClick={() => advanceToNext()} disabled={!hasNext} title="Play now next in the queue">
           <span className="material-symbols-outlined">skip_next</span>
         </button>
         <MidiLearnBadge control="player.playNext" />
