@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import systemMbUrl from '../assets/system-mb.glb?url'
 import { SpectrumBars, disposeScene } from '../shared'
 import type { AudioFrame, ThemeInstance, ThemeOption, VisualizerTheme } from '../types'
 
@@ -90,6 +92,14 @@ const PALETTES: Record<string, Palette> = {
 }
 
 const OPTIONS: ThemeOption[] = [
+  {
+    id: 'stack',
+    name: 'Stack',
+    values: [
+      { id: 'classic', name: 'Classic' },
+      { id: 'mb', name: 'SYSTEM MB' },
+    ],
+  },
   {
     id: 'colours',
     name: 'Colours',
@@ -1084,6 +1094,11 @@ function create(): ThemeInstance {
     scene.add(joist)
   }
 
+  // The classic, procedural stack (its guy lines included) — hidden when
+  // another stack is chosen (see setStack).
+  const classicGroup = new THREE.Group()
+  scene.add(classicGroup)
+
   // Guy lines from the top of the stack down to stakes either side.
   const lineMaterial = new THREE.MeshStandardMaterial({ color: 0x3a3228, roughness: 0.8 })
   for (const side of [-1, 1]) {
@@ -1094,20 +1109,23 @@ function create(): ThemeInstance {
     line.position.copy(from).add(to).multiplyScalar(0.5)
     line.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize())
     line.castShadow = true
-    scene.add(line)
+    classicGroup.add(line)
   }
 
   // --- The stack -----------------------------------------------------------
   interface Box {
-    group: THREE.Group
+    group: THREE.Object3D
     base: THREE.Vector3
     band: number
     shake: number
   }
   const boxes: Box[] = []
   // `position`/`velocity` are the bass drivers' spring state (see update).
+  // `driver` is absent for a "virtual" driver — the SYSTEM MB bins are
+  // folded horns whose driver is hidden inside, but their spring still
+  // drives the box recoil, pressure rings and dust.
   interface DriverEntry {
-    driver: Driver
+    driver?: Driver
     band: number
     throw: number
     flutter: number
@@ -1115,25 +1133,66 @@ function create(): ThemeInstance {
     velocity: number
   }
   const drivers: DriverEntry[] = []
-  const pressureRings: Array<{ mesh: THREE.Mesh; age: number; radius: number; origin: THREE.Vector3; source: DriverEntry }> = []
+  interface PressureRing {
+    mesh: THREE.Mesh
+    age: number
+    radius: number
+    origin: THREE.Vector3
+    source: DriverEntry
+  }
+  const pressureRings: PressureRing[] = []
   const dustEmitters: THREE.Vector3[] = []
-  const hornGlows: Array<{ material: THREE.MeshStandardMaterial }> = []
+  // `strength` scales the glow — the classic stack's small horn throats
+  // can take full brightness; the model's whole horn columns can't.
+  const hornGlows: Array<{ material: THREE.MeshStandardMaterial; strength: number }> = []
   const tweeterDomes: THREE.Mesh[] = []
 
+  // Everything a stack animates, so update() can drive whichever stack is
+  // showing (see setStack). The classic stack's rig is filled in below as
+  // it's built; SYSTEM MB's is built when its model loads.
+  interface Rig {
+    group: THREE.Group
+    drivers: DriverEntry[]
+    boxes: Box[]
+    pressureRings: PressureRing[]
+    hornGlows: Array<{ material: THREE.MeshStandardMaterial; strength: number }>
+    tweeterDomes: THREE.Mesh[]
+    dustEmitters: THREE.Vector3[]
+    // Camera framing: where it looks, its resting height and distance.
+    view: { lookY: number; height: number; distance: number; sway: number }
+  }
+  const classicRig: Rig = {
+    group: classicGroup,
+    drivers,
+    boxes,
+    pressureRings,
+    hornGlows,
+    tweeterDomes,
+    dustEmitters,
+    view: { lookY: 2.5, height: 1.9, distance: 9.2, sway: 1.3 },
+  }
+  let rig = classicRig
+
   const ringGeometry = new THREE.RingGeometry(0.92, 1, 64)
-  function addPressureRing(worldCenter: THREE.Vector3, radius: number, source: DriverEntry) {
+  function addPressureRing(
+    worldCenter: THREE.Vector3,
+    radius: number,
+    source: DriverEntry,
+    parent: THREE.Object3D = classicGroup,
+    into: PressureRing[] = pressureRings,
+  ) {
     const mesh = new THREE.Mesh(
       ringGeometry,
       new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, toneMapped: false }),
     )
     mesh.position.copy(worldCenter)
-    scene.add(mesh)
-    pressureRings.push({ mesh, age: Infinity, radius, origin: worldCenter.clone(), source })
+    parent.add(mesh)
+    into.push({ mesh, age: Infinity, radius, origin: worldCenter.clone(), source })
   }
 
   function addBox(group: THREE.Group, position: THREE.Vector3, band: number, shake: number) {
     group.position.copy(position)
-    scene.add(group)
+    classicGroup.add(group)
     boxes.push({ group, base: position.clone(), band, shake })
   }
 
@@ -1164,7 +1223,8 @@ function create(): ThemeInstance {
     cells.group.position.set(0, -ROW1_H / 2 + (ROW1_H - baffleH) / 2, ROW1_D / 2 - 0.01)
     group.add(cells.group)
     const position = new THREE.Vector3(x, row1Y, 0)
-    addBox(group, position, SUB, 0.012)
+    // For the sub band, `shake` is recoil per unit of cone excursion.
+    addBox(group, position, SUB, 0.06)
     for (const mouth of cells.mouths) {
       dustEmitters.push(mouth.clone().add(cells.group.position).add(position))
     }
@@ -1259,7 +1319,7 @@ function create(): ThemeInstance {
     const throat = new THREE.Mesh(new THREE.PlaneGeometry(0.62 * 0.25 * 0.9, 0.4 * 0.25 * 0.9), glowMaterial)
     throat.position.set(0, 0.02, d / 2 - 0.45)
     group.add(throat)
-    hornGlows.push({ material: glowMaterial })
+    hornGlows.push({ material: glowMaterial, strength: 1 })
     for (const { x, y } of tweeterSpots) addDriver(group, x, y, d / 2, 0.06, TOP, 0.005, 0.004, { tweeter: true })
     addBox(group, new THREE.Vector3(0, row4Base + h / 2, 0.08), TOP, 0.0015)
 
@@ -1275,7 +1335,7 @@ function create(): ThemeInstance {
     const topThroat = new THREE.Mesh(new THREE.PlaneGeometry((topW - 0.08) * 0.2 * 0.9, (topH - 0.08) * 0.2 * 0.9), topGlowMaterial)
     topThroat.position.set(0, 0, topD / 2 - 0.6)
     top.add(topThroat)
-    hornGlows.push({ material: topGlowMaterial })
+    hornGlows.push({ material: topGlowMaterial, strength: 1 })
     addBox(top, new THREE.Vector3(0, row4Base + h + topH / 2, 0.05), TOP, 0.002)
   }
 
@@ -1306,7 +1366,8 @@ function create(): ThemeInstance {
     for (let n = 0; n < count; n++) {
       const i = nextDust
       nextDust = (nextDust + 1) % DUST_COUNT
-      const emitter = dustEmitters[Math.floor(Math.random() * dustEmitters.length)]
+      const emitters = rig.dustEmitters
+      const emitter = emitters[Math.floor(Math.random() * emitters.length)]
       dustPositions[i * 3] = emitter.x + (Math.random() - 0.5) * 0.4
       dustPositions[i * 3 + 1] = emitter.y + (Math.random() - 0.5) * 0.35
       dustPositions[i * 3 + 2] = emitter.z + 0.05
@@ -1321,6 +1382,182 @@ function create(): ThemeInstance {
   const spectrum = new SpectrumBars(5, 30, 16000)
   let dustAccumulator = 0
   const bandAverages = new Float32Array(5)
+
+  // --- SYSTEM MB: a stack loaded from a Blender model ------------------------
+  // Exported from SYSTEM_MB.blend by scripts/blender/export-system-mb.py:
+  // four folded-horn bins (bin_1..4), two mid/top boxes (top_1, top_2) each
+  // with a column of small horns (horns_1, horns_2) and a grilled driver
+  // hole. The bins' drivers fire inside the horn, so they get "virtual"
+  // drivers (springs with no cone) that still drive recoil, rings and
+  // dust; a real cone is added behind each grille.
+  const MODEL_SCALE = 1.5 // the model is life-size (~2m); scaled up to hold the frame
+  interface ModelStack {
+    rig: Rig
+    // Wood meshes and their original (textured) material, per paint slot.
+    woodMeshes: Array<{ mesh: THREE.Mesh; original: THREE.Material; slot: 'accentA' | 'accentB' }>
+    // Double-sided copies of the palette's paint materials (see
+    // applyModelFinish) — the imported geometry isn't reliably closed.
+    painted: Record<'accentA' | 'accentB', THREE.MeshStandardMaterial>
+  }
+  let model: ModelStack | null = null
+  let modelLoading = false
+  let disposed = false
+  let wantedStack = 'classic'
+
+  function rigs(): Rig[] {
+    return model ? [classicRig, model.rig] : [classicRig]
+  }
+
+  // Natural keeps the model's own plywood texture; the painted schemes
+  // repaint bins and tops with the palette's two accent finishes.
+  function applyModelFinish(stack: ModelStack) {
+    for (const slot of ['accentA', 'accentB'] as const) {
+      stack.painted[slot].copy(materials[slot])
+      stack.painted[slot].side = THREE.DoubleSide
+      stack.painted[slot].needsUpdate = true
+    }
+    for (const { mesh, original, slot } of stack.woodMeshes) {
+      mesh.material = appliedPaletteId === 'natural' ? original : stack.painted[slot]
+    }
+  }
+
+  function buildModelStack(root: THREE.Object3D): ModelStack {
+    const group = new THREE.Group()
+    root.scale.setScalar(MODEL_SCALE)
+    group.add(root)
+    // Centre it on the platform, front facing the camera (+z).
+    root.updateMatrixWorld(true)
+    const bounds = new THREE.Box3().setFromObject(root)
+    const centre = bounds.getCenter(new THREE.Vector3())
+    root.position.set(-centre.x, PLATFORM_HEIGHT - bounds.min.y, -centre.z)
+    root.updateMatrixWorld(true)
+
+    const stack: ModelStack = {
+      rig: {
+        group,
+        drivers: [],
+        boxes: [],
+        pressureRings: [],
+        hornGlows: [],
+        tweeterDomes: [],
+        dustEmitters: [],
+        view: { lookY: 1.6, height: 1.5, distance: 7.2, sway: 1 },
+      },
+      woodMeshes: [],
+      painted: { accentA: new THREE.MeshStandardMaterial(), accentB: new THREE.MeshStandardMaterial() },
+    }
+    const { rig: modelRig } = stack
+
+    const hornMaterial = new THREE.MeshStandardMaterial({
+      color: BLACK,
+      roughness: 0.5,
+      emissive: palette.glow,
+      emissiveIntensity: 0,
+      side: THREE.DoubleSide,
+    })
+    root.traverse((object) => {
+      const mesh = object as THREE.Mesh
+      if (!mesh.isMesh) return
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+      const material = mesh.material as THREE.MeshStandardMaterial
+      // The SketchUp→Blender import flagged the wood as alpha-blended,
+      // which only causes depth-sorting glitches; it's opaque. Faces are
+      // drawn from both sides as the imported geometry isn't reliably
+      // closed/consistently wound.
+      material.transparent = false
+      material.depthWrite = true
+      material.side = THREE.DoubleSide
+      if (material.name === 'grille') {
+        material.alphaTest = 0.5
+        material.side = THREE.DoubleSide
+      } else if (material.name === 'wood') {
+        // Its pale texture in full sun crosses the bloom threshold and
+        // washes out — take it down to a warmer, more matte plywood.
+        material.color.setScalar(0.62)
+        material.roughness = 0.85
+        material.metalness = 0
+        let part: THREE.Object3D | null = mesh
+        while (part && !/^(bin|top)_/.test(part.name)) part = part.parent
+        stack.woodMeshes.push({ mesh, original: material, slot: part?.name.startsWith('top') ? 'accentB' : 'accentA' })
+      }
+      let part: THREE.Object3D | null = mesh
+      while (part && !part.name.startsWith('horns_')) part = part.parent
+      if (part) mesh.material = hornMaterial
+    })
+    modelRig.hornGlows.push({ material: hornMaterial, strength: 0.03 })
+
+    // Bins: virtual sub drivers → recoil, pressure rings and dust from
+    // the horn mouths (the lower part of each bin's front).
+    for (let i = 1; i <= 4; i++) {
+      const bin = root.getObjectByName(`bin_${i}`)
+      if (!bin) continue
+      const box = new THREE.Box3().setFromObject(bin)
+      const size = box.getSize(new THREE.Vector3())
+      const source: DriverEntry = { band: SUB, throw: 0.18, flutter: 0, position: 0, velocity: 0 }
+      modelRig.drivers.push(source)
+      // Recoil is applied to the bin node in the model's (scaled) space.
+      modelRig.boxes.push({ group: bin, base: bin.position.clone(), band: SUB, shake: 0.06 / MODEL_SCALE })
+      const mouth = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + size.y * 0.3, box.max.z + 0.05)
+      addPressureRing(mouth, size.x * 0.42, source, group, modelRig.pressureRings)
+      for (const fx of [-0.25, 0.25]) {
+        for (const fy of [0.12, 0.42]) {
+          modelRig.dustEmitters.push(new THREE.Vector3(mouth.x + size.x * fx, box.min.y + size.y * fy, box.max.z))
+        }
+      }
+    }
+
+    // Tops: a real cone behind each grille, on the mids.
+    const grilles: THREE.Mesh[] = []
+    root.traverse((object) => {
+      const mesh = object as THREE.Mesh
+      if (mesh.isMesh && (mesh.material as THREE.Material).name === 'grille') grilles.push(mesh)
+    })
+    for (const grille of grilles) {
+      const box = new THREE.Box3().setFromObject(grille)
+      const size = box.getSize(new THREE.Vector3())
+      const centre = box.getCenter(new THREE.Vector3())
+      const radius = Math.min(size.x, size.y) * 0.45
+      const driver = makeDriver(radius, materials)
+      driver.group.position.set(centre.x, centre.y, box.min.z - 0.03)
+      group.add(driver.group)
+      modelRig.drivers.push({ driver, band: MID, throw: 0.03, flutter: 0.006, position: 0, velocity: 0 })
+    }
+    return stack
+  }
+
+  function setStack(stackId: string) {
+    wantedStack = stackId
+    if (stackId === 'mb' && !model && !modelLoading) {
+      modelLoading = true
+      new GLTFLoader().load(
+        systemMbUrl,
+        (gltf) => {
+          modelLoading = false
+          if (disposed) {
+            disposeScene(gltf.scene as unknown as THREE.Scene)
+            return
+          }
+          model = buildModelStack(gltf.scene)
+          model.rig.group.visible = false
+          scene.add(model.rig.group)
+          for (const ring of model.rig.pressureRings) (ring.mesh.material as THREE.MeshBasicMaterial).color.setHex(palette.ring)
+          applyModelFinish(model)
+          setStack(wantedStack)
+        },
+        undefined,
+        (error) => {
+          modelLoading = false
+          console.error('failed to load the SYSTEM MB model', error)
+        },
+      )
+    }
+    // Until the model has loaded (or if it failed), keep showing Classic.
+    const useModel = stackId === 'mb' && model !== null
+    rig = useModel && model ? model.rig : classicRig
+    classicGroup.visible = !useModel
+    if (model) model.rig.group.visible = useModel
+  }
 
   // --- Paint jobs --------------------------------------------------------
   // Textures are generated the first time a palette is used and cached for
@@ -1364,8 +1601,11 @@ function create(): ThemeInstance {
     applyFinish(materials.accentB, palette.accentB, 4)
     applyFinish(materials.scoopInner, palette.scoopInner, 5)
     applyFinish(materials.scoopEdge, palette.scoopEdge, 6)
-    for (const ring of pressureRings) (ring.mesh.material as THREE.MeshBasicMaterial).color.setHex(palette.ring)
-    for (const { material } of hornGlows) material.emissive.setHex(palette.glow)
+    for (const r of rigs()) {
+      for (const ring of r.pressureRings) (ring.mesh.material as THREE.MeshBasicMaterial).color.setHex(palette.ring)
+      for (const { material } of r.hornGlows) material.emissive.setHex(palette.glow)
+    }
+    if (model) applyModelFinish(model)
   }
   setColours('app')
 
@@ -1382,7 +1622,8 @@ function create(): ThemeInstance {
   }
 
   function setOption(optionId: string, valueId: string) {
-    if (optionId === 'colours') setColours(valueId)
+    if (optionId === 'stack') setStack(valueId)
+    else if (optionId === 'colours') setColours(valueId)
     else if (optionId === 'background') setBackground(valueId)
   }
 
@@ -1410,7 +1651,7 @@ function create(): ThemeInstance {
     const averaging = 1 - Math.exp(-dt / BASS_AVERAGE_SECONDS)
     let subExcursion = 0
     let subCount = 0
-    for (const entry of drivers) {
+    for (const entry of rig.drivers) {
       const { driver, band, throw: throwAmount, flutter } = entry
       const level = levels[band]
       if (band <= BASS) {
@@ -1424,17 +1665,19 @@ function create(): ThemeInstance {
           entry.position += entry.velocity * h
         }
         const excursion = Math.max(-0.1, entry.position) * throwAmount
-        driver.cone.position.z = excursion
-        driver.surround.position.z = excursion * 0.5
-        // Head-on, forward travel alone barely reads — a slight swell
-        // sells the cone coming out at the viewer.
-        driver.cone.scale.setScalar(1 + excursion * 0.3)
-        driver.surround.scale.set(1 + excursion * 0.15, 1 + excursion * 0.15, 0.6)
+        if (driver) {
+          driver.cone.position.z = excursion
+          driver.surround.position.z = excursion * 0.5
+          // Head-on, forward travel alone barely reads — a slight swell
+          // sells the cone coming out at the viewer.
+          driver.cone.scale.setScalar(1 + excursion * 0.3)
+          driver.surround.scale.set(1 + excursion * 0.15, 1 + excursion * 0.15, 0.6)
+        }
         if (band === SUB) {
           subExcursion += excursion
           subCount++
         }
-      } else {
+      } else if (driver) {
         const vibration = Math.sin(t * 70 + driver.radius * 50) * flutter * level
         driver.cone.position.z = Math.pow(level, 1.6) * throwAmount + vibration
       }
@@ -1442,20 +1685,22 @@ function create(): ThemeInstance {
     subExcursion /= Math.max(1, subCount)
 
     // Tweeter domes shimmer with the tops.
-    for (const dome of tweeterDomes) {
+    for (const dome of rig.tweeterDomes) {
       const material = dome.material as THREE.MeshStandardMaterial
       material.emissive.setHex(palette.glow)
       material.emissiveIntensity = Math.pow(top, 1.5) * 1.6
       dome.scale.setScalar(1 + top * 0.25)
       dome.scale.z = 0.9 + top * 0.3
     }
-    for (const { material } of hornGlows) material.emissiveIntensity = Math.pow(top, 1.3) * 4 + kick * 0.4
+    for (const { material, strength } of rig.hornGlows) {
+      material.emissiveIntensity = (Math.pow(top, 1.3) * 4 + kick * 0.4) * strength
+    }
 
     // The scoops recoil smoothly against their cones' push; the smaller
     // boxes rattle with their band.
-    for (const box of boxes) {
+    for (const box of rig.boxes) {
       if (box.band === SUB) {
-        box.group.position.set(box.base.x, box.base.y, box.base.z - subExcursion * 0.06)
+        box.group.position.set(box.base.x, box.base.y, box.base.z - subExcursion * box.shake)
         continue
       }
       const level = levels[box.band]
@@ -1474,7 +1719,7 @@ function create(): ThemeInstance {
     // average, which a sustained heavy bassline rarely does, while any
     // bass returning after a breakdown does.)
     let subPush = false
-    for (const ring of pressureRings) {
+    for (const ring of rig.pressureRings) {
       const { position, velocity } = ring.source
       if (position > RING_MIN_EXCURSION && velocity > RING_MIN_VELOCITY && ring.age > RING_MIN_INTERVAL) {
         ring.age = 0
@@ -1524,12 +1769,13 @@ function create(): ThemeInstance {
 
     // Slow, low, admiring camera — plus a thump on the kick.
     const jolt = kick * 0.03
+    const { view } = rig
     camera.position.set(
-      Math.sin(t * 0.11) * 1.3 + (Math.random() - 0.5) * jolt,
-      1.9 + Math.sin(t * 0.07) * 0.25 + (Math.random() - 0.5) * jolt,
-      9.2 - Math.sin(t * 0.05) * 0.9,
+      Math.sin(t * 0.11) * view.sway + (Math.random() - 0.5) * jolt,
+      view.height + Math.sin(t * 0.07) * 0.25 + (Math.random() - 0.5) * jolt,
+      view.distance - Math.sin(t * 0.05) * view.distance * 0.1,
     )
-    camera.lookAt(0, 2.5, 0)
+    camera.lookAt(0, view.lookY, 0)
 
     const bloom = 0.1 + top * 0.3 + kick * 0.1
     return urban?.group.visible ? bloom * URBAN_BLOOM_SCALE : bloom
@@ -1543,6 +1789,7 @@ function create(): ThemeInstance {
     toneMapping: THREE.ACESFilmicToneMapping,
     setOption,
     dispose: () => {
+      disposed = true
       ringGeometry.dispose()
       sky.dispose()
       barrierMaterial.dispose()
