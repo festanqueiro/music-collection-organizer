@@ -24,16 +24,19 @@ track is downloaded first.
 
 ## CUE button
 
-Works like a CDJ's CUE button. Each track has one cue point, shown as an
-amber line on the waveform. It starts at the beginning of the track and
-is kept only while the track stays loaded.
+Each track has one cue point, shown as an amber line on the waveform. It
+starts at the beginning of the track and is kept only while the track
+stays loaded.
 
-- **While playing**: press CUE to jump back to the cue point and pause.
-- **While paused away from the cue point**: press CUE to set the cue point
-  where the playhead is.
-- **While paused at the cue point**: hold CUE to play from it. Release to
-  jump back and pause again. Press Play while holding CUE to keep playing
-  after you let go.
+- **While paused**: the spot where the track is paused becomes the cue
+  point. Hold CUE to play from there.
+- **While playing**: hold CUE to jump back to the cue point and play from
+  it.
+- **Release**: jumps back to the cue point and pauses. Press Play while
+  holding CUE to keep playing after you let go.
+
+To place the cue point, pause where you want it (or pause and click the
+waveform), then press CUE.
 
 Hold **C** on the keyboard, or map the button to a MIDI pad (see
 [MIDI](midi.md)).
