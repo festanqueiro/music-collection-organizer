@@ -13,6 +13,7 @@ import type {
   MidiImportResult,
   TrackTableColumnKey,
   TrackTableSortState,
+  UpdateState,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
@@ -34,6 +35,9 @@ const api = {
   getAudioOutputDeviceId: (): Promise<string | null> => ipcRenderer.invoke('config:getAudioOutputDeviceId'),
   setAudioOutputDeviceId: (deviceId: string | null): Promise<void> =>
     ipcRenderer.invoke('config:setAudioOutputDeviceId', deviceId),
+  getCueOutputDeviceId: (): Promise<string | null> => ipcRenderer.invoke('config:getCueOutputDeviceId'),
+  setCueOutputDeviceId: (deviceId: string | null): Promise<void> =>
+    ipcRenderer.invoke('config:setCueOutputDeviceId', deviceId),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
   willRelocateOnNextCollectionFolderPick: (): Promise<boolean> =>
     ipcRenderer.invoke('config:willRelocateOnNextCollectionFolderPick'),
@@ -91,8 +95,37 @@ const api = {
   restoreBackup: (timestamp: string): Promise<void> => ipcRenderer.invoke('backup:restore', timestamp),
   exportTagData: (): Promise<{ path: string } | null> => ipcRenderer.invoke('tags:exportData'),
   importTagData: (): Promise<ImportResult | null> => ipcRenderer.invoke('tags:importData'),
+  exportRekordbox: (): Promise<{ path: string; trackCount: number; playlistCount: number } | null> =>
+    ipcRenderer.invoke('export:rekordbox'),
   exportMidiMappings: (): Promise<{ path: string } | null> => ipcRenderer.invoke('midi:exportMappings'),
   readMidiMappingsFile: (): Promise<MidiImportResult | null> => ipcRenderer.invoke('midi:readMappingsFile'),
+  getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke('updates:getState'),
+  checkForUpdates: (): Promise<UpdateState> => ipcRenderer.invoke('updates:check'),
+  installUpdate: (): Promise<void> => ipcRenderer.invoke('updates:install'),
+  openReleasePage: (): Promise<void> => ipcRenderer.invoke('updates:openReleasePage'),
+  getAutoCheckUpdates: (): Promise<boolean> => ipcRenderer.invoke('config:getAutoCheckUpdates'),
+  setAutoCheckUpdates: (enabled: boolean): Promise<void> => ipcRenderer.invoke('config:setAutoCheckUpdates', enabled),
+  onUpdateState: (cb: (state: UpdateState) => void): (() => void) => {
+    const listener = (_e: unknown, state: UpdateState) => cb(state)
+    ipcRenderer.on('updates:state', listener)
+    return () => {
+      ipcRenderer.removeListener('updates:state', listener)
+    }
+  },
+  getLibrarySettings: (): Promise<{ watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean }> =>
+    ipcRenderer.invoke('config:getLibrarySettings'),
+  setWatchCollectionFolder: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('config:setWatchCollectionFolder', enabled),
+  setAutoAnalyseNewTracks: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('config:setAutoAnalyseNewTracks', enabled),
+  // A background rescan (folder watcher) found changes.
+  onLibraryChanged: (cb: (result: ScanResult) => void): (() => void) => {
+    const listener = (_e: unknown, result: ScanResult) => cb(result)
+    ipcRenderer.on('library:changed', listener)
+    return () => {
+      ipcRenderer.removeListener('library:changed', listener)
+    }
+  },
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('scan:progress', listener)

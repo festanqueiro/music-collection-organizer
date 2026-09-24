@@ -19,6 +19,10 @@ interface ConfigSchema {
   columnOrder?: string[]
   sortState?: TrackTableSortState
   audioOutputDeviceId?: string
+  cueOutputDeviceId?: string
+  autoCheckUpdates?: boolean
+  watchCollectionFolder?: boolean
+  autoAnalyseNewTracks?: boolean
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -149,4 +153,44 @@ export function getAudioOutputDeviceId(): string | null {
 export function setAudioOutputDeviceId(deviceId: string | null): void {
   if (deviceId === null) getStore().delete('audioOutputDeviceId')
   else getStore().set('audioOutputDeviceId', deviceId)
+}
+
+// On by default: the app checks GitHub for a newer release shortly after
+// launch and every few hours (see updater.ts). It never installs without
+// the user clicking Update.
+export function getAutoCheckUpdates(): boolean {
+  return getStore().get('autoCheckUpdates') ?? true
+}
+
+export function setAutoCheckUpdates(enabled: boolean): void {
+  getStore().set('autoCheckUpdates', enabled)
+}
+
+// Folder watcher (folderWatcher.ts): on by default, so new downloads show
+// up on their own. Analysing what it finds is opt-in, like every other
+// bulk analysis in the app.
+export function getWatchCollectionFolder(): boolean {
+  return getStore().get('watchCollectionFolder') ?? true
+}
+
+export function setWatchCollectionFolder(enabled: boolean): void {
+  getStore().set('watchCollectionFolder', enabled)
+}
+
+export function getAutoAnalyseNewTracks(): boolean {
+  return getStore().get('autoAnalyseNewTracks') ?? false
+}
+
+export function setAutoAnalyseNewTracks(enabled: boolean): void {
+  getStore().set('autoAnalyseNewTracks', enabled)
+}
+
+// Headphone pre-listen output. null means "system default".
+export function getCueOutputDeviceId(): string | null {
+  return getStore().get('cueOutputDeviceId') ?? null
+}
+
+export function setCueOutputDeviceId(deviceId: string | null): void {
+  if (deviceId === null) getStore().delete('cueOutputDeviceId')
+  else getStore().set('cueOutputDeviceId', deviceId)
 }

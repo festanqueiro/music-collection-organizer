@@ -13,7 +13,7 @@ function writeAnalysisResult(
 ): void {
   db.prepare(
     `UPDATE tracks SET
-      title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration,
+      title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate,
       bpm = @bpm, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
       analysis_status = 'done', analyzed_at = @analyzed_at
     WHERE id = @id`
@@ -25,6 +25,7 @@ function writeAnalysisResult(
     genre: result.genre,
     year: result.year,
     duration: result.duration,
+    bitrate: result.bitrate,
     bpm: result.bpm,
     musical_key: result.musicalKey,
     waveform_peaks: JSON.stringify(result.waveformPeaks),
@@ -52,7 +53,7 @@ export async function analyzeTrack(
     // etc.), where two concurrent reads of a not-fully-synced file can
     // race each other.
     const playablePath = await getPlayableFilePath(track.path, cacheDir)
-    const result = await runAnalysisPipeline(playablePath)
+    const result = await runAnalysisPipeline(playablePath, track.path)
     writeAnalysisResult(db, track, result)
   } catch {
     db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)

@@ -13,7 +13,7 @@ first). Picking a different folder later keeps the data where it is — see
 ## Scanning ("Update Collection")
 
 **Update Collection** in the toolbar walks the collection folder for audio
-files (WAV, AIFF, FLAC) and compares them with the
+files (WAV, AIFF, FLAC, MP3, M4A/AAC, OGG, Opus) and compares them with the
 database:
 
 - new files are added as *pending* analysis;
@@ -26,6 +26,25 @@ Scanning never starts analysis by itself. After picking a new folder the
 app asks whether to analyse the unanalysed tracks.
 
 Code: `electron/main/scan.ts`, `folderWalk.ts`, `scanDiff.ts`.
+
+## Watching the folder
+
+You rarely need **Update Collection**: MCO watches the collection folder,
+subfolders included. A few seconds after files are added, removed, or
+replaced, it rescans in the background and a toast says what changed
+(e.g. "3 new tracks, 1 missing"). Copying in a whole album triggers
+one rescan, not one per file.
+
+Both switches are in **Settings → General → Collection folder**:
+
+- **Watch for new and removed files** (on by default);
+- **Analyse new tracks automatically** (off by default). When it's on,
+  new and changed tracks are analysed straight after the rescan.
+
+Only audio files and folders count. The app's own `.mco` data folder,
+Finder metadata, and partial downloads are ignored.
+
+Code: `electron/main/folderWatcher.ts`.
 
 ## Cloud-only files (Google Drive for Desktop)
 
@@ -59,14 +78,24 @@ Code: `electron/main/analysis/` (`queue.ts`, `worker.ts`, `pipeline.ts`,
 
 ## Track table
 
-- Columns: Title, Filename, Artist, Tags, BPM, Key, Format, Duration, Date
-  added, Date modified.
+- Columns: Title, Filename, Artist, Tags, BPM, Key, Format, Bitrate,
+  Duration, Date added, Date modified. Bitrate is read during analysis.
+  Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted,
+  the usual minimum for playing out on a club system.
 - Drag column headers to reorder them; click a header to sort, click again
   to reverse. Order and sort are saved.
 - Click a row to show its details (cover art, ID3 metadata, your tags) in
   the detail panel. Check rows for [batch tagging](tags.md#batch-tagging).
+- The play icon on a row starts that track. On the playing track it
+  becomes a pause icon, and clicking it pauses or resumes instead of
+  restarting the track.
+- The headphones icon pre-listens to the track on the cue output (see
+  [DJ tools](dj-tools.md#headphone-pre-listen-cue)).
+- The Key column shows colour-coded Camelot keys, and **Compatible**
+  above the table filters to tracks that mix with the playing one (see
+  [DJ tools](dj-tools.md#harmonic-mixing)).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of
-  the queue**, **Analyse/Re-analyse track**, **Show in File Explorer**
+  the queue**, **Pre-listen in headphones**, **Analyse/Re-analyse track**, **Show in File Explorer**
   (reveals it in Finder), **Show in Folder Tree View**.
 - **Add all to queue** queues everything currently visible (see
   [Queue](queue.md)).

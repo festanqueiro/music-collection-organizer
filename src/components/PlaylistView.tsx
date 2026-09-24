@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { FxPanel } from './FxPanel'
 import { formatDuration, decodeHtmlEntities } from '../format'
+import { formatKey } from '../state/harmonic'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 
 // Fetched lazily and cached across the whole queue, not per-row state —
@@ -57,6 +58,7 @@ function QueueRow({
   onRemove: () => void
 }) {
   const artworkUrl = useTrackArtwork(track?.id)
+  const keyNotation = useCollectionStore((s) => s.keyNotation)
 
   return (
     <div
@@ -99,7 +101,7 @@ function QueueRow({
           )}
         </span>
         {track?.musicalKey && (
-          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>{track.musicalKey}</span>
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>{formatKey(track.musicalKey, keyNotation)}</span>
         )}
         {track?.bpm && (
           <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>{Math.round(track.bpm)} BPM</span>

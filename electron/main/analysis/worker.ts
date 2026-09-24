@@ -24,7 +24,7 @@ if (!parentPort) {
 parentPort.on('message', async (task: WorkerTask) => {
   try {
     const playablePath = await getPlayableFilePath(task.path, task.cacheDir)
-    const result = await runAnalysisPipeline(playablePath)
+    const result = await runAnalysisPipeline(playablePath, task.path)
     parentPort!.postMessage({ id: task.id, status: 'done', result } satisfies WorkerResult)
   } catch {
     parentPort!.postMessage({ id: task.id, status: 'error' } satisfies WorkerResult)

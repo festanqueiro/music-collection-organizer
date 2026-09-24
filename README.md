@@ -18,8 +18,8 @@ MCO's own database.
 
 ## Features
 
-- **Your collection, organized** — scans a folder of WAV, AIFF, and FLAC
-  files, reads their tags and cover art, and measures BPM, key, and
+- **Your collection, organized** — scans a folder of WAV, AIFF, FLAC, MP3,
+  M4A/AAC, and OGG/Opus files, picks up new downloads on its own, reads their tags and cover art, and measures BPM, key, and
   waveform. Sort, search, and filter by folder or tag. Files that go
   missing are hidden, not forgotten, so their tags come back when the
   drive does.
@@ -32,6 +32,9 @@ MCO's own database.
   media keys and AirPods controls, and a choice of audio output device.
 - **Effects** — EQ, low/high-pass filter, a tempo-synced delay, reverb,
   and a dub siren, all as rotary knobs in their own panel.
+- **DJ tools** — keys in Camelot notation with a "Compatible" filter for
+  harmonic mixing, headphone pre-listen on a second output, a duplicate
+  finder, and export of your tags as Rekordbox playlists.
 - **MIDI** — map any knob, toggle, or playback button to your controller
   in two clicks, with LED feedback where your controller supports it.
 - **Visualizer** — a full-screen, audio-reactive visualizer with four
@@ -43,6 +46,8 @@ MCO's own database.
   other app.
 - **Backups** — automatic daily backups of your library and settings,
   with one-click restore.
+- **Automatic updates** — MCO tells you when a new version is out and
+  installs it with one click.
 
 The full guide to every feature is in
 [`docs/features/`](docs/features/README.md).
@@ -57,7 +62,8 @@ The full guide to every feature is in
    Click **Done**, then go to **System Settings → Privacy & Security**,
    click **Open Anyway** next to the MCO message, and confirm.
 
-That's only needed once per Mac.
+That's only needed once per Mac. After that, MCO updates itself: when a
+new version is out, click **Update and restart** in the banner.
 
 ## Building from source
 
@@ -131,7 +137,7 @@ for app state.
   player, queue, effects (`src/audio/`), and visualizer
   (`src/visualizer/`).
 - `docs/features/` — the feature guide.
-- `TODO.md` — known issues and ideas for what's next.
+- `TODO.md` — known issues; `IDEAS.md` — prioritized ideas for what's next.
 
 ## License
 

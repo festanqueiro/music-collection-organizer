@@ -1,11 +1,18 @@
-import { app, BrowserWindow, protocol, session } from 'electron'
+import { app, BrowserWindow, net, protocol, session } from 'electron'
 import { join, extname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createReadStream, statSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { openDatabase } from './db'
 import { registerIpcHandlers } from './ipc'
-import { getCollectionFolder, getConfigFilePath, setLastBackupError, clearLastBackupError } from './config'
+import {
+  getCollectionFolder,
+  getConfigFilePath,
+  setLastBackupError,
+  clearLastBackupError,
+  getAutoCheckUpdates,
+} from './config'
+import { Updater, appBundlePathFromExecPath } from './updater'
 import { getDbFilePath } from './dbPath'
 import { mediaUrlToFilePath } from './mediaProtocol'
 import { getPlayableFilePath, pruneMediaCache } from './audioTranscode'
@@ -44,6 +51,24 @@ const MEDIA_MIME_TYPES: Record<string, string> = {
   '.m4a': 'audio/mp4',
   '.aac': 'audio/aac',
   '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
+}
+
+// First automatic update check waits until well after launch (nothing
+// competes with first paint or a startup backup), then repeats.
+const UPDATE_CHECK_DELAY_MS = 20 * 1000
+const UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
+
+// Only the installed release app updates itself. `npm run dev` isn't an
+// app bundle, and the BETA app (npm run dist:beta) is a local build that
+// a release would silently replace.
+function updatesDisabledReason(): string | null {
+  if (process.platform !== 'darwin') return 'Automatic updates are only available on macOS.'
+  if (!app.isPackaged) return 'Automatic updates are only available in the installed app.'
+  if (/beta/i.test(app.getName()) || /-beta$/i.test(app.getPath('userData'))) {
+    return "BETA builds don't update themselves — rebuild with npm run dist:beta."
+  }
+  return null
 }
 
 // Transcoded-AIFF cache cap (see pruneMediaCache).
@@ -232,7 +257,26 @@ app.whenReady().then(() => {
   const db = openDatabase(getDbFilePath())
   setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
 
-  registerIpcHandlers(db, () => currentWindow, getBackupFolder(app.getPath('userData')))
+  const updater = new Updater({
+    currentVersion: app.getVersion(),
+    arch: process.arch,
+    disabledReason: updatesDisabledReason(),
+    appPath: appBundlePathFromExecPath(process.execPath),
+    tempDir: app.getPath('temp'),
+    fetch: (url, init) => net.fetch(url, init),
+    onState: (state) => {
+      if (currentWindow && !currentWindow.isDestroyed()) currentWindow.webContents.send('updates:state', state)
+    },
+    quit: () => app.quit(),
+  })
+  setTimeout(() => {
+    if (getAutoCheckUpdates()) updater.check()
+  }, UPDATE_CHECK_DELAY_MS)
+  setInterval(() => {
+    if (getAutoCheckUpdates()) updater.check()
+  }, UPDATE_CHECK_INTERVAL_MS)
+
+  registerIpcHandlers(db, () => currentWindow, getBackupFolder(app.getPath('userData')), updater)
 
   createWindow(() => performBackupCheck(db))
 

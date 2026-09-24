@@ -26,6 +26,7 @@ function track(id: number): Track {
     mtime: 0,
     birthtime: null,
     duration: 180,
+    bitrate: null,
     title: null,
     artist: null,
     album: null,

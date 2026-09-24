@@ -12,8 +12,9 @@ in the code.
 | [Queue](queue.md) | The FIFO play queue, adding tracks, the full-screen queue view |
 | [FX](fx.md) | EQ, Filter, Delay, Reverb, Dub Siren, master volume |
 | [MIDI](midi.md) | MIDI learn, LED feedback, export/import/reset of bindings |
+| [DJ tools](dj-tools.md) | Harmonic mixing (Camelot keys, Compatible filter), headphone pre-listen, duplicate finder, Rekordbox export |
 | [Visualizer](visualizer.md) | Full-screen visualizer and its four themes |
-| [Settings & data](settings-and-data.md) | Settings modal, where data lives, backups and restore |
+| [Settings & data](settings-and-data.md) | Settings modal, where data lives, backups and restore, automatic updates |
 
 ## Keyboard shortcuts at a glance
 
@@ -25,5 +26,6 @@ in the code.
 | Home / End | track table | First / last visible row |
 | Page Up / Page Down | track table | Jump a page of rows |
 | Shift-click | track table rows / checkboxes | Check a range of tracks |
+| P | track table | Pre-listen to the selected track in the headphones (again to stop) |
 | S (hold) | anywhere | Fire the Dub Siren (when it's on and Beat is Off) |
 | Esc | visualizer | Close the visualizer |

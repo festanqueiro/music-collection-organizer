@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ToggleSwitch } from './ToggleSwitch'
 import { ConfirmDialog } from './ConfirmDialog'
-import type { BackupInfo, BackupEntry, MidiMappings } from '../types'
+import type { BackupInfo, BackupEntry, MidiMappings, UpdateState } from '../types'
+import type { KeyNotation } from '../state/harmonic'
 
 // Backup filenames use `now.toISOString().replace(/[:.]/g, '-')` (see
 // electron/main/backup.ts) — undo that by re-inserting the standard ISO
@@ -28,16 +29,29 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [backupInfo, setBackupInfo] = useState<BackupInfo | null>(null)
   const [backups, setBackups] = useState<BackupEntry[]>([])
   const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
+  const [rekordboxMessage, setRekordboxMessage] = useState<string | null>(null)
   const [dbFilePath, setDbFilePath] = useState<string | null>(null)
   const [backingUp, setBackingUp] = useState(false)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const setAudioOutputDeviceId = useCollectionStore((s) => s.setAudioOutputDeviceId)
+  const cueOutputDeviceId = useCollectionStore((s) => s.cueOutputDeviceId)
+  const setCueOutputDeviceId = useCollectionStore((s) => s.setCueOutputDeviceId)
   const showMidiControls = useCollectionStore((s) => s.showMidiControls)
   const setShowMidiControls = useCollectionStore((s) => s.setShowMidiControls)
   const midiBindingCount = useCollectionStore((s) => Object.keys(s.midiMappings).length)
   const resetMidiMappings = useCollectionStore((s) => s.resetMidiMappings)
   const replaceMidiMappings = useCollectionStore((s) => s.replaceMidiMappings)
   const showToast = useCollectionStore((s) => s.showToast)
+  const watchCollectionFolder = useCollectionStore((s) => s.watchCollectionFolder)
+  const setWatchCollectionFolder = useCollectionStore((s) => s.setWatchCollectionFolder)
+  const autoAnalyseNewTracks = useCollectionStore((s) => s.autoAnalyseNewTracks)
+  const setAutoAnalyseNewTracks = useCollectionStore((s) => s.setAutoAnalyseNewTracks)
+  const updateState = useCollectionStore((s) => s.updateState)
+  const checkForUpdates = useCollectionStore((s) => s.checkForUpdates)
+  const autoCheckUpdates = useCollectionStore((s) => s.autoCheckUpdates)
+  const setAutoCheckUpdates = useCollectionStore((s) => s.setAutoCheckUpdates)
+  const keyNotation = useCollectionStore((s) => s.keyNotation)
+  const setKeyNotation = useCollectionStore((s) => s.setKeyNotation)
   // Both reset and an import that would overwrite existing bindings go
   // through the same warning popup.
   const [midiConfirm, setMidiConfirm] = useState<
@@ -195,14 +209,83 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               >
                 Change…
               </button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
+                <ToggleSwitch
+                  checked={watchCollectionFolder}
+                  onChange={setWatchCollectionFolder}
+                  title="Watch the collection folder for changes"
+                />
+                Watch for new and removed files
+              </label>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: watchCollectionFolder ? 'pointer' : 'default',
+                  marginTop: '6px',
+                  opacity: watchCollectionFolder ? 1 : 0.5,
+                }}
+              >
+                <ToggleSwitch
+                  checked={autoAnalyseNewTracks}
+                  onChange={setAutoAnalyseNewTracks}
+                  disabled={!watchCollectionFolder}
+                  title="Analyse new tracks automatically"
+                />
+                Analyse new tracks automatically
+              </label>
+              <p style={{ margin: '6px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                New downloads show up on their own a few seconds after they land in the folder — no need to click
+                Update Collection.
+              </p>
+            </section>
+
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Updates</h3>
+              <p style={{ margin: '0 0 8px' }}>
+                Version {updateState?.currentVersion ?? '…'}
+                <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}> — {updateStatusText(updateState)}</span>
+              </p>
+              {updateState?.status !== 'disabled' && (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                    <ToggleSwitch
+                      checked={autoCheckUpdates}
+                      onChange={setAutoCheckUpdates}
+                      title="Check for updates automatically"
+                    />
+                    Check for updates automatically
+                  </label>
+                  <button
+                    onClick={() => checkForUpdates()}
+                    disabled={
+                      updateState?.status === 'checking' ||
+                      updateState?.status === 'downloading' ||
+                      updateState?.status === 'installing'
+                    }
+                  >
+                    Check now
+                  </button>
+                </>
+              )}
+            </section>
+
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Key notation</h3>
+              <select value={keyNotation} onChange={(e) => setKeyNotation(e.target.value as KeyNotation)}>
+                <option value="both">Camelot and musical (8A · Am)</option>
+                <option value="camelot">Camelot (8A)</option>
+                <option value="musical">Musical (Am)</option>
+              </select>
             </section>
 
             <section>
               <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Database &amp; settings</h3>
               <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{dbFilePath ?? 'Loading…'}</p>
               <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                The first time you set a collection folder, this moves inside it automatically. Backups always
-                target wherever it currently lives, so restoring stays safe after a move.
+                The first time you set a collection folder, this moves inside it automatically. Backups are kept
+                in the app's own folder and always restore to wherever this currently lives.
               </p>
               <button
                 onClick={async () => {
@@ -243,6 +326,31 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               {audioDevicesError && (
                 <p style={{ margin: '8px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
                   {audioDevicesError}
+                </p>
+              )}
+            </section>
+
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Cue output (headphones)</h3>
+              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                Where pre-listen plays (the headphones icon on a track, or P) — pick your headphones or a second
+                output on your audio interface so you can audition the next track while the main output keeps
+                playing.
+              </p>
+              <select
+                value={cueOutputDeviceId ?? ''}
+                onChange={(e) => setCueOutputDeviceId(e.target.value || null)}
+              >
+                <option value="">System default</option>
+                {audioOutputDevices.map((d, i) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `Audio output ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+              {(cueOutputDeviceId ?? '') === (audioOutputDeviceId ?? '') && (
+                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                  Same as the main output, so previews will be heard on the main speakers too.
                 </p>
               )}
             </section>
@@ -413,10 +521,61 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                 <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{tagDataMessage}</p>
               )}
             </section>
+
+            <section style={{ marginTop: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Rekordbox</h3>
+              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                Exports your library, with each genre and sub-genre as a playlist, to a file Rekordbox can read.
+                In Rekordbox, choose the file under Preferences → Advanced → Database → rekordbox xml, then find it
+                in the "rekordbox xml" section of the sidebar.
+              </p>
+              <button
+                onClick={async () => {
+                  setRekordboxMessage(null)
+                  try {
+                    const result = await window.api.exportRekordbox()
+                    if (result) {
+                      setRekordboxMessage(
+                        `Exported ${result.trackCount} tracks and ${result.playlistCount} playlists to ${result.path}`
+                      )
+                    }
+                  } catch (err) {
+                    setRekordboxMessage(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
+                  }
+                }}
+              >
+                Export to Rekordbox…
+              </button>
+              {rekordboxMessage && (
+                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{rekordboxMessage}</p>
+              )}
+            </section>
           </>
         )}
         </div>
       </div>
     </div>
   )
+}
+
+function updateStatusText(state: UpdateState | null): string {
+  if (!state) return 'loading…'
+  switch (state.status) {
+    case 'disabled':
+      return state.error ?? 'automatic updates are off for this build'
+    case 'checking':
+      return 'checking for updates…'
+    case 'up-to-date':
+      return state.checkedAt ? `up to date (checked ${new Date(state.checkedAt).toLocaleString()})` : 'up to date'
+    case 'available':
+      return `version ${state.latestVersion} is available — see the banner at the top`
+    case 'downloading':
+      return `downloading ${state.latestVersion}…`
+    case 'installing':
+      return `installing ${state.latestVersion}…`
+    case 'error':
+      return state.error ?? 'something went wrong'
+    default:
+      return 'not checked yet'
+  }
 }

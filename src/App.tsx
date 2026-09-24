@@ -5,6 +5,9 @@ import { ScanPrompt } from './components/ScanPrompt'
 import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
+import { DuplicatesPanel } from './components/DuplicatesPanel'
+import { CuePlayer } from './components/CuePlayer'
+import { UpdateBanner } from './components/UpdateBanner'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
@@ -19,7 +22,7 @@ import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
 import type { Track } from './types'
 
-type LeftView = 'folders' | 'tags' | 'subtags'
+type LeftView = 'folders' | 'tags' | 'subtags' | 'duplicates'
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
@@ -31,6 +34,11 @@ export default function App() {
   const loadColumnOrder = useCollectionStore((s) => s.loadColumnOrder)
   const loadSortState = useCollectionStore((s) => s.loadSortState)
   const loadAudioOutputDeviceId = useCollectionStore((s) => s.loadAudioOutputDeviceId)
+  const loadCueOutputDeviceId = useCollectionStore((s) => s.loadCueOutputDeviceId)
+  const loadUpdateState = useCollectionStore((s) => s.loadUpdateState)
+  const loadLibrarySettings = useCollectionStore((s) => s.loadLibrarySettings)
+  const handleLibraryChanged = useCollectionStore((s) => s.handleLibraryChanged)
+  const setUpdateState = useCollectionStore((s) => s.setUpdateState)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const loadAppVersion = useCollectionStore((s) => s.loadAppVersion)
   const handleMidiControlChange = useCollectionStore((s) => s.handleMidiControlChange)
@@ -147,7 +155,14 @@ export default function App() {
     loadColumnOrder()
     loadSortState()
     loadAudioOutputDeviceId()
+    loadCueOutputDeviceId()
     loadAppVersion()
+    loadUpdateState()
+    loadLibrarySettings()
+    const unsubscribeUpdates = window.api.onUpdateState(setUpdateState)
+    const unsubscribeLibrary = window.api.onLibraryChanged((result) => {
+      handleLibraryChanged(result).catch((err) => console.error('refresh after background scan failed', err))
+    })
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
       const isFinal = progress.done === progress.total
@@ -159,8 +174,16 @@ export default function App() {
         })
       }
     })
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      unsubscribeUpdates()
+      unsubscribeLibrary()
+    }
   }, [
+    loadLibrarySettings,
+    handleLibraryChanged,
+    loadUpdateState,
+    setUpdateState,
     loadAll,
     loadCollectionFolder,
     loadEffectsSettings,
@@ -168,11 +191,14 @@ export default function App() {
     loadColumnOrder,
     loadSortState,
     loadAudioOutputDeviceId,
+    loadCueOutputDeviceId,
     loadAppVersion,
     setAnalysisProgress,
     refreshTracks,
   ])
 
+  const cueTrackId = useCollectionStore((s) => s.cueTrackId)
+  const cueTrack = cueTrackId != null ? (tracks.find((t) => t.id === cueTrackId) ?? null) : null
   const currentTrackId = playlist[0]
   const currentTrack = currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null
 
@@ -220,6 +246,7 @@ export default function App() {
         )}
 
         <div style={{ gridArea: 'toolbar' }}>
+          <UpdateBanner />
           <Toolbar
             onOpenSettings={() => {
               setSettingsOpen(true)
@@ -233,7 +260,7 @@ export default function App() {
             <button onClick={() => pickCollectionFolder()}>Choose collection folder…</button>
           ) : (
             <>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => changeLeftView('folders')}
                   style={{
@@ -258,6 +285,15 @@ export default function App() {
                 >
                   Subtags
                 </button>
+                <button
+                  onClick={() => changeLeftView('duplicates')}
+                  title="Find likely duplicate tracks"
+                  style={{
+                    border: leftView === 'duplicates' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                  }}
+                >
+                  Duplicates
+                </button>
               </div>
               {leftView === 'folders' && (
                 <FolderTree
@@ -271,6 +307,14 @@ export default function App() {
               )}
               {leftView === 'tags' && (
                 <TagTree
+                  onFilterChange={(filter) => {
+                    setTagFilter(() => filter)
+                    clearCheckedTracks()
+                  }}
+                />
+              )}
+              {leftView === 'duplicates' && (
+                <DuplicatesPanel
                   onFilterChange={(filter) => {
                     setTagFilter(() => filter)
                     clearCheckedTracks()
@@ -312,6 +356,7 @@ export default function App() {
         </div>
 
         <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)', position: 'relative' }}>
+          {cueTrack && <CuePlayer key={cueTrack.id} track={cueTrack} />}
           {(() => {
             // Driven by the playlist queue's head, not row selection — the
             // player is independent, so browsing/checking details on other

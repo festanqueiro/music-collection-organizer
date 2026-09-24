@@ -19,7 +19,17 @@ import {
   setSortState,
   getAudioOutputDeviceId,
   setAudioOutputDeviceId,
+  getCueOutputDeviceId,
+  setCueOutputDeviceId,
+  getAutoCheckUpdates,
+  setAutoCheckUpdates,
+  getWatchCollectionFolder,
+  setWatchCollectionFolder,
+  getAutoAnalyseNewTracks,
+  setAutoAnalyseNewTracks,
 } from './config'
+import { FolderWatcher } from './folderWatcher'
+import { isTrustedReleaseUrl, type Updater } from './updater'
 import { getDataFolder, setDataFolder } from './bootstrap'
 import { getDbFilePath } from './dbPath'
 import { migrateDataFolder } from './dataMigration'
@@ -52,6 +62,7 @@ import {
 } from './tags'
 import { exportTagData, importTagData, type TagExportData } from './tagExport'
 import { buildMidiExport, parseMidiExportText } from './midiExport'
+import { buildRekordboxXml } from './rekordboxExport'
 import type {
   Track,
   Genre,
@@ -66,6 +77,7 @@ import type {
   MidiImportResult,
   TrackTableColumnKey,
   TrackTableSortState,
+  UpdateState,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -79,6 +91,7 @@ interface TrackRow {
   mtime: number
   birthtime: number | null
   duration: number | null
+  bitrate: number | null
   title: string | null
   artist: string | null
   album: string | null
@@ -114,6 +127,7 @@ function rowToTrack(row: TrackRow): Track {
     mtime: row.mtime,
     birthtime: row.birthtime,
     duration: row.duration,
+    bitrate: row.bitrate,
     title: row.title,
     artist: row.artist,
     album: row.album,
@@ -126,6 +140,10 @@ function rowToTrack(row: TrackRow): Track {
     analysisStatus: row.analysis_status,
   }
 }
+
+// How long the collection folder has to be quiet before a background
+// rescan — long enough that copying in an album is one scan, not twenty.
+const WATCH_DEBOUNCE_MS = 3000
 
 // Dialogs are parented to whichever window asked for them. Falls back to an
 // unparented dialog if that window is somehow gone by now.
@@ -148,7 +166,8 @@ function showSaveDialog(e: IpcMainInvokeEvent, options: SaveDialogOptions) {
 export function registerIpcHandlers(
   db: AppDatabase,
   getMainWindow: () => BrowserWindow | null,
-  backupFolder: string
+  backupFolder: string,
+  updater: Updater
 ) {
   function sendToRenderer(channel: string, payload: unknown): void {
     const win = getMainWindow()
@@ -221,6 +240,24 @@ export function registerIpcHandlers(
   ipcMain.handle('config:getAudioOutputDeviceId', (): string | null => getAudioOutputDeviceId())
   ipcMain.handle('config:setAudioOutputDeviceId', (_e, deviceId: string | null): void =>
     setAudioOutputDeviceId(deviceId)
+  )
+
+  ipcMain.handle('updates:getState', (): UpdateState => updater.getState())
+  ipcMain.handle('updates:check', (): Promise<UpdateState> => updater.check())
+  ipcMain.handle('updates:install', (): Promise<void> => updater.install())
+  // Opens the release page main already knows about — the renderer can't
+  // pass a URL of its own.
+  ipcMain.handle('updates:openReleasePage', async (): Promise<void> => {
+    const url =
+      updater.getReleasePageUrl() ?? 'https://github.com/festanqueiro/music-collection-organizer/releases/latest'
+    if (isTrustedReleaseUrl(url)) await shell.openExternal(url)
+  })
+  ipcMain.handle('config:getAutoCheckUpdates', (): boolean => getAutoCheckUpdates())
+  ipcMain.handle('config:setAutoCheckUpdates', (_e, enabled: boolean): void => setAutoCheckUpdates(enabled === true))
+
+  ipcMain.handle('config:getCueOutputDeviceId', (): string | null => getCueOutputDeviceId())
+  ipcMain.handle('config:setCueOutputDeviceId', (_e, deviceId: string | null): void =>
+    setCueOutputDeviceId(deviceId)
   )
 
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({
@@ -307,6 +344,7 @@ export function registerIpcHandlers(
     }
 
     setCollectionFolder(folder)
+    syncFolderWatcher()
     return folder
   })
 
@@ -328,6 +366,42 @@ export function registerIpcHandlers(
   // separate, explicit action (analysis:run below) so picking a folder or
   // clicking "Update Collection" never kicks off a bulk BPM/waveform run
   // the user didn't ask for.
+  // Background rescans for the folder watcher. runScan is synchronous, so
+  // this can't overlap a manual scan:run; it just skips a round if one is
+  // somehow marked in progress (the next change schedules another).
+  const folderWatcher = new FolderWatcher({
+    debounceMs: WATCH_DEBOUNCE_MS,
+    onChange: () => {
+      const folder = getCollectionFolder()
+      if (!folder || scanInProgress) return
+      try {
+        const result = runScan(db, folder)
+        if (result.inserted || result.updated || result.missing) sendToRenderer('library:changed', result)
+      } catch (err) {
+        console.error('background scan failed', err)
+      }
+    },
+  })
+
+  function syncFolderWatcher(): void {
+    const folder = getCollectionFolder()
+    if (folder && getWatchCollectionFolder()) folderWatcher.start(folder)
+    else folderWatcher.stop()
+  }
+  syncFolderWatcher()
+
+  ipcMain.handle('config:getLibrarySettings', (): { watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean } => ({
+    watchCollectionFolder: getWatchCollectionFolder(),
+    autoAnalyseNewTracks: getAutoAnalyseNewTracks(),
+  }))
+  ipcMain.handle('config:setWatchCollectionFolder', (_e, enabled: boolean): void => {
+    setWatchCollectionFolder(enabled === true)
+    syncFolderWatcher()
+  })
+  ipcMain.handle('config:setAutoAnalyseNewTracks', (_e, enabled: boolean): void =>
+    setAutoAnalyseNewTracks(enabled === true)
+  )
+
   ipcMain.handle('scan:run', async (): Promise<ScanResult> => {
     if (scanInProgress) throw new Error('A scan is already in progress')
     scanInProgress = true
@@ -563,6 +637,22 @@ export function registerIpcHandlers(
     writeFileSync(result.filePath, JSON.stringify(exportTagData(db), null, 2))
     return { path: result.filePath }
   })
+
+  // One-way export for Rekordbox's "rekordbox xml" library view — see
+  // rekordboxExport.ts for what goes in it.
+  ipcMain.handle(
+    'export:rekordbox',
+    async (e): Promise<{ path: string; trackCount: number; playlistCount: number } | null> => {
+      const result = await showSaveDialog(e, {
+        defaultPath: 'mco-rekordbox.xml',
+        filters: [{ name: 'Rekordbox XML', extensions: ['xml'] }],
+      })
+      if (result.canceled || !result.filePath) return null
+      const { xml, trackCount, playlistCount } = buildRekordboxXml(db, app.getVersion())
+      writeFileSync(result.filePath, xml)
+      return { path: result.filePath, trackCount, playlistCount }
+    }
+  )
 
   ipcMain.handle('tags:importData', async (e): Promise<ImportResult | null> => {
     const result = await showOpenDialog(e, {

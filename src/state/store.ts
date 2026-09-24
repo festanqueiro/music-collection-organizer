@@ -13,12 +13,15 @@ import type {
   MidiBinding,
   TrackTableColumnKey,
   TrackTableSortState,
+  UpdateState,
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import type { VisualizerThemeId } from '../visualizer/types'
+import type { KeyNotation } from './harmonic'
+import { describeLibraryChange } from './libraryChange'
 import {
   playTrackNow as playTrackNowPure,
   addToPlaylist as addToPlaylistPure,
@@ -212,6 +215,13 @@ interface CollectionState {
   // (Settings → Audio). Purely visual — bindings keep working when hidden.
   showMidiControls: boolean
   setShowMidiControls: (show: boolean) => void
+  // How the Key column/detail panel/queue show keys (Settings → General).
+  keyNotation: KeyNotation
+  setKeyNotation: (notation: KeyNotation) => void
+  // Track-table filter: only tracks that mix harmonically (key) and in
+  // tempo (BPM) with the playing track. Session-only, like the search box.
+  compatibleFilter: boolean
+  setCompatibleFilter: (on: boolean) => void
   // Imperative escape hatch so a MIDI-bound player.playPause control (and
   // eventually the spacebar/other external triggers) can toggle playback
   // without lifting the actual playing/paused boolean — which the <audio>
@@ -220,6 +230,10 @@ interface CollectionState {
   // when nothing is loaded, so a stray MIDI press with nothing playing is
   // silently a no-op instead of throwing.
   playbackControls: { toggle: () => void } | null
+  // Mirrors the loaded track's play/pause state (Player owns the <audio>
+  // element) so the track table can show a pause icon on the playing row.
+  playerPlaying: boolean
+  setPlayerPlaying: (playing: boolean) => void
   setPlaybackControls: (controls: { toggle: () => void } | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
@@ -273,6 +287,36 @@ interface CollectionState {
   audioOutputDeviceId: string | null
   loadAudioOutputDeviceId: () => Promise<void>
   setAudioOutputDeviceId: (deviceId: string | null) => Promise<void>
+  // Headphone pre-listen: a second, FX-free player on its own output
+  // device (see CuePlayer.tsx), independent of the main player/queue.
+  cueOutputDeviceId: string | null
+  loadCueOutputDeviceId: () => Promise<void>
+  setCueOutputDeviceId: (deviceId: string | null) => Promise<void>
+  cueTrackId: number | null
+  // Toggles: previewing the track already in the cue player stops it.
+  previewTrack: (trackId: number) => void
+  stopPreview: () => void
+  cueVolume: number
+  setCueVolume: (volume: number) => void
+  // Auto-updater (electron/main/updater.ts) — state is pushed from main.
+  updateState: UpdateState | null
+  setUpdateState: (state: UpdateState) => void
+  loadUpdateState: () => Promise<void>
+  checkForUpdates: () => Promise<void>
+  installUpdate: () => Promise<void>
+  // "Later" on the banner: hides it for that version until next launch.
+  dismissedUpdateVersion: string | null
+  dismissUpdate: () => void
+  autoCheckUpdates: boolean
+  setAutoCheckUpdates: (enabled: boolean) => Promise<void>
+  // Folder watcher (electron/main/folderWatcher.ts) settings, and what to
+  // do when a background rescan it triggered finds changes.
+  watchCollectionFolder: boolean
+  autoAnalyseNewTracks: boolean
+  loadLibrarySettings: () => Promise<void>
+  setWatchCollectionFolder: (enabled: boolean) => Promise<void>
+  setAutoAnalyseNewTracks: (enabled: boolean) => Promise<void>
+  handleLibraryChanged: (result: { inserted: number; updated: number; missing: number }) => Promise<void>
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -310,6 +354,9 @@ interface CollectionState {
   setTracksChecked: (trackIds: number[], checked: boolean) => void
   clearCheckedTracks: () => void
   addTagsToCheckedTracks: (tagIds: { genreIds: number[]; subgenreIds: number[] }) => Promise<void>
+  // Duplicate finder: gives every listed track the union of all their
+  // tags, so whichever copy is kept has them all. Additive only.
+  mergeTagsAcross: (trackIds: number[]) => Promise<void>
   exportTagData: () => Promise<{ path: string } | null>
   importTagData: () => Promise<ImportResult | null>
 }
@@ -379,6 +426,26 @@ function loadShowMidiControls(): boolean {
   }
 }
 
+const CUE_VOLUME_KEY = 'cueVolume'
+function loadCueVolume(): number {
+  try {
+    const stored = Number(localStorage.getItem(CUE_VOLUME_KEY))
+    return localStorage.getItem(CUE_VOLUME_KEY) !== null && stored >= 0 && stored <= 1 ? stored : 0.8
+  } catch {
+    return 0.8
+  }
+}
+
+const KEY_NOTATION_KEY = 'keyNotation'
+function loadKeyNotation(): KeyNotation {
+  try {
+    const stored = localStorage.getItem(KEY_NOTATION_KEY)
+    return stored === 'camelot' || stored === 'musical' || stored === 'both' ? stored : 'both'
+  } catch {
+    return 'both'
+  }
+}
+
 // Queuing more than this many tracks in one click always goes through
 // the confirmation dialog, even when there's no analysis choice to make —
 // with no folder/tag filter active, "Add all to queue" is the entire
@@ -402,6 +469,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
+  keyNotation: loadKeyNotation(),
+  compatibleFilter: false,
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -413,11 +482,20 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   sirenTriggered: false,
   toastMessage: null,
   playbackControls: null,
+  playerPlaying: false,
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
   sortState: { key: 'title', direction: 'asc' },
   audioOutputDeviceId: null,
+  cueOutputDeviceId: null,
+  cueTrackId: null,
+  cueVolume: loadCueVolume(),
+  updateState: null,
+  dismissedUpdateVersion: null,
+  autoCheckUpdates: true,
+  watchCollectionFolder: true,
+  autoAnalyseNewTracks: false,
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -465,6 +543,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setPlaybackControls: (controls) => set({ playbackControls: controls }),
+  setPlayerPlaying: (playing) => set({ playerPlaying: playing }),
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
   loadMidiMappings: async () => {
@@ -495,6 +574,82 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   loadAudioOutputDeviceId: async () => {
     const deviceId = await window.api.getAudioOutputDeviceId()
     set({ audioOutputDeviceId: deviceId })
+  },
+
+  loadLibrarySettings: async () => {
+    set(await window.api.getLibrarySettings())
+  },
+
+  setWatchCollectionFolder: async (enabled) => {
+    set({ watchCollectionFolder: enabled })
+    await window.api.setWatchCollectionFolder(enabled)
+  },
+
+  setAutoAnalyseNewTracks: async (enabled) => {
+    set({ autoAnalyseNewTracks: enabled })
+    await window.api.setAutoAnalyseNewTracks(enabled)
+  },
+
+  handleLibraryChanged: async (result) => {
+    await get().loadAll()
+    const summary = describeLibraryChange(result)
+    const analyse = get().autoAnalyseNewTracks && result.inserted + result.updated > 0
+    if (summary) get().showToast(analyse ? `${summary} — analysing` : summary)
+    // A plain analysis:run covers every pending (new/changed) track.
+    if (analyse) await get().runAnalysis()
+  },
+
+  setUpdateState: (state) => set({ updateState: state }),
+
+  loadUpdateState: async () => {
+    const [state, autoCheckUpdates] = await Promise.all([
+      window.api.getUpdateState(),
+      window.api.getAutoCheckUpdates(),
+    ])
+    set({ updateState: state, autoCheckUpdates })
+  },
+
+  checkForUpdates: async () => {
+    set({ dismissedUpdateVersion: null })
+    set({ updateState: await window.api.checkForUpdates() })
+  },
+
+  installUpdate: async () => {
+    await window.api.installUpdate()
+  },
+
+  dismissUpdate: () => set({ dismissedUpdateVersion: get().updateState?.latestVersion ?? null }),
+
+  setAutoCheckUpdates: async (enabled) => {
+    set({ autoCheckUpdates: enabled })
+    await window.api.setAutoCheckUpdates(enabled)
+  },
+
+  loadCueOutputDeviceId: async () => {
+    set({ cueOutputDeviceId: await window.api.getCueOutputDeviceId() })
+  },
+
+  setCueOutputDeviceId: async (deviceId) => {
+    set({ cueOutputDeviceId: deviceId })
+    await window.api.setCueOutputDeviceId(deviceId)
+  },
+
+  previewTrack: (trackId) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    // A cloud-only placeholder has nothing local to stream yet.
+    if (!track || track.cloudStatus === 'cloud_only') return
+    set({ cueTrackId: get().cueTrackId === trackId ? null : trackId })
+  },
+
+  stopPreview: () => set({ cueTrackId: null }),
+
+  setCueVolume: (volume) => {
+    set({ cueVolume: volume })
+    try {
+      localStorage.setItem(CUE_VOLUME_KEY, String(volume))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
   },
 
   setAudioOutputDeviceId: async (deviceId) => {
@@ -957,6 +1112,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }
   },
 
+  setKeyNotation: (notation) => {
+    set({ keyNotation: notation })
+    try {
+      localStorage.setItem(KEY_NOTATION_KEY, notation)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),
+
   setVisualizerThemeOption: (theme, optionId, valueId) => {
     const all = get().visualizerThemeOptions
     const options = { ...all, [theme]: { ...all[theme], [optionId]: valueId } }
@@ -1124,6 +1290,25 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const trackIds = Array.from(get().checkedTrackIds)
     if (trackIds.length === 0) return
     const updated = await window.api.batchAddTags(trackIds, tagIds)
+    const trackTags = new Map(get().trackTags)
+    for (const u of updated) trackTags.set(u.trackId, u)
+    set({ trackTags })
+  },
+
+  mergeTagsAcross: async (trackIds) => {
+    if (trackIds.length < 2) return
+    const genreIds = new Set<number>()
+    const subgenreIds = new Set<number>()
+    for (const id of trackIds) {
+      const tags = get().trackTags.get(id)
+      tags?.genreIds.forEach((g) => genreIds.add(g))
+      tags?.subgenreIds.forEach((sg) => subgenreIds.add(sg))
+    }
+    if (genreIds.size === 0 && subgenreIds.size === 0) return
+    const updated = await window.api.batchAddTags(trackIds, {
+      genreIds: [...genreIds],
+      subgenreIds: [...subgenreIds],
+    })
     const trackTags = new Map(get().trackTags)
     for (const u of updated) trackTags.set(u.trackId, u)
     set({ trackTags })

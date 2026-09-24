@@ -10,6 +10,7 @@ export interface AnalysisPipelineResult {
   genre: string | null
   year: number | null
   duration: number | null
+  bitrate: number | null
   bpm: number
   musicalKey: string
   waveformPeaks: number[]
@@ -20,8 +21,12 @@ export interface AnalysisPipelineResult {
 // this inside a worker thread rather than the main process, or it blocks
 // the whole app's event loop (IPC, window paint) for the duration of each
 // track's analysis.
-export async function runAnalysisPipeline(path: string): Promise<AnalysisPipelineResult> {
-  const [metadata, pcm] = await Promise.all([extractMetadata(path), decodeToPcm(path)])
+//
+// metadataPath: where to read tags/bitrate from, when it differs from the
+// audio being decoded — an AIFF is decoded from its cached FLAC transcode
+// (see audioTranscode.ts), but its tags and bitrate belong to the original.
+export async function runAnalysisPipeline(path: string, metadataPath = path): Promise<AnalysisPipelineResult> {
+  const [metadata, pcm] = await Promise.all([extractMetadata(metadataPath), decodeToPcm(path)])
   const { bpm, key, scale } = detectBpmAndKey(pcm)
   const peaks = computeWaveformPeaks(pcm)
 
@@ -32,6 +37,7 @@ export async function runAnalysisPipeline(path: string): Promise<AnalysisPipelin
     genre: metadata.genre,
     year: metadata.year,
     duration: metadata.duration,
+    bitrate: metadata.bitrate,
     bpm,
     musicalKey: `${key} ${scale}`,
     waveformPeaks: peaks,

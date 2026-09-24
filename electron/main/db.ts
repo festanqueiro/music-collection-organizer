@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS tracks (
   mtime INTEGER NOT NULL,
   birthtime INTEGER,
   duration REAL,
+  bitrate INTEGER,
   title TEXT,
   artist TEXT,
   album TEXT,
@@ -82,6 +83,12 @@ function migrate(db: AppDatabase): void {
 
   if (!trackColumnNames.has('present')) {
     db.exec('ALTER TABLE tracks ADD COLUMN present INTEGER NOT NULL DEFAULT 1')
+  }
+
+  // kbps from the file's metadata, filled in by analysis (existing tracks
+  // get it the next time they're analysed).
+  if (!trackColumnNames.has('bitrate')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN bitrate INTEGER')
   }
 
   if (!trackColumnNames.has('birthtime')) {
