@@ -52,6 +52,7 @@ import {
 } from './tags'
 import { exportTagData, importTagData, type TagExportData } from './tagExport'
 import { buildMidiExport, parseMidiExportText } from './midiExport'
+import { buildRekordboxXml } from './rekordboxExport'
 import type {
   Track,
   Genre,
@@ -563,6 +564,22 @@ export function registerIpcHandlers(
     writeFileSync(result.filePath, JSON.stringify(exportTagData(db), null, 2))
     return { path: result.filePath }
   })
+
+  // One-way export for Rekordbox's "rekordbox xml" library view — see
+  // rekordboxExport.ts for what goes in it.
+  ipcMain.handle(
+    'export:rekordbox',
+    async (e): Promise<{ path: string; trackCount: number; playlistCount: number } | null> => {
+      const result = await showSaveDialog(e, {
+        defaultPath: 'mco-rekordbox.xml',
+        filters: [{ name: 'Rekordbox XML', extensions: ['xml'] }],
+      })
+      if (result.canceled || !result.filePath) return null
+      const { xml, trackCount, playlistCount } = buildRekordboxXml(db, app.getVersion())
+      writeFileSync(result.filePath, xml)
+      return { path: result.filePath, trackCount, playlistCount }
+    }
+  )
 
   ipcMain.handle('tags:importData', async (e): Promise<ImportResult | null> => {
     const result = await showOpenDialog(e, {

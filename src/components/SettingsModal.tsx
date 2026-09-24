@@ -29,6 +29,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [backupInfo, setBackupInfo] = useState<BackupInfo | null>(null)
   const [backups, setBackups] = useState<BackupEntry[]>([])
   const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
+  const [rekordboxMessage, setRekordboxMessage] = useState<string | null>(null)
   const [dbFilePath, setDbFilePath] = useState<string | null>(null)
   const [backingUp, setBackingUp] = useState(false)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
@@ -423,6 +424,35 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               </button>
               {tagDataMessage && (
                 <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{tagDataMessage}</p>
+              )}
+            </section>
+
+            <section style={{ marginTop: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Rekordbox</h3>
+              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                Exports your library, with each genre and sub-genre as a playlist, to a file Rekordbox can read.
+                In Rekordbox, choose the file under Preferences → Advanced → Database → rekordbox xml, then find it
+                in the "rekordbox xml" section of the sidebar.
+              </p>
+              <button
+                onClick={async () => {
+                  setRekordboxMessage(null)
+                  try {
+                    const result = await window.api.exportRekordbox()
+                    if (result) {
+                      setRekordboxMessage(
+                        `Exported ${result.trackCount} tracks and ${result.playlistCount} playlists to ${result.path}`
+                      )
+                    }
+                  } catch (err) {
+                    setRekordboxMessage(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
+                  }
+                }}
+              >
+                Export to Rekordbox…
+              </button>
+              {rekordboxMessage && (
+                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{rekordboxMessage}</p>
               )}
             </section>
           </>

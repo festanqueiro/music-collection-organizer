@@ -91,6 +91,8 @@ const api = {
   restoreBackup: (timestamp: string): Promise<void> => ipcRenderer.invoke('backup:restore', timestamp),
   exportTagData: (): Promise<{ path: string } | null> => ipcRenderer.invoke('tags:exportData'),
   importTagData: (): Promise<ImportResult | null> => ipcRenderer.invoke('tags:importData'),
+  exportRekordbox: (): Promise<{ path: string; trackCount: number; playlistCount: number } | null> =>
+    ipcRenderer.invoke('export:rekordbox'),
   exportMidiMappings: (): Promise<{ path: string } | null> => ipcRenderer.invoke('midi:exportMappings'),
   readMidiMappingsFile: (): Promise<MidiImportResult | null> => ipcRenderer.invoke('midi:readMappingsFile'),
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
