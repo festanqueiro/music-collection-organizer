@@ -14,9 +14,7 @@ Everything stays on your machine. MCO never uploads your music, and it
 never changes your audio files: tags and analysis results are kept in
 MCO's own database.
 
-> **Platform:** macOS only for now. Builds are unsigned and meant for local
-> use; there are no downloadable releases yet, so you build it yourself
-> (see below).
+> **Platform:** macOS on Apple silicon (M1 or newer).
 
 ## Features
 
@@ -49,7 +47,15 @@ MCO's own database.
 The full guide to every feature is in
 [`docs/features/`](docs/features/README.md).
 
-## Getting started
+## Install
+
+Download the latest `MCO-<version>-arm64.dmg` from the
+[Releases page](https://github.com/festanqueiro/music-collection-organizer/releases),
+open it, and drag **MCO** into **Applications**. Releases are signed and
+notarized by Apple, so they open normally on any Mac.
+
+## Building from source
+
 
 You'll need macOS, [Node.js](https://nodejs.org/) 22.13 or newer, and npm.
 
@@ -73,6 +79,10 @@ collection. You can play and tag tracks in the meantime.
 npm run dist            # build "MCO - Music Collection Organizer.app" into release/
 npm run dist:install    # build it and copy it into ~/Applications
 ```
+
+These local builds are unsigned, so they only open cleanly on the Mac
+that built them. Signed, notarized installers are made by the Release
+workflow; see [docs/releasing.md](docs/releasing.md).
 
 There's also `npm run dist:beta`, which installs a separate "BETA" copy
 of the app with its own data, handy for testing changes without touching

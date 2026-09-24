@@ -1,0 +1,112 @@
+name: Release
+
+# Builds a signed + notarized macOS installer (DMG, plus a ZIP of the .app)
+# and attaches both to a GitHub release for the current package.json
+# version. Run it by hand from the Actions tab ("Run workflow") after the
+# version-bump workflow has tagged main — a tag pushed with the default
+# GITHUB_TOKEN can't trigger other workflows, so this can't simply run
+# "on: push: tags".
+#
+# The signing/notarization keys are secrets of the protected `release`
+# environment (not plain repository secrets): only admins can view or edit
+# them, the environment only accepts runs from `main`, and each run waits
+# for an admin's approval before the job can read them. See
+# docs/releasing.md for how to create each one:
+#   CSC_LINK                    base64 of the "Developer ID Application" .p12
+#   CSC_KEY_PASSWORD            the .p12's export password
+#   APPLE_ID                    Apple ID email of the developer account
+#   APPLE_APP_SPECIFIC_PASSWORD app-specific password for that Apple ID
+#   APPLE_TEAM_ID               10-character Team ID
+on:
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: Create the GitHub release as a draft (publish it by hand after checking)
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    runs-on: macos-14 # Apple silicon — the build is arm64-only (see docs/releasing.md)
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      # electron-builder only *warns* and ships an unsigned/un-notarized app
+      # when these are missing — fail up front instead.
+      - name: Check signing secrets
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          missing=()
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing secrets in the release environment: ${missing[*]} (see docs/releasing.md)"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: |
+          npx tsc -b --noEmit
+          npm test
+
+      # Secrets are passed only to the steps that need them (never to
+      # `npm ci`, whose dependency install scripts run arbitrary code).
+      - name: Build, sign, and notarize
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run dist:release
+
+      # The .app inside is already notarized and stapled by electron-builder;
+      # notarizing the DMG too means Gatekeeper accepts the download itself
+      # even offline.
+      - name: Notarize and staple the DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          dmg=$(ls release/*.dmg)
+          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$dmg"
+
+      - name: Verify Gatekeeper accepts the build
+        run: |
+          app=$(find release -maxdepth 2 -name "*.app" -print -quit)
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl --assess --type execute --verbose=4 "$app"
+          xcrun stapler validate "$app"
+          xcrun stapler validate release/*.dmg
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          draft=()
+          [ "${{ inputs.draft }}" = "true" ] && draft=(--draft)
+          gh release create "v${version}" release/*.dmg release/*.zip \
+            --target "$GITHUB_SHA" \
+            --title "MCO ${version}" \
+            --generate-notes \
+            "${draft[@]}"
