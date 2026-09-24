@@ -13,6 +13,7 @@ import type {
   MidiImportResult,
   TrackTableColumnKey,
   TrackTableSortState,
+  UpdateState,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
@@ -98,6 +99,19 @@ const api = {
     ipcRenderer.invoke('export:rekordbox'),
   exportMidiMappings: (): Promise<{ path: string } | null> => ipcRenderer.invoke('midi:exportMappings'),
   readMidiMappingsFile: (): Promise<MidiImportResult | null> => ipcRenderer.invoke('midi:readMappingsFile'),
+  getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke('updates:getState'),
+  checkForUpdates: (): Promise<UpdateState> => ipcRenderer.invoke('updates:check'),
+  installUpdate: (): Promise<void> => ipcRenderer.invoke('updates:install'),
+  openReleasePage: (): Promise<void> => ipcRenderer.invoke('updates:openReleasePage'),
+  getAutoCheckUpdates: (): Promise<boolean> => ipcRenderer.invoke('config:getAutoCheckUpdates'),
+  setAutoCheckUpdates: (enabled: boolean): Promise<void> => ipcRenderer.invoke('config:setAutoCheckUpdates', enabled),
+  onUpdateState: (cb: (state: UpdateState) => void): (() => void) => {
+    const listener = (_e: unknown, state: UpdateState) => cb(state)
+    ipcRenderer.on('updates:state', listener)
+    return () => {
+      ipcRenderer.removeListener('updates:state', listener)
+    }
+  },
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('scan:progress', listener)

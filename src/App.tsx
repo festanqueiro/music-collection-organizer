@@ -7,6 +7,7 @@ import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
 import { DuplicatesPanel } from './components/DuplicatesPanel'
 import { CuePlayer } from './components/CuePlayer'
+import { UpdateBanner } from './components/UpdateBanner'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
@@ -34,6 +35,8 @@ export default function App() {
   const loadSortState = useCollectionStore((s) => s.loadSortState)
   const loadAudioOutputDeviceId = useCollectionStore((s) => s.loadAudioOutputDeviceId)
   const loadCueOutputDeviceId = useCollectionStore((s) => s.loadCueOutputDeviceId)
+  const loadUpdateState = useCollectionStore((s) => s.loadUpdateState)
+  const setUpdateState = useCollectionStore((s) => s.setUpdateState)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const loadAppVersion = useCollectionStore((s) => s.loadAppVersion)
   const handleMidiControlChange = useCollectionStore((s) => s.handleMidiControlChange)
@@ -152,6 +155,8 @@ export default function App() {
     loadAudioOutputDeviceId()
     loadCueOutputDeviceId()
     loadAppVersion()
+    loadUpdateState()
+    const unsubscribeUpdates = window.api.onUpdateState(setUpdateState)
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
       const isFinal = progress.done === progress.total
@@ -163,8 +168,13 @@ export default function App() {
         })
       }
     })
-    return unsubscribe
+    return () => {
+      unsubscribe()
+      unsubscribeUpdates()
+    }
   }, [
+    loadUpdateState,
+    setUpdateState,
     loadAll,
     loadCollectionFolder,
     loadEffectsSettings,
@@ -227,6 +237,7 @@ export default function App() {
         )}
 
         <div style={{ gridArea: 'toolbar' }}>
+          <UpdateBanner />
           <Toolbar
             onOpenSettings={() => {
               setSettingsOpen(true)

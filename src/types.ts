@@ -73,6 +73,23 @@ export interface Subgenre {
   genreId: number
 }
 
+// Auto-updater state, pushed from main (electron/main/updater.ts).
+//   disabled    — this build never updates itself (dev, BETA); see error
+//   available   — latestVersion is newer; canInstall says whether this
+//                 copy can replace itself (else installBlocker says why)
+//   downloading — progress 0..1
+//   installing  — verifying, then the app quits and relaunches
+export interface UpdateState {
+  status: 'disabled' | 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'installing' | 'error'
+  currentVersion: string
+  latestVersion?: string
+  checkedAt?: string
+  canInstall?: boolean
+  installBlocker?: string
+  progress?: number
+  error?: string
+}
+
 export interface BackupInfo {
   backupFolder: string
   lastBackupAt: string | null

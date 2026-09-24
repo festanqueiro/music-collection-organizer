@@ -13,6 +13,7 @@ import type {
   MidiBinding,
   TrackTableColumnKey,
   TrackTableSortState,
+  UpdateState,
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
@@ -296,6 +297,17 @@ interface CollectionState {
   stopPreview: () => void
   cueVolume: number
   setCueVolume: (volume: number) => void
+  // Auto-updater (electron/main/updater.ts) — state is pushed from main.
+  updateState: UpdateState | null
+  setUpdateState: (state: UpdateState) => void
+  loadUpdateState: () => Promise<void>
+  checkForUpdates: () => Promise<void>
+  installUpdate: () => Promise<void>
+  // "Later" on the banner: hides it for that version until next launch.
+  dismissedUpdateVersion: string | null
+  dismissUpdate: () => void
+  autoCheckUpdates: boolean
+  setAutoCheckUpdates: (enabled: boolean) => Promise<void>
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -470,6 +482,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   cueOutputDeviceId: null,
   cueTrackId: null,
   cueVolume: loadCueVolume(),
+  updateState: null,
+  dismissedUpdateVersion: null,
+  autoCheckUpdates: true,
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -548,6 +563,32 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   loadAudioOutputDeviceId: async () => {
     const deviceId = await window.api.getAudioOutputDeviceId()
     set({ audioOutputDeviceId: deviceId })
+  },
+
+  setUpdateState: (state) => set({ updateState: state }),
+
+  loadUpdateState: async () => {
+    const [state, autoCheckUpdates] = await Promise.all([
+      window.api.getUpdateState(),
+      window.api.getAutoCheckUpdates(),
+    ])
+    set({ updateState: state, autoCheckUpdates })
+  },
+
+  checkForUpdates: async () => {
+    set({ dismissedUpdateVersion: null })
+    set({ updateState: await window.api.checkForUpdates() })
+  },
+
+  installUpdate: async () => {
+    await window.api.installUpdate()
+  },
+
+  dismissUpdate: () => set({ dismissedUpdateVersion: get().updateState?.latestVersion ?? null }),
+
+  setAutoCheckUpdates: async (enabled) => {
+    set({ autoCheckUpdates: enabled })
+    await window.api.setAutoCheckUpdates(enabled)
   },
 
   loadCueOutputDeviceId: async () => {

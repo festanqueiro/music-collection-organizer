@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ToggleSwitch } from './ToggleSwitch'
 import { ConfirmDialog } from './ConfirmDialog'
-import type { BackupInfo, BackupEntry, MidiMappings } from '../types'
+import type { BackupInfo, BackupEntry, MidiMappings, UpdateState } from '../types'
 import type { KeyNotation } from '../state/harmonic'
 
 // Backup filenames use `now.toISOString().replace(/[:.]/g, '-')` (see
@@ -42,6 +42,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const resetMidiMappings = useCollectionStore((s) => s.resetMidiMappings)
   const replaceMidiMappings = useCollectionStore((s) => s.replaceMidiMappings)
   const showToast = useCollectionStore((s) => s.showToast)
+  const updateState = useCollectionStore((s) => s.updateState)
+  const checkForUpdates = useCollectionStore((s) => s.checkForUpdates)
+  const autoCheckUpdates = useCollectionStore((s) => s.autoCheckUpdates)
+  const setAutoCheckUpdates = useCollectionStore((s) => s.setAutoCheckUpdates)
   const keyNotation = useCollectionStore((s) => s.keyNotation)
   const setKeyNotation = useCollectionStore((s) => s.setKeyNotation)
   // Both reset and an import that would overwrite existing bindings go
@@ -201,6 +205,36 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               >
                 Change…
               </button>
+            </section>
+
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Updates</h3>
+              <p style={{ margin: '0 0 8px' }}>
+                Version {updateState?.currentVersion ?? '…'}
+                <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}> — {updateStatusText(updateState)}</span>
+              </p>
+              {updateState?.status !== 'disabled' && (
+                <>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                    <ToggleSwitch
+                      checked={autoCheckUpdates}
+                      onChange={setAutoCheckUpdates}
+                      title="Check for updates automatically"
+                    />
+                    Check for updates automatically
+                  </label>
+                  <button
+                    onClick={() => checkForUpdates()}
+                    disabled={
+                      updateState?.status === 'checking' ||
+                      updateState?.status === 'downloading' ||
+                      updateState?.status === 'installing'
+                    }
+                  >
+                    Check now
+                  </button>
+                </>
+              )}
             </section>
 
             <section style={{ marginBottom: '20px' }}>
@@ -488,4 +522,26 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       </div>
     </div>
   )
+}
+
+function updateStatusText(state: UpdateState | null): string {
+  if (!state) return 'loading…'
+  switch (state.status) {
+    case 'disabled':
+      return state.error ?? 'automatic updates are off for this build'
+    case 'checking':
+      return 'checking for updates…'
+    case 'up-to-date':
+      return state.checkedAt ? `up to date (checked ${new Date(state.checkedAt).toLocaleString()})` : 'up to date'
+    case 'available':
+      return `version ${state.latestVersion} is available — see the banner at the top`
+    case 'downloading':
+      return `downloading ${state.latestVersion}…`
+    case 'installing':
+      return `installing ${state.latestVersion}…`
+    case 'error':
+      return state.error ?? 'something went wrong'
+    default:
+      return 'not checked yet'
+  }
 }

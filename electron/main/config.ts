@@ -20,6 +20,7 @@ interface ConfigSchema {
   sortState?: TrackTableSortState
   audioOutputDeviceId?: string
   cueOutputDeviceId?: string
+  autoCheckUpdates?: boolean
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -150,6 +151,17 @@ export function getAudioOutputDeviceId(): string | null {
 export function setAudioOutputDeviceId(deviceId: string | null): void {
   if (deviceId === null) getStore().delete('audioOutputDeviceId')
   else getStore().set('audioOutputDeviceId', deviceId)
+}
+
+// On by default: the app checks GitHub for a newer release shortly after
+// launch and every few hours (see updater.ts). It never installs without
+// the user clicking Update.
+export function getAutoCheckUpdates(): boolean {
+  return getStore().get('autoCheckUpdates') ?? true
+}
+
+export function setAutoCheckUpdates(enabled: boolean): void {
+  getStore().set('autoCheckUpdates', enabled)
 }
 
 // Headphone pre-listen output. null means "system default".

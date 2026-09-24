@@ -21,7 +21,10 @@ import {
   setAudioOutputDeviceId,
   getCueOutputDeviceId,
   setCueOutputDeviceId,
+  getAutoCheckUpdates,
+  setAutoCheckUpdates,
 } from './config'
+import { isTrustedReleaseUrl, type Updater } from './updater'
 import { getDataFolder, setDataFolder } from './bootstrap'
 import { getDbFilePath } from './dbPath'
 import { migrateDataFolder } from './dataMigration'
@@ -69,6 +72,7 @@ import type {
   MidiImportResult,
   TrackTableColumnKey,
   TrackTableSortState,
+  UpdateState,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -151,7 +155,8 @@ function showSaveDialog(e: IpcMainInvokeEvent, options: SaveDialogOptions) {
 export function registerIpcHandlers(
   db: AppDatabase,
   getMainWindow: () => BrowserWindow | null,
-  backupFolder: string
+  backupFolder: string,
+  updater: Updater
 ) {
   function sendToRenderer(channel: string, payload: unknown): void {
     const win = getMainWindow()
@@ -225,6 +230,19 @@ export function registerIpcHandlers(
   ipcMain.handle('config:setAudioOutputDeviceId', (_e, deviceId: string | null): void =>
     setAudioOutputDeviceId(deviceId)
   )
+
+  ipcMain.handle('updates:getState', (): UpdateState => updater.getState())
+  ipcMain.handle('updates:check', (): Promise<UpdateState> => updater.check())
+  ipcMain.handle('updates:install', (): Promise<void> => updater.install())
+  // Opens the release page main already knows about — the renderer can't
+  // pass a URL of its own.
+  ipcMain.handle('updates:openReleasePage', async (): Promise<void> => {
+    const url =
+      updater.getReleasePageUrl() ?? 'https://github.com/festanqueiro/music-collection-organizer/releases/latest'
+    if (isTrustedReleaseUrl(url)) await shell.openExternal(url)
+  })
+  ipcMain.handle('config:getAutoCheckUpdates', (): boolean => getAutoCheckUpdates())
+  ipcMain.handle('config:setAutoCheckUpdates', (_e, enabled: boolean): void => setAutoCheckUpdates(enabled === true))
 
   ipcMain.handle('config:getCueOutputDeviceId', (): string | null => getCueOutputDeviceId())
   ipcMain.handle('config:setCueOutputDeviceId', (_e, deviceId: string | null): void =>
