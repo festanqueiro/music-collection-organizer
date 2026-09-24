@@ -27,20 +27,48 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
           <span style={{ fontSize: '10px', color: 'var(--color-text-dim)', marginTop: '2px' }}>v{appVersion}</span>
         )}
       </div>
-      <input
-        type="text"
-        placeholder="Search title, artist, album, tags..."
-        value={searchText}
-        onChange={(e) => setSearchText(e.target.value)}
-        style={{
-          flex: 1,
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border)',
-          borderRadius: '6px',
-          padding: '8px 12px',
-          color: 'var(--color-text)',
-        }}
-      />
+      <div style={{ flex: 1, position: 'relative', display: 'flex' }}>
+        <input
+          type="text"
+          placeholder="Search title, artist, album, tags..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' && searchText) setSearchText('')
+          }}
+          style={{
+            flex: 1,
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '6px',
+            padding: '8px 32px 8px 12px',
+            color: 'var(--color-text)',
+          }}
+        />
+        {searchText && (
+          <button
+            onClick={() => setSearchText('')}
+            title="Clear search"
+            aria-label="Clear search"
+            style={{
+              position: 'absolute',
+              right: '4px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              padding: '2px',
+              display: 'flex',
+              color: 'var(--color-text-dim)',
+              cursor: 'pointer',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+              close
+            </span>
+          </button>
+        )}
+      </div>
       <button onClick={onOpenSettings} style={{ alignSelf: 'flex-start' }}>
         <span className="material-symbols-outlined">settings</span>
       </button>
