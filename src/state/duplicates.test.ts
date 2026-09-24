@@ -15,6 +15,7 @@ function track(overrides: Partial<Track>): Track {
     mtime: 0,
     birthtime: null,
     duration: 200,
+    bitrate: null,
     title: null,
     artist: null,
     album: null,

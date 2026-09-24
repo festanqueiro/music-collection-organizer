@@ -25,6 +25,12 @@ describe('walkAudioFiles', () => {
     expect(paths).toEqual([join(root, 'sub', 'track2.flac'), join(root, 'track1.wav')])
   })
 
+  it('finds AAC, M4A, OGG, and Opus files', () => {
+    for (const name of ['a.m4a', 'b.aac', 'c.ogg', 'd.opus']) writeFileSync(join(root, name), 'x')
+    const names = walkAudioFiles(root).map((f) => f.path.split('/').pop())
+    expect(names).toEqual(expect.arrayContaining(['a.m4a', 'b.aac', 'c.ogg', 'd.opus']))
+  })
+
   it('finds MP3 files, whatever the extension case', () => {
     writeFileSync(join(root, 'sub', 'track3.mp3'), 'xxx')
     writeFileSync(join(root, 'track4.MP3'), 'xxxx')

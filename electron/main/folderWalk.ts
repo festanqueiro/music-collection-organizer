@@ -2,7 +2,7 @@ import { readdirSync, statSync, type Dirent } from 'node:fs'
 import { join, extname } from 'node:path'
 import type { DiskFile } from './scanDiff'
 
-const AUDIO_EXTENSIONS = new Set(['.wav', '.aiff', '.aif', '.flac', '.mp3'])
+export const AUDIO_EXTENSIONS = new Set(['.wav', '.aiff', '.aif', '.flac', '.mp3', '.m4a', '.aac', '.ogg', '.opus'])
 
 // Carries the stat() call's `blocks` field (used by cloudDetect.ts's
 // isCloudOnly heuristic) alongside the plain DiskFile shape — scan.ts's

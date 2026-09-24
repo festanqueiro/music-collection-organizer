@@ -3,7 +3,13 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase, type AppDatabase } from '../db'
-import { createTestToneWav, createTestToneMp3 } from '../../../tests/fixtures/audioFixture'
+import {
+  createTestToneWav,
+  createTestToneMp3,
+  createTestToneM4a,
+  createTestToneOgg,
+  createTestToneAiff,
+} from '../../../tests/fixtures/audioFixture'
 import { analyzeTrack, runAnalysisQueue } from './queue'
 
 describe('analyzeTrack', () => {
@@ -50,9 +56,45 @@ describe('analyzeTrack', () => {
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
     expect(row.analysis_status).toBe('done')
     expect(row.title).toBe('Dub Plate Special')
+    expect(row.bitrate).toBeGreaterThanOrEqual(185)
+    expect(row.bitrate).toBeLessThanOrEqual(200)
     expect(row.duration).toBeGreaterThan(0.9)
     expect(typeof row.bpm).toBe('number')
     expect(JSON.parse(row.waveform_peaks)).toHaveLength(800)
+  })
+
+  it.each([
+    ['m4a', createTestToneM4a],
+    ['ogg', createTestToneOgg],
+  ])('analyzes an %s track, including its title and bitrate', async (format, create) => {
+    const filePath = create(dir, `tone.${format}`, `Lossy ${format}`)
+    const id = db
+      .prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES (?, ?, ?, ?, 1, 1)`)
+      .run(filePath, `tone.${format}`, dir, format).lastInsertRowid as number
+
+    await analyzeTrack(db, { id, path: filePath }, dir)
+
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
+    expect(row.analysis_status).toBe('done')
+    expect(row.title).toBe(`Lossy ${format}`)
+    expect(row.bitrate).toBeGreaterThan(32)
+    expect(typeof row.bpm).toBe('number')
+  })
+
+  // AIFF is decoded from its cached FLAC transcode, but its bitrate (and
+  // tags) must come from the original file: 44.1 kHz × 16-bit × mono is
+  // 706 kbps, far above what the FLAC copy of a sine tone averages.
+  it('reads an AIFF track\'s bitrate from the original, not the FLAC transcode', async () => {
+    const filePath = createTestToneAiff(dir)
+    const id = db
+      .prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES (?, 'tone.aiff', ?, 'aiff', 1, 1)`)
+      .run(filePath, dir).lastInsertRowid as number
+
+    await analyzeTrack(db, { id, path: filePath }, join(dir, 'cache'))
+
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
+    expect(row.analysis_status).toBe('done')
+    expect(row.bitrate).toBe(706)
   })
 
   it('marks a track as error if analysis throws', async () => {

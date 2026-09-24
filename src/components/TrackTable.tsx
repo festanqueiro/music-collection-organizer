@@ -16,10 +16,15 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   bpm: 70,
   musicalKey: 70,
   format: 80,
+  bitrate: 90,
   duration: 90,
   dateAdded: 120,
   dateModified: 120,
 }
+// Lossy files below this are flagged in the Bitrate column — 192 kbps is
+// the usual floor for playing out on a club system.
+const LOSSY_FORMATS = new Set(['mp3', 'm4a', 'aac', 'ogg', 'opus'])
+const LOW_BITRATE_KBPS = 192
 const MIN_COLUMN_WIDTH = 50
 const CHECKBOX_COL_WIDTH = 36
 const STATUS_COL_WIDTH = 90
@@ -284,6 +289,7 @@ export function TrackTable({
     bpm: 'BPM',
     musicalKey: 'Key',
     format: 'Format',
+    bitrate: 'Bitrate',
     duration: 'Duration',
     dateAdded: 'Date Added',
     dateModified: 'Date Modified',
@@ -457,6 +463,18 @@ export function TrackTable({
       }
       case 'format':
         return track.format
+      case 'bitrate': {
+        if (!track.bitrate) return '—'
+        const low = LOSSY_FORMATS.has(track.format) && track.bitrate < LOW_BITRATE_KBPS
+        return (
+          <span
+            style={low ? { color: 'var(--color-secondary)' } : undefined}
+            title={low ? `Low bitrate for a ${track.format.toUpperCase()} file` : undefined}
+          >
+            {track.bitrate} kbps
+          </span>
+        )
+      }
       case 'duration':
         return track.duration ? formatDuration(track.duration) : '—'
       case 'dateAdded':

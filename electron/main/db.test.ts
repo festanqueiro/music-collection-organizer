@@ -65,6 +65,8 @@ describe('openDatabase', () => {
       const row = db.prepare('SELECT * FROM tracks WHERE path = ?').get('/a.wav') as any
       expect(row).toBeDefined()
       expect(row.present).toBe(1)
+      // Columns added later start empty on existing rows.
+      expect(row.bitrate).toBeNull()
       db.close()
     })
   })

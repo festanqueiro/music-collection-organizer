@@ -51,6 +51,7 @@ const MEDIA_MIME_TYPES: Record<string, string> = {
   '.m4a': 'audio/mp4',
   '.aac': 'audio/aac',
   '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
 }
 
 // First automatic update check waits until well after launch (nothing

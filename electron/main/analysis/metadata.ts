@@ -8,6 +8,9 @@ export interface ExtractedMetadata {
   genre: string | null
   year: number | null
   duration: number | null
+  // kbps, rounded — what the file was encoded at (lossy) or averages
+  // (lossless). Null when the container doesn't say.
+  bitrate: number | null
 }
 
 export async function extractMetadata(filePath: string): Promise<ExtractedMetadata> {
@@ -19,6 +22,7 @@ export async function extractMetadata(filePath: string): Promise<ExtractedMetada
     genre: result.common.genre?.[0] ?? null,
     year: result.common.year ?? null,
     duration: result.format.duration ?? null,
+    bitrate: result.format.bitrate ? Math.round(result.format.bitrate / 1000) : null,
   }
 }
 

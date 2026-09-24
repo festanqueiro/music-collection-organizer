@@ -11,6 +11,8 @@ export interface Track {
   // written before this column existed and never revisited by a scan.
   birthtime: number | null
   duration: number | null
+  // kbps; null until analysed (or when the file doesn't say)
+  bitrate: number | null
   title: string | null
   artist: string | null
   album: string | null
@@ -36,6 +38,7 @@ export type TrackTableColumnKey =
   | 'bpm'
   | 'musicalKey'
   | 'format'
+  | 'bitrate'
   | 'duration'
   | 'dateAdded'
   | 'dateModified'
@@ -47,6 +50,7 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
   'bpm',
   'musicalKey',
   'format',
+  'bitrate',
   'duration',
   'dateAdded',
   'dateModified',

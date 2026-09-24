@@ -22,6 +22,7 @@ interface ExportTrackRow {
   size: number
   birthtime: number | null
   duration: number | null
+  bitrate: number | null
   title: string | null
   artist: string | null
   album: string | null
@@ -44,6 +45,9 @@ const KIND_BY_FORMAT: Record<string, string> = {
   aiff: 'AIFF File',
   flac: 'FLAC File',
   m4a: 'M4A File',
+  aac: 'AAC File',
+  ogg: 'OGG File',
+  opus: 'OPUS File',
 }
 
 // Attribute values: escape markup characters and drop control characters
@@ -74,7 +78,7 @@ function formatDate(ms: number | null): string {
 export function buildRekordboxXml(db: AppDatabase, appVersion: string): RekordboxExportResult {
   const tracks = db
     .prepare(
-      `SELECT id, path, filename, format, size, birthtime, duration, title, artist, album, genre_tag, year, bpm, musical_key
+      `SELECT id, path, filename, format, size, birthtime, duration, bitrate, title, artist, album, genre_tag, year, bpm, musical_key
        FROM tracks WHERE present = 1 AND cloud_status = 'local' ORDER BY id`
     )
     .all() as unknown as ExportTrackRow[]
@@ -124,6 +128,7 @@ export function buildRekordboxXml(db: AppDatabase, appVersion: string): Rekordbo
       ['Kind', KIND_BY_FORMAT[t.format] ?? `${t.format.toUpperCase()} File`],
       ['Size', t.size],
       ['TotalTime', t.duration ? Math.round(t.duration) : null],
+      ['BitRate', t.bitrate],
       ['Year', t.year],
       ['AverageBpm', t.bpm ? t.bpm.toFixed(2) : null],
       ['DateAdded', formatDate(t.birthtime)],

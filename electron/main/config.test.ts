@@ -186,6 +186,7 @@ describe('config store', () => {
       'bpm',
       'musicalKey',
       'format',
+      'bitrate',
       'duration',
       'filename',
       'tags',

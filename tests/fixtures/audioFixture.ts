@@ -50,29 +50,32 @@ export function createTestToneAiff(dir: string, filename = 'tone.aiff'): string 
   return aiffPath
 }
 
-// Generates a real MP3 file (via ffmpeg's LAME encoder) with an ID3 title
-// tag, for tests that need a genuine lossy file — decoding, metadata
-// extraction, and the full analysis pipeline.
-export function createTestToneMp3(dir: string, filename = 'tone.mp3', title = 'Test Tone MP3'): string {
+// Encodes the 1-second test tone with ffmpeg into any lossy format, with a
+// title tag — for tests that need a genuine encoded file (decoding, tag and
+// bitrate extraction, the full analysis pipeline). The container comes from
+// the filename's extension.
+export function createTestToneEncoded(dir: string, filename: string, codecArgs: string[], title: string): string {
   const wavPath = createTestToneWav(dir, 'tone-source.wav')
-  const mp3Path = join(dir, filename)
+  const outPath = join(dir, filename)
   if (!ffmpegPath) throw new Error('ffmpeg-static did not resolve a binary path for this platform/arch')
-  const result = spawnSync(ffmpegPath, [
-    '-y',
-    '-i',
-    wavPath,
-    '-codec:a',
-    'libmp3lame',
-    '-b:a',
-    '192k',
-    '-metadata',
-    `title=${title}`,
-    '-loglevel',
-    'error',
-    mp3Path,
-  ])
+  const result = spawnSync(ffmpegPath, ['-y', '-i', wavPath, ...codecArgs, '-metadata', `title=${title}`, '-loglevel', 'error', outPath])
   if (result.status !== 0) {
-    throw new Error(`ffmpeg failed to create MP3 fixture: ${result.stderr?.toString()}`)
+    throw new Error(`ffmpeg failed to create ${filename} fixture: ${result.stderr?.toString()}`)
   }
-  return mp3Path
+  return outPath
+}
+
+// MP3 via LAME, 192 kbps, with an ID3 title.
+export function createTestToneMp3(dir: string, filename = 'tone.mp3', title = 'Test Tone MP3'): string {
+  return createTestToneEncoded(dir, filename, ['-codec:a', 'libmp3lame', '-b:a', '192k'], title)
+}
+
+// AAC in an MP4 container (.m4a), 128 kbps.
+export function createTestToneM4a(dir: string, filename = 'tone.m4a', title = 'Test Tone M4A'): string {
+  return createTestToneEncoded(dir, filename, ['-codec:a', 'aac', '-b:a', '128k'], title)
+}
+
+// Vorbis in an Ogg container.
+export function createTestToneOgg(dir: string, filename = 'tone.ogg', title = 'Test Tone OGG'): string {
+  return createTestToneEncoded(dir, filename, ['-codec:a', 'libvorbis', '-q:a', '4'], title)
 }
