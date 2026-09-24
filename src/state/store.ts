@@ -159,6 +159,13 @@ async function ensureTrackReady(
   triggerBackgroundAnalysis(get, trackId)
 }
 
+// Registered by the mounted Player (see playbackControls below).
+export interface PlaybackControls {
+  toggle: () => void
+  cueDown: () => void
+  cueUp: () => void
+}
+
 interface CollectionState {
   tracks: Track[]
   genres: Genre[]
@@ -229,12 +236,15 @@ interface CollectionState {
   // registers its toggle function on mount, clears it on unmount; null
   // when nothing is loaded, so a stray MIDI press with nothing playing is
   // silently a no-op instead of throwing.
-  playbackControls: { toggle: () => void } | null
+  // cueDown/cueUp drive the CDJ-style CUE button (see Player.tsx) —
+  // separate press and release, since holding CUE previews from the cue
+  // point.
+  playbackControls: PlaybackControls | null
   // Mirrors the loaded track's play/pause state (Player owns the <audio>
   // element) so the track table can show a pause icon on the playing row.
   playerPlaying: boolean
   setPlayerPlaying: (playing: boolean) => void
-  setPlaybackControls: (controls: { toggle: () => void } | null) => void
+  setPlaybackControls: (controls: PlaybackControls | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
   // BPM" action needs the currently-playing track, which FxPanel already
@@ -795,6 +805,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }
     if (match === 'player.playNext') {
       if (value !== 0) get().advanceToNext()
+      return
+    }
+    // CDJ-style CUE: press and release both matter (holding at the cue
+    // point previews, releasing snaps back), unlike playPause's press-only
+    // edge.
+    if (match === 'player.cue') {
+      const controls = get().playbackControls
+      if (value !== 0) controls?.cueDown()
+      else controls?.cueUp()
       return
     }
 

@@ -189,6 +189,8 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   // playing state); player.playNext fires once per press, no LED.
   'player.playPause': { min: 0, max: 1 },
   'player.playNext': { min: 0, max: 1 },
+  // CDJ-style CUE: press and release both matter (hold-to-preview), no LED.
+  'player.cue': { min: 0, max: 1 },
 }
 
 // Scales a 7-bit MIDI CC value (0-127) to a control's real-world range.

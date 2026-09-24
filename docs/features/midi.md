@@ -15,7 +15,9 @@ Click a mapped badge again to re-learn it. Bindings are saved.
 - **Knobs and faders** (Control Change messages) move continuous controls
   and step through option lists (Delay Division, Siren Mode, Siren Beat).
 - **Buttons and pads** (Note or CC) flip on/off toggles and fire
-  momentary actions (Siren trigger, play/pause, next track).
+  momentary actions (Siren trigger, play/pause, next track, CUE). CUE
+  reacts to both press and release, so holding a pad previews from the
+  cue point.
 - **LED feedback**: toggles and play/pause send their state back to the
   button's LED on controllers that support it.
 - Fast MIDI bursts are applied at most once per frame so the on-screen
@@ -23,7 +25,7 @@ Click a mapped badge again to re-learn it. Bindings are saved.
 
 ## Mappable controls
 
-Player volume, master volume, play/pause, next track, and every control
+Player volume, master volume, play/pause, next track, CUE, and every control
 in the [FX panel](fx.md): EQ, Filter, Delay (including Division), Reverb,
 and the Dub Siren (including its trigger, Mode, and Beat), plus each
 module's on/off toggle.
