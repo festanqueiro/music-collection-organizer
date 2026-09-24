@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync, writeFileSync, existsSync, mkdirSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createTestToneWav, createTestToneAiff } from '../../tests/fixtures/audioFixture'
-import { needsTranscode, getPlayableFilePath } from './audioTranscode'
+import { needsTranscode, getPlayableFilePath, pruneMediaCache } from './audioTranscode'
 
 describe('needsTranscode', () => {
   it('is true for .aiff', () => {
@@ -82,5 +82,61 @@ describe('getPlayableFilePath', () => {
     ])
     expect(first).toBe(second)
     expect(statSync(first).size).toBeGreaterThan(0)
+  })
+
+  it('shares one in-flight transcode between concurrent callers', async () => {
+    const aiffPath = createTestToneAiff(dir)
+    const first = getPlayableFilePath(aiffPath, cacheDir)
+    const second = getPlayableFilePath(aiffPath, cacheDir)
+    expect(second).toBe(first)
+    await first
+  })
+})
+
+describe('pruneMediaCache', () => {
+  let cacheDir: string
+
+  beforeEach(() => {
+    cacheDir = mkdtempSync(join(tmpdir(), 'media-cache-test-'))
+  })
+
+  afterEach(() => {
+    rmSync(cacheDir, { recursive: true, force: true })
+  })
+
+  function writeCacheFile(name: string, bytes: number, ageSeconds: number): string {
+    const path = join(cacheDir, name)
+    writeFileSync(path, Buffer.alloc(bytes))
+    const time = new Date(Date.now() - ageSeconds * 1000)
+    utimesSync(path, time, time)
+    return path
+  }
+
+  it('does nothing when the cache folder does not exist', () => {
+    expect(() => pruneMediaCache(join(cacheDir, 'missing'), 0)).not.toThrow()
+  })
+
+  it('removes leftover .tmp files', () => {
+    const tmp = writeCacheFile('abc.flac.123-dead.tmp', 10, 0)
+    pruneMediaCache(cacheDir, 1_000_000)
+    expect(existsSync(tmp)).toBe(false)
+  })
+
+  it('evicts the oldest files until under the size cap', () => {
+    const oldest = writeCacheFile('a.flac', 100, 300)
+    const middle = writeCacheFile('b.flac', 100, 200)
+    const newest = writeCacheFile('c.flac', 100, 100)
+    pruneMediaCache(cacheDir, 150)
+    expect(existsSync(oldest)).toBe(false)
+    expect(existsSync(middle)).toBe(false)
+    expect(existsSync(newest)).toBe(true)
+  })
+
+  it('keeps everything when already under the cap', () => {
+    const a = writeCacheFile('a.flac', 100, 300)
+    mkdirSync(join(cacheDir, 'subdir'))
+    pruneMediaCache(cacheDir, 1000)
+    expect(existsSync(a)).toBe(true)
+    expect(existsSync(join(cacheDir, 'subdir'))).toBe(true)
   })
 })

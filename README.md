@@ -4,143 +4,135 @@
 
 # MCO - Music Collection Organizer
 
-An Electron desktop app (macOS only for now) that scans a DJ's local music
-collection, extracts tags and audio analysis (BPM, musical key, waveform)
-per track, stores everything locally, and lets you browse/search/filter
-and tag the collection through a dark-themed UI.
+MCO is a desktop app for DJs who keep their music as files on disk. Point
+it at your collection folder and it finds every track, works out its BPM,
+musical key, and waveform, and lets you browse, search, tag, and play the
+whole collection in one place. It also has a play queue, DJ-style effects,
+MIDI controller support, and a full-screen music visualizer.
 
-Also understands Google Drive for Desktop "cloud-only" placeholder files —
-they show a cloud badge and can be downloaded (materialized locally) and
-analyzed on demand, one track at a time.
+Everything stays on your machine. MCO never uploads your music, and it
+never changes your audio files: tags and analysis results are kept in
+MCO's own database.
+
+> **Platform:** macOS on Apple silicon (M1 or newer).
 
 ## Features
 
-- **Local-first collection**: scan a folder, extract ID3 tags + BPM/key/
-  waveform, browse/search/filter, and organize with your own Genre/
-  Sub-Genre/Mood tags (batch-editable, with export/import).
-- **Play queue**: a FIFO queue, not a saved playlist — the track playing
-  is always at the head, and once it finishes it's gone, not just skipped
-  past. "Play track now" / "Add to queue" / "Play next" from a row's
-  right-click menu or its play-circle icon. Expand it to full screen from
-  the footer player's chevron for drag-to-reorder, remove, a continuous
-  vs. manual-advance toggle, and total queue duration.
-- **Independent footer player**: waveform (doubles as the seek bar) with
-  a live progress line, play/pause, skip to the next queued track,
-  volume, elapsed/remaining time (click the time to toggle between
-  them) — separate from row selection, so browsing track details doesn't
-  interrupt playback.
-- **FX panel**: EQ (3-band Low/Mid/High), a Xone-mixer-style single-knob
-  sweep Filter (one direction sweeps a lowpass closed, the other a
-  highpass), Delay, Reverb, and a Dub Siren — all synthesized (no bundled
-  assets), rendered as rotary knobs in their own panel alongside the
-  full-screen queue. Every knob shows its live value, double-click resets
-  it to a sensible default, and the Delay's Division knob snaps its time
-  to a musical note division (1/4, 1/8T, dotted, etc.) at the loaded
-  track's BPM. Each module has its own on/off toggle in its header.
-  Settings persist across restarts.
-- **MIDI mapping**: click the piano icon next to any FX control or the
-  volume slider, twist or press a hardware knob/button, done — bindings
-  persist too. On/off toggles bind to a hardware button rather than a
-  knob threshold, and light its LED to mirror the app's state where the
-  controller supports it. Playback (play/pause, next) is MIDI-mappable
-  too.
-- **Customizable track table**: drag column headers to reorder them
-  (persisted), click to sort (click again to reverse). Right-click a row
-  for "Add to queue"/"Play next", "Show in File Explorer", or "Show in
-  Folder Tree View" (switches to the Folders tab and scrolls to/expands
-  that track's folder). "Add all to queue" queues the current filtered
-  view in one go — also available per-folder from the Folder Tree's
-  right-click menu.
-- **Native file drag-out**: drag a row straight to Finder, a DAW, or any
-  other app — it hands off the file's existing path (a reference, like
-  any Finder drag), nothing is copied. Right-click → "Show in File
-  Explorer" reveals it in Finder instead.
-- **AIFF playback**: transcoded to FLAC on demand and cached, since
-  Chromium's `<audio>` element can't decode AIFF natively.
-- **Backups**: automatic daily backups with pruning and restore, and a
-  Settings modal showing backup health.
-- The detail panel shows embedded cover art (when present) and full ID3
-  metadata (collapsible) alongside your own curated tags.
+- **Your collection, organized** — scans a folder of WAV, AIFF, and FLAC
+  files, reads their tags and cover art, and measures BPM, key, and
+  waveform. Sort, search, and filter by folder or tag. Files that go
+  missing are hidden, not forgotten, so their tags come back when the
+  drive does.
+- **Your own tags** — organize tracks with your own genres and
+  sub-genres, colour-coded, filterable with AND/OR, taggable in bulk, with
+  undo and export/import.
+- **Play queue** — "play now", "add to queue", or "play next" from any
+  track, then reorder, shuffle, and play through the queue continuously.
+- **Player** — a waveform you can click to seek, volume and mute, macOS
+  media keys and AirPods controls, and a choice of audio output device.
+- **Effects** — EQ, low/high-pass filter, a tempo-synced delay, reverb,
+  and a dub siren, all as rotary knobs in their own panel.
+- **MIDI** — map any knob, toggle, or playback button to your controller
+  in two clicks, with LED feedback where your controller supports it.
+- **Visualizer** — a full-screen, audio-reactive visualizer with four
+  themes: Horizon, Nebula, Warp, and Sound System (a speaker stack that
+  thumps along with the music).
+- **Google Drive for Desktop** — cloud-only placeholder files are shown
+  with a cloud badge and downloaded when you play them.
+- **Drag and drop out** — drag tracks straight into Finder, a DAW, or any
+  other app.
+- **Backups** — automatic daily backups of your library and settings,
+  with one-click restore.
 
-## Stack
+The full guide to every feature is in
+[`docs/features/`](docs/features/README.md).
 
-Electron + `electron-vite` + React + TypeScript, `node:sqlite` (Node's
-built-in synchronous SQLite — no native module to compile), `electron-store`,
-`music-metadata`, `ffmpeg-static`, `essentia.js` (WASM, run in a
-`worker_threads` pool so analysis doesn't block the UI), the Web Audio API
-and Web MIDI API (both browser-native, no extra dependency), `zustand`,
-Vitest.
+## Install
 
-## Getting started
+1. Download the latest `MCO-<version>-arm64.dmg` from the
+   [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases),
+   open it, and drag **MCO** into **Applications**.
+2. Open MCO. The first time, macOS warns that it *"could not verify"* the
+   app, because MCO isn't registered with Apple's paid developer program.
+   Click **Done**, then go to **System Settings → Privacy & Security**,
+   click **Open Anyway** next to the MCO message, and confirm.
+
+That's only needed once per Mac.
+
+## Building from source
+
+
+You'll need macOS, [Node.js](https://nodejs.org/) 22.13 or newer, and npm.
 
 ```bash
+git clone https://github.com/festanqueiro/music-collection-organizer.git
+cd music-collection-organizer
 npm install
-npm run dev     # launch the app in dev mode (hot reload)
-npm test        # run the test suite
+npm run dev     # start the app in development mode (hot reload)
 ```
 
-### Build and run right now
+On first launch, pick your music folder, then choose whether to analyse
+it. Analysis runs in the background and can take a while on a large
+collection. You can play and tag tracks in the meantime.
+
+> If `npm run dev` complains that Electron failed to install, run
+> `cd node_modules/electron && node install.js` and try again.
+
+### Building the app
 
 ```bash
-npm run build              # production build → out/main, out/preload, out/renderer
-npx electron out/main/index.js   # launch the built app
+npm run dist            # build "MCO - Music Collection Organizer.app" into release/
+npm run dist:install    # build it and copy it into ~/Applications
 ```
 
-`npm run dev` is the normal day-to-day way to run it (hot reload, DevTools
-open). Use the build-and-run steps above when you want to launch exactly
-what a production build produces — e.g. to sanity-check a release, or on
-a machine where `npm run dev`'s dev server isn't available.
+These local builds are meant for the Mac that built them. The
+downloadable installer is made by the Release workflow; see
+[docs/releasing.md](docs/releasing.md).
 
-### Packaging a real .app
+There's also `npm run dist:beta`, which installs a separate "BETA" copy
+of the app with its own data, handy for testing changes without touching
+your main library.
+
+### Running the tests
 
 ```bash
-npm run dist
-# packages the production app to release/mac-arm64/
-
-npm run dist:install
-# packages AND copies it into ~/Applications, so a local test build can be
-# launched without manually dragging it out of release/
-
-npm run dist:beta
-# packages AND installs a separate BETA app alongside production — its own
-# bundle id and userData directory (own DB/config/backups), never touches
-# the production install
+npm test                # unit tests (Vitest)
+npx tsc -b --noEmit     # type-check
 ```
 
-Both are unsigned/local-only builds (no code-signing identity configured).
-`package.json`'s version is bumped automatically (patch) and tagged on
-every merge to `main` via `.github/workflows/version-bump.yml`.
+## Where your data lives
 
-The app's data — `collection.db` (the SQLite database) and the config
-store (collection folder path, FX/MIDI settings, window state) — lives
-outside the repo. By default that's Electron's per-app userData directory
-(on macOS: `~/Library/Application Support/<app name>/`), but the first
-time you ever set a collection folder, both move automatically into a
-hidden `.mco` folder inside it, so the whole collection — music,
-database, and settings — travels together if that folder is ever copied
-to another machine or drive. You can also relocate them independently at
-any time from Settings → "Database & settings" → Change…. Either way, the
-old files are never deleted on a move (a cheap safety net alongside the
-daily backups, which always target wherever the data currently lives).
-Deleting the current data folder resets the app to a clean state.
+MCO keeps a database (`collection.db`) and a settings file
+(`config.json`). When you first choose your music folder, both move into a
+hidden `.mco` folder inside it, so your music and its tags stay together.
+You can move them somewhere else in **Settings → General**.
 
-## Project layout
+Tracks are remembered by their full path, so if you move the collection
+to a different location, a rescan treats the files as new. Keep the same
+path (for example the same drive name) to keep your tags.
 
-- `electron/main/` — main process: SQLite schema and data access, the
-  folder scan/diff pipeline, cloud-only detection, the analysis pipeline
-  (metadata/BPM/key/waveform) and its worker-thread pool, AIFF-to-FLAC
-  transcoding, backups, and IPC handlers.
-- `electron/preload/` — the typed `contextBridge` API exposed to the
-  renderer (`window.api`). The renderer never touches Node/fs/DB directly.
-- `src/` — the React renderer: the layout (track table, folder/tag trees,
-  detail panel, footer player), zustand store, and `src/audio/` (the Web
-  Audio FX graph and Web MIDI mapping, both renderer-only — no IPC needed
-  for either).
-- `tests/fixtures/` — synthetic WAV/AIFF-tone generators shared by the
-  audio pipeline's tests.
+Daily backups are kept in
+`~/Library/Application Support/<app name>/backups/` (the last 30).
 
-## Status
+## How it's built
 
-v1 is implemented and runs. See `TODO.md` for what's fixed, what's still
-open, and the design docs it was built from
-(`docs/superpowers/specs/`, `docs/superpowers/plans/`).
+Electron, React, and TypeScript, built with `electron-vite`. It uses
+Node's built-in SQLite (`node:sqlite`) for the library, `essentia.js` for
+BPM and key detection (in background worker threads), `ffmpeg-static` for
+audio decoding, `music-metadata` for tags, the Web Audio and Web MIDI APIs
+for effects and controllers, `three.js` for the visualizer, and `zustand`
+for app state.
+
+- `electron/main/` — the app's back end: database, folder scanning,
+  audio analysis, AIFF playback support, backups.
+- `electron/preload/` — the bridge that gives the interface a safe,
+  limited API into the back end.
+- `src/` — the interface (React): track table, tag and folder trees,
+  player, queue, effects (`src/audio/`), and visualizer
+  (`src/visualizer/`).
+- `docs/features/` — the feature guide.
+- `TODO.md` — known issues and ideas for what's next.
+
+## License
+
+[ISC](LICENSE) © Francisco Estanqueiro

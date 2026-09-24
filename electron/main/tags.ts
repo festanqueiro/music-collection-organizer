@@ -169,7 +169,7 @@ export function setTrackSubgenres(db: AppDatabase, trackId: number, subgenreIds:
 }
 
 // Called after every single tag-checkbox toggle (see ipc.ts's
-// tags:setTrackGenres/Subgenres/Moods handlers) — one UNION ALL query
+// tags:setTrackGenres/Subgenres handlers) — one UNION ALL query
 // instead of three separate round trips, same pattern as ipc.ts's
 // tracks:getAllTagIds already uses for the whole-collection version.
 export function getTrackTagIds(

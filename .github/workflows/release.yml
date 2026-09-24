@@ -1,0 +1,66 @@
+name: Release
+
+# Builds the macOS installer (DMG, plus a ZIP of the .app) and attaches
+# both to a GitHub release for the current package.json version. Run it by
+# hand from the Actions tab ("Run workflow") after the version-bump
+# workflow has tagged main — a tag pushed with the default GITHUB_TOKEN
+# can't trigger other workflows, so this can't simply run "on: push: tags".
+#
+# The app is ad-hoc signed (package.json's mac.identity "-"), not signed
+# with a paid Apple Developer ID or notarized. That's free and enough for
+# macOS to run it, but the first launch on each Mac shows the "Apple could
+# not verify…" warning and needs one "Open Anyway" in System Settings (see
+# docs/releasing.md). An ad-hoc signature is what makes that button
+# appear at all: a downloaded, completely unsigned Apple-silicon app is
+# reported as "damaged" instead.
+on:
+  workflow_dispatch:
+    inputs:
+      draft:
+        description: Create the GitHub release as a draft (publish it by hand after checking)
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    runs-on: macos-14 # Apple silicon — the build is arm64-only (see docs/releasing.md)
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: |
+          npx tsc -b --noEmit
+          npm test
+
+      - name: Build installer
+        run: npm run dist:release
+
+      - name: Verify the ad-hoc signature
+        run: |
+          app=$(find release -maxdepth 2 -name "*.app" -print -quit)
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --display --verbose=2 "$app" 2>&1 | grep -q "Signature=adhoc"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          draft=()
+          [ "${{ inputs.draft }}" = "true" ] && draft=(--draft)
+          gh release create "v${version}" release/*.dmg release/*.zip \
+            --target "$GITHUB_SHA" \
+            --title "MCO ${version}" \
+            --notes-file docs/release-notes-install.md \
+            --generate-notes \
+            "${draft[@]}"

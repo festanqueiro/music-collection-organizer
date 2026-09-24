@@ -844,7 +844,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       window.api.getAllTagIds(),
     ])
     const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
-    set({ tracks, genres, subgenres, trackTags, checkedTrackIds: new Set() })
+    // Keeps the batch selection across a reload (creating/renaming/
+    // recolouring/deleting a tag, an import, a download all go through
+    // here, often mid-way through batch tagging) — only dropping tracks
+    // that no longer exist, e.g. after a rescan marked them missing.
+    const trackIds = new Set(tracks.map((t) => t.id))
+    const checkedTrackIds = new Set([...get().checkedTrackIds].filter((id) => trackIds.has(id)))
+    set({ tracks, genres, subgenres, trackTags, checkedTrackIds })
   },
 
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),

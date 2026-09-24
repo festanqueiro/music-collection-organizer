@@ -10,7 +10,8 @@
     "test": "vitest run",
     "dist": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.extraMetadata.name=v1-library-organizer",
     "dist:install": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.extraMetadata.name=v1-library-organizer && scripts/install-release.sh",
-    "dist:beta": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.appId=com.local.music-collection-organizer.beta -c.productName=\"MCO - Music Collection Organizer BETA\" -c.mac.icon=resources/icon-beta.png -c.extraMetadata.name=v1-library-organizer-beta && scripts/install-beta.sh"
+    "dist:beta": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.appId=com.local.music-collection-organizer.beta -c.productName=\"MCO - Music Collection Organizer BETA\" -c.mac.icon=resources/icon-beta.png -c.extraMetadata.name=v1-library-organizer-beta && scripts/install-beta.sh",
+    "dist:release": "electron-vite build && electron-builder --mac dmg zip --arm64 --publish never"
   },
   "keywords": [],
   "author": "Francisco Estanqueiro",
@@ -27,8 +28,17 @@
     ],
     "mac": {
       "target": "dir",
-      "identity": null,
-      "icon": "resources/icon.png"
+      "category": "public.app-category.music",
+      "icon": "resources/icon.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "artifactName": "MCO-${version}-${arch}.${ext}"
+    },
+    "extraMetadata": {
+      "name": "v1-library-organizer"
+    },
+    "dmg": {
+      "title": "MCO ${version}"
     }
   },
   "devDependencies": {
