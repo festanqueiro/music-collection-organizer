@@ -131,7 +131,7 @@ for app state.
   player, queue, effects (`src/audio/`), and visualizer
   (`src/visualizer/`).
 - `docs/features/` — the feature guide.
-- `TODO.md` — known issues and ideas for what's next.
+- `TODO.md` — known issues; `IDEAS.md` — prioritized ideas for what's next.
 
 ## License
 

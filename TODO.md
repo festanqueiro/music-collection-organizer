@@ -1,8 +1,8 @@
 # TODO
 
-Everything open in one place: known issues first, then UX improvements,
-then longer-term ideas. Shipped work lives in git log; features are
-documented under `docs/features/`.
+Everything open in one place: known issues, UX improvements, and things
+to watch. Bigger feature ideas live in `IDEAS.md`. Shipped work lives in
+git log; features are documented under `docs/features/`.
 
 `npx tsc -b --noEmit` is clean and `npm test` passes (220 tests as of
 v1.0.25).
@@ -38,23 +38,6 @@ v1.0.25).
   generic "Analysis failed" tooltip. `analyzeTrack`/the worker swallow the
   error, so this needs an error column persisted alongside
   `analysis_status`, then surfaced in the tooltip or DetailPanel.
-
-## Future ideas
-
-A grab-bag to draw from when picking the next thing to build, not a
-commitment list.
-
-- **Rekordbox read/write integration** — noted in the v1 design spec as
-  future work once the local-collection foundation is solid.
-- **Saved playlists** (creation/export) — the queue is FIFO-only today.
-- **Multiple collection folders** — one at a time today.
-- **Fuller DJ mixing/deck features** — the player is a single deck with a
-  queue and FX, not a two-deck mixing surface.
-- **Windows/Linux support.** macOS-only for now (the cloud-only detection
-  heuristic, in particular, is tuned to APFS/Google Drive for Desktop's
-  macOS behavior and would need revisiting).
-- **React component test coverage.** No `@testing-library/react` (or
-  similar) is set up — UI correctness is verified by manual walkthroughs.
 
 ## Watch list
 
