@@ -39,6 +39,15 @@ export function Player({
   const [showTimeLeft, setShowTimeLeft] = useState(false)
   const [artworkUrl, setArtworkUrl] = useState<string | null>(null)
   const [confirmArtistFilter, setConfirmArtistFilter] = useState(false)
+  // CDJ-style cue point, in seconds. Starts at the top of the track and
+  // lives only as long as this mount (Player remounts per track). The ref
+  // mirrors it so MIDI/keyboard handlers registered once see the latest.
+  const [cuePoint, setCuePoint] = useState(0)
+  const cuePointRef = useRef(0)
+  // True while CUE is held at the cue point and previewing; releasing
+  // snaps back to the cue point unless Play was pressed meanwhile.
+  const cuePreviewingRef = useRef(false)
+  const [cueHeld, setCueHeld] = useState(false)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const playerVolume = useCollectionStore((s) => s.playerVolume)
@@ -81,6 +90,12 @@ export function Player({
   function toggle() {
     const audio = audioRef.current
     if (!audio) return
+    // Play pressed while holding CUE: keep playing past the release, like
+    // a CDJ.
+    if (cuePreviewingRef.current) {
+      cuePreviewingRef.current = false
+      return
+    }
     if (playing) {
       audio.pause()
     } else {
@@ -91,6 +106,39 @@ export function Player({
       // 'play' event fires below, so `playing` correctly never flips true.
       audio.play().catch(() => {})
     }
+  }
+
+  // CDJ CUE button:
+  // - playing → jump back to the cue point and pause;
+  // - paused away from the cue point → set the cue point here;
+  // - paused at the cue point → play while held (cueUp snaps back).
+  function cueDown() {
+    const audio = audioRef.current
+    if (!audio) return
+    setCueHeld(true)
+    if (!audio.paused) {
+      audio.pause()
+      audio.currentTime = cuePointRef.current
+      return
+    }
+    if (Math.abs(audio.currentTime - cuePointRef.current) > 0.05) {
+      cuePointRef.current = audio.currentTime
+      setCuePoint(audio.currentTime)
+      return
+    }
+    cuePreviewingRef.current = true
+    effectsChainRef.current?.resume()
+    audio.play().catch(() => {})
+  }
+
+  function cueUp() {
+    setCueHeld(false)
+    if (!cuePreviewingRef.current) return
+    cuePreviewingRef.current = false
+    const audio = audioRef.current
+    if (!audio) return
+    audio.pause()
+    audio.currentTime = cuePointRef.current
   }
 
   // `playing` mirrors the <audio> element's own play/pause events rather
@@ -119,8 +167,16 @@ export function Player({
   // (and re-triggering the effect) on every render.
   const toggleRef = useRef(toggle)
   toggleRef.current = toggle
+  const cueDownRef = useRef(cueDown)
+  cueDownRef.current = cueDown
+  const cueUpRef = useRef(cueUp)
+  cueUpRef.current = cueUp
   useEffect(() => {
-    setPlaybackControls({ toggle: () => toggleRef.current() })
+    setPlaybackControls({
+      toggle: () => toggleRef.current(),
+      cueDown: () => cueDownRef.current(),
+      cueUp: () => cueUpRef.current(),
+    })
     return () => setPlaybackControls(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -206,10 +262,22 @@ export function Player({
       } else if (e.key === 'ArrowRight' && hasNext) {
         e.preventDefault()
         advanceToNext()
+      } else if ((e.key === 'c' || e.key === 'C') && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault()
+        cueDownRef.current()
       }
     }
+    // Release isn't guarded by modal/focus: a C held down before a modal
+    // opened must still let go of the preview.
+    function handleKeyUp(e: KeyboardEvent) {
+      if (e.key === 'c' || e.key === 'C') cueUpRef.current()
+    }
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playing, modalOpen, hasNext])
 
@@ -403,6 +471,32 @@ export function Player({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button
+          // Pointer events, not click: CUE acts on press and on release.
+          // preventDefault keeps focus off the button so Space/C still
+          // reach the window shortcuts; pointer capture guarantees the
+          // release arrives even if the pointer slides off.
+          onPointerDown={(e) => {
+            if (e.button !== 0) return
+            e.preventDefault()
+            e.currentTarget.setPointerCapture(e.pointerId)
+            cueDown()
+          }}
+          onPointerUp={cueUp}
+          onPointerCancel={cueUp}
+          title="Cue (C): playing → back to cue point; paused → set cue point; hold at cue point to preview"
+          style={{
+            fontWeight: 700,
+            fontSize: '11px',
+            letterSpacing: '0.05em',
+            color: 'var(--color-cue)',
+            borderColor: cueHeld ? 'var(--color-cue)' : undefined,
+          }}
+        >
+          CUE
+        </button>
+        <MidiLearnBadge control="player.cue" />
+
         <button onClick={toggle}>
           <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
@@ -446,14 +540,39 @@ export function Player({
                 height={100}
                 fill="var(--color-secondary)"
               />
+              {duration > 0 && (
+                <rect
+                  x={(cuePoint / duration) * peaks.length}
+                  y={0}
+                  width={Math.max(1, peaks.length / 400)}
+                  height={100}
+                  fill="var(--color-cue)"
+                >
+                  <title>Cue point {formatDuration(cuePoint)}</title>
+                </rect>
+              )}
             </svg>
           ) : (
             // No waveform data yet (track not analyzed) — still seekable,
             // just without the visualization.
             <div
               onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
-              style={{ height: '40px', borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
-            />
+              style={{ position: 'relative', height: '40px', borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
+            >
+              {duration > 0 && (
+                <div
+                  title={`Cue point ${formatDuration(cuePoint)}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${(cuePoint / duration) * 100}%`,
+                    top: 0,
+                    bottom: 0,
+                    width: '2px',
+                    background: 'var(--color-cue)',
+                  }}
+                />
+              )}
+            </div>
           )}
           <div style={{ marginTop: '4px', height: '2px', background: 'var(--color-border)', borderRadius: '1px' }}>
             <div style={{ width: `${progress * 100}%`, height: '100%', background: 'var(--color-accent)' }} />

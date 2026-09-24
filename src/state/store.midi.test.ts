@@ -138,7 +138,7 @@ describe('handleMidiControlChange — player.playPause/playNext', () => {
     const toggle = vi.fn()
     useCollectionStore.setState({
       midiMappings: { 'player.playPause': { channel: 1, controller: 20, kind: 'note' } },
-      playbackControls: { toggle },
+      playbackControls: { toggle, cueDown: vi.fn(), cueUp: vi.fn() },
     })
 
     useCollectionStore.getState().handleMidiControlChange(1, 20, 127, 'note')
@@ -146,6 +146,22 @@ describe('handleMidiControlChange — player.playPause/playNext', () => {
 
     useCollectionStore.getState().handleMidiControlChange(1, 20, 0, 'note')
     expect(toggle).toHaveBeenCalledTimes(1) // release is a no-op, not a second toggle
+  })
+
+  it('player.cue calls cueDown on press and cueUp on release', () => {
+    const cueDown = vi.fn()
+    const cueUp = vi.fn()
+    useCollectionStore.setState({
+      midiMappings: { 'player.cue': { channel: 1, controller: 21, kind: 'note' } },
+      playbackControls: { toggle: vi.fn(), cueDown, cueUp },
+    })
+
+    useCollectionStore.getState().handleMidiControlChange(1, 21, 127, 'note')
+    expect(cueDown).toHaveBeenCalledTimes(1)
+    expect(cueUp).not.toHaveBeenCalled()
+
+    useCollectionStore.getState().handleMidiControlChange(1, 21, 0, 'note')
+    expect(cueUp).toHaveBeenCalledTimes(1)
   })
 
   it('is a silent no-op when nothing is loaded (playbackControls is null)', () => {

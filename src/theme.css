@@ -14,6 +14,8 @@
   --color-accent: #2dd4bf;
   --color-accent-strong: #14b8a6;
   --color-secondary: #a78bfa;
+  /* Cue point marker and CUE button — CDJ-style amber. */
+  --color-cue: #f59e0b;
   /* MIDI-learn badges — a lighter variant of the teal accent, so they
      read as part of the palette but stand apart from regular controls. */
   --color-midi: #5eead4;

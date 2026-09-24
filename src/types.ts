@@ -262,6 +262,7 @@ export const MIDI_CONTROL_KEYS = [
   'siren.trigger',
   'player.playPause',
   'player.playNext',
+  'player.cue',
 ] as const
 
 export type MidiControlKey = (typeof MIDI_CONTROL_KEYS)[number]
