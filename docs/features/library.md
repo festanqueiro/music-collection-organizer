@@ -13,7 +13,7 @@ first). Picking a different folder later keeps the data where it is — see
 ## Scanning ("Update Collection")
 
 **Update Collection** in the toolbar walks the collection folder for audio
-files (WAV, AIFF, FLAC) and compares them with the
+files (WAV, AIFF, FLAC, MP3) and compares them with the
 database:
 
 - new files are added as *pending* analysis;

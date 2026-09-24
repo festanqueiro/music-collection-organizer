@@ -49,3 +49,30 @@ export function createTestToneAiff(dir: string, filename = 'tone.aiff'): string 
   }
   return aiffPath
 }
+
+// Generates a real MP3 file (via ffmpeg's LAME encoder) with an ID3 title
+// tag, for tests that need a genuine lossy file — decoding, metadata
+// extraction, and the full analysis pipeline.
+export function createTestToneMp3(dir: string, filename = 'tone.mp3', title = 'Test Tone MP3'): string {
+  const wavPath = createTestToneWav(dir, 'tone-source.wav')
+  const mp3Path = join(dir, filename)
+  if (!ffmpegPath) throw new Error('ffmpeg-static did not resolve a binary path for this platform/arch')
+  const result = spawnSync(ffmpegPath, [
+    '-y',
+    '-i',
+    wavPath,
+    '-codec:a',
+    'libmp3lame',
+    '-b:a',
+    '192k',
+    '-metadata',
+    `title=${title}`,
+    '-loglevel',
+    'error',
+    mp3Path,
+  ])
+  if (result.status !== 0) {
+    throw new Error(`ffmpeg failed to create MP3 fixture: ${result.stderr?.toString()}`)
+  }
+  return mp3Path
+}

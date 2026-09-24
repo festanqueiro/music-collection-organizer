@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase, type AppDatabase } from '../db'
-import { createTestToneWav } from '../../../tests/fixtures/audioFixture'
+import { createTestToneWav, createTestToneMp3 } from '../../../tests/fixtures/audioFixture'
 import { analyzeTrack, runAnalysisQueue } from './queue'
 
 describe('analyzeTrack', () => {
@@ -32,6 +32,24 @@ describe('analyzeTrack', () => {
 
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
     expect(row.analysis_status).toBe('done')
+    expect(row.duration).toBeGreaterThan(0.9)
+    expect(typeof row.bpm).toBe('number')
+    expect(JSON.parse(row.waveform_peaks)).toHaveLength(800)
+  })
+
+  it('analyzes an mp3 track, including its ID3 title', async () => {
+    const filePath = createTestToneMp3(dir, 'tone.mp3', 'Dub Plate Special')
+    const id = db
+      .prepare(
+        `INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES (?, 'tone.mp3', ?, 'mp3', 1, 1)`
+      )
+      .run(filePath, dir).lastInsertRowid as number
+
+    await analyzeTrack(db, { id, path: filePath }, dir)
+
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
+    expect(row.analysis_status).toBe('done')
+    expect(row.title).toBe('Dub Plate Special')
     expect(row.duration).toBeGreaterThan(0.9)
     expect(typeof row.bpm).toBe('number')
     expect(JSON.parse(row.waveform_peaks)).toHaveLength(800)

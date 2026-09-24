@@ -118,17 +118,17 @@ prep. It pairs with #2, since Rekordbox XML can carry cue points.
 - Add a zoomable waveform in the expanded player view.
 - Loops come later as in/out pairs.
 
-## 8. MP3 / AAC / OGG support (S)
+## 8. AAC / M4A / OGG support (S)
 
-**Why:** the scanner only picks up WAV, AIFF, and FLAC. The v1 spec kept
-it to the collection's formats at the time, but most DJs have lossy files
-too, and the rest of the pipeline (ffmpeg decode, `music-metadata`, the
+**Why:** MP3 is supported now, but some collections also have AAC/M4A
+(iTunes/Apple Music purchases, Bandcamp downloads) and OGG files. The
+rest of the pipeline (ffmpeg decode, `music-metadata`, and the
 `media://` MIME map) already handles them.
 
-**How:** extend `AUDIO_EXTENSIONS` in `electron/main/folderWalk.ts`, then
-test analysis and playback per format. It could be a Settings toggle
-("Include lossy formats") for lossless-only collections. Also show a
-bitrate column, so low-quality files stand out.
+**How:** add `.m4a`, `.aac`, and `.ogg` to `AUDIO_EXTENSIONS` in
+`electron/main/folderWalk.ts`, then add fixture-based tests like the MP3
+ones: decode, and full analysis including tags. Also show a bitrate
+column, so low-quality lossy files stand out.
 
 ## 9. Duplicate finder (M)
 

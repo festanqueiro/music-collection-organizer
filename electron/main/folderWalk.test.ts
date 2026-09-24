@@ -25,6 +25,14 @@ describe('walkAudioFiles', () => {
     expect(paths).toEqual([join(root, 'sub', 'track2.flac'), join(root, 'track1.wav')])
   })
 
+  it('finds MP3 files, whatever the extension case', () => {
+    writeFileSync(join(root, 'sub', 'track3.mp3'), 'xxx')
+    writeFileSync(join(root, 'track4.MP3'), 'xxxx')
+    const paths = walkAudioFiles(root).map((f) => f.path)
+    expect(paths).toContain(join(root, 'sub', 'track3.mp3'))
+    expect(paths).toContain(join(root, 'track4.MP3'))
+  })
+
   it('reports correct size for each file', () => {
     const files = walkAudioFiles(root)
     const track1 = files.find((f) => f.path.endsWith('track1.wav'))!
