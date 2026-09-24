@@ -65,8 +65,16 @@ Code: `electron/main/analysis/` (`queue.ts`, `worker.ts`, `pipeline.ts`,
   to reverse. Order and sort are saved.
 - Click a row to show its details (cover art, ID3 metadata, your tags) in
   the detail panel. Check rows for [batch tagging](tags.md#batch-tagging).
+- The play icon on a row starts that track. On the playing track it
+  becomes a pause icon, and clicking it pauses or resumes instead of
+  restarting the track.
+- The headphones icon pre-listens to the track on the cue output (see
+  [DJ tools](dj-tools.md#headphone-pre-listen-cue)).
+- The Key column shows colour-coded Camelot keys, and **Compatible**
+  above the table filters to tracks that mix with the playing one (see
+  [DJ tools](dj-tools.md#harmonic-mixing)).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of
-  the queue**, **Analyse/Re-analyse track**, **Show in File Explorer**
+  the queue**, **Pre-listen in headphones**, **Analyse/Re-analyse track**, **Show in File Explorer**
   (reveals it in Finder), **Show in Folder Tree View**.
 - **Add all to queue** queues everything currently visible (see
   [Queue](queue.md)).

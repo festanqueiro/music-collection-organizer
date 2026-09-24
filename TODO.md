@@ -4,7 +4,7 @@ Everything open in one place: known issues, UX improvements, and things
 to watch. Bigger feature ideas live in `IDEAS.md`. Shipped work lives in
 git log; features are documented under `docs/features/`.
 
-`npx tsc -b --noEmit` is clean and `npm test` passes (223 tests as of
+`npx tsc -b --noEmit` is clean and `npm test` passes (274 tests as of
 v1.0.26).
 
 ## Known issues

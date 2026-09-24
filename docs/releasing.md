@@ -52,8 +52,11 @@ checks apps that were downloaded.
   that already has MCO it opens the existing library. On a new Mac it
   starts fresh: pick your music folder. If that folder already has a
   `.mco` folder from another Mac, that library is adopted.
-- **No auto-update.** Users install a new version by downloading the new
-  DMG and replacing the app. Their library is kept.
+- **Auto-update.** Installed apps find new releases on their own and
+  install the `MCO-X.Y.Z-arm64.zip` asset (see
+  `electron/main/updater.ts`), so every release must keep that ZIP. The
+  updater only considers the latest *published* release: drafts and
+  pre-releases are ignored, so publishing is what rolls an update out.
 
 ## If you ever get a Developer ID
 

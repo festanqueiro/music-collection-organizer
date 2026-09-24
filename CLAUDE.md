@@ -72,5 +72,9 @@ macOS only for now.
   Anyway". Keep `mac.hardenedRuntime` false while ad-hoc signing (hardened
   runtime + ad-hoc breaks Electron's library loading). See
   `docs/releasing.md`.
+- **Auto-updater** (`electron/main/updater.ts`): a custom GitHub Releases
+  updater, not `electron-updater` (Squirrel.Mac rejects ad-hoc signed
+  updates). It installs the release's `MCO-<version>-arm64.zip`, so
+  releases must keep that asset. Dev and BETA builds never update.
 - `.github/workflows/version-bump.yml` bumps `package.json`'s patch version
   and tags it on every push to `main`.
