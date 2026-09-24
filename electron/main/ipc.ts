@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, shell, BrowserWindow } from 'electron'
+import { app, ipcMain, dialog, shell, BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
 import { join } from 'node:path'
 import { writeFileSync, readFileSync } from 'node:fs'
 import type { AppDatabase } from './db'
@@ -127,11 +127,34 @@ function rowToTrack(row: TrackRow): Track {
   }
 }
 
+// Dialogs are parented to whichever window asked for them. Falls back to an
+// unparented dialog if that window is somehow gone by now.
+function showOpenDialog(e: IpcMainInvokeEvent, options: OpenDialogOptions) {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  return win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options)
+}
+
+function showSaveDialog(e: IpcMainInvokeEvent, options: SaveDialogOptions) {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  return win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options)
+}
+
 // getMainWindow is a function (not a fixed BrowserWindow) so a window
 // recreated after all windows were closed (macOS's 'activate' event) is
-// always the one dialogs/events target — a captured reference to the
-// original window would be a destroyed BrowserWindow after that point.
-export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => BrowserWindow, backupFolder: string) {
+// always the one events target — a captured reference to the original
+// window would be a destroyed BrowserWindow after that point. It returns
+// null while no window is open (macOS keeps the app running after the
+// last window closes), so every send goes through sendToRenderer.
+export function registerIpcHandlers(
+  db: AppDatabase,
+  getMainWindow: () => BrowserWindow | null,
+  backupFolder: string
+) {
+  function sendToRenderer(channel: string, payload: unknown): void {
+    const win = getMainWindow()
+    if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
+  }
+
   // Guards scan:run against overlapping runs.
   let scanInProgress = false
   // Every in-flight analysis:run call's controller — a Set, not a single
@@ -140,6 +163,15 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   // triggered by loading a track into the player). analysis:stop aborts
   // all of them.
   const activeAnalysisControllers = new Set<AbortController>()
+  // Progress summed across every in-flight analysis:run call. They all
+  // report on the one scan:progress channel, and the renderer treats
+  // done === total as "finished" and hides the bar — so per-run numbers
+  // let a single-track background run completing hide (and overwrite) a
+  // bulk run's progress. Reset once the last run finishes.
+  const analysisProgress = { done: 0, total: 0 }
+  function sendAnalysisProgress(): void {
+    sendToRenderer('scan:progress', { ...analysisProgress })
+  }
 
   ipcMain.handle('config:getCollectionFolder', (): string | null => getCollectionFolder())
 
@@ -159,8 +191,8 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   ipcMain.handle('config:getMidiMappings', (): MidiMappings => getMidiMappings())
   ipcMain.handle('config:setMidiMappings', (_e, mappings: MidiMappings): void => setMidiMappings(mappings))
 
-  ipcMain.handle('midi:exportMappings', async (): Promise<{ path: string } | null> => {
-    const result = await dialog.showSaveDialog(getMainWindow(), {
+  ipcMain.handle('midi:exportMappings', async (e): Promise<{ path: string } | null> => {
+    const result = await showSaveDialog(e, {
       defaultPath: 'mco-midi-mappings.json',
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
@@ -171,8 +203,8 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
 
   // Only reads and validates — the renderer applies the result (after
   // confirming, if it would replace existing bindings).
-  ipcMain.handle('midi:readMappingsFile', async (): Promise<MidiImportResult | null> => {
-    const result = await dialog.showOpenDialog(getMainWindow(), {
+  ipcMain.handle('midi:readMappingsFile', async (e): Promise<MidiImportResult | null> => {
+    const result = await showOpenDialog(e, {
       properties: ['openFile'],
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
@@ -253,8 +285,8 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     app.exit()
   }
 
-  ipcMain.handle('config:chooseCollectionFolder', async (): Promise<string | null> => {
-    const result = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })
+  ipcMain.handle('config:chooseCollectionFolder', async (e): Promise<string | null> => {
+    const result = await showOpenDialog(e, { properties: ['openDirectory'] })
     if (result.canceled || result.filePaths.length === 0) return null
     const folder = result.filePaths[0]
 
@@ -284,8 +316,8 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
   // wherever the user picks — independent of the automatic first-pick
   // default above. See dataMigration.ts's migrateDataFolder for the
   // copy-vs-adopt and never-delete behavior.
-  ipcMain.handle('config:chooseDbLocation', async (): Promise<string | null> => {
-    const result = await dialog.showOpenDialog(getMainWindow(), { properties: ['openDirectory'] })
+  ipcMain.handle('config:chooseDbLocation', async (e): Promise<string | null> => {
+    const result = await showOpenDialog(e, { properties: ['openDirectory'] })
     if (result.canceled || result.filePaths.length === 0) return null
     const folder = result.filePaths[0]
     relocateDataFolder(folder, undefined)
@@ -347,19 +379,33 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     // flip to 'analyzing' inside runAnalysisQueue's dispatch, so the
     // renderer refreshes and picks that up before the track (possibly)
     // finishes fast enough to skip the visible window entirely.
-    getMainWindow().webContents.send('scan:progress', { done: 0, total: tracks.length })
+    analysisProgress.total += tracks.length
+    sendAnalysisProgress()
+    let runDone = 0
     try {
       await runAnalysisQueue(db, tracks, {
         concurrency: 4,
         cacheDir: getMediaCacheDir(),
         onProgress: (progress) => {
-          getMainWindow().webContents.send('scan:progress', progress)
+          analysisProgress.done += progress.done - runDone
+          runDone = progress.done
+          sendAnalysisProgress()
         },
         signal: controller.signal,
       })
     } finally {
       activeAnalysisControllers.delete(controller)
-      getMainWindow().webContents.send('scan:progress', { done: tracks.length, total: tracks.length })
+      // A stopped/failed run never reaches its own total — count its
+      // remainder as finished so the aggregate can still complete.
+      analysisProgress.done += tracks.length - runDone
+      if (activeAnalysisControllers.size === 0) {
+        analysisProgress.done = analysisProgress.total
+        sendAnalysisProgress()
+        analysisProgress.done = 0
+        analysisProgress.total = 0
+      } else {
+        sendAnalysisProgress()
+      }
     }
   })
 
@@ -508,8 +554,8 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     return Array.from(byTrack.entries()).map(([trackId, tags]) => ({ trackId, ...tags }))
   })
 
-  ipcMain.handle('tags:exportData', async (): Promise<{ path: string } | null> => {
-    const result = await dialog.showSaveDialog(getMainWindow(), {
+  ipcMain.handle('tags:exportData', async (e): Promise<{ path: string } | null> => {
+    const result = await showSaveDialog(e, {
       defaultPath: 'tag-export.json',
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
@@ -518,8 +564,8 @@ export function registerIpcHandlers(db: AppDatabase, getMainWindow: () => Browse
     return { path: result.filePath }
   })
 
-  ipcMain.handle('tags:importData', async (): Promise<ImportResult | null> => {
-    const result = await dialog.showOpenDialog(getMainWindow(), {
+  ipcMain.handle('tags:importData', async (e): Promise<ImportResult | null> => {
+    const result = await showOpenDialog(e, {
       properties: ['openFile'],
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })

@@ -8,7 +8,7 @@ import { registerIpcHandlers } from './ipc'
 import { getCollectionFolder, getConfigFilePath, setLastBackupError, clearLastBackupError } from './config'
 import { getDbFilePath } from './dbPath'
 import { mediaUrlToFilePath } from './mediaProtocol'
-import { getPlayableFilePath } from './audioTranscode'
+import { getPlayableFilePath, pruneMediaCache } from './audioTranscode'
 import { getMediaCacheDir } from './mediaCacheDir'
 import { parseRangeHeader } from './rangeHeader'
 import { runBackupIfNeeded, getBackupFolder } from './backup'
@@ -45,6 +45,9 @@ const MEDIA_MIME_TYPES: Record<string, string> = {
   '.aac': 'audio/aac',
   '.ogg': 'audio/ogg',
 }
+
+// Transcoded-AIFF cache cap (see pruneMediaCache).
+const MEDIA_CACHE_MAX_BYTES = 10 * 1024 ** 3
 
 function mimeTypeFor(filePath: string): string {
   return MEDIA_MIME_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
@@ -157,6 +160,12 @@ function createWindow(onShown?: () => void): void {
   })
 
   currentWindow = mainWindow
+  // On macOS the app outlives its last window, and IPC work (e.g. an
+  // analysis run) can still be reporting progress — clear the reference
+  // so nothing tries to talk to a destroyed window.
+  mainWindow.on('closed', () => {
+    if (currentWindow === mainWindow) currentWindow = null
+  })
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
@@ -212,10 +221,18 @@ app.whenReady().then(() => {
   registerPermissionHandlers()
   registerMediaProtocol()
 
+  // Nothing is transcoding yet at this point, so it's safe to clear
+  // leftover .tmp files along with evicting old FLACs.
+  try {
+    pruneMediaCache(getMediaCacheDir(), MEDIA_CACHE_MAX_BYTES)
+  } catch (err) {
+    console.error('media cache prune failed', err)
+  }
+
   const db = openDatabase(getDbFilePath())
   setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
 
-  registerIpcHandlers(db, () => currentWindow!, getBackupFolder(app.getPath('userData')))
+  registerIpcHandlers(db, () => currentWindow, getBackupFolder(app.getPath('userData')))
 
   createWindow(() => performBackupCheck(db))
 
