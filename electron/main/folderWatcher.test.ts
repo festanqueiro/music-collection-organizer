@@ -8,11 +8,16 @@ import { describeLibraryChange } from '../../src/state/libraryChange'
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 describe('isRelevantChange', () => {
-  it('reacts to audio files and folders', () => {
+  it('reacts to audio files and to folders added, removed, or moved', () => {
     expect(isRelevantChange('Dub/track.MP3')).toBe(true)
-    expect(isRelevantChange('track.flac')).toBe(true)
-    expect(isRelevantChange('New Album')).toBe(true)
+    expect(isRelevantChange('track.flac', 'change')).toBe(true)
+    expect(isRelevantChange('New Album', 'rename')).toBe(true)
     expect(isRelevantChange(null)).toBe(true)
+  })
+
+  it("ignores a folder whose contents changed, and the watched folder itself", () => {
+    expect(isRelevantChange('Dub', 'change')).toBe(false)
+    expect(isRelevantChange('', 'rename')).toBe(false)
   })
 
   it("ignores the app's data folder, Finder metadata, and non-audio files", () => {
@@ -53,6 +58,8 @@ describe('FolderWatcher', () => {
 
   it('debounces a burst of audio changes (in subfolders too) into one callback', async () => {
     watcher.start(dir)
+    await sleep(800)
+    calls = 0
     for (let i = 0; i < 5; i++) writeFileSync(join(dir, 'sub', `t${i}.mp3`), 'x')
     await sleep(600)
     expect(calls).toBe(1)
@@ -60,6 +67,10 @@ describe('FolderWatcher', () => {
 
   it("ignores writes to the app's own data folder and non-audio files", async () => {
     watcher.start(dir)
+    // macOS's FSEvents can deliver the beforeEach's own folder creation
+    // just after the watch starts — let that settle before measuring.
+    await sleep(800)
+    calls = 0
     writeFileSync(join(dir, '.mco', 'collection.db'), 'x')
     writeFileSync(join(dir, 'sub', 'notes.txt'), 'x')
     await sleep(500)
