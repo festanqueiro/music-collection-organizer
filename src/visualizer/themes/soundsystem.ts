@@ -1395,7 +1395,7 @@ function create(): ThemeInstance {
     rig: Rig
     // Wood meshes and their original (textured) material, per paint slot.
     woodMeshes: Array<{ mesh: THREE.Mesh; original: THREE.Material; slot: 'accentA' | 'accentB' }>
-    // Double-sided copies of the palette's paint materials (see
+    // Double-sided, bump-free copies of the palette's paint materials (see
     // applyModelFinish) — the imported geometry isn't reliably closed.
     painted: Record<'accentA' | 'accentB', THREE.MeshStandardMaterial>
   }
@@ -1414,6 +1414,12 @@ function create(): ThemeInstance {
     for (const slot of ['accentA', 'accentB'] as const) {
       stack.painted[slot].copy(materials[slot])
       stack.painted[slot].side = THREE.DoubleSide
+      // No bump relief on the model: three's derivative-based bump mapping
+      // divides by the surface's screen-space slope, which is zero on some
+      // faces of this imported, double-sided geometry — the resulting NaN
+      // pixels get smeared across the whole frame by the bloom blur, i.e.
+      // the screen flashes black. The grain still shows in the colour map.
+      stack.painted[slot].bumpMap = null
       stack.painted[slot].needsUpdate = true
     }
     for (const { mesh, original, slot } of stack.woodMeshes) {
