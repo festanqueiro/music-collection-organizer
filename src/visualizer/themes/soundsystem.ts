@@ -229,10 +229,14 @@ function drawGrain(ctx: CanvasRenderingContext2D, w: number, h: number, random: 
 // telegraphing through it, and chips/scratches back to bare wood. Returns
 // the colour map plus the grain as a bump map, so the sun picks out the
 // relief.
+// `chips` adds chips/scratches back to bare wood — off for the SYSTEM MB
+// model, whose UVs stretch a small patch of texture over whole panels and
+// blow the chips up into big brown blotches.
 function paintedWood(
   paint: string,
   seed: number,
   worn = true,
+  chips = true,
 ): { map: THREE.CanvasTexture; bumpMap: THREE.CanvasTexture } {
   const size = 512
   const grainCanvas = document.createElement('canvas')
@@ -276,6 +280,7 @@ function paintedWood(
       ctx.drawImage(grainCanvas, 0, 0)
       ctx.globalCompositeOperation = 'source-over'
       ctx.globalAlpha = 1
+      if (!chips) return
       // Chips back to bare wood, each with a darker, grimy rim.
       for (let i = 0; i < 26; i++) {
         const cx = random() * w
@@ -1411,8 +1416,16 @@ function create(): ThemeInstance {
   // Natural keeps the model's own plywood texture; the painted schemes
   // repaint bins and tops with the palette's two accent finishes.
   function applyModelFinish(stack: ModelStack) {
-    for (const slot of ['accentA', 'accentB'] as const) {
+    for (const [slot, seed] of [
+      ['accentA', 3],
+      ['accentB', 4],
+    ] as const) {
       stack.painted[slot].copy(materials[slot])
+      // Chip-free paint (see paintedWood's `chips`).
+      const finish = palette[slot]
+      stack.painted[slot].map = cached(`${finish.color}|${finish.worn}|${seed}|nochips`, () =>
+        paintedWood(finish.color, seed, finish.worn, false),
+      ).map
       stack.painted[slot].side = THREE.DoubleSide
       // No bump relief on the model: three's derivative-based bump mapping
       // divides by the surface's screen-space slope, which is zero on some
