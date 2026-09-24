@@ -54,6 +54,7 @@ export default function App() {
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const visualizerOpen = useCollectionStore((s) => s.visualizerOpen)
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
+  const setSearchText = useCollectionStore((s) => s.setSearchText)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
@@ -322,7 +323,17 @@ export default function App() {
             // progress state (and the underlying <audio> element) carries
             // over from the previous track instead of resetting.
             return currentTrack ? (
-              <Player key={currentTrack.id} track={currentTrack} />
+              <Player
+                key={currentTrack.id}
+                track={currentTrack}
+                onShowDetails={setSelectedTrack}
+                onFilterByArtist={(artist) => {
+                  // Search the whole collection, not just whichever
+                  // folder happens to be selected in the tree.
+                  setSelectedFolder(null)
+                  setSearchText(artist)
+                }}
+              />
             ) : (
               <div
                 style={{
