@@ -23,7 +23,12 @@ import {
   setCueOutputDeviceId,
   getAutoCheckUpdates,
   setAutoCheckUpdates,
+  getWatchCollectionFolder,
+  setWatchCollectionFolder,
+  getAutoAnalyseNewTracks,
+  setAutoAnalyseNewTracks,
 } from './config'
+import { FolderWatcher } from './folderWatcher'
 import { isTrustedReleaseUrl, type Updater } from './updater'
 import { getDataFolder, setDataFolder } from './bootstrap'
 import { getDbFilePath } from './dbPath'
@@ -135,6 +140,10 @@ function rowToTrack(row: TrackRow): Track {
     analysisStatus: row.analysis_status,
   }
 }
+
+// How long the collection folder has to be quiet before a background
+// rescan — long enough that copying in an album is one scan, not twenty.
+const WATCH_DEBOUNCE_MS = 3000
 
 // Dialogs are parented to whichever window asked for them. Falls back to an
 // unparented dialog if that window is somehow gone by now.
@@ -335,6 +344,7 @@ export function registerIpcHandlers(
     }
 
     setCollectionFolder(folder)
+    syncFolderWatcher()
     return folder
   })
 
@@ -356,6 +366,42 @@ export function registerIpcHandlers(
   // separate, explicit action (analysis:run below) so picking a folder or
   // clicking "Update Collection" never kicks off a bulk BPM/waveform run
   // the user didn't ask for.
+  // Background rescans for the folder watcher. runScan is synchronous, so
+  // this can't overlap a manual scan:run; it just skips a round if one is
+  // somehow marked in progress (the next change schedules another).
+  const folderWatcher = new FolderWatcher({
+    debounceMs: WATCH_DEBOUNCE_MS,
+    onChange: () => {
+      const folder = getCollectionFolder()
+      if (!folder || scanInProgress) return
+      try {
+        const result = runScan(db, folder)
+        if (result.inserted || result.updated || result.missing) sendToRenderer('library:changed', result)
+      } catch (err) {
+        console.error('background scan failed', err)
+      }
+    },
+  })
+
+  function syncFolderWatcher(): void {
+    const folder = getCollectionFolder()
+    if (folder && getWatchCollectionFolder()) folderWatcher.start(folder)
+    else folderWatcher.stop()
+  }
+  syncFolderWatcher()
+
+  ipcMain.handle('config:getLibrarySettings', (): { watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean } => ({
+    watchCollectionFolder: getWatchCollectionFolder(),
+    autoAnalyseNewTracks: getAutoAnalyseNewTracks(),
+  }))
+  ipcMain.handle('config:setWatchCollectionFolder', (_e, enabled: boolean): void => {
+    setWatchCollectionFolder(enabled === true)
+    syncFolderWatcher()
+  })
+  ipcMain.handle('config:setAutoAnalyseNewTracks', (_e, enabled: boolean): void =>
+    setAutoAnalyseNewTracks(enabled === true)
+  )
+
   ipcMain.handle('scan:run', async (): Promise<ScanResult> => {
     if (scanInProgress) throw new Error('A scan is already in progress')
     scanInProgress = true

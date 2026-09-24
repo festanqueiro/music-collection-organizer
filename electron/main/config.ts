@@ -21,6 +21,8 @@ interface ConfigSchema {
   audioOutputDeviceId?: string
   cueOutputDeviceId?: string
   autoCheckUpdates?: boolean
+  watchCollectionFolder?: boolean
+  autoAnalyseNewTracks?: boolean
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -162,6 +164,25 @@ export function getAutoCheckUpdates(): boolean {
 
 export function setAutoCheckUpdates(enabled: boolean): void {
   getStore().set('autoCheckUpdates', enabled)
+}
+
+// Folder watcher (folderWatcher.ts): on by default, so new downloads show
+// up on their own. Analysing what it finds is opt-in, like every other
+// bulk analysis in the app.
+export function getWatchCollectionFolder(): boolean {
+  return getStore().get('watchCollectionFolder') ?? true
+}
+
+export function setWatchCollectionFolder(enabled: boolean): void {
+  getStore().set('watchCollectionFolder', enabled)
+}
+
+export function getAutoAnalyseNewTracks(): boolean {
+  return getStore().get('autoAnalyseNewTracks') ?? false
+}
+
+export function setAutoAnalyseNewTracks(enabled: boolean): void {
+  getStore().set('autoAnalyseNewTracks', enabled)
 }
 
 // Headphone pre-listen output. null means "system default".

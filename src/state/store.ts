@@ -21,6 +21,7 @@ import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import type { VisualizerThemeId } from '../visualizer/types'
 import type { KeyNotation } from './harmonic'
+import { describeLibraryChange } from './libraryChange'
 import {
   playTrackNow as playTrackNowPure,
   addToPlaylist as addToPlaylistPure,
@@ -308,6 +309,14 @@ interface CollectionState {
   dismissUpdate: () => void
   autoCheckUpdates: boolean
   setAutoCheckUpdates: (enabled: boolean) => Promise<void>
+  // Folder watcher (electron/main/folderWatcher.ts) settings, and what to
+  // do when a background rescan it triggered finds changes.
+  watchCollectionFolder: boolean
+  autoAnalyseNewTracks: boolean
+  loadLibrarySettings: () => Promise<void>
+  setWatchCollectionFolder: (enabled: boolean) => Promise<void>
+  setAutoAnalyseNewTracks: (enabled: boolean) => Promise<void>
+  handleLibraryChanged: (result: { inserted: number; updated: number; missing: number }) => Promise<void>
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -485,6 +494,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   updateState: null,
   dismissedUpdateVersion: null,
   autoCheckUpdates: true,
+  watchCollectionFolder: true,
+  autoAnalyseNewTracks: false,
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -563,6 +574,29 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   loadAudioOutputDeviceId: async () => {
     const deviceId = await window.api.getAudioOutputDeviceId()
     set({ audioOutputDeviceId: deviceId })
+  },
+
+  loadLibrarySettings: async () => {
+    set(await window.api.getLibrarySettings())
+  },
+
+  setWatchCollectionFolder: async (enabled) => {
+    set({ watchCollectionFolder: enabled })
+    await window.api.setWatchCollectionFolder(enabled)
+  },
+
+  setAutoAnalyseNewTracks: async (enabled) => {
+    set({ autoAnalyseNewTracks: enabled })
+    await window.api.setAutoAnalyseNewTracks(enabled)
+  },
+
+  handleLibraryChanged: async (result) => {
+    await get().loadAll()
+    const summary = describeLibraryChange(result)
+    const analyse = get().autoAnalyseNewTracks && result.inserted + result.updated > 0
+    if (summary) get().showToast(analyse ? `${summary} — analysing` : summary)
+    // A plain analysis:run covers every pending (new/changed) track.
+    if (analyse) await get().runAnalysis()
   },
 
   setUpdateState: (state) => set({ updateState: state }),

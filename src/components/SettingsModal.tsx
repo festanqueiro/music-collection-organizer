@@ -42,6 +42,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const resetMidiMappings = useCollectionStore((s) => s.resetMidiMappings)
   const replaceMidiMappings = useCollectionStore((s) => s.replaceMidiMappings)
   const showToast = useCollectionStore((s) => s.showToast)
+  const watchCollectionFolder = useCollectionStore((s) => s.watchCollectionFolder)
+  const setWatchCollectionFolder = useCollectionStore((s) => s.setWatchCollectionFolder)
+  const autoAnalyseNewTracks = useCollectionStore((s) => s.autoAnalyseNewTracks)
+  const setAutoAnalyseNewTracks = useCollectionStore((s) => s.setAutoAnalyseNewTracks)
   const updateState = useCollectionStore((s) => s.updateState)
   const checkForUpdates = useCollectionStore((s) => s.checkForUpdates)
   const autoCheckUpdates = useCollectionStore((s) => s.autoCheckUpdates)
@@ -205,6 +209,36 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               >
                 Change…
               </button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
+                <ToggleSwitch
+                  checked={watchCollectionFolder}
+                  onChange={setWatchCollectionFolder}
+                  title="Watch the collection folder for changes"
+                />
+                Watch for new and removed files
+              </label>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: watchCollectionFolder ? 'pointer' : 'default',
+                  marginTop: '6px',
+                  opacity: watchCollectionFolder ? 1 : 0.5,
+                }}
+              >
+                <ToggleSwitch
+                  checked={autoAnalyseNewTracks}
+                  onChange={setAutoAnalyseNewTracks}
+                  disabled={!watchCollectionFolder}
+                  title="Analyse new tracks automatically"
+                />
+                Analyse new tracks automatically
+              </label>
+              <p style={{ margin: '6px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                New downloads show up on their own a few seconds after they land in the folder — no need to click
+                Update Collection.
+              </p>
             </section>
 
             <section style={{ marginBottom: '20px' }}>

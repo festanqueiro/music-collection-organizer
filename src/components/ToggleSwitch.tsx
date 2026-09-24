@@ -6,14 +6,17 @@ export function ToggleSwitch({
   checked,
   onChange,
   title,
+  disabled = false,
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
   title?: string
+  disabled?: boolean
 }) {
   return (
     <button
       onClick={() => onChange(!checked)}
+      disabled={disabled}
       role="switch"
       aria-checked={checked}
       title={title}
@@ -25,7 +28,7 @@ export function ToggleSwitch({
         background: checked ? 'var(--color-accent)' : 'var(--color-surface)',
         position: 'relative',
         padding: 0,
-        cursor: 'pointer',
+        cursor: disabled ? 'default' : 'pointer',
         flexShrink: 0,
       }}
     >

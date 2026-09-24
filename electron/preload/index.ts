@@ -112,6 +112,20 @@ const api = {
       ipcRenderer.removeListener('updates:state', listener)
     }
   },
+  getLibrarySettings: (): Promise<{ watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean }> =>
+    ipcRenderer.invoke('config:getLibrarySettings'),
+  setWatchCollectionFolder: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('config:setWatchCollectionFolder', enabled),
+  setAutoAnalyseNewTracks: (enabled: boolean): Promise<void> =>
+    ipcRenderer.invoke('config:setAutoAnalyseNewTracks', enabled),
+  // A background rescan (folder watcher) found changes.
+  onLibraryChanged: (cb: (result: ScanResult) => void): (() => void) => {
+    const listener = (_e: unknown, result: ScanResult) => cb(result)
+    ipcRenderer.on('library:changed', listener)
+    return () => {
+      ipcRenderer.removeListener('library:changed', listener)
+    }
+  },
   onScanProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('scan:progress', listener)

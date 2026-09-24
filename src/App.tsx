@@ -36,6 +36,8 @@ export default function App() {
   const loadAudioOutputDeviceId = useCollectionStore((s) => s.loadAudioOutputDeviceId)
   const loadCueOutputDeviceId = useCollectionStore((s) => s.loadCueOutputDeviceId)
   const loadUpdateState = useCollectionStore((s) => s.loadUpdateState)
+  const loadLibrarySettings = useCollectionStore((s) => s.loadLibrarySettings)
+  const handleLibraryChanged = useCollectionStore((s) => s.handleLibraryChanged)
   const setUpdateState = useCollectionStore((s) => s.setUpdateState)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const loadAppVersion = useCollectionStore((s) => s.loadAppVersion)
@@ -156,7 +158,11 @@ export default function App() {
     loadCueOutputDeviceId()
     loadAppVersion()
     loadUpdateState()
+    loadLibrarySettings()
     const unsubscribeUpdates = window.api.onUpdateState(setUpdateState)
+    const unsubscribeLibrary = window.api.onLibraryChanged((result) => {
+      handleLibraryChanged(result).catch((err) => console.error('refresh after background scan failed', err))
+    })
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
       const isFinal = progress.done === progress.total
@@ -171,8 +177,11 @@ export default function App() {
     return () => {
       unsubscribe()
       unsubscribeUpdates()
+      unsubscribeLibrary()
     }
   }, [
+    loadLibrarySettings,
+    handleLibraryChanged,
     loadUpdateState,
     setUpdateState,
     loadAll,
