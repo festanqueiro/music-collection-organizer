@@ -1,48 +1,60 @@
 # TODO
 
-## Status
+Everything open in one place: known issues first, then UX improvements,
+then longer-term ideas. Shipped work lives in git log; features are
+documented under `docs/features/`.
 
-v1 is implemented and live-tested against a real ~2,481-track collection.
-Since then the play queue, FX panel + Dub Siren, MIDI mapping, visualizer,
-backup restore/pruning, and most of the old UX list have shipped (see git
-log). `npx tsc -b --noEmit` is clean and `npm test` passes (214 tests as of
+`npx tsc -b --noEmit` is clean and `npm test` passes (220 tests as of
 v1.0.25).
 
-## Known issues (from the 2026-09 code review)
+## Known issues
 
-- **Visualizer — SYSTEM MB model textures blocked by CSP.** `index.html`'s
-  CSP (`default-src 'self'; img-src 'self' data:`) doesn't allow `blob:`,
-  which is how `GLTFLoader` loads the GLB's two embedded PNG textures. The
-  "Natural" finish (which uses the model's original materials) renders
-  without them. Fix: add `blob:` to `img-src` and a `connect-src 'self'
-  blob:`.
-- **Analysis progress with concurrent runs.** Every `analysis:run` call
-  sends its own `{done, total}` on the shared `scan:progress` channel. A
-  single-track background analysis (loading/queueing an unanalysed track)
-  finishing during a bulk "Analyse Collection" run sends `done === total`,
-  which hides the bulk run's progress bar until its next tick, and the two
-  runs' ticks overwrite each other.
-- **Closed window on macOS.** `currentWindow` in `electron/main/index.ts`
-  isn't cleared on `closed`, so an analysis still running after the user
-  closes the window (app stays alive on macOS) calls
-  `webContents.send` on a destroyed window and throws in the main process.
-- **Concurrent AIFF transcodes.** `getPlayableFilePath` has no in-process
-  dedup: every `media://` request (the initial load plus each Range/seek
-  request) for a not-yet-cached AIFF spawns its own full ffmpeg transcode
-  until the first one lands. The transcode cache is also never pruned.
-- **`loadAll()` clears the checked-track selection.** Any tag create/
-  rename/recolor/delete, import, or cloud download goes through `loadAll`,
-  which resets `checkedTrackIds` — mid-batch-tagging selections get lost.
-- **`npm run dev` + StrictMode.** StrictMode double-runs Player's mount
-  effect, so `createMediaElementSource` is called twice on the same
+- **`npm run dev` + React StrictMode.** StrictMode double-runs Player's
+  mount effect, so `createMediaElementSource` is called twice on the same
   `<audio>` element (throws in dev only; packaged builds are unaffected).
 - **Absolute track paths.** `tracks.path` is absolute, so the "`.mco`
   travels with the collection" design only preserves tags if the folder
   lands at the same path. Tag export/import has the same limitation.
-- Minor: genre names are unique case-sensitively in SQLite but matched
-  case-insensitively in the UI; undoing a genre deletion keys subgenre
-  associations by name (collides if two subgenres share a name); the
-  right-click item says "Show in File Explorer" on a macOS-only app.
+- Genre names are unique case-sensitively in SQLite but matched
+  case-insensitively in the UI (`DetailPanel`'s suggested-genre flow).
+- Undoing a genre deletion keys sub-genre associations by name, so two
+  sub-genres with the same name under one genre get merged.
+- The track context menu says "Show in File Explorer" on a macOS-only app
+  ("Show in Finder" would be native).
+
+## UX improvements
+
+- **Discoverable context menus.** `FolderTree.tsx`, `TagTree.tsx`, and
+  `TrackTable.tsx` hide meaningful functionality (rename/delete/recolor a
+  tag, per-folder analyse/queue, per-track play-next/analyse/show-in-folder)
+  behind right-click menus with no visual affordance. Add a small "⋮" icon
+  button on hovered rows as a discoverable entry point into the same menu.
+- **Column visibility.** Track-table columns can be reordered but never
+  hidden. Add a "Columns" toggle next to "Add all to queue".
+- **Undo countdown.** The genre/sub-genre deletion undo toast
+  (`UndoToast.tsx`) auto-dismisses after a hardcoded 8 s with no visual
+  countdown. Add a shrinking progress bar or countdown number.
+- **Why did analysis fail?** A failed track only shows a red icon with a
+  generic "Analysis failed" tooltip. `analyzeTrack`/the worker swallow the
+  error, so this needs an error column persisted alongside
+  `analysis_status`, then surfaced in the tooltip or DetailPanel.
+
+## Future ideas
+
+A grab-bag to draw from when picking the next thing to build, not a
+commitment list.
+
+- **Rekordbox read/write integration** — noted in the v1 design spec as
+  future work once the local-collection foundation is solid.
+- **Saved playlists** (creation/export) — the queue is FIFO-only today.
+- **Multiple collection folders** — one at a time today.
+- **Fuller DJ mixing/deck features** — the player is a single deck with a
+  queue and FX, not a two-deck mixing surface.
+- **Windows/Linux support.** macOS-only for now (the cloud-only detection
+  heuristic, in particular, is tuned to APFS/Google Drive for Desktop's
+  macOS behavior and would need revisiting).
+- **React component test coverage.** No `@testing-library/react` (or
+  similar) is set up — UI correctness is verified by manual walkthroughs.
 
 ## Watch list
 
@@ -51,9 +63,7 @@ v1.0.25).
 - `VACUUM INTO` (backups) and `runScan` run synchronously on the main
   thread — fine at current collection sizes, worth revisiting if they grow.
 
-Longer-term ideas live in `TODO-FUTURE.md`; UX ideas in `TODO-UX.md`.
-
 ## Reference
 
-- v1 spec/plan: `docs/superpowers/specs/2026-08-20-v1-library-organizer-design.md`, `docs/superpowers/plans/2026-08-20-v1-library-organizer.md`
-- Progress indicator + backups spec/plan: `docs/superpowers/specs/2026-08-21-progress-indicator-and-settings-backup-design.md`, `docs/superpowers/plans/2026-08-21-progress-indicator-and-settings-backup.md`
+Original design docs (historical — the code has moved on since):
+`docs/superpowers/specs/`, `docs/superpowers/plans/`.
