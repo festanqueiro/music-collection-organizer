@@ -19,6 +19,7 @@ import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../aud
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import type { VisualizerThemeId } from '../visualizer/types'
+import type { KeyNotation } from './harmonic'
 import {
   playTrackNow as playTrackNowPure,
   addToPlaylist as addToPlaylistPure,
@@ -212,6 +213,13 @@ interface CollectionState {
   // (Settings → Audio). Purely visual — bindings keep working when hidden.
   showMidiControls: boolean
   setShowMidiControls: (show: boolean) => void
+  // How the Key column/detail panel/queue show keys (Settings → General).
+  keyNotation: KeyNotation
+  setKeyNotation: (notation: KeyNotation) => void
+  // Track-table filter: only tracks that mix harmonically (key) and in
+  // tempo (BPM) with the playing track. Session-only, like the search box.
+  compatibleFilter: boolean
+  setCompatibleFilter: (on: boolean) => void
   // Imperative escape hatch so a MIDI-bound player.playPause control (and
   // eventually the spacebar/other external triggers) can toggle playback
   // without lifting the actual playing/paused boolean — which the <audio>
@@ -379,6 +387,16 @@ function loadShowMidiControls(): boolean {
   }
 }
 
+const KEY_NOTATION_KEY = 'keyNotation'
+function loadKeyNotation(): KeyNotation {
+  try {
+    const stored = localStorage.getItem(KEY_NOTATION_KEY)
+    return stored === 'camelot' || stored === 'musical' || stored === 'both' ? stored : 'both'
+  } catch {
+    return 'both'
+  }
+}
+
 // Queuing more than this many tracks in one click always goes through
 // the confirmation dialog, even when there's no analysis choice to make —
 // with no folder/tag filter active, "Add all to queue" is the entire
@@ -402,6 +420,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
+  keyNotation: loadKeyNotation(),
+  compatibleFilter: false,
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -956,6 +976,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       // Non-essential preference — fine to lose.
     }
   },
+
+  setKeyNotation: (notation) => {
+    set({ keyNotation: notation })
+    try {
+      localStorage.setItem(KEY_NOTATION_KEY, notation)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),
 
   setVisualizerThemeOption: (theme, optionId, valueId) => {
     const all = get().visualizerThemeOptions

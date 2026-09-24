@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
+import { formatKey } from '../state/harmonic'
 
 // The full set of ID3-derived metadata fields this app extracts — expanded
 // by default: checking a track's details is exactly the moment this
@@ -11,6 +12,7 @@ import type { Track } from '../types'
 // wants it out of the way.
 function FullId3Section({ track }: { track: Track }) {
   const [open, setOpen] = useState(true)
+  const keyNotation = useCollectionStore((s) => s.keyNotation)
   const fields: [string, string | number | null][] = [
     ['Title', track.title ? decodeHtmlEntities(track.title) : null],
     ['Artist', track.artist ? decodeHtmlEntities(track.artist) : null],
@@ -18,7 +20,7 @@ function FullId3Section({ track }: { track: Track }) {
     ['Genre (ID3)', track.genreTag ? decodeHtmlEntities(track.genreTag) : null],
     ['Year', track.year],
     ['BPM', track.bpm ? Math.round(track.bpm) : null],
-    ['Key', track.musicalKey],
+    ['Key', formatKey(track.musicalKey, keyNotation)],
     ['Format', track.format],
     ['Duration', track.duration ? formatDuration(track.duration) : null],
   ]

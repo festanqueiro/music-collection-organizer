@@ -3,6 +3,7 @@ import { useCollectionStore } from '../state/store'
 import { ToggleSwitch } from './ToggleSwitch'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { BackupInfo, BackupEntry, MidiMappings } from '../types'
+import type { KeyNotation } from '../state/harmonic'
 
 // Backup filenames use `now.toISOString().replace(/[:.]/g, '-')` (see
 // electron/main/backup.ts) — undo that by re-inserting the standard ISO
@@ -38,6 +39,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const resetMidiMappings = useCollectionStore((s) => s.resetMidiMappings)
   const replaceMidiMappings = useCollectionStore((s) => s.replaceMidiMappings)
   const showToast = useCollectionStore((s) => s.showToast)
+  const keyNotation = useCollectionStore((s) => s.keyNotation)
+  const setKeyNotation = useCollectionStore((s) => s.setKeyNotation)
   // Both reset and an import that would overwrite existing bindings go
   // through the same warning popup.
   const [midiConfirm, setMidiConfirm] = useState<
@@ -197,12 +200,21 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               </button>
             </section>
 
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Key notation</h3>
+              <select value={keyNotation} onChange={(e) => setKeyNotation(e.target.value as KeyNotation)}>
+                <option value="both">Camelot and musical (8A · Am)</option>
+                <option value="camelot">Camelot (8A)</option>
+                <option value="musical">Musical (Am)</option>
+              </select>
+            </section>
+
             <section>
               <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Database &amp; settings</h3>
               <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{dbFilePath ?? 'Loading…'}</p>
               <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                The first time you set a collection folder, this moves inside it automatically. Backups always
-                target wherever it currently lives, so restoring stays safe after a move.
+                The first time you set a collection folder, this moves inside it automatically. Backups are kept
+                in the app's own folder and always restore to wherever this currently lives.
               </p>
               <button
                 onClick={async () => {

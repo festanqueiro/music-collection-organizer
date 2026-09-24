@@ -4,6 +4,7 @@ import { BatchTagBar } from './BatchTagBar'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
+import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
 
 type SortKey = TrackTableColumnKey
 
@@ -75,7 +76,16 @@ export function TrackTable({
   const setColumnOrder = useCollectionStore((s) => s.setColumnOrder)
   const sortState = useCollectionStore((s) => s.sortState)
   const setSortState = useCollectionStore((s) => s.setSortState)
+  const keyNotation = useCollectionStore((s) => s.keyNotation)
+  const compatibleFilter = useCollectionStore((s) => s.compatibleFilter)
+  const setCompatibleFilter = useCollectionStore((s) => s.setCompatibleFilter)
   const currentTrackId = playlist[0] ?? null
+  const currentTrack = useMemo(
+    () => (currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null),
+    [tracks, currentTrackId]
+  )
+  // The filter needs a playing track with an analysed key to compare with.
+  const canFilterCompatible = !!currentTrack && toCamelot(currentTrack.musicalKey) !== null
   const [draggedColumn, setDraggedColumn] = useState<TrackTableColumnKey | null>(null)
   const sortKey = sortState.key
   const sortDir = sortState.direction
@@ -173,6 +183,7 @@ export function TrackTable({
     if (key === 'tags') return tagNamesFor(track.id).map((t) => t.name).join(', ')
     if (key === 'dateAdded') return track.birthtime ?? 0
     if (key === 'dateModified') return track.mtime ?? 0
+    if (key === 'musicalKey') return keySortValue(track.musicalKey)
     return track[key] ?? ''
   }
 
@@ -181,6 +192,14 @@ export function TrackTable({
     return tracks
       .filter((t) => (selectedFolder ? t.folder === selectedFolder || t.folder.startsWith(selectedFolder + '/') : true))
       .filter(activeFilter)
+      .filter((t) => {
+        if (!compatibleFilter || !canFilterCompatible || !currentTrack) return true
+        if (t.id === currentTrack.id) return true
+        if (!areKeysCompatible(t.musicalKey, currentTrack.musicalKey)) return false
+        // Unanalysed BPM on either side doesn't rule a track out — key is
+        // the stronger signal and the BPM may just be missing.
+        return !t.bpm || !currentTrack.bpm || areBpmsCompatible(t.bpm, currentTrack.bpm)
+      })
       .filter((t) =>
         query
           ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
@@ -193,7 +212,20 @@ export function TrackTable({
         const cmp = av < bv ? -1 : av > bv ? 1 : 0
         return sortDir === 'asc' ? cmp : -cmp
       })
-  }, [tracks, searchText, selectedFolder, activeFilter, sortKey, sortDir, trackTags, genresById, subgenresById])
+  }, [
+    tracks,
+    searchText,
+    selectedFolder,
+    activeFilter,
+    sortKey,
+    sortDir,
+    trackTags,
+    genresById,
+    subgenresById,
+    compatibleFilter,
+    canFilterCompatible,
+    currentTrack,
+  ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
   // Re-analysing a track changes its BPM/Key, which can shift its sort
@@ -367,8 +399,26 @@ export function TrackTable({
       }
       case 'bpm':
         return track.bpm?.toFixed(0) ?? '—'
-      case 'musicalKey':
-        return track.musicalKey ?? '—'
+      case 'musicalKey': {
+        const camelot = toCamelot(track.musicalKey)
+        const label = formatKey(track.musicalKey, keyNotation)
+        if (!label) return '—'
+        if (!camelot) return label
+        return (
+          <span
+            title={track.musicalKey ?? undefined}
+            style={{
+              fontSize: '11px',
+              padding: '1px 6px',
+              borderRadius: '8px',
+              background: camelotColor(camelot),
+              color: '#fff',
+            }}
+          >
+            {label}
+          </span>
+        )
+      }
       case 'format':
         return track.format
       case 'duration':
@@ -427,6 +477,28 @@ export function TrackTable({
             playlist_add
           </span>
           Add all to queue
+        </button>
+        <button
+          onClick={() => setCompatibleFilter(!compatibleFilter)}
+          disabled={!canFilterCompatible && !compatibleFilter}
+          title={
+            canFilterCompatible
+              ? `Only tracks that mix with the playing track: key ${formatKey(currentTrack?.musicalKey, 'both')} (same, ±1 or relative) and BPM within 6% (or half/double time)`
+              : 'Play an analysed track to find tracks that mix with it'
+          }
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            fontSize: '12px',
+            border: compatibleFilter ? '1px solid var(--color-accent)' : undefined,
+            color: compatibleFilter ? 'var(--color-accent)' : undefined,
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+            join
+          </span>
+          Compatible
         </button>
         <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>
