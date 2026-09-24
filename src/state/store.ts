@@ -228,6 +228,10 @@ interface CollectionState {
   // when nothing is loaded, so a stray MIDI press with nothing playing is
   // silently a no-op instead of throwing.
   playbackControls: { toggle: () => void } | null
+  // Mirrors the loaded track's play/pause state (Player owns the <audio>
+  // element) so the track table can show a pause icon on the playing row.
+  playerPlaying: boolean
+  setPlayerPlaying: (playing: boolean) => void
   setPlaybackControls: (controls: { toggle: () => void } | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
@@ -281,6 +285,17 @@ interface CollectionState {
   audioOutputDeviceId: string | null
   loadAudioOutputDeviceId: () => Promise<void>
   setAudioOutputDeviceId: (deviceId: string | null) => Promise<void>
+  // Headphone pre-listen: a second, FX-free player on its own output
+  // device (see CuePlayer.tsx), independent of the main player/queue.
+  cueOutputDeviceId: string | null
+  loadCueOutputDeviceId: () => Promise<void>
+  setCueOutputDeviceId: (deviceId: string | null) => Promise<void>
+  cueTrackId: number | null
+  // Toggles: previewing the track already in the cue player stops it.
+  previewTrack: (trackId: number) => void
+  stopPreview: () => void
+  cueVolume: number
+  setCueVolume: (volume: number) => void
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -390,6 +405,16 @@ function loadShowMidiControls(): boolean {
   }
 }
 
+const CUE_VOLUME_KEY = 'cueVolume'
+function loadCueVolume(): number {
+  try {
+    const stored = Number(localStorage.getItem(CUE_VOLUME_KEY))
+    return localStorage.getItem(CUE_VOLUME_KEY) !== null && stored >= 0 && stored <= 1 ? stored : 0.8
+  } catch {
+    return 0.8
+  }
+}
+
 const KEY_NOTATION_KEY = 'keyNotation'
 function loadKeyNotation(): KeyNotation {
   try {
@@ -436,11 +461,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   sirenTriggered: false,
   toastMessage: null,
   playbackControls: null,
+  playerPlaying: false,
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
   sortState: { key: 'title', direction: 'asc' },
   audioOutputDeviceId: null,
+  cueOutputDeviceId: null,
+  cueTrackId: null,
+  cueVolume: loadCueVolume(),
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -488,6 +517,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setPlaybackControls: (controls) => set({ playbackControls: controls }),
+  setPlayerPlaying: (playing) => set({ playerPlaying: playing }),
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
   loadMidiMappings: async () => {
@@ -518,6 +548,33 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   loadAudioOutputDeviceId: async () => {
     const deviceId = await window.api.getAudioOutputDeviceId()
     set({ audioOutputDeviceId: deviceId })
+  },
+
+  loadCueOutputDeviceId: async () => {
+    set({ cueOutputDeviceId: await window.api.getCueOutputDeviceId() })
+  },
+
+  setCueOutputDeviceId: async (deviceId) => {
+    set({ cueOutputDeviceId: deviceId })
+    await window.api.setCueOutputDeviceId(deviceId)
+  },
+
+  previewTrack: (trackId) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    // A cloud-only placeholder has nothing local to stream yet.
+    if (!track || track.cloudStatus === 'cloud_only') return
+    set({ cueTrackId: get().cueTrackId === trackId ? null : trackId })
+  },
+
+  stopPreview: () => set({ cueTrackId: null }),
+
+  setCueVolume: (volume) => {
+    set({ cueVolume: volume })
+    try {
+      localStorage.setItem(CUE_VOLUME_KEY, String(volume))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
   },
 
   setAudioOutputDeviceId: async (deviceId) => {

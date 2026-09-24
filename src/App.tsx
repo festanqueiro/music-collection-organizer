@@ -6,6 +6,7 @@ import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
 import { DuplicatesPanel } from './components/DuplicatesPanel'
+import { CuePlayer } from './components/CuePlayer'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
@@ -32,6 +33,7 @@ export default function App() {
   const loadColumnOrder = useCollectionStore((s) => s.loadColumnOrder)
   const loadSortState = useCollectionStore((s) => s.loadSortState)
   const loadAudioOutputDeviceId = useCollectionStore((s) => s.loadAudioOutputDeviceId)
+  const loadCueOutputDeviceId = useCollectionStore((s) => s.loadCueOutputDeviceId)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const loadAppVersion = useCollectionStore((s) => s.loadAppVersion)
   const handleMidiControlChange = useCollectionStore((s) => s.handleMidiControlChange)
@@ -148,6 +150,7 @@ export default function App() {
     loadColumnOrder()
     loadSortState()
     loadAudioOutputDeviceId()
+    loadCueOutputDeviceId()
     loadAppVersion()
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
@@ -169,11 +172,14 @@ export default function App() {
     loadColumnOrder,
     loadSortState,
     loadAudioOutputDeviceId,
+    loadCueOutputDeviceId,
     loadAppVersion,
     setAnalysisProgress,
     refreshTracks,
   ])
 
+  const cueTrackId = useCollectionStore((s) => s.cueTrackId)
+  const cueTrack = cueTrackId != null ? (tracks.find((t) => t.id === cueTrackId) ?? null) : null
   const currentTrackId = playlist[0]
   const currentTrack = currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null
 
@@ -330,6 +336,7 @@ export default function App() {
         </div>
 
         <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)', position: 'relative' }}>
+          {cueTrack && <CuePlayer key={cueTrack.id} track={cueTrack} />}
           {(() => {
             // Driven by the playlist queue's head, not row selection — the
             // player is independent, so browsing/checking details on other

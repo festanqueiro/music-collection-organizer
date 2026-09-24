@@ -77,6 +77,10 @@ export function TrackTable({
   const sortState = useCollectionStore((s) => s.sortState)
   const setSortState = useCollectionStore((s) => s.setSortState)
   const keyNotation = useCollectionStore((s) => s.keyNotation)
+  const cueTrackId = useCollectionStore((s) => s.cueTrackId)
+  const playerPlaying = useCollectionStore((s) => s.playerPlaying)
+  const playbackControls = useCollectionStore((s) => s.playbackControls)
+  const previewTrack = useCollectionStore((s) => s.previewTrack)
   const compatibleFilter = useCollectionStore((s) => s.compatibleFilter)
   const setCompatibleFilter = useCollectionStore((s) => s.setCompatibleFilter)
   const currentTrackId = playlist[0] ?? null
@@ -242,6 +246,14 @@ export function TrackTable({
       if (modalOpen) return
       const target = e.target as HTMLElement
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return
+      // P: pre-listen to the selected row in the headphones (toggles).
+      if ((e.key === 'p' || e.key === 'P') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (selectedTrackId != null) {
+          e.preventDefault()
+          previewTrack(selectedTrackId)
+        }
+        return
+      }
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) return
       if (visibleTracks.length === 0) return
       e.preventDefault()
@@ -262,7 +274,7 @@ export function TrackTable({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [visibleTracks, selectedTrackId, onSelect, modalOpen])
+  }, [visibleTracks, selectedTrackId, onSelect, modalOpen, previewTrack])
 
   const columnLabels: Record<TrackTableColumnKey, string> = {
     title: 'Title',
@@ -332,9 +344,12 @@ export function TrackTable({
                 // clicking the row would leave the detail panel out of
                 // sync with what's actually playing.
                 onSelect(track)
-                playTrackNow(track.id)
+                // The loaded track's button is its play/pause toggle —
+                // clicking it again must not restart it from the top.
+                if (track.id === currentTrackId && playbackControls) playbackControls.toggle()
+                else playTrackNow(track.id)
               }}
-              title="Play track now"
+              title={track.id === currentTrackId && playerPlaying ? 'Pause' : track.id === currentTrackId ? 'Resume' : 'Play track now'}
               style={{
                 background: 'none',
                 border: 'none',
@@ -345,9 +360,30 @@ export function TrackTable({
               }}
             >
               <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
-                play_circle
+                {track.id === currentTrackId && playerPlaying ? 'pause_circle' : 'play_circle'}
               </span>
             </button>
+            {track.cloudStatus === 'local' && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  previewTrack(track.id)
+                }}
+                title={track.id === cueTrackId ? 'Stop pre-listen' : 'Pre-listen in headphones (P)'}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '0 4px 0 0',
+                  cursor: 'pointer',
+                  verticalAlign: 'middle',
+                  color: track.id === cueTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+                  headphones
+                </span>
+              </button>
+            )}
             {track.analysisStatus === 'analyzing' && (
               <span
                 className="material-symbols-outlined spin"
@@ -691,6 +727,18 @@ export function TrackTable({
                 skip_next
               </span>
               Add to top of the queue
+            </button>
+            <button
+              onClick={() => {
+                previewTrack(contextMenu.trackId)
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                headphones
+              </span>
+              {contextMenu.trackId === cueTrackId ? 'Stop pre-listen' : 'Pre-listen in headphones'}
             </button>
             <button
               onClick={() => {

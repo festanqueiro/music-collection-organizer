@@ -34,6 +34,8 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
   const [backingUp, setBackingUp] = useState(false)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const setAudioOutputDeviceId = useCollectionStore((s) => s.setAudioOutputDeviceId)
+  const cueOutputDeviceId = useCollectionStore((s) => s.cueOutputDeviceId)
+  const setCueOutputDeviceId = useCollectionStore((s) => s.setCueOutputDeviceId)
   const showMidiControls = useCollectionStore((s) => s.showMidiControls)
   const setShowMidiControls = useCollectionStore((s) => s.setShowMidiControls)
   const midiBindingCount = useCollectionStore((s) => Object.keys(s.midiMappings).length)
@@ -256,6 +258,31 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
               {audioDevicesError && (
                 <p style={{ margin: '8px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
                   {audioDevicesError}
+                </p>
+              )}
+            </section>
+
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Cue output (headphones)</h3>
+              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                Where pre-listen plays (the headphones icon on a track, or P) — pick your headphones or a second
+                output on your audio interface so you can audition the next track while the main output keeps
+                playing.
+              </p>
+              <select
+                value={cueOutputDeviceId ?? ''}
+                onChange={(e) => setCueOutputDeviceId(e.target.value || null)}
+              >
+                <option value="">System default</option>
+                {audioOutputDevices.map((d, i) => (
+                  <option key={d.deviceId} value={d.deviceId}>
+                    {d.label || `Audio output ${i + 1}`}
+                  </option>
+                ))}
+              </select>
+              {(cueOutputDeviceId ?? '') === (audioOutputDeviceId ?? '') && (
+                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                  Same as the main output, so previews will be heard on the main speakers too.
                 </p>
               )}
             </section>

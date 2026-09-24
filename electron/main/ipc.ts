@@ -19,6 +19,8 @@ import {
   setSortState,
   getAudioOutputDeviceId,
   setAudioOutputDeviceId,
+  getCueOutputDeviceId,
+  setCueOutputDeviceId,
 } from './config'
 import { getDataFolder, setDataFolder } from './bootstrap'
 import { getDbFilePath } from './dbPath'
@@ -222,6 +224,11 @@ export function registerIpcHandlers(
   ipcMain.handle('config:getAudioOutputDeviceId', (): string | null => getAudioOutputDeviceId())
   ipcMain.handle('config:setAudioOutputDeviceId', (_e, deviceId: string | null): void =>
     setAudioOutputDeviceId(deviceId)
+  )
+
+  ipcMain.handle('config:getCueOutputDeviceId', (): string | null => getCueOutputDeviceId())
+  ipcMain.handle('config:setCueOutputDeviceId', (_e, deviceId: string | null): void =>
+    setCueOutputDeviceId(deviceId)
   )
 
   ipcMain.handle('backup:getInfo', (): BackupInfo => ({

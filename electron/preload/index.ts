@@ -34,6 +34,9 @@ const api = {
   getAudioOutputDeviceId: (): Promise<string | null> => ipcRenderer.invoke('config:getAudioOutputDeviceId'),
   setAudioOutputDeviceId: (deviceId: string | null): Promise<void> =>
     ipcRenderer.invoke('config:setAudioOutputDeviceId', deviceId),
+  getCueOutputDeviceId: (): Promise<string | null> => ipcRenderer.invoke('config:getCueOutputDeviceId'),
+  setCueOutputDeviceId: (deviceId: string | null): Promise<void> =>
+    ipcRenderer.invoke('config:setCueOutputDeviceId', deviceId),
   chooseCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:chooseCollectionFolder'),
   willRelocateOnNextCollectionFolderPick: (): Promise<boolean> =>
     ipcRenderer.invoke('config:willRelocateOnNextCollectionFolderPick'),

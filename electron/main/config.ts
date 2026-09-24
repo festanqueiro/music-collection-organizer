@@ -19,6 +19,7 @@ interface ConfigSchema {
   columnOrder?: string[]
   sortState?: TrackTableSortState
   audioOutputDeviceId?: string
+  cueOutputDeviceId?: string
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -149,4 +150,14 @@ export function getAudioOutputDeviceId(): string | null {
 export function setAudioOutputDeviceId(deviceId: string | null): void {
   if (deviceId === null) getStore().delete('audioOutputDeviceId')
   else getStore().set('audioOutputDeviceId', deviceId)
+}
+
+// Headphone pre-listen output. null means "system default".
+export function getCueOutputDeviceId(): string | null {
+  return getStore().get('cueOutputDeviceId') ?? null
+}
+
+export function setCueOutputDeviceId(deviceId: string | null): void {
+  if (deviceId === null) getStore().delete('cueOutputDeviceId')
+  else getStore().set('cueOutputDeviceId', deviceId)
 }

@@ -125,6 +125,12 @@ export function Player({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const setPlayerPlaying = useCollectionStore((s) => s.setPlayerPlaying)
+  useEffect(() => {
+    setPlayerPlaying(playing)
+  }, [playing, setPlayerPlaying])
+  useEffect(() => () => setPlayerPlaying(false), [setPlayerPlaying])
+
   // Mirrors playing/paused to a bound player.playPause button's LED,
   // same convention as delay.enabled/reverb.enabled.
   useEffect(() => {
