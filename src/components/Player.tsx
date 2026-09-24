@@ -5,6 +5,7 @@ import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
 import { getActiveAnalyser, setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
+import { ConfirmDialog } from './ConfirmDialog'
 import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
@@ -16,7 +17,15 @@ import type { Track } from '../types'
 // module lands), which the compact footer strip can't spare. All other
 // track detail (artist, tags, full ID3) lives in DetailPanel instead —
 // this component is deliberately just the now-playing strip.
-export function Player({ track }: { track: Track }) {
+export function Player({
+  track,
+  onShowDetails,
+  onFilterByArtist,
+}: {
+  track: Track
+  onShowDetails: (track: Track) => void
+  onFilterByArtist: (artist: string) => void
+}) {
   const audioRef = useRef<HTMLAudioElement>(null)
   // Remembers the volume to restore on unmute — a plain ref, not state,
   // since it's write-only from the mute button's own perspective (never
@@ -29,6 +38,7 @@ export function Player({ track }: { track: Track }) {
   const [duration, setDuration] = useState(0)
   const [showTimeLeft, setShowTimeLeft] = useState(false)
   const [artworkUrl, setArtworkUrl] = useState<string | null>(null)
+  const [confirmArtistFilter, setConfirmArtistFilter] = useState(false)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const playerVolume = useCollectionStore((s) => s.playerVolume)
@@ -312,11 +322,39 @@ export function Player({ track }: { track: Track }) {
             flexShrink: 1,
           }}
         >
-          {decodeHtmlEntities(track.title ?? track.filename)}
+          <span onClick={() => onShowDetails(track)} style={{ cursor: 'pointer' }} title="Show track details">
+            {decodeHtmlEntities(track.title ?? track.filename)}
+          </span>
           {track.artist && (
-            <span style={{ fontWeight: 400, color: 'var(--color-text-dim)' }}> — {decodeHtmlEntities(track.artist)}</span>
+            <span style={{ fontWeight: 400, color: 'var(--color-text-dim)' }}>
+              {' — '}
+              <span
+                onClick={() => setConfirmArtistFilter(true)}
+                style={{ cursor: 'pointer' }}
+                title="Filter the collection by this artist"
+              >
+                {decodeHtmlEntities(track.artist)}
+              </span>
+            </span>
           )}
         </span>
+        {confirmArtistFilter && track.artist && (
+          <ConfirmDialog
+            title="Filter by artist"
+            icon="filter_list"
+            confirmLabel="Filter"
+            onConfirm={() => {
+              setConfirmArtistFilter(false)
+              onFilterByArtist(decodeHtmlEntities(track.artist!))
+            }}
+            onCancel={() => setConfirmArtistFilter(false)}
+          >
+            Do you want to filter the collection by this artist?
+            <div style={{ marginTop: '6px', color: 'var(--color-text)', fontWeight: 500 }}>
+              {decodeHtmlEntities(track.artist)}
+            </div>
+          </ConfirmDialog>
+        )}
         <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px', flexShrink: 0 }}>
           {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
         </span>

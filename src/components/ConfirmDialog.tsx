@@ -10,12 +10,14 @@ export function ConfirmDialog({
   title,
   children,
   confirmLabel = 'Confirm',
+  icon = 'warning',
   onConfirm,
   onCancel,
 }: {
   title: string
   children: ReactNode
   confirmLabel?: string
+  icon?: string
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -62,7 +64,7 @@ export function ConfirmDialog({
       >
         <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--color-secondary)' }}>
-            warning
+            {icon}
           </span>
           {title}
         </h3>
