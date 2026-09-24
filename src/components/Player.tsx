@@ -44,7 +44,7 @@ export function Player({
   // mirrors it so MIDI/keyboard handlers registered once see the latest.
   const [cuePoint, setCuePoint] = useState(0)
   const cuePointRef = useRef(0)
-  // True while CUE is held at the cue point and previewing; releasing
+  // True while CUE is held and previewing from the cue point; releasing
   // snaps back to the cue point unless Play was pressed meanwhile.
   const cuePreviewingRef = useRef(false)
   const [cueHeld, setCueHeld] = useState(false)
@@ -108,23 +108,20 @@ export function Player({
     }
   }
 
-  // CDJ CUE button:
-  // - playing → jump back to the cue point and pause;
-  // - paused away from the cue point → set the cue point here;
-  // - paused at the cue point → play while held (cueUp snaps back).
+  // CUE button: plays for as long as it's held, from the cue point;
+  // releasing snaps back to the cue point and pauses.
+  // - paused → wherever the track is paused becomes the cue point, so
+  //   pausing (or seeking while paused) is how a cue point gets placed;
+  // - playing → jumps back to the cue point.
   function cueDown() {
     const audio = audioRef.current
     if (!audio) return
     setCueHeld(true)
-    if (!audio.paused) {
-      audio.pause()
-      audio.currentTime = cuePointRef.current
-      return
-    }
-    if (Math.abs(audio.currentTime - cuePointRef.current) > 0.05) {
+    if (audio.paused) {
       cuePointRef.current = audio.currentTime
       setCuePoint(audio.currentTime)
-      return
+    } else {
+      audio.currentTime = cuePointRef.current
     }
     cuePreviewingRef.current = true
     effectsChainRef.current?.resume()
@@ -318,6 +315,11 @@ export function Player({
     const rect = target.getBoundingClientRect()
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
     audio.currentTime = ratio * audio.duration
+    // Seeking while paused is how the cue point gets placed.
+    if (audio.paused) {
+      cuePointRef.current = audio.currentTime
+      setCuePoint(audio.currentTime)
+    }
     setProgress(ratio)
     setCurrentTime(audio.currentTime)
     setPlaybackProgress(ratio)
@@ -484,7 +486,7 @@ export function Player({
           }}
           onPointerUp={cueUp}
           onPointerCancel={cueUp}
-          title="Cue (C): playing → back to cue point; paused → set cue point; hold at cue point to preview"
+          title="Cue (C): hold to play, release to return to the cue point. Paused → the cue point is set where the track is paused."
           style={{
             fontWeight: 700,
             fontSize: '11px',
