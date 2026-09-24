@@ -5,6 +5,7 @@ import { ScanPrompt } from './components/ScanPrompt'
 import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
+import { DuplicatesPanel } from './components/DuplicatesPanel'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
@@ -19,7 +20,7 @@ import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
 import type { Track } from './types'
 
-type LeftView = 'folders' | 'tags' | 'subtags'
+type LeftView = 'folders' | 'tags' | 'subtags' | 'duplicates'
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
@@ -233,7 +234,7 @@ export default function App() {
             <button onClick={() => pickCollectionFolder()}>Choose collection folder…</button>
           ) : (
             <>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
                 <button
                   onClick={() => changeLeftView('folders')}
                   style={{
@@ -258,6 +259,15 @@ export default function App() {
                 >
                   Subtags
                 </button>
+                <button
+                  onClick={() => changeLeftView('duplicates')}
+                  title="Find likely duplicate tracks"
+                  style={{
+                    border: leftView === 'duplicates' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                  }}
+                >
+                  Duplicates
+                </button>
               </div>
               {leftView === 'folders' && (
                 <FolderTree
@@ -271,6 +281,14 @@ export default function App() {
               )}
               {leftView === 'tags' && (
                 <TagTree
+                  onFilterChange={(filter) => {
+                    setTagFilter(() => filter)
+                    clearCheckedTracks()
+                  }}
+                />
+              )}
+              {leftView === 'duplicates' && (
+                <DuplicatesPanel
                   onFilterChange={(filter) => {
                     setTagFilter(() => filter)
                     clearCheckedTracks()

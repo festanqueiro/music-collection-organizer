@@ -318,6 +318,9 @@ interface CollectionState {
   setTracksChecked: (trackIds: number[], checked: boolean) => void
   clearCheckedTracks: () => void
   addTagsToCheckedTracks: (tagIds: { genreIds: number[]; subgenreIds: number[] }) => Promise<void>
+  // Duplicate finder: gives every listed track the union of all their
+  // tags, so whichever copy is kept has them all. Additive only.
+  mergeTagsAcross: (trackIds: number[]) => Promise<void>
   exportTagData: () => Promise<{ path: string } | null>
   importTagData: () => Promise<ImportResult | null>
 }
@@ -1155,6 +1158,25 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const trackIds = Array.from(get().checkedTrackIds)
     if (trackIds.length === 0) return
     const updated = await window.api.batchAddTags(trackIds, tagIds)
+    const trackTags = new Map(get().trackTags)
+    for (const u of updated) trackTags.set(u.trackId, u)
+    set({ trackTags })
+  },
+
+  mergeTagsAcross: async (trackIds) => {
+    if (trackIds.length < 2) return
+    const genreIds = new Set<number>()
+    const subgenreIds = new Set<number>()
+    for (const id of trackIds) {
+      const tags = get().trackTags.get(id)
+      tags?.genreIds.forEach((g) => genreIds.add(g))
+      tags?.subgenreIds.forEach((sg) => subgenreIds.add(sg))
+    }
+    if (genreIds.size === 0 && subgenreIds.size === 0) return
+    const updated = await window.api.batchAddTags(trackIds, {
+      genreIds: [...genreIds],
+      subgenreIds: [...subgenreIds],
+    })
     const trackTags = new Map(get().trackTags)
     for (const u of updated) trackTags.set(u.trackId, u)
     set({ trackTags })
