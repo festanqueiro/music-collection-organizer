@@ -30,17 +30,14 @@
       "target": "dir",
       "category": "public.app-category.music",
       "icon": "resources/icon.png",
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "resources/entitlements.mac.plist",
-      "entitlementsInherit": "resources/entitlements.mac.plist",
+      "identity": "-",
+      "hardenedRuntime": false,
       "artifactName": "MCO-${version}-${arch}.${ext}"
     },
     "extraMetadata": {
       "name": "v1-library-organizer"
     },
     "dmg": {
-      "sign": true,
       "title": "MCO ${version}"
     }
   },

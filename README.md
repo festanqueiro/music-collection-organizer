@@ -49,10 +49,15 @@ The full guide to every feature is in
 
 ## Install
 
-Download the latest `MCO-<version>-arm64.dmg` from the
-[Releases page](https://github.com/festanqueiro/music-collection-organizer/releases),
-open it, and drag **MCO** into **Applications**. Releases are signed and
-notarized by Apple, so they open normally on any Mac.
+1. Download the latest `MCO-<version>-arm64.dmg` from the
+   [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases),
+   open it, and drag **MCO** into **Applications**.
+2. Open MCO. The first time, macOS warns that it *"could not verify"* the
+   app, because MCO isn't registered with Apple's paid developer program.
+   Click **Done**, then go to **System Settings → Privacy & Security**,
+   click **Open Anyway** next to the MCO message, and confirm.
+
+That's only needed once per Mac.
 
 ## Building from source
 
@@ -80,9 +85,9 @@ npm run dist            # build "MCO - Music Collection Organizer.app" into rele
 npm run dist:install    # build it and copy it into ~/Applications
 ```
 
-These local builds are unsigned, so they only open cleanly on the Mac
-that built them. Signed, notarized installers are made by the Release
-workflow; see [docs/releasing.md](docs/releasing.md).
+These local builds are meant for the Mac that built them. The
+downloadable installer is made by the Release workflow; see
+[docs/releasing.md](docs/releasing.md).
 
 There's also `npm run dist:beta`, which installs a separate "BETA" copy
 of the app with its own data, handy for testing changes without touching

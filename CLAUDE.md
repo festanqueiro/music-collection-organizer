@@ -65,10 +65,12 @@ macOS only for now.
   "MCO - Music Collection Organizer BETA.app" alongside production, with
   its own bundle id and its own `userData` directory (separate DB/config/
   backups) via `-c.extraMetadata.name`. Never touches the production app.
-- `npm run dist:release` — signed + notarized DMG/ZIP (arm64). Needs a
-  Developer ID certificate and `APPLE_*` env vars; normally run by
-  `.github/workflows/release.yml` (manual, admin-approved via the
-  protected `release` environment that holds the signing secrets). Never
-  commit signing keys — see `docs/releasing.md`.
+- `npm run dist:release` — ad-hoc signed (free, no Apple Developer ID,
+  not notarized) arm64 DMG/ZIP; normally run by the manual
+  `.github/workflows/release.yml`, which publishes a GitHub release.
+  Users see macOS's "could not verify" warning once and use "Open
+  Anyway". Keep `mac.hardenedRuntime` false while ad-hoc signing (hardened
+  runtime + ad-hoc breaks Electron's library loading). See
+  `docs/releasing.md`.
 - `.github/workflows/version-bump.yml` bumps `package.json`'s patch version
   and tags it on every push to `main`.
