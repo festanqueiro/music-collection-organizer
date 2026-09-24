@@ -4,7 +4,7 @@ Open **Settings** from the toolbar. It has three tabs.
 
 | Tab | Sections |
 | --- | --- |
-| **General** | Collection folder (Change…), Updates, Key notation, Database & settings location (Change…) |
+| **General** | Collection folder (Change…, watch for new files, analyse them automatically), Updates, Key notation, Database & settings location (Change…) |
 | **Audio** | Audio Output device, Cue output (headphones), MIDI (mapping buttons, export/import/reset) |
 | **Backups** | Backup status and **Back up now**, Restore, Tag data (export/import), Export to Rekordbox |
 

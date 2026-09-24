@@ -13,7 +13,7 @@ first). Picking a different folder later keeps the data where it is — see
 ## Scanning ("Update Collection")
 
 **Update Collection** in the toolbar walks the collection folder for audio
-files (WAV, AIFF, FLAC, MP3) and compares them with the
+files (WAV, AIFF, FLAC, MP3, M4A/AAC, OGG, Opus) and compares them with the
 database:
 
 - new files are added as *pending* analysis;
@@ -26,6 +26,25 @@ Scanning never starts analysis by itself. After picking a new folder the
 app asks whether to analyse the unanalysed tracks.
 
 Code: `electron/main/scan.ts`, `folderWalk.ts`, `scanDiff.ts`.
+
+## Watching the folder
+
+You rarely need **Update Collection**: MCO watches the collection folder,
+subfolders included. A few seconds after files are added, removed, or
+replaced, it rescans in the background and a toast says what changed
+(e.g. "3 new tracks, 1 missing"). Copying in a whole album triggers
+one rescan, not one per file.
+
+Both switches are in **Settings → General → Collection folder**:
+
+- **Watch for new and removed files** (on by default);
+- **Analyse new tracks automatically** (off by default). When it's on,
+  new and changed tracks are analysed straight after the rescan.
+
+Only audio files and folders count. The app's own `.mco` data folder,
+Finder metadata, and partial downloads are ignored.
+
+Code: `electron/main/folderWatcher.ts`.
 
 ## Cloud-only files (Google Drive for Desktop)
 
@@ -59,8 +78,10 @@ Code: `electron/main/analysis/` (`queue.ts`, `worker.ts`, `pipeline.ts`,
 
 ## Track table
 
-- Columns: Title, Filename, Artist, Tags, BPM, Key, Format, Duration, Date
-  added, Date modified.
+- Columns: Title, Filename, Artist, Tags, BPM, Key, Format, Bitrate,
+  Duration, Date added, Date modified. Bitrate is read during analysis.
+  Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted,
+  the usual minimum for playing out on a club system.
 - Drag column headers to reorder them; click a header to sort, click again
   to reverse. Order and sort are saved.
 - Click a row to show its details (cover art, ID3 metadata, your tags) in

@@ -53,31 +53,6 @@ cue points.
 - Add a zoomable waveform in the expanded player view.
 - Loops come later as in/out pairs.
 
-## 4. AAC / M4A / OGG support (S)
-
-**Why:** MP3 is supported now, but some collections also have AAC/M4A
-(iTunes/Apple Music purchases, Bandcamp downloads) and OGG files. The
-rest of the pipeline (ffmpeg decode, `music-metadata`, and the
-`media://` MIME map) already handles them.
-
-**How:** add `.m4a`, `.aac`, and `.ogg` to `AUDIO_EXTENSIONS` in
-`electron/main/folderWalk.ts`, then add fixture-based tests like the MP3
-ones: decode, and full analysis including tags. Also show a bitrate
-column, so low-quality lossy files stand out.
-
-## 5. Watch folder / auto-import (S–M)
-
-**Why:** after downloading new music you have to remember to click
-"Update Collection".
-
-**How:**
-
-- Watch the collection folder with `fs.watch` (recursive on macOS), and
-  debounce changes into a background scan.
-- Show a toast with "12 new tracks" and optionally auto-analyse them.
-- Keep it behind a Settings toggle, since external drives and cloud
-  folders can produce noisy events.
-
 ---
 
 ## Done
@@ -87,7 +62,9 @@ column, so low-quality lossy files stand out.
 - **Export to Rekordbox**, **harmonic mixing helpers**, **headphone
   pre-listen**, and the **duplicate finder** — see
   `docs/features/dj-tools.md`.
-- **MP3 support.**
+- **MP3, M4A/AAC, and OGG/Opus support**, with a Bitrate column.
+- **Watch folder / auto-import** — see
+  `docs/features/library.md#watching-the-folder`.
 
 ## Backlog (not prioritized)
 

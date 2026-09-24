@@ -18,8 +18,8 @@ MCO's own database.
 
 ## Features
 
-- **Your collection, organized** — scans a folder of WAV, AIFF, FLAC, and
-  MP3 files, reads their tags and cover art, and measures BPM, key, and
+- **Your collection, organized** — scans a folder of WAV, AIFF, FLAC, MP3,
+  M4A/AAC, and OGG/Opus files, picks up new downloads on its own, reads their tags and cover art, and measures BPM, key, and
   waveform. Sort, search, and filter by folder or tag. Files that go
   missing are hidden, not forgotten, so their tags come back when the
   drive does.
