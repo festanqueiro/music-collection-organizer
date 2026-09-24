@@ -25,7 +25,9 @@ A synthesized dub siren with four modes: **Siren**, **Bomb**, **Gun**,
 
 - **Pitch** — base frequency; **Speed** — how fast the pitch wobbles;
   **Depth** — how wide the wobble is; **Echo** — the siren's own echo
-  feedback; **Mix** — its level (independent of the track volume).
+  feedback; **Mix** — its level (independent of the track volume). The
+  knob follows perceived loudness, and Bomb, Gun, and Laser are trimmed
+  so they come out at about the same volume as Siren.
 - **Beat: Off** — fire it by holding the **SIREN** button or the **S**
   key (or a mapped MIDI pad).
 - **Beat: Slow / Medium / Fast** — it stabs automatically in rhythm.

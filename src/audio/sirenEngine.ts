@@ -9,26 +9,32 @@ interface ModeVoice {
   // Non-null = one-shot: the voice decays on its own schedule and ignores triggerUp().
   oneShot: { attackTau: number; decayDelaySeconds: number; decayTau: number } | null
   retriggerMs: number | null // non-null = rapid restab while held
+  // Output trim per voice: sawtooth/square carriers are full of harmonics
+  // and sound far louder than a sine at the same peak level, so they're
+  // pulled down to sit roughly level with the sine siren.
+  carrierGain: number
 }
 
 // Ported from the watchOS app's SirenEngine.setMode plus the per-mode
 // branches of SirenVoice.noteOn.
 const MODE_VOICES: Record<SirenMode, ModeVoice> = {
-  siren: { carrier: 'sine', lfoDepth: 0.5, sweep: null, oneShot: null, retriggerMs: null },
+  siren: { carrier: 'sine', lfoDepth: 0.5, sweep: null, oneShot: null, retriggerMs: null, carrierGain: 1 },
   bomb: {
     carrier: 'sawtooth',
     lfoDepth: 0,
     sweep: { fromRatio: 2.2, toRatio: 0.35, durationSeconds: 0.6 },
     oneShot: { attackTau: 0.005, decayDelaySeconds: 0.15, decayTau: 0.22 },
     retriggerMs: null,
+    carrierGain: 0.5,
   },
-  gun: { carrier: 'square', lfoDepth: 0, sweep: null, oneShot: null, retriggerMs: 110 },
+  gun: { carrier: 'square', lfoDepth: 0, sweep: null, oneShot: null, retriggerMs: 110, carrierGain: 0.4 },
   laser: {
     carrier: 'sawtooth',
     lfoDepth: 0.5,
     sweep: { fromRatio: 4, toRatio: 1, durationSeconds: 0.4 },
     oneShot: null,
     retriggerMs: null,
+    carrierGain: 0.5,
   },
 }
 
@@ -43,6 +49,14 @@ const BEAT_STAB_GAIN = 0.85
 const BEAT_STAB_ATTACK_TAU = 0.008
 const BEAT_STAB_DECAY_DELAY_SECONDS = 0.11
 const BEAT_STAB_DECAY_TAU = 0.05
+
+// Level knob → gain. Squared, so the knob follows loudness rather than raw
+// amplitude: linear gain put nearly all of the audible change in the
+// bottom quarter of the knob, leaving the rest of its travel loud.
+export function sirenLevelToGain(level: number): number {
+  const clamped = Math.min(1, Math.max(0, level))
+  return clamped * clamped
+}
 
 const PARAM_SMOOTH_TAU = 0.02 // matches EchoEffect's smoothers
 const MIN_SWEEP_HZ = 20
@@ -152,7 +166,11 @@ export class DubSirenEngine {
       )
     }
     this.lfoOsc.frequency.setTargetAtTime(settings.speedHz, now, PARAM_SMOOTH_TAU)
-    this.levelGain.gain.setTargetAtTime(settings.level, now, PARAM_SMOOTH_TAU)
+    this.levelGain.gain.setTargetAtTime(
+      sirenLevelToGain(settings.level) * MODE_VOICES[settings.mode].carrierGain,
+      now,
+      PARAM_SMOOTH_TAU
+    )
     this.echoFeedbackGain.gain.setTargetAtTime(settings.echoFeedback, now, PARAM_SMOOTH_TAU)
 
     this.updateBeat(settings.beat)
