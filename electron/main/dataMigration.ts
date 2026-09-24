@@ -26,8 +26,8 @@ export interface MigrateDataFolderParams {
 //
 // Either way, the *old* files at oldDbPath/oldConfigPath are deliberately
 // left where they were — never deleted — a cheap safety net alongside the
-// daily backups (which always target the data folder's current value, so
-// they keep working correctly after a move too).
+// daily backups (which always live in <userData>/backups and snapshot the
+// live DB handle, so they keep working correctly after a move too).
 export function migrateDataFolder({
   newDataFolder,
   oldDbPath,

@@ -17,7 +17,8 @@ analyzed on demand, one track at a time.
 
 - **Local-first collection**: scan a folder, extract ID3 tags + BPM/key/
   waveform, browse/search/filter, and organize with your own Genre/
-  Sub-Genre/Mood tags (batch-editable, with export/import).
+  Sub-Genre tags (batch-editable, with export/import). The Tags/Subtags
+  trees filter the table with an AND/OR match mode.
 - **Play queue**: a FIFO queue, not a saved playlist — the track playing
   is always at the head, and once it finishes it's gone, not just skipped
   past. "Play track now" / "Add to queue" / "Play next" from a row's
@@ -28,7 +29,11 @@ analyzed on demand, one track at a time.
   a live progress line, play/pause, skip to the next queued track,
   volume, elapsed/remaining time (click the time to toggle between
   them) — separate from row selection, so browsing track details doesn't
-  interrupt playback.
+  interrupt playback. Also driven by the macOS media keys and AirPods/
+  headset controls, and can play to any audio output device (Settings →
+  Audio).
+- **Visualizer**: a full-screen, audio-reactive `three.js` visualizer
+  with four themes (Horizon, Nebula, Warp, Sound System).
 - **FX panel**: EQ (3-band Low/Mid/High), a Xone-mixer-style single-knob
   sweep Filter (one direction sweeps a lowpass closed, the other a
   highpass), Delay, Reverb, and a Dub Siren — all synthesized (no bundled
@@ -67,7 +72,8 @@ analyzed on demand, one track at a time.
 Electron + `electron-vite` + React + TypeScript, `node:sqlite` (Node's
 built-in synchronous SQLite — no native module to compile), `electron-store`,
 `music-metadata`, `ffmpeg-static`, `essentia.js` (WASM, run in a
-`worker_threads` pool so analysis doesn't block the UI), the Web Audio API
+`worker_threads` pool so analysis doesn't block the UI), `three` (the
+visualizer), the Web Audio API
 and Web MIDI API (both browser-native, no extra dependency), `zustand`,
 Vitest.
 
@@ -107,22 +113,27 @@ npm run dist:beta
 # the production install
 ```
 
-Both are unsigned/local-only builds (no code-signing identity configured).
+All of these are unsigned/local-only builds (no code-signing identity configured).
 `package.json`'s version is bumped automatically (patch) and tagged on
 every merge to `main` via `.github/workflows/version-bump.yml`.
 
 The app's data — `collection.db` (the SQLite database) and the config
-store (collection folder path, FX/MIDI settings, window state) — lives
+store (collection folder path, FX/MIDI settings, track-table column
+order and sort, audio output device) — lives
 outside the repo. By default that's Electron's per-app userData directory
 (on macOS: `~/Library/Application Support/<app name>/`), but the first
 time you ever set a collection folder, both move automatically into a
 hidden `.mco` folder inside it, so the whole collection — music,
 database, and settings — travels together if that folder is ever copied
-to another machine or drive. You can also relocate them independently at
-any time from Settings → "Database & settings" → Change…. Either way, the
-old files are never deleted on a move (a cheap safety net alongside the
-daily backups, which always target wherever the data currently lives).
-Deleting the current data folder resets the app to a clean state.
+to another machine or drive. Note that tracks are stored by absolute
+path, so tags only carry over if the folder ends up at the same path
+(e.g. the same `/Volumes/<name>` mount); at a different path a rescan
+treats every file as new. You can also relocate the data independently
+at any time from Settings → "Database & settings" → Change…. Either way,
+the old files are never deleted on a move (a cheap safety net alongside
+the daily backups). Backups themselves always stay in the app's userData
+directory (`<userData>/backups/`, last 30 kept), wherever the data folder
+lives. Deleting the current data folder resets the app to a clean state.
 
 ## Project layout
 
@@ -135,12 +146,13 @@ Deleting the current data folder resets the app to a clean state.
 - `src/` — the React renderer: the layout (track table, folder/tag trees,
   detail panel, footer player), zustand store, and `src/audio/` (the Web
   Audio FX graph and Web MIDI mapping, both renderer-only — no IPC needed
-  for either).
+  for either), and `src/visualizer/` (the full-screen `three.js` themes).
 - `tests/fixtures/` — synthetic WAV/AIFF-tone generators shared by the
   audio pipeline's tests.
 
 ## Status
 
-v1 is implemented and runs. See `TODO.md` for what's fixed, what's still
-open, and the design docs it was built from
-(`docs/superpowers/specs/`, `docs/superpowers/plans/`).
+v1 is implemented and runs. See `TODO.md` for known issues,
+`TODO-UX.md` / `TODO-FUTURE.md` for open ideas, and
+`docs/superpowers/specs/` / `docs/superpowers/plans/` for the original
+design docs (historical — the code has moved on since).
