@@ -7,6 +7,7 @@ import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
 import { DuplicatesPanel } from './components/DuplicatesPanel'
 import { CuePlayer } from './components/CuePlayer'
+import { hideBootSplash } from './bootSplash'
 import { UpdateBanner } from './components/UpdateBanner'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
@@ -148,12 +149,18 @@ export default function App() {
   }, [modalOpen])
 
   useEffect(() => {
-    loadAll()
-    loadCollectionFolder()
-    loadEffectsSettings()
-    loadMidiMappings()
-    loadColumnOrder()
-    loadSortState()
+    // The startup loader stays up until everything the first screen shows
+    // (tracks/tags, folder, column layout/sort, FX) has arrived — or a
+    // few seconds at most, so a slow or failed load never strands it.
+    Promise.allSettled([
+      loadAll(),
+      loadCollectionFolder(),
+      loadEffectsSettings(),
+      loadMidiMappings(),
+      loadColumnOrder(),
+      loadSortState(),
+    ]).then(hideBootSplash)
+    const splashTimeout = setTimeout(hideBootSplash, 8000)
     loadAudioOutputDeviceId()
     loadCueOutputDeviceId()
     loadAppVersion()
@@ -175,6 +182,7 @@ export default function App() {
       }
     })
     return () => {
+      clearTimeout(splashTimeout)
       unsubscribe()
       unsubscribeUpdates()
       unsubscribeLibrary()

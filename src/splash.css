@@ -1,0 +1,45 @@
+/* src/splash.css — the startup loader in index.html. Linked directly from
+   index.html (not imported from JS) so it's styled on first paint, before
+   the app bundle runs; colours are hardcoded because theme.css's tokens
+   aren't loaded yet at that point. Hidden by hideBootSplash() once the
+   initial data has loaded. */
+html,
+body {
+  background: #12151a;
+}
+
+#boot-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: #12151a;
+  color: #9aa3b2;
+  font-family: 'Roboto', -apple-system, sans-serif;
+  font-size: 12px;
+  transition: opacity 0.25s ease-out;
+}
+
+#boot-splash[data-hidden] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#boot-splash .boot-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #2b3140;
+  border-top-color: #2dd4bf;
+  border-radius: 50%;
+  animation: boot-spin 0.8s linear infinite;
+}
+
+@keyframes boot-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
