@@ -17,6 +17,7 @@ interrupts playback.
   artist to search the collection for that artist.
 - **Expand queue** (chevron) opens the full-screen queue and FX panel.
 - **Open visualizer** — see [Visualizer](visualizer.md).
+- **Cast** — play on a TV or speaker; see [Casting](casting.md).
 
 A track starts playing as soon as it's loaded. Loading a track that hasn't
 been analysed yet starts its analysis in the background; a cloud-only

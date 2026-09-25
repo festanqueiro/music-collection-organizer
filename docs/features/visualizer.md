@@ -7,7 +7,8 @@ output (after FX and master volume), so EQ/filter moves show up in it.
 
 Options (saved per theme):
 
-- **Theme** — Horizon, Nebula, Warp, or Sound System;
+- **Theme** — Nebula, Warp, Horizon, Sound System, Smoke, Kaleidoscope,
+  or Paint (keys **1–7** switch while it's open);
 - **Hide track info** — hides the title/artist overlay;
 - per-theme options (below).
 
@@ -19,16 +20,31 @@ Options (saved per theme):
   ringed by spectrum rings.
 - **Warp** — a tunnel of spectrum-shaped rings rushing past.
 - **Sound System** — a speaker stack in a scene, with cones that recoil,
-  pressure rings, glows, and dust on the kicks. Its options:
-  - **Stack**: *Classic* (built-in geometry) or *SYSTEM MB* (a Blender
+  pressure rings and glows on the kicks. Its options:
+  - **Stack**: *Classic* (built-in geometry) or *Mais Baixo* (a Blender
     model, loaded the first time it's picked);
-  - **Colours**: *App*, *Black & White*, or *Natural* (the model's own
+  - **Colours**: *MCO*, *Black & White*, or *Natural* (the model's own
     wood textures);
   - **Background**: *Field* or *Urban*.
+- **Smoke** — a smoky club: smoke rolling up from a lamp that pumps with
+  the kick, stage beams sweeping through it. **Colours**: *Shifting*,
+  *Amber*, *Violet*, *Ghost*.
+- **Kaleidoscope** — mirrored wedges of neon rings lit by the spectrum;
+  kicks punch the zoom and flick the mirrors round. **Mirrors**: *8*, *6*,
+  *12*; **Colours**: *Vivid*, *Soft*.
+- **Paint** — paint flung at a black wall: splats on the kicks, bright
+  whips on the mids and highs, sinking to dark stains. **Colours**:
+  *Yellow*, *Shifting*, *Mixed*.
 
-The SYSTEM MB model is exported from Blender by
-`scripts/blender/export-system-mb.py` to
-`src/visualizer/assets/system-mb.glb`.
+While casting to a TV the visualizer plays on the TV instead, and this
+overlay shows just its controls (see [Casting](casting.md)).
 
-Code: `src/components/Visualizer.tsx`, `src/visualizer/` (`themes/`,
-`shared.ts`), `src/audio/audioAnalysis.ts` (spectrum bands).
+The Mais Baixo model is exported from Blender by
+`scripts/blender/export-system-mb.py` into the threejs-visualisers repo
+(`src/assets/system-mb.glb`).
+
+Code: `src/components/Visualizer.tsx` (overlay, render loop, picker). The
+themes, the renderer and the spectrum/beat analysis are the
+[threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers)
+package; `src/audio/audioAnalysis.ts` only tracks which track's analyser
+is live.

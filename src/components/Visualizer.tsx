@@ -1,8 +1,7 @@
 // src/components/Visualizer.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { VISUALIZER_THEMES, getVisualizerTheme } from '../visualizer/themes'
-import { VisualizerEngine } from '../visualizer/engine'
-import type { ThemeInstance } from '../visualizer/types'
+import { VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
+import { getActiveAnalyser } from '../audio/audioAnalysis'
 import { useCollectionStore } from '../state/store'
 import { isCastActive } from '../cast/castSession'
 import { decodeHtmlEntities } from '../format'
@@ -12,10 +11,9 @@ import type { Track } from '../types'
 const UI_HIDE_DELAY_MS = 2500
 
 // Full-screen audio-reactive overlay. This shell owns fullscreen, the
-// render loop and the theme picker; VisualizerEngine (src/visualizer/
-// engine.ts) owns the renderer and audio analysis and hands each frame to
-// the active theme (src/visualizer/themes/), which owns its own scene and
-// camera.
+// render loop and the theme picker; the themes and VisualizerEngine
+// (renderer + audio analysis) come from the threejs-visualisers package
+// (github.com/festanqueiro/threejs-visualisers).
 //
 // While casting the visualizer to a TV, nothing is rendered here — the
 // TV's picture comes from its own off-screen renderer (src/cast/), so this
@@ -120,7 +118,13 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     const host = canvasHostRef.current
     if (!host || castingToScreen) return
 
-    const engine = new VisualizerEngine(host.clientWidth, host.clientHeight, Math.min(window.devicePixelRatio, 2))
+    const engine = new VisualizerEngine({
+      width: host.clientWidth,
+      height: host.clientHeight,
+      pixelRatio: Math.min(window.devicePixelRatio, 2),
+      // Re-read every frame: Player swaps the analyser per track.
+      analyser: getActiveAnalyser,
+    })
     host.appendChild(engine.canvas)
     rendererRef.current = engine
 
@@ -216,7 +220,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             top: '24px',
             left: '28px',
             // Leaves room for the controls on the right.
-            maxWidth: 'calc(100% - 520px)',
+            maxWidth: 'max(200px, calc(100% - 920px))',
             color: '#fff',
             opacity: hideTrackInfo ? 0 : 1,
             transition: 'opacity 400ms ease',

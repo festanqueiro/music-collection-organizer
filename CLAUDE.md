@@ -8,7 +8,10 @@ Electron + `electron-vite` + React + TypeScript. `node:sqlite` (Node's built-in
 synchronous SQLite, no native module to compile) for the DB, `electron-store`
 for app config, `zustand` for renderer state, Vitest for tests, `ffmpeg-static`
 for audio decode/transcode, `essentia.js` (WASM) for BPM/key analysis,
-`three` for the full-screen visualizer (`src/visualizer/`).
+`three` for the full-screen visualizer, whose themes and engine come from the
+[`threejs-visualisers`](https://github.com/festanqueiro/threejs-visualisers)
+package (a GitHub dependency pinned to a tag — change themes there, tag a
+release, then bump the tag in `package.json`).
 macOS only for now.
 
 ## Working preferences

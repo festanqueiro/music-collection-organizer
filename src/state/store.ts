@@ -21,7 +21,7 @@ import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
-import type { VisualizerThemeId } from '../visualizer/types'
+import type { VisualizerThemeId } from 'threejs-visualisers'
 import type { KeyNotation } from './harmonic'
 import type { FrameStats } from '../cast/framePacer'
 import { describeLibraryChange } from './libraryChange'
@@ -395,7 +395,7 @@ interface CollectionState {
 // (per-app userData, like everything else) rather than an electron-store
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
-const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem']
+const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint']
 function loadVisualizerTheme(): VisualizerThemeId {
   try {
     const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
