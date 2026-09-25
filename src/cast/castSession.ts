@@ -29,6 +29,9 @@ interface LocalSession {
 }
 
 let local: LocalSession | null = null
+// The device of the current (or last) session, so a setting that changes
+// the stream itself can restart casting to the same device.
+let currentDevice: CastDevice | null = null
 
 export function isCastActive(status: CastStatus): boolean {
   return status.state === 'connecting' || status.state === 'buffering' || status.state === 'casting'
@@ -36,7 +39,8 @@ export function isCastActive(status: CastStatus): boolean {
 
 export async function startCasting(device: CastDevice): Promise<void> {
   teardownLocal()
-  const setStatus = useCollectionStore.getState().setCastStatus
+  currentDevice = device
+  const { setCastStatus: setStatus, castLowLatency } = useCollectionStore.getState()
 
   const audioTrack = startCastMixer()
   const session: LocalSession = { video: null, recorder: null }
@@ -62,7 +66,7 @@ export async function startCasting(device: CastDevice): Promise<void> {
   local = session
 
   try {
-    await window.api.startCast(device.id)
+    await window.api.startCast(device.id, { lowLatency: castLowLatency })
   } catch (err) {
     teardownLocal()
     setStatus({ state: 'error', error: err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err) })
@@ -91,6 +95,14 @@ export async function startCasting(device: CastDevice): Promise<void> {
     })
   }
   recorder.start(CHUNK_MS)
+}
+
+// Restarts the running session with the current settings (the TV
+// reloads the stream, so there's a short gap). No-op when not casting to
+// a screen — speakers get an MP3 stream the setting doesn't affect.
+export function restartCastingToScreen(): void {
+  const status = useCollectionStore.getState().castStatus
+  if (currentDevice && !currentDevice.audioOnly && isCastActive(status)) void startCasting(currentDevice)
 }
 
 export function stopCasting(): void {

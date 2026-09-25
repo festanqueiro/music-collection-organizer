@@ -5,8 +5,8 @@
 // src/cast/castSession.ts).
 import { CastClient } from './castClient'
 import { CastDiscovery } from './castDiscovery'
-import { CastStream, pickLocalAddress } from './castStream'
-import type { CastDevice, CastStatus } from '../../../src/types'
+import { CastStream, pickLocalAddress, SEGMENT_SECONDS, LOW_LATENCY_SEGMENT_SECONDS } from './castStream'
+import type { CastDevice, CastOptions, CastStatus } from '../../../src/types'
 
 const STREAM_READY_TIMEOUT_MS = 20000
 const READY_POLL_MS = 250
@@ -46,13 +46,20 @@ export class CastController {
   // Starts the encoder and server and resolves once they're ready to
   // take chunks; connecting to the TV and loading the stream carries on
   // in the background, reported through status updates.
-  async start(deviceId: string): Promise<void> {
+  async start(deviceId: string, options: CastOptions): Promise<void> {
     const device = this.discovery.get(deviceId)
     if (!device) throw new Error('That device is no longer available')
-    this.stop()
+    // Replacing a running session (e.g. a restart with new settings):
+    // no 'idle' in between, or the renderer would tear down the recording
+    // it has just started for the new one.
+    this.stop(false)
 
     const id = this.nextSessionId++
-    const stream = new CastStream(device.audioOnly ? 'audio' : 'video', (message) => this.endSession(id, message))
+    const stream = new CastStream(
+      device.audioOnly ? 'audio' : 'video',
+      options.lowLatency ? LOW_LATENCY_SEGMENT_SECONDS : SEGMENT_SECONDS,
+      (message) => this.endSession(id, message),
+    )
     const client = new CastClient(device.host, device.port)
     this.session = { id, device, stream, client }
     this.setStatus({ state: 'connecting', deviceName: device.name, audioOnly: device.audioOnly })
@@ -70,13 +77,20 @@ export class CastController {
     this.session?.stream.write(chunk)
   }
 
-  stop(): void {
+  stop(reportIdle = true): void {
     const session = this.session
     if (!session) return
     this.session = null
     session.stream.stop()
-    void session.client.stop()
-    this.setStatus({ state: 'idle' })
+    if (reportIdle) {
+      // Sends the TV back to its home screen.
+      void session.client.stop()
+      this.setStatus({ state: 'idle' })
+    } else {
+      // Being replaced: the next session LOADs into the same player on the
+      // TV, which a late STOP for this one could shut down.
+      session.client.close()
+    }
   }
 
   dispose(): void {

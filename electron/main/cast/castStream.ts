@@ -18,7 +18,12 @@ export type CastStreamKind = 'video' | 'audio'
 
 const PLAYLIST_NAME = 'live.m3u8'
 const AUDIO_NAME = 'live.mp3'
-const SEGMENT_SECONDS = 2
+// HLS segment length. The TV buffers about three segments behind the live
+// edge, so this sets most of the delay: 2s (~6-10s behind, steadiest) by
+// default, 1s (~3-5s) with "lower delay" on — at some risk of stutter on
+// weak Wi-Fi, since the TV then has less buffered to ride out hiccups.
+export const SEGMENT_SECONDS = 2
+export const LOW_LATENCY_SEGMENT_SECONDS = 1
 const SEGMENTS_IN_PLAYLIST = 6
 // The device starts playing a little behind the live edge, so there's no
 // point loading it before there's something to buffer: two HLS segments,
@@ -28,7 +33,7 @@ const AUDIO_BYTES_BEFORE_READY = 40_000
 
 const INPUT_ARGS = ['-hide_banner', '-loglevel', 'error', '-fflags', '+genpts', '-f', 'matroska', '-i', 'pipe:0']
 
-export function buildFfmpegArgs(kind: CastStreamKind, outputDir: string): string[] {
+export function buildFfmpegArgs(kind: CastStreamKind, outputDir: string, segmentSeconds = SEGMENT_SECONDS): string[] {
   if (kind === 'audio') {
     return [...INPUT_ARGS, '-map', '0:a:0', '-c:a', 'libmp3lame', '-b:a', '320k', '-ar', '48000', '-ac', '2', '-flush_packets', '1', '-f', 'mp3', 'pipe:1']
   }
@@ -47,7 +52,7 @@ export function buildFfmpegArgs(kind: CastStreamKind, outputDir: string): string
     '-profile:v', 'high',
     '-pix_fmt', 'yuv420p',
     '-vf', 'fps=30',
-    '-force_key_frames', `expr:gte(t,n_forced*${SEGMENT_SECONDS})`,
+    '-force_key_frames', `expr:gte(t,n_forced*${segmentSeconds})`,
     '-c:a', 'aac',
     '-b:a', '256k',
     '-ar', '48000',
@@ -56,7 +61,7 @@ export function buildFfmpegArgs(kind: CastStreamKind, outputDir: string): string
     // long session; this keeps audio locked to its timestamps.
     '-af', 'aresample=async=1000',
     '-f', 'hls',
-    '-hls_time', String(SEGMENT_SECONDS),
+    '-hls_time', String(segmentSeconds),
     '-hls_list_size', String(SEGMENTS_IN_PLAYLIST),
     '-hls_flags', 'delete_segments+independent_segments+omit_endlist',
     '-hls_segment_type', 'mpegts',
@@ -104,6 +109,7 @@ export class CastStream {
 
   constructor(
     readonly kind: CastStreamKind,
+    private readonly segmentSeconds: number,
     private readonly onFailure: (message: string) => void,
   ) {
     this.dir = mkdtempSync(join(tmpdir(), 'mco-cast-'))
@@ -116,7 +122,7 @@ export class CastStream {
   async start(): Promise<void> {
     const ffmpegPath = resolveFfmpegPath()
     if (!ffmpegPath) throw new Error('ffmpeg is not available')
-    const ffmpeg = spawn(ffmpegPath, buildFfmpegArgs(this.kind, this.dir), {
+    const ffmpeg = spawn(ffmpegPath, buildFfmpegArgs(this.kind, this.dir, this.segmentSeconds), {
       stdio: ['pipe', this.kind === 'audio' ? 'pipe' : 'ignore', 'pipe'],
     })
     this.ffmpeg = ffmpeg

@@ -259,6 +259,9 @@ interface CollectionState {
   // seconds behind, so hearing both at once is an echo.
   castMuteLocal: boolean
   setCastMuteLocal: (mute: boolean) => void
+  // Shorter stream segments for less delay on TVs (see CastOptions).
+  castLowLatency: boolean
+  setCastLowLatency: (lowLatency: boolean) => void
   setPlaybackControls: (controls: PlaybackControls | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
@@ -444,6 +447,7 @@ function loadVisualizerHideTrackInfo(): boolean {
 
 const CAST_SHOW_VISUALIZER_KEY = 'castShowVisualizer'
 const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
+const CAST_LOW_LATENCY_KEY = 'castLowLatency'
 function loadBooleanPreference(key: string, fallback: boolean): boolean {
   try {
     const value = localStorage.getItem(key)
@@ -530,6 +534,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castDevices: [],
   castShowVisualizer: loadBooleanPreference(CAST_SHOW_VISUALIZER_KEY, true),
   castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
+  castLowLatency: loadBooleanPreference(CAST_LOW_LATENCY_KEY, false),
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
@@ -600,6 +605,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setCastMuteLocal: (mute) => {
     set({ castMuteLocal: mute })
     saveBooleanPreference(CAST_MUTE_LOCAL_KEY, mute)
+  },
+  setCastLowLatency: (lowLatency) => {
+    set({ castLowLatency: lowLatency })
+    saveBooleanPreference(CAST_LOW_LATENCY_KEY, lowLatency)
   },
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 

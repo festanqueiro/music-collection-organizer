@@ -1,10 +1,23 @@
 import { describe, it, expect } from 'vitest'
 import type { NetworkInterfaceInfo } from 'node:os'
-import { pickLocalAddress } from './castStream'
+import { pickLocalAddress, buildFfmpegArgs } from './castStream'
 
 function iface(address: string, netmask: string, internal = false): NetworkInterfaceInfo {
   return { address, netmask, family: 'IPv4', mac: '00:00:00:00:00:00', internal, cidr: null }
 }
+
+describe('buildFfmpegArgs', () => {
+  it('cuts HLS segments (and keyframes) at the requested length', () => {
+    const args = buildFfmpegArgs('video', '/tmp/x', 1)
+    expect(args[args.indexOf('-hls_time') + 1]).toBe('1')
+    expect(args[args.indexOf('-force_key_frames') + 1]).toBe('expr:gte(t,n_forced*1)')
+  })
+
+  it('defaults to 2-second segments', () => {
+    const args = buildFfmpegArgs('video', '/tmp/x')
+    expect(args[args.indexOf('-hls_time') + 1]).toBe('2')
+  })
+})
 
 describe('pickLocalAddress', () => {
   const interfaces = {

@@ -16,6 +16,7 @@ import type {
   UpdateState,
   CastDevice,
   CastStatus,
+  CastOptions,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
@@ -138,7 +139,7 @@ const api = {
   startCastDiscovery: (): Promise<void> => ipcRenderer.invoke('cast:startDiscovery'),
   stopCastDiscovery: (): Promise<void> => ipcRenderer.invoke('cast:stopDiscovery'),
   getCastStatus: (): Promise<CastStatus> => ipcRenderer.invoke('cast:getStatus'),
-  startCast: (deviceId: string): Promise<void> => ipcRenderer.invoke('cast:start', deviceId),
+  startCast: (deviceId: string, options: CastOptions): Promise<void> => ipcRenderer.invoke('cast:start', deviceId, options),
   stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),
   sendCastChunk: (chunk: ArrayBuffer): void => ipcRenderer.send('cast:chunk', new Uint8Array(chunk)),
   onCastDevices: (cb: (devices: CastDevice[]) => void): (() => void) => {

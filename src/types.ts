@@ -297,6 +297,12 @@ export interface CastDevice {
   audioOnly: boolean
 }
 
+export interface CastOptions {
+  // Shorter HLS segments: roughly halves the TV's delay, a bit less
+  // robust on weak Wi-Fi. No effect on speakers (MP3 stream).
+  lowLatency: boolean
+}
+
 // Cast session state, pushed from main (electron/main/cast/castSession.ts).
 //   connecting — reaching the device / starting the stream encoder
 //   buffering  — encoding the first segments before the TV is told to play
