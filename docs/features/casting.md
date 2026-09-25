@@ -30,11 +30,21 @@ so play/pause, seeking, next track and FX all reach it after that delay.
 
 - **Mute this Mac while casting** (on by default) silences the Mac's own
   output, so the delayed TV doesn't echo it. What's cast isn't affected.
+  While it's on, you're listening to the TV, so the player's **seekbar and
+  time follow the TV**: they show what the TV is playing now, so a pause,
+  seek or track change moves them when you hear it. The **play button
+  spins** from when you press play/pause, seek, CUE or change track until
+  the change reaches the TV.
+- **TV delay: 7.2 s** shows how far behind the TV is. MCO measures it by
+  asking the TV where it is in the stream. It reads "~7.0 s (estimated)"
+  until the TV answers.
 - **TV picture: N fps · N ms per frame** shows how smoothly MCO is drawing
   the TV picture. Below 30 fps (the line turns highlighted), the TV picture
   stutters, so try a lighter theme.
 - **Stop** ends casting and sends the TV back to its home screen. Turning
-  the TV off or switching it to another app also ends the session.
+  the TV off or switching it to another app also ends the session. So
+  does quitting MCO or closing its window: the TV goes back to its home
+  screen.
 
 ## How it works
 

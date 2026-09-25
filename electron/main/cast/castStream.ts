@@ -104,6 +104,8 @@ export class CastStream {
   private stderr = ''
   private audioBytes = 0
   private audioListeners = new Set<ServerResponse>()
+  // When the device last (re)connected to the MP3 stream.
+  private audioListenerSince: number | null = null
 
   constructor(
     readonly kind: CastStreamKind,
@@ -166,6 +168,22 @@ export class CastStream {
     } catch {
       return false
     }
+  }
+
+  // Seconds since the newest HLS segment was published (the playlist is
+  // rewritten each time one is), or since the device started listening to
+  // the MP3 stream — what castDelay.ts measures the device's delay from.
+  publishedAgeSeconds(): number | null {
+    if (this.kind === 'audio') return null
+    try {
+      return (Date.now() - statSync(join(this.dir, PLAYLIST_NAME)).mtimeMs) / 1000
+    } catch {
+      return null
+    }
+  }
+
+  listeningSeconds(): number | null {
+    return this.audioListenerSince === null ? null : (Date.now() - this.audioListenerSince) / 1000
   }
 
   url(localAddress: string): string {
@@ -235,6 +253,7 @@ export class CastStream {
       return
     }
     this.audioListeners.add(res)
+    this.audioListenerSince = Date.now()
     res.on('close', () => this.audioListeners.delete(res))
   }
 

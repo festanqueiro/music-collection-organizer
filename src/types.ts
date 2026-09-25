@@ -307,5 +307,10 @@ export interface CastStatus {
   deviceName?: string
   // The device has no screen (gets audio only).
   audioOnly?: boolean
+  // While casting: how many seconds behind MCO the device is playing —
+  // measured from the device's reported position once it answers
+  // (delayMeasured), an estimate until then.
+  delaySeconds?: number
+  delayMeasured?: boolean
   error?: string
 }

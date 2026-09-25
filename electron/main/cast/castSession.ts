@@ -6,16 +6,31 @@
 import { CastClient } from './castClient'
 import { CastDiscovery } from './castDiscovery'
 import { CastStream, pickLocalAddress } from './castStream'
+import {
+  FALLBACK_DELAY_SECONDS,
+  combineHlsSamples,
+  combineMp3Samples,
+  hlsDelaySample,
+  mp3DelaySample,
+} from './castDelay'
 import type { CastDevice, CastStatus } from '../../../src/types'
 
 const STREAM_READY_TIMEOUT_MS = 20000
 const READY_POLL_MS = 250
+// How often the device is asked for its position, and how many recent
+// samples the delay estimate is taken over.
+const DELAY_POLL_MS = 1000
+const DELAY_SAMPLES = 10
+// Status updates for a delay change smaller than this aren't worth sending.
+const DELAY_REPORT_STEP_SECONDS = 0.1
 
 interface ActiveSession {
   id: number
   device: CastDevice
   stream: CastStream
   client: CastClient
+  delayTimer: ReturnType<typeof setInterval> | null
+  delaySamples: number[]
 }
 
 export class CastController {
@@ -57,7 +72,7 @@ export class CastController {
     const id = this.nextSessionId++
     const stream = new CastStream(device.audioOnly ? 'audio' : 'video', (message) => this.endSession(id, message))
     const client = new CastClient(device.host, device.port)
-    this.session = { id, device, stream, client }
+    this.session = { id, device, stream, client, delayTimer: null, delaySamples: [] }
     this.setStatus({ state: 'connecting', deviceName: device.name, audioOnly: device.audioOnly })
 
     try {
@@ -77,6 +92,7 @@ export class CastController {
     const session = this.session
     if (!session) return
     this.session = null
+    if (session.delayTimer) clearInterval(session.delayTimer)
     session.stream.stop()
     if (reportIdle) {
       // Sends the TV back to its home screen.
@@ -87,6 +103,24 @@ export class CastController {
       // TV, which a late STOP for this one could shut down.
       session.client.close()
     }
+  }
+
+  isActive(): boolean {
+    return this.session !== null
+  }
+
+  // For quitting: stops the session and waits (up to `timeoutMs`) for the
+  // TV to be told, so it goes back to its home screen instead of being
+  // left on a stream that's about to vanish.
+  async shutdown(timeoutMs: number): Promise<void> {
+    const session = this.session
+    this.discovery.stop()
+    if (!session) return
+    this.session = null
+    if (session.delayTimer) clearInterval(session.delayTimer)
+    session.stream.stop()
+    this.setStatus({ state: 'idle' })
+    await Promise.race([session.client.stop(), new Promise((resolve) => setTimeout(resolve, timeoutMs))])
   }
 
   dispose(): void {
@@ -122,10 +156,56 @@ export class CastController {
         title: 'MCO',
       })
       if (this.session?.id !== id) return
-      this.setStatus({ state: 'casting', deviceName: device.name, audioOnly: device.audioOnly })
+      this.setStatus(this.castingStatus(session, FALLBACK_DELAY_SECONDS[stream.kind], false))
+      this.trackDelay(session)
     } catch (err) {
       this.endSession(id, err instanceof Error ? err.message : String(err))
     }
+  }
+
+  private castingStatus(session: ActiveSession, delaySeconds: number, delayMeasured: boolean): CastStatus {
+    const { device } = session
+    return { state: 'casting', deviceName: device.name, audioOnly: device.audioOnly, delaySeconds, delayMeasured }
+  }
+
+  // Keeps the reported delay current by asking the device where it is
+  // every second (see castDelay.ts). Until it answers usefully, the
+  // fallback estimate stands.
+  private trackDelay(session: ActiveSession): void {
+    let inFlight = false
+    session.delayTimer = setInterval(async () => {
+      if (inFlight || this.session !== session) return
+      inFlight = true
+      try {
+        const times = await session.client.getMediaTimes().catch(() => null)
+        if (!times || this.session !== session) return
+        const { stream } = session
+        let sample: number | null = null
+        if (stream.kind === 'video') {
+          const age = stream.publishedAgeSeconds()
+          if (age !== null) sample = hlsDelaySample(times, age)
+        } else {
+          const listening = stream.listeningSeconds()
+          if (listening !== null) sample = mp3DelaySample(times, listening)
+        }
+        if (sample === null) return
+        session.delaySamples = [...session.delaySamples, sample].slice(-DELAY_SAMPLES)
+        const delay =
+          stream.kind === 'video' ? combineHlsSamples(session.delaySamples) : combineMp3Samples(session.delaySamples)
+        if (delay === null) return
+        const previous = this.status
+        if (
+          previous.delayMeasured &&
+          previous.delaySeconds !== undefined &&
+          Math.abs(previous.delaySeconds - delay) < DELAY_REPORT_STEP_SECONDS
+        ) {
+          return
+        }
+        this.setStatus(this.castingStatus(session, delay, true))
+      } finally {
+        inFlight = false
+      }
+    }, DELAY_POLL_MS)
   }
 
   // Ends session `id` if it's still the active one; `error` null means it
@@ -134,6 +214,7 @@ export class CastController {
     const session = this.session
     if (!session || session.id !== id) return
     this.session = null
+    if (session.delayTimer) clearInterval(session.delayTimer)
     session.stream.stop()
     session.client.close()
     this.setStatus(error ? { state: 'error', deviceName: session.device.name, error } : { state: 'idle' })

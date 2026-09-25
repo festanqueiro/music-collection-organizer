@@ -110,6 +110,19 @@ export function CastButton() {
               <button onClick={() => stopCasting()}>Stop</button>
             </div>
           )}
+          {status.state === 'casting' && status.delaySeconds !== undefined && (
+            <div
+              style={{ fontSize: '12px', fontVariantNumeric: 'tabular-nums', color: 'var(--color-text-dim)' }}
+              title={
+                status.delayMeasured
+                  ? 'Measured from where the device says it is in the stream. With this Mac muted, the seekbar follows the device.'
+                  : "The device hasn't reported its position yet, so this is an estimate."
+              }
+            >
+              {status.audioOnly ? 'Speaker' : 'TV'} delay: {status.delayMeasured ? '' : '~'}
+              {status.delaySeconds.toFixed(1)} s{status.delayMeasured ? '' : ' (estimated)'}
+            </div>
+          )}
           {active && frameStats && (
             <div
               style={{

@@ -673,7 +673,25 @@ export function registerIpcHandlers(
     (devices) => sendToRenderer('cast:devices', devices),
     (status) => sendToRenderer('cast:status', status),
   )
-  app.on('before-quit', () => cast.dispose())
+  // Casting ends with MCO. On quit, hold the quit briefly so the TV is
+  // actually told to stop (back to its home screen) rather than left on a
+  // stream that's about to disappear. Closing the window (macOS keeps the
+  // app running) or the interface crashing stops it too — nothing would
+  // be feeding the stream any more.
+  let quittingAfterCastStop = false
+  app.on('before-quit', (event) => {
+    if (quittingAfterCastStop || !cast.isActive()) {
+      cast.dispose()
+      return
+    }
+    event.preventDefault()
+    quittingAfterCastStop = true
+    cast.shutdown(1500).finally(() => app.quit())
+  })
+  app.on('browser-window-created', (_e, win) => {
+    win.on('closed', () => cast.stop())
+    win.webContents.on('render-process-gone', () => cast.stop())
+  })
   ipcMain.handle('cast:startDiscovery', (): void => cast.startDiscovery())
   ipcMain.handle('cast:stopDiscovery', (): void => cast.stopDiscovery())
   ipcMain.handle('cast:getStatus', (): CastStatus => cast.getStatus())
