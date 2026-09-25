@@ -27,7 +27,16 @@ export function registerCastSource(stream: MediaStream): () => void {
 export function startCastMixer(): MediaStreamTrack {
   if (!mixer) {
     const context = new AudioContext({ sampleRate: 48000 })
-    mixer = { context, destination: context.createMediaStreamDestination() }
+    const destination = context.createMediaStreamDestination()
+    // A permanent silent input, so the mix keeps producing audio even when
+    // no source is registered (nothing loaded in the Player). Without a
+    // steady audio track the recording's audio stalls, the encoder stops
+    // cutting segments, and the TV loops the last few seconds.
+    const keepAlive = context.createConstantSource()
+    keepAlive.offset.value = 0
+    keepAlive.connect(destination)
+    keepAlive.start()
+    mixer = { context, destination }
     for (const stream of sources.keys()) connect(stream)
   }
   mixer.context.resume().catch(() => {})

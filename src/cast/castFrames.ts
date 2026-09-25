@@ -9,9 +9,17 @@ import { getVisualizerTheme } from '../visualizer/themes'
 import type { ThemeInstance, VisualizerThemeId } from '../visualizer/types'
 import { decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
+import logoUrl from '../../resources/icon.png'
 
 export const CAST_WIDTH = 1280
 export const CAST_HEIGHT = 720
+
+// MCO's palette (src/theme.css).
+const COLOR_BG = '#12151a'
+const COLOR_SURFACE = '#1b1f26'
+const COLOR_TEXT = '#e6e9ef'
+const COLOR_TEXT_DIM = '#9aa3b2'
+const COLOR_ACCENT = '#2dd4bf'
 
 function currentTrack(): Track | null {
   const { playlist, tracks } = useCollectionStore.getState()
@@ -47,18 +55,28 @@ export class CastFrameRenderer {
   private optionsKey = ''
   private artwork: HTMLImageElement | null = null
   private artworkTrackId: number | null = null
+  private logo: HTMLImageElement
 
   constructor() {
     this.canvas = document.createElement('canvas')
     this.canvas.width = CAST_WIDTH
     this.canvas.height = CAST_HEIGHT
     this.ctx = this.canvas.getContext('2d')!
+    this.logo = new Image()
+    this.logo.src = logoUrl
   }
 
   draw(): void {
     const state = useCollectionStore.getState()
     const track = currentTrack()
     this.loadArtwork(track)
+    // Nothing loaded: an idling visualizer on the TV reads as frozen, so
+    // say what's going on instead. Casting carries on underneath.
+    if (!track) {
+      this.disposeEngine()
+      this.drawWaiting()
+      return
+    }
     if (state.castShowVisualizer) {
       this.drawVisualizer(state.visualizerTheme)
       if (track && !state.visualizerHideTrackInfo) this.drawTrackInfoOverlay(track)
@@ -152,6 +170,50 @@ export class CastFrameRenderer {
       ctx.fillStyle = '#fff'
       ctx.fillRect(textX, CAST_HEIGHT / 2 + 80, textWidth * Math.min(1, Math.max(0, progress)), 6)
     }
+  }
+
+  private drawWaiting(): void {
+    const ctx = this.ctx
+    const cx = CAST_WIDTH / 2
+    const cy = CAST_HEIGHT / 2 - 50
+    const background = ctx.createRadialGradient(cx, cy, 0, cx, cy, CAST_WIDTH * 0.7)
+    background.addColorStop(0, COLOR_SURFACE)
+    background.addColorStop(1, COLOR_BG)
+    ctx.fillStyle = background
+    ctx.fillRect(0, 0, CAST_WIDTH, CAST_HEIGHT)
+
+    // A slow pulse around the logo, so the TV visibly isn't stuck.
+    const logoSize = 150
+    const pulse = (performance.now() / 2400) % 1
+    ctx.save()
+    ctx.strokeStyle = COLOR_ACCENT
+    ctx.lineWidth = 3
+    ctx.globalAlpha = 0.6 * (1 - pulse)
+    ctx.beginPath()
+    ctx.arc(cx, cy, logoSize / 2 + 8 + pulse * 40, 0, Math.PI * 2)
+    ctx.stroke()
+    ctx.restore()
+
+    if (this.logo.complete && this.logo.naturalWidth > 0) {
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(cx, cy, logoSize / 2, 0, Math.PI * 2)
+      ctx.clip()
+      ctx.drawImage(this.logo, cx - logoSize / 2, cy - logoSize / 2, logoSize, logoSize)
+      ctx.restore()
+    }
+
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'alphabetic'
+    ctx.fillStyle = COLOR_TEXT
+    ctx.font = '500 40px Roboto, system-ui, sans-serif'
+    ctx.fillText('Load a song to continue', cx, cy + logoSize / 2 + 80)
+    ctx.fillStyle = COLOR_TEXT_DIM
+    ctx.font = '22px Roboto, system-ui, sans-serif'
+    ctx.fillText('MCO is still casting — play a track and it will show up here.', cx, cy + logoSize / 2 + 120)
+    ctx.fillStyle = COLOR_ACCENT
+    ctx.fillRect(cx - 40, cy + logoSize / 2 + 146, 80, 3)
+    ctx.textAlign = 'left'
   }
 
   private loadArtwork(track: Track | null): void {
