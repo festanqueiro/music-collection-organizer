@@ -23,6 +23,7 @@ export function CastButton() {
   const setMuteLocal = useCollectionStore((s) => s.setCastMuteLocal)
   const lowLatency = useCollectionStore((s) => s.castLowLatency)
   const setLowLatency = useCollectionStore((s) => s.setCastLowLatency)
+  const frameStats = useCollectionStore((s) => s.castFrameStats)
   const active = isCastActive(status)
 
   useEffect(() => {
@@ -100,7 +101,7 @@ export function CastButton() {
         >
           <div style={{ fontWeight: 500 }}>Cast</div>
 
-          {active ? (
+          {active && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {status.state !== 'casting' && (
                 <span className="material-symbols-outlined spin" style={{ fontSize: '16px', color: 'var(--color-text-dim)' }}>
@@ -110,7 +111,20 @@ export function CastButton() {
               <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{statusText}</span>
               <button onClick={() => stopCasting()}>Stop</button>
             </div>
-          ) : (
+          )}
+          {active && frameStats && (
+            <div
+              style={{
+                fontSize: '12px',
+                fontVariantNumeric: 'tabular-nums',
+                color: frameStats.fps < 27 ? 'var(--color-secondary)' : 'var(--color-text-dim)',
+              }}
+              title="How smoothly MCO is drawing the TV picture. Below 30 fps (or above ~30 ms per frame) the picture on the TV stutters — try a lighter visualizer theme."
+            >
+              TV picture: {Math.round(frameStats.fps)} fps · {frameStats.drawMs.toFixed(1)} ms per frame
+            </div>
+          )}
+          {!active && (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {devices.map((device) => (
                 <button

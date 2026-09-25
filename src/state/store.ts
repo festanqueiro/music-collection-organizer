@@ -23,6 +23,7 @@ import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import type { VisualizerThemeId } from '../visualizer/types'
 import type { KeyNotation } from './harmonic'
+import type { FrameStats } from '../cast/framePacer'
 import { describeLibraryChange } from './libraryChange'
 import {
   playTrackNow as playTrackNowPure,
@@ -262,6 +263,10 @@ interface CollectionState {
   // Shorter stream segments for less delay on TVs (see CastOptions).
   castLowLatency: boolean
   setCastLowLatency: (lowLatency: boolean) => void
+  // The TV picture's measured frame rate/draw time, updated once a
+  // second while casting to a screen (see src/cast/framePacer.ts).
+  castFrameStats: FrameStats | null
+  setCastFrameStats: (stats: FrameStats | null) => void
   setPlaybackControls: (controls: PlaybackControls | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
@@ -535,6 +540,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castShowVisualizer: loadBooleanPreference(CAST_SHOW_VISUALIZER_KEY, true),
   castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
   castLowLatency: loadBooleanPreference(CAST_LOW_LATENCY_KEY, false),
+  castFrameStats: null,
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
@@ -606,6 +612,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ castMuteLocal: mute })
     saveBooleanPreference(CAST_MUTE_LOCAL_KEY, mute)
   },
+  setCastFrameStats: (stats) => set({ castFrameStats: stats }),
   setCastLowLatency: (lowLatency) => {
     set({ castLowLatency: lowLatency })
     saveBooleanPreference(CAST_LOW_LATENCY_KEY, lowLatency)

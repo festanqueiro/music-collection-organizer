@@ -5,6 +5,7 @@
 import { useCollectionStore } from '../state/store'
 import { startCastMixer, stopCastMixer } from './castMixer'
 import { CastFrameRenderer } from './castFrames'
+import { FramePacer } from './framePacer'
 import type { CastDevice, CastStatus } from '../types'
 
 const FPS = 30
@@ -24,7 +25,7 @@ const AUDIO_MIME_CANDIDATES = ['audio/webm;codecs=pcm', 'audio/webm;codecs=opus'
 
 // `video` is null when casting to a speaker (audio only).
 interface LocalSession {
-  video: { frames: CastFrameRenderer; timer: ReturnType<typeof setInterval>; track: CanvasCaptureMediaStreamTrack } | null
+  video: { frames: CastFrameRenderer; pacer: FramePacer; track: CanvasCaptureMediaStreamTrack } | null
   recorder: MediaRecorder | null
 }
 
@@ -47,21 +48,25 @@ export async function startCasting(device: CastDevice): Promise<void> {
   if (!device.audioOnly) {
     const frames = new CastFrameRenderer()
     const track = frames.canvas.captureStream(0).getVideoTracks()[0] as CanvasCaptureMediaStreamTrack
-    // A timer, not requestAnimationFrame: rAF stops while the window is
-    // hidden or minimised, which would freeze the picture on the TV.
     // A failing frame (e.g. a theme throwing) is logged once rather than
     // every tick, and doesn't stop the stream — the next frame may work.
     let loggedDrawError = false
-    const timer = setInterval(() => {
-      try {
-        frames.draw()
-      } catch (err) {
-        if (!loggedDrawError) console.error('cast frame failed', err)
-        loggedDrawError = true
-      }
-      track.requestFrame()
-    }, 1000 / FPS)
-    session.video = { frames, timer, track }
+    const pacer = new FramePacer(
+      FPS,
+      () => {
+        try {
+          frames.draw()
+        } catch (err) {
+          if (!loggedDrawError) console.error('cast frame failed', err)
+          loggedDrawError = true
+        }
+        track.requestFrame()
+      },
+      (stats) => {
+        if (local === session) useCollectionStore.getState().setCastFrameStats(stats)
+      },
+    )
+    session.video = { frames, pacer, track }
   }
   local = session
 
@@ -116,11 +121,12 @@ function teardownLocal(): void {
   local = null
   if (session.recorder && session.recorder.state !== 'inactive') session.recorder.stop()
   if (session.video) {
-    clearInterval(session.video.timer)
+    session.video.pacer.stop()
     session.video.track.stop()
     session.video.frames.dispose()
   }
   stopCastMixer()
+  useCollectionStore.getState().setCastFrameStats(null)
 }
 
 // Wires main-process cast events into the store; call once at startup.
