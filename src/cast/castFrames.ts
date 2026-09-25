@@ -1,7 +1,7 @@
-// Draws the picture that gets cast: either the visualizer (its own
-// off-screen VisualizerEngine, independent of the full-screen overlay) or
-// a simple now-playing card, into a fixed-size 2D canvas the cast
-// recorder captures. Track info is drawn onto the canvas itself, since
+// Draws the picture stream-mode casting sends: the visualizer (its own
+// off-screen VisualizerEngine, independent of the full-screen overlay),
+// or a waiting screen when nothing's loaded, into a fixed-size 2D canvas
+// the cast recorder captures. Track info is drawn onto the canvas itself, since
 // the overlay's DOM text isn't part of any stream.
 import { useCollectionStore } from '../state/store'
 import { VisualizerEngine, getVisualizerTheme, type ThemeInstance, type VisualizerThemeId } from 'threejs-visualisers'
@@ -52,8 +52,6 @@ export class CastFrameRenderer {
   private theme: ThemeInstance | null = null
   private themeKey = ''
   private optionsKey = ''
-  private artwork: HTMLImageElement | null = null
-  private artworkTrackId: number | null = null
   private logo: HTMLImageElement
 
   constructor() {
@@ -68,7 +66,6 @@ export class CastFrameRenderer {
   draw(): void {
     const state = useCollectionStore.getState()
     const track = currentTrack()
-    this.loadArtwork(track)
     // Nothing loaded: an idling visualizer on the TV reads as frozen, so
     // say what's going on instead. Casting carries on underneath.
     if (!track) {
@@ -76,13 +73,8 @@ export class CastFrameRenderer {
       this.drawWaiting()
       return
     }
-    if (state.castShowVisualizer) {
-      this.drawVisualizer(state.visualizerTheme)
-      if (track && !state.visualizerHideTrackInfo) this.drawTrackInfoOverlay(track)
-    } else {
-      this.disposeEngine()
-      this.drawNowPlaying(track, state.playbackProgress)
-    }
+    this.drawVisualizer(state.visualizerTheme)
+    if (!state.visualizerHideTrackInfo) this.drawTrackInfoOverlay(track)
   }
 
   dispose(): void {
@@ -130,49 +122,6 @@ export class CastFrameRenderer {
     ctx.restore()
   }
 
-  private drawNowPlaying(track: Track | null, progress: number): void {
-    const ctx = this.ctx
-    const gradient = ctx.createLinearGradient(0, 0, CAST_WIDTH, CAST_HEIGHT)
-    gradient.addColorStop(0, '#1b2230')
-    gradient.addColorStop(1, '#0b0d12')
-    ctx.fillStyle = gradient
-    ctx.fillRect(0, 0, CAST_WIDTH, CAST_HEIGHT)
-
-    const art = 360
-    const artX = 120
-    const artY = (CAST_HEIGHT - art) / 2
-    if (this.artwork?.complete && this.artwork.naturalWidth > 0) {
-      ctx.drawImage(this.artwork, artX, artY, art, art)
-    } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.06)'
-      ctx.fillRect(artX, artY, art, art)
-      ctx.fillStyle = 'rgba(255,255,255,0.25)'
-      ctx.font = '160px "Material Symbols Outlined"'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText('music_note', artX + art / 2, artY + art / 2)
-      ctx.textAlign = 'left'
-    }
-
-    const textX = artX + art + 64
-    const textWidth = CAST_WIDTH - textX - 100
-    ctx.textBaseline = 'alphabetic'
-    ctx.fillStyle = '#fff'
-    ctx.font = '500 44px Roboto, system-ui, sans-serif'
-    ctx.fillText(fitText(ctx, track ? decodeHtmlEntities(track.title ?? track.filename) : 'Nothing playing', textWidth), textX, CAST_HEIGHT / 2 - 20)
-    if (track?.artist) {
-      ctx.fillStyle = 'rgba(255,255,255,0.65)'
-      ctx.font = '30px Roboto, system-ui, sans-serif'
-      ctx.fillText(fitText(ctx, decodeHtmlEntities(track.artist), textWidth), textX, CAST_HEIGHT / 2 + 30)
-    }
-    if (track) {
-      ctx.fillStyle = 'rgba(255,255,255,0.15)'
-      ctx.fillRect(textX, CAST_HEIGHT / 2 + 80, textWidth, 6)
-      ctx.fillStyle = '#fff'
-      ctx.fillRect(textX, CAST_HEIGHT / 2 + 80, textWidth * Math.min(1, Math.max(0, progress)), 6)
-    }
-  }
-
   private drawWaiting(): void {
     const ctx = this.ctx
     const cx = CAST_WIDTH / 2
@@ -215,20 +164,6 @@ export class CastFrameRenderer {
     ctx.fillStyle = COLOR_ACCENT
     ctx.fillRect(cx - 40, cy + logoSize / 2 + 146, 80, 3)
     ctx.textAlign = 'left'
-  }
-
-  private loadArtwork(track: Track | null): void {
-    const id = track?.id ?? null
-    if (id === this.artworkTrackId) return
-    this.artworkTrackId = id
-    this.artwork = null
-    if (id == null) return
-    window.api.getTrackArtwork(id).then((url) => {
-      if (this.artworkTrackId !== id || !url) return
-      const image = new Image()
-      image.src = url
-      this.artwork = image
-    })
   }
 
   private disposeEngine(): void {

@@ -63,7 +63,10 @@ import {
 import { exportTagData, importTagData, type TagExportData } from './tagExport'
 import { buildMidiExport, parseMidiExportText } from './midiExport'
 import { buildRekordboxXml } from './rekordboxExport'
-import { CastController } from './cast/castSession'
+import { CastController, type DirectMediaSources } from './cast/castSession'
+import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
+import { getPlayableFilePath } from './audioTranscode'
+import { mimeTypeFor } from './mediaTypes'
 import type {
   Track,
   Genre,
@@ -80,6 +83,8 @@ import type {
   TrackTableSortState,
   UpdateState,
   CastStatus,
+  CastMode,
+  CastDirectCommand,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -669,15 +674,80 @@ export function registerIpcHandlers(
   // Casting to a Google Cast device (see electron/main/cast/). Chunks are
   // `send`, not `invoke` — the renderer streams several a second and
   // doesn't need a reply per chunk.
+  // Direct mode serves track files to the device: looked up by id from
+  // the DB, and only if they're inside the collection folder (the same
+  // check the media:// protocol makes).
+  function castableTrackPath(trackId: number): string | null {
+    const row = db.prepare('SELECT path, cloud_status FROM tracks WHERE id = ?').get(trackId) as
+      | { path: string; cloud_status: string }
+      | undefined
+    if (!row || row.cloud_status === 'cloud_only') return null
+    return mediaUrlToFilePath(trackPathToMediaUrl(row.path), getCollectionFolder())
+  }
+  // The device asks for the artwork right after MCO checks it exists, so
+  // keep the last one rather than extracting it twice.
+  let lastArtwork: { trackId: number; image: { data: Buffer; contentType: string } | null } | null = null
+  const castSources: DirectMediaSources = {
+    track: async (trackId) => {
+      const filePath = castableTrackPath(trackId)
+      if (!filePath) return null
+      // Cast devices can't play AIFF either — same FLAC transcode as media://.
+      const playable = await getPlayableFilePath(filePath, getMediaCacheDir())
+      return { filePath: playable, contentType: mimeTypeFor(playable) }
+    },
+    artwork: async (trackId) => {
+      if (lastArtwork?.trackId === trackId) return lastArtwork.image
+      const filePath = castableTrackPath(trackId)
+      let image: { data: Buffer; contentType: string } | null = null
+      if (filePath) {
+        const dataUrl = await extractArtwork(filePath).catch(() => null)
+        const match = dataUrl?.match(/^data:([^;]+);base64,(.*)$/)
+        if (match) image = { contentType: match[1], data: Buffer.from(match[2], 'base64') }
+      }
+      lastArtwork = { trackId, image }
+      return image
+    },
+    describe: (trackId) => {
+      const row = db.prepare('SELECT filename, title, artist, album FROM tracks WHERE id = ?').get(trackId) as
+        | { filename: string; title: string | null; artist: string | null; album: string | null }
+        | undefined
+      return row ? { title: row.title ?? row.filename, artist: row.artist, album: row.album } : null
+    },
+  }
   const cast = new CastController(
     (devices) => sendToRenderer('cast:devices', devices),
     (status) => sendToRenderer('cast:status', status),
+    (event) => sendToRenderer('cast:media', event),
+    castSources,
   )
-  app.on('before-quit', () => cast.dispose())
+  // Casting ends with MCO. On quit, hold the quit briefly so the TV is
+  // actually told to stop (back to its home screen) rather than left on a
+  // stream that's about to disappear. Closing the window (macOS keeps the
+  // app running) or the interface crashing stops it too — nothing would
+  // be feeding the stream any more.
+  let quittingAfterCastStop = false
+  app.on('before-quit', (event) => {
+    if (quittingAfterCastStop || !cast.isActive()) {
+      cast.dispose()
+      return
+    }
+    event.preventDefault()
+    quittingAfterCastStop = true
+    cast.shutdown(1500).finally(() => app.quit())
+  })
+  app.on('browser-window-created', (_e, win) => {
+    win.on('closed', () => cast.stop())
+    win.webContents.on('render-process-gone', () => cast.stop())
+  })
   ipcMain.handle('cast:startDiscovery', (): void => cast.startDiscovery())
   ipcMain.handle('cast:stopDiscovery', (): void => cast.stopDiscovery())
   ipcMain.handle('cast:getStatus', (): CastStatus => cast.getStatus())
-  ipcMain.handle('cast:start', (_e, deviceId: string): Promise<void> => cast.start(String(deviceId)))
+  ipcMain.handle('cast:start', (_e, deviceId: string, mode: CastMode): Promise<void> =>
+    cast.start(String(deviceId), mode === 'direct' ? 'direct' : 'stream'),
+  )
+  ipcMain.on('cast:direct', (_e, command: CastDirectCommand) => {
+    if (command && typeof command === 'object' && typeof command.type === 'string') cast.runDirect(command)
+  })
   ipcMain.handle('cast:stop', (): void => cast.stop())
   ipcMain.on('cast:chunk', (_e, chunk: unknown) => {
     if (chunk instanceof Uint8Array) cast.writeChunk(chunk)

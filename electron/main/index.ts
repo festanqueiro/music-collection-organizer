@@ -1,5 +1,5 @@
 import { app, BrowserWindow, net, protocol, session } from 'electron'
-import { join, extname } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createReadStream, statSync } from 'node:fs'
 import { Readable } from 'node:stream'
@@ -18,6 +18,7 @@ import { mediaUrlToFilePath } from './mediaProtocol'
 import { getPlayableFilePath, pruneMediaCache } from './audioTranscode'
 import { getMediaCacheDir } from './mediaCacheDir'
 import { parseRangeHeader } from './rangeHeader'
+import { mimeTypeFor } from './mediaTypes'
 import { runBackupIfNeeded, getBackupFolder } from './backup'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
@@ -44,15 +45,6 @@ protocol.registerSchemesAsPrivileged([
   }
 ])
 
-const MEDIA_MIME_TYPES: Record<string, string> = {
-  '.wav': 'audio/wav',
-  '.flac': 'audio/flac',
-  '.mp3': 'audio/mpeg',
-  '.m4a': 'audio/mp4',
-  '.aac': 'audio/aac',
-  '.ogg': 'audio/ogg',
-  '.opus': 'audio/ogg',
-}
 
 // First automatic update check waits until well after launch (nothing
 // competes with first paint or a startup backup), then repeats.
@@ -74,9 +66,6 @@ function updatesDisabledReason(): string | null {
 // Transcoded-AIFF cache cap (see pruneMediaCache).
 const MEDIA_CACHE_MAX_BYTES = 10 * 1024 ** 3
 
-function mimeTypeFor(filePath: string): string {
-  return MEDIA_MIME_TYPES[extname(filePath).toLowerCase()] ?? 'application/octet-stream'
-}
 
 function registerMediaProtocol(): void {
   protocol.handle('media', async (request) => {

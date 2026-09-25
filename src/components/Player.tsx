@@ -7,6 +7,7 @@ import { getActiveAnalyser, setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { CastButton } from './CastButton'
 import { registerCastSource } from '../cast/castMixer'
+import { attachDirectCast } from '../cast/directCast'
 import { ConfirmDialog } from './ConfirmDialog'
 import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
@@ -255,10 +256,22 @@ export function Player({
   // While the TV is playing (a few seconds behind), optionally silence
   // this Mac so the two don't echo — the cast tap is upstream of this.
   const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
+  const castMode = useCollectionStore((s) => s.castStatus.mode)
   const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)
   useEffect(() => {
     effectsChainRef.current?.setLocalMuted(castPlaying && castMuteLocal)
   }, [castPlaying, castMuteLocal])
+
+  // Direct cast mode: the device plays this track's file itself, and this
+  // Player becomes its remote (see cast/directCast.ts).
+  const castingDirect = castPlaying && castMode === 'direct'
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || !castingDirect) return
+    return attachDirectCast(audio, track.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [castingDirect])
+
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -485,6 +498,20 @@ export function Player({
           </span>
         </button>
       </div>
+
+      {castPlaying && castMode === 'stream' && (
+        // Streaming MCO's live output: everything reaches the TV a few
+        // seconds late, so a press can look like it did nothing.
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--color-cue)' }}
+          title="The TV plays a few seconds behind MCO, so play/pause, seeking and FX changes reach it late."
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+            warning
+          </span>
+          Casting: controls and UI might be delayed on the TV
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
