@@ -1,7 +1,7 @@
-# Exports the SYSTEM MB sound system model to the glTF the Sound System
-# visualizer theme loads (src/visualizer/assets/system-mb.glb).
+# Exports the Mais Baixo sound system model (SYSTEM_MB.blend) to the glTF the Sound System
+# visualizer theme loads (src/assets/system-mb.glb in the threejs-visualisers repo).
 #
-#   blender -b path/to/SYSTEM_MB.blend --python scripts/blender/export-system-mb.py -- src/visualizer/assets/system-mb.glb
+#   blender -b path/to/SYSTEM_MB.blend --python scripts/blender/export-system-mb.py -- ../threejs-visualisers/src/assets/system-mb.glb
 #
 # The .blend is a SketchUp import: only 8 meshes are visible (the rest are
 # hidden import leftovers), with ~40 duplicate copies of the same wood

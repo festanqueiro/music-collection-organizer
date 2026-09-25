@@ -4,9 +4,8 @@
 // recorder captures. Track info is drawn onto the canvas itself, since
 // the overlay's DOM text isn't part of any stream.
 import { useCollectionStore } from '../state/store'
-import { VisualizerEngine } from '../visualizer/engine'
-import { getVisualizerTheme } from '../visualizer/themes'
-import type { ThemeInstance, VisualizerThemeId } from '../visualizer/types'
+import { VisualizerEngine, getVisualizerTheme, type ThemeInstance, type VisualizerThemeId } from 'threejs-visualisers'
+import { getActiveAnalyser } from '../audio/audioAnalysis'
 import { decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import logoUrl from '../../resources/icon.png'
@@ -91,7 +90,9 @@ export class CastFrameRenderer {
   }
 
   private drawVisualizer(themeId: VisualizerThemeId): void {
-    if (!this.engine) this.engine = new VisualizerEngine(CAST_WIDTH, CAST_HEIGHT, 1)
+    if (!this.engine) {
+      this.engine = new VisualizerEngine({ width: CAST_WIDTH, height: CAST_HEIGHT, pixelRatio: 1, analyser: getActiveAnalyser })
+    }
     const activeId = getVisualizerTheme(themeId).id
     if (activeId !== this.themeKey) {
       this.theme?.dispose()

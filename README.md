@@ -134,8 +134,10 @@ for app state.
 - `electron/preload/` — the bridge that gives the interface a safe,
   limited API into the back end.
 - `src/` — the interface (React): track table, tag and folder trees,
-  player, queue, effects (`src/audio/`), and visualizer
-  (`src/visualizer/`).
+  player, queue, effects (`src/audio/`), casting (`src/cast/`), and the
+  visualizer (themes from the
+  [threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers)
+  package).
 - `docs/features/` — the feature guide.
 - `TODO.md` — known issues; `IDEAS.md` — prioritized ideas for what's next.
 
