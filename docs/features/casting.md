@@ -33,9 +33,6 @@ so play/pause, seeking, next track and FX all reach it after that delay.
 - While casting, a warning above the player controls, **Casting: controls
   and UI might be delayed on the TV**, is a reminder that a press takes
   that long to be heard.
-- **TV delay: 7.2 s** shows how far behind the TV is. MCO measures it by
-  asking the TV where it is in the stream. It reads "~7.0 s (estimated)"
-  until the TV answers.
 - **TV picture: N fps · N ms per frame** shows how smoothly MCO is drawing
   the TV picture. Below 30 fps (the line turns highlighted), the TV picture
   stutters, so try a lighter theme.

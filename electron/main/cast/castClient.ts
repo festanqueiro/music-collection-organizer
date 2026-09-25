@@ -7,7 +7,6 @@
 import { EventEmitter } from 'node:events'
 import { connect as tlsConnect, type TLSSocket } from 'node:tls'
 import { CastFrameReader, encodeCastMessage } from './castMessage'
-import { parseMediaTimes, type MediaTimes } from './castDelay'
 
 export const DEFAULT_MEDIA_RECEIVER_APP_ID = 'CC1AD845'
 
@@ -114,13 +113,6 @@ export class CastClient extends EventEmitter {
       },
     })
     if (result.type !== 'MEDIA_STATUS') throw new Error(`The TV couldn't play the stream (${result.type ?? 'unknown error'})`)
-  }
-
-  // Asks the device where it is in the stream (null if it can't say yet).
-  async getMediaTimes(): Promise<MediaTimes | null> {
-    if (!this.app || this.closed) return null
-    const status = await this.request(NS_MEDIA, this.app.transportId, { type: 'GET_STATUS' }, 3000)
-    return parseMediaTimes(status as { status?: unknown })
   }
 
   // Stops the receiver app on the TV (back to its home screen) and closes
