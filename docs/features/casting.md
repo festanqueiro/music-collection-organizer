@@ -30,11 +30,9 @@ so play/pause, seeking, next track and FX all reach it after that delay.
 
 - **Mute this Mac while casting** (on by default) silences the Mac's own
   output, so the delayed TV doesn't echo it. What's cast isn't affected.
-  While it's on, you're listening to the TV, so the player's **seekbar and
-  time follow the TV**: they show what the TV is playing now, so a pause,
-  seek or track change moves them when you hear it. The **play button
-  spins** from when you press play/pause, seek, CUE or change track until
-  the change reaches the TV.
+- While casting, a warning above the player controls, **Casting: controls
+  and UI might be delayed on the TV**, is a reminder that a press takes
+  that long to be heard.
 - **TV delay: 7.2 s** shows how far behind the TV is. MCO measures it by
   asking the TV where it is in the stream. It reads "~7.0 s (estimated)"
   until the TV answers.

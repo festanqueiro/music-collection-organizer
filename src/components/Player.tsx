@@ -7,7 +7,6 @@ import { getActiveAnalyser, setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { CastButton } from './CastButton'
 import { registerCastSource } from '../cast/castMixer'
-import { castTimeline } from '../cast/castTimeline'
 import { ConfirmDialog } from './ConfirmDialog'
 import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
@@ -261,58 +260,6 @@ export function Player({
     effectsChainRef.current?.setLocalMuted(castPlaying && castMuteLocal)
   }, [castPlaying, castMuteLocal])
 
-  // While casting, the device plays castDelaySeconds behind MCO. MCO's
-  // playback is logged continuously (castTimeline), and when you're
-  // listening to the device (this Mac muted) the seekbar and time show
-  // what it's playing now rather than what MCO is at — so a pause, seek
-  // or track change shows up when you hear it. The play button spins
-  // until the latest change has reached the device.
-  const castDelaySeconds = useCollectionStore((s) => s.castStatus.delaySeconds ?? null)
-  const delayMs = castPlaying && castMuteLocal && castDelaySeconds !== null ? castDelaySeconds * 1000 : null
-  const [delayedView, setDelayedView] = useState<{ time: number; pending: boolean } | null>(null)
-
-  useEffect(() => {
-    const audio = audioRef.current
-    if (!audio) return
-    const sample = () =>
-      castTimeline.record({ at: performance.now(), trackId: track.id, time: audio.currentTime, playing: !audio.paused })
-    const change = () => {
-      sample()
-      castTimeline.markChange(performance.now())
-    }
-    // Loading this track is itself a change the device hasn't heard yet.
-    change()
-    const timer = setInterval(sample, 100)
-    audio.addEventListener('play', change)
-    audio.addEventListener('pause', change)
-    audio.addEventListener('seeked', change)
-    return () => {
-      clearInterval(timer)
-      audio.removeEventListener('play', change)
-      audio.removeEventListener('pause', change)
-      audio.removeEventListener('seeked', change)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    if (delayMs === null) {
-      setDelayedView(null)
-      return
-    }
-    const update = () => {
-      const now = performance.now()
-      const position = castTimeline.positionAt(now, delayMs)
-      // Still on an earlier track (or from before this cast) on the
-      // device: this track hasn't started there yet.
-      const time = position && position.trackId === track.id ? position.time : 0
-      setDelayedView({ time, pending: castTimeline.hasPendingChange(now, delayMs) })
-    }
-    update()
-    const timer = setInterval(update, 100)
-    return () => clearInterval(timer)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [delayMs])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -392,10 +339,6 @@ export function Player({
   }
 
   const peaks = track.waveformPeaks
-  const trackDuration = duration || track.duration || 0
-  const shownTime = delayedView ? Math.min(delayedView.time, trackDuration || Infinity) : currentTime
-  const shownProgress = delayedView ? (trackDuration > 0 ? Math.min(1, shownTime / trackDuration) : 0) : progress
-  const waitingForCast = delayedView?.pending ?? false
 
   return (
     <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -519,8 +462,8 @@ export function Player({
             }}
           >
             {showTimeLeft
-              ? `-${formatDuration(Math.max(0, (duration || track.duration!) - shownTime))} / ${formatDuration(duration || track.duration!)}`
-              : `${formatDuration(shownTime)} / ${formatDuration(duration || track.duration!)}`}
+              ? `-${formatDuration(Math.max(0, (duration || track.duration!) - currentTime))} / ${formatDuration(duration || track.duration!)}`
+              : `${formatDuration(currentTime)} / ${formatDuration(duration || track.duration!)}`}
           </span>
         )}
         {track.cloudStatus === 'local' && (
@@ -543,6 +486,20 @@ export function Player({
           </span>
         </button>
       </div>
+
+      {castPlaying && (
+        // Everything reaches the TV a few seconds late, so a press can
+        // look like it did nothing.
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--color-cue)' }}
+          title="The TV plays a few seconds behind MCO, so play/pause, seeking and FX changes reach it late."
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+            warning
+          </span>
+          Casting: controls and UI might be delayed on the TV
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <button
@@ -571,15 +528,8 @@ export function Player({
         </button>
         <MidiLearnBadge control="player.cue" />
 
-        <button
-          onClick={toggle}
-          title={waitingForCast ? 'Waiting for the TV to catch up…' : undefined}
-        >
-          {waitingForCast ? (
-            <span className="material-symbols-outlined spin">progress_activity</span>
-          ) : (
-            <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
-          )}
+        <button onClick={toggle}>
+          <span className="material-symbols-outlined">{playing ? 'pause' : 'play_arrow'}</span>
         </button>
         <MidiLearnBadge control="player.playPause" />
 
@@ -611,11 +561,11 @@ export function Player({
                   y={50 - peak * 50}
                   width={1}
                   height={peak * 100}
-                  fill={i / peaks.length <= shownProgress ? 'var(--color-accent)' : 'var(--color-border)'}
+                  fill={i / peaks.length <= progress ? 'var(--color-accent)' : 'var(--color-border)'}
                 />
               ))}
               <rect
-                x={shownProgress * peaks.length}
+                x={progress * peaks.length}
                 y={0}
                 width={Math.max(1, peaks.length / 400)}
                 height={100}
@@ -656,7 +606,7 @@ export function Player({
             </div>
           )}
           <div style={{ marginTop: '4px', height: '2px', background: 'var(--color-border)', borderRadius: '1px' }}>
-            <div style={{ width: `${shownProgress * 100}%`, height: '100%', background: 'var(--color-accent)' }} />
+            <div style={{ width: `${progress * 100}%`, height: '100%', background: 'var(--color-accent)' }} />
           </div>
         </div>
 
