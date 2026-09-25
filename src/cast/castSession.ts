@@ -45,8 +45,16 @@ export async function startCasting(device: CastDevice): Promise<void> {
     const track = frames.canvas.captureStream(0).getVideoTracks()[0] as CanvasCaptureMediaStreamTrack
     // A timer, not requestAnimationFrame: rAF stops while the window is
     // hidden or minimised, which would freeze the picture on the TV.
+    // A failing frame (e.g. a theme throwing) is logged once rather than
+    // every tick, and doesn't stop the stream — the next frame may work.
+    let loggedDrawError = false
     const timer = setInterval(() => {
-      frames.draw()
+      try {
+        frames.draw()
+      } catch (err) {
+        if (!loggedDrawError) console.error('cast frame failed', err)
+        loggedDrawError = true
+      }
       track.requestFrame()
     }, 1000 / FPS)
     session.video = { frames, timer, track }

@@ -4,6 +4,7 @@ import { VISUALIZER_THEMES, getVisualizerTheme } from '../visualizer/themes'
 import { VisualizerEngine } from '../visualizer/engine'
 import type { ThemeInstance } from '../visualizer/types'
 import { useCollectionStore } from '../state/store'
+import { isCastActive } from '../cast/castSession'
 import { decodeHtmlEntities } from '../format'
 import { ToggleSwitch } from './ToggleSwitch'
 import type { Track } from '../types'
@@ -15,6 +16,10 @@ const UI_HIDE_DELAY_MS = 2500
 // engine.ts) owns the renderer and audio analysis and hands each frame to
 // the active theme (src/visualizer/themes/), which owns its own scene and
 // camera.
+//
+// While casting the visualizer to a TV, nothing is rendered here — the
+// TV's picture comes from its own off-screen renderer (src/cast/), so this
+// shows just the controls (theme, options, track info), which drive it.
 export function Visualizer({ track, onClose }: { track: Track | null; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasHostRef = useRef<HTMLDivElement>(null)
@@ -25,6 +30,10 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const castStatus = useCollectionStore((s) => s.castStatus)
+  const castShowVisualizer = useCollectionStore((s) => s.castShowVisualizer)
+  const castingToScreen = isCastActive(castStatus) && !castStatus.audioOnly && castShowVisualizer
+  const showUi = uiVisible || castingToScreen
 
   const activeThemeId = getVisualizerTheme(themeId).id
 
@@ -75,15 +84,18 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     window.addEventListener('keydown', onKeyDown)
-    container.requestFullscreen().catch(() => {
-      // Not fatal — the overlay still covers the whole window.
-    })
+    // Just the controls while casting — no need to take over the screen.
+    if (!castingToScreen) {
+      container.requestFullscreen().catch(() => {
+        // Not fatal — the overlay still covers the whole window.
+      })
+    }
     return () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange)
       window.removeEventListener('keydown', onKeyDown)
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
     }
-  }, [])
+  }, [castingToScreen])
 
   // The theme picker, hide switch and close button fade out (and the
   // cursor hides) after a moment without mouse movement. Track info is
@@ -103,10 +115,10 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   }, [])
 
   // Renderer, bloom and render loop — created once for the overlay's
-  // lifetime; themes are swapped underneath it.
+  // lifetime (or until casting starts); themes are swapped underneath it.
   useEffect(() => {
     const host = canvasHostRef.current
-    if (!host) return
+    if (!host || castingToScreen) return
 
     const engine = new VisualizerEngine(host.clientWidth, host.clientHeight, Math.min(window.devicePixelRatio, 2))
     host.appendChild(engine.canvas)
@@ -140,10 +152,11 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       rendererRef.current = null
       engine.dispose()
     }
-  }, [])
+  }, [castingToScreen])
 
   // Declared after the renderer effect so it runs after it on mount.
   useEffect(() => {
+    if (castingToScreen) return
     const instance = getVisualizerTheme(activeThemeId).create()
     for (const [optionId, valueId] of Object.entries(selectedOptionsRef.current)) instance.setOption?.(optionId, valueId)
     rendererRef.current?.setTheme(instance)
@@ -152,7 +165,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       instanceRef.current = null
       instance.dispose()
     }
-  }, [activeThemeId])
+  }, [activeThemeId, castingToScreen])
 
   // Changing an option updates the live instance in place. Themes make
   // re-applying an unchanged value cheap, so this just re-sends them all.
@@ -167,12 +180,36 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
         position: 'fixed',
         inset: 0,
         zIndex: 1000,
-        background: '#000',
-        cursor: uiVisible ? 'default' : 'none',
+        background: castingToScreen ? 'rgba(0,0,0,0.85)' : '#000',
+        cursor: showUi ? 'default' : 'none',
       }}
     >
       <div ref={canvasHostRef} style={{ position: 'absolute', inset: 0 }} />
-      {track && (
+      {castingToScreen && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '10px',
+            color: '#fff',
+            pointerEvents: 'none',
+            textAlign: 'center',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '48px', opacity: 0.8 }}>
+            cast_connected
+          </span>
+          <div style={{ fontSize: '20px', fontWeight: 500 }}>Visualizer showing on {castStatus.deviceName}</div>
+          <div style={{ fontSize: '13px', opacity: 0.6 }}>
+            Changes here show up on the TV after a few seconds.
+          </div>
+        </div>
+      )}
+      {track && !castingToScreen && (
         <div
           style={{
             position: 'absolute',
@@ -204,9 +241,9 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           alignItems: 'center',
           gap: '16px',
           color: '#fff',
-          opacity: uiVisible ? 1 : 0,
+          opacity: showUi ? 1 : 0,
           transition: 'opacity 600ms ease',
-          pointerEvents: uiVisible ? 'auto' : 'none',
+          pointerEvents: showUi ? 'auto' : 'none',
           textShadow: '0 1px 8px rgba(0,0,0,0.8)',
         }}
       >
@@ -286,7 +323,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           color: '#fff',
           fontSize: '12px',
           fontVariantNumeric: 'tabular-nums',
-          opacity: uiVisible ? 1 : 0,
+          opacity: showUi && !castingToScreen ? 1 : 0,
           transition: 'opacity 600ms ease',
           pointerEvents: 'none',
         }}
@@ -304,9 +341,9 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             alignItems: 'flex-end',
             gap: '8px',
             color: '#fff',
-            opacity: uiVisible ? 1 : 0,
+            opacity: showUi ? 1 : 0,
             transition: 'opacity 600ms ease',
-            pointerEvents: uiVisible ? 'auto' : 'none',
+            pointerEvents: showUi ? 'auto' : 'none',
           }}
         >
           {themeOptions.map((option) => (

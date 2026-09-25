@@ -55,7 +55,7 @@ export class CastController {
     const stream = new CastStream(device.audioOnly ? 'audio' : 'video', (message) => this.endSession(id, message))
     const client = new CastClient(device.host, device.port)
     this.session = { id, device, stream, client }
-    this.setStatus({ state: 'connecting', deviceName: device.name })
+    this.setStatus({ state: 'connecting', deviceName: device.name, audioOnly: device.audioOnly })
 
     try {
       await stream.start()
@@ -95,7 +95,7 @@ export class CastController {
     try {
       await client.connect()
       if (this.session?.id !== id) return
-      this.setStatus({ state: 'buffering', deviceName: device.name })
+      this.setStatus({ state: 'buffering', deviceName: device.name, audioOnly: device.audioOnly })
 
       const startedAt = Date.now()
       while (!stream.isReady()) {
@@ -112,7 +112,7 @@ export class CastController {
         title: 'MCO',
       })
       if (this.session?.id !== id) return
-      this.setStatus({ state: 'casting', deviceName: device.name })
+      this.setStatus({ state: 'casting', deviceName: device.name, audioOnly: device.audioOnly })
     } catch (err) {
       this.endSession(id, err instanceof Error ? err.message : String(err))
     }

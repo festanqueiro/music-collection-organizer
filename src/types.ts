@@ -305,5 +305,7 @@ export interface CastDevice {
 export interface CastStatus {
   state: 'idle' | 'connecting' | 'buffering' | 'casting' | 'error'
   deviceName?: string
+  // The device has no screen (gets audio only).
+  audioOnly?: boolean
   error?: string
 }
