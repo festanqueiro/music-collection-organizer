@@ -63,6 +63,7 @@ import {
 import { exportTagData, importTagData, type TagExportData } from './tagExport'
 import { buildMidiExport, parseMidiExportText } from './midiExport'
 import { buildRekordboxXml } from './rekordboxExport'
+import { CastController } from './cast/castSession'
 import type {
   Track,
   Genre,
@@ -78,6 +79,7 @@ import type {
   TrackTableColumnKey,
   TrackTableSortState,
   UpdateState,
+  CastStatus,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -662,5 +664,23 @@ export function registerIpcHandlers(
     if (result.canceled || result.filePaths.length === 0) return null
     const data = JSON.parse(readFileSync(result.filePaths[0], 'utf-8')) as TagExportData
     return importTagData(db, data)
+  })
+
+  // Casting to a Google Cast device (see electron/main/cast/). Chunks are
+  // `send`, not `invoke` — the renderer streams several a second and
+  // doesn't need a reply per chunk.
+  const cast = new CastController(
+    (devices) => sendToRenderer('cast:devices', devices),
+    (status) => sendToRenderer('cast:status', status),
+  )
+  app.on('before-quit', () => cast.dispose())
+  ipcMain.handle('cast:startDiscovery', (): void => cast.startDiscovery())
+  ipcMain.handle('cast:stopDiscovery', (): void => cast.stopDiscovery())
+  ipcMain.handle('cast:getStatus', (): CastStatus => cast.getStatus())
+  ipcMain.handle('cast:start', (_e, deviceId: string): Promise<void> => cast.start(String(deviceId)))
+  ipcMain.handle('cast:stop', (): void => cast.stop())
+  ipcMain.on('cast:chunk', (_e, chunk: unknown) => {
+    if (chunk instanceof Uint8Array) cast.writeChunk(chunk)
+    else if (chunk instanceof ArrayBuffer) cast.writeChunk(new Uint8Array(chunk))
   })
 }

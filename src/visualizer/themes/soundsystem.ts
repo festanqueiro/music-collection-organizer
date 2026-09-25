@@ -17,9 +17,7 @@ import type { AudioFrame, ThemeInstance, ThemeOption, VisualizerTheme } from '..
 //   row 3 (2×10" boxes)       → low-mids (centre) / mids (sides)
 //   row 2 (grille + horn cells) → bass    (cones pump, pressure rings)
 //   row 1 (four scoops)       → sub       (big spring-driven excursion,
-//                                           box recoil, pressure rings and
-//                                           dust puffed out of the horn
-//                                           mouths on hard pushes)
+//                                           box recoil, pressure rings)
 //
 // Everything is procedural (geometry + canvas textures) — no assets.
 
@@ -126,8 +124,6 @@ const BASS = 1
 const LOW_MID = 2
 const MID = 3
 const TOP = 4
-
-const DUST_COUNT = 900
 
 // Horn-cell edge strips sit this far proud of the cabinet front, so their
 // faces are never coplanar with the shell's front edges (which z-fights —
@@ -909,7 +905,7 @@ function makeCells(
   rows: number,
   inner: THREE.Material,
   edge: THREE.Material,
-): { group: THREE.Group; mouths: THREE.Vector3[] } {
+): { group: THREE.Group } {
   const group = new THREE.Group()
   const t = 0.035
   const back = new THREE.Mesh(new THREE.PlaneGeometry(w, h), inner)
@@ -939,13 +935,7 @@ function makeCells(
     strip.position.set(0, y, STRIP_PROUD)
     add(strip)
   }
-  const mouths: THREE.Vector3[] = []
-  for (let c = 0; c < cols; c++) {
-    for (let r = 0; r < rows; r++) {
-      mouths.push(new THREE.Vector3(-w / 2 + ((c + 0.5) / cols) * w, -h / 2 + ((r + 0.5) / rows) * h, 0))
-    }
-  }
-  return { group, mouths }
+  return { group }
 }
 
 // A rectangular horn flare (open frustum) facing +z, mouth at z=0.
@@ -959,29 +949,6 @@ function makeHorn(mouthW: number, mouthH: number, throatScale: number, depth: nu
   horn.receiveShadow = true
   return horn
 }
-
-// Points with per-particle alpha/size — PointsMaterial only does
-// per-material opacity, and the dust needs to fade individually.
-const DUST_VERTEX_SHADER = /* glsl */ `
-attribute float alpha;
-attribute float size;
-varying float vAlpha;
-void main() {
-  vAlpha = alpha;
-  vec4 mv = modelViewMatrix * vec4(position, 1.0);
-  gl_PointSize = size * (300.0 / -mv.z);
-  gl_Position = projectionMatrix * mv;
-}
-`
-const DUST_FRAGMENT_SHADER = /* glsl */ `
-uniform vec3 uColor;
-varying float vAlpha;
-void main() {
-  float d = length(gl_PointCoord - 0.5);
-  if (d > 0.5) discard;
-  gl_FragColor = vec4(uColor, vAlpha * smoothstep(0.5, 0.0, d));
-}
-`
 
 function create(): ThemeInstance {
   const scene = new THREE.Scene()
@@ -1128,7 +1095,7 @@ function create(): ThemeInstance {
   // `position`/`velocity` are the bass drivers' spring state (see update).
   // `driver` is absent for a "virtual" driver — the SYSTEM MB bins are
   // folded horns whose driver is hidden inside, but their spring still
-  // drives the box recoil, pressure rings and dust.
+  // drives the box recoil and pressure rings.
   interface DriverEntry {
     driver?: Driver
     band: number
@@ -1146,7 +1113,6 @@ function create(): ThemeInstance {
     source: DriverEntry
   }
   const pressureRings: PressureRing[] = []
-  const dustEmitters: THREE.Vector3[] = []
   // `strength` scales the glow — the classic stack's small horn throats
   // can take full brightness; the model's whole horn columns can't.
   const hornGlows: Array<{ material: THREE.MeshStandardMaterial; strength: number }> = []
@@ -1162,7 +1128,6 @@ function create(): ThemeInstance {
     pressureRings: PressureRing[]
     hornGlows: Array<{ material: THREE.MeshStandardMaterial; strength: number }>
     tweeterDomes: THREE.Mesh[]
-    dustEmitters: THREE.Vector3[]
     // Camera framing: where it looks, its resting height and distance.
     view: { lookY: number; height: number; distance: number; sway: number }
   }
@@ -1173,7 +1138,6 @@ function create(): ThemeInstance {
     pressureRings,
     hornGlows,
     tweeterDomes,
-    dustEmitters,
     view: { lookY: 2.5, height: 1.9, distance: 9.2, sway: 1.3 },
   }
   let rig = classicRig
@@ -1230,9 +1194,6 @@ function create(): ThemeInstance {
     const position = new THREE.Vector3(x, row1Y, 0)
     // For the sub band, `shake` is recoil per unit of cone excursion.
     addBox(group, position, SUB, 0.06)
-    for (const mouth of cells.mouths) {
-      dustEmitters.push(mouth.clone().add(cells.group.position).add(position))
-    }
     addPressureRing(new THREE.Vector3(x, row1Y + ROW1_H / 2 - baffleH / 2, ROW1_D / 2 + 0.05), 0.4, scoopDriver)
   }
 
@@ -1344,48 +1305,7 @@ function create(): ThemeInstance {
     addBox(top, new THREE.Vector3(0, row4Base + h + topH / 2, 0.05), TOP, 0.002)
   }
 
-  // --- Dust puffed out of the scoops' horn mouths -------------------------
-  const dustPositions = new Float32Array(DUST_COUNT * 3)
-  const dustAlpha = new Float32Array(DUST_COUNT)
-  const dustSize = new Float32Array(DUST_COUNT)
-  const dustVelocity = new Float32Array(DUST_COUNT * 3)
-  const dustLife = new Float32Array(DUST_COUNT)
-  const dustGeometry = new THREE.BufferGeometry()
-  dustGeometry.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3))
-  dustGeometry.setAttribute('alpha', new THREE.BufferAttribute(dustAlpha, 1))
-  dustGeometry.setAttribute('size', new THREE.BufferAttribute(dustSize, 1))
-  const dust = new THREE.Points(
-    dustGeometry,
-    new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: new THREE.Color(0xd8ccb4) } },
-      vertexShader: DUST_VERTEX_SHADER,
-      fragmentShader: DUST_FRAGMENT_SHADER,
-      transparent: true,
-      depthWrite: false,
-    }),
-  )
-  dust.frustumCulled = false
-  scene.add(dust)
-  let nextDust = 0
-  function emitDust(count: number, strength: number) {
-    for (let n = 0; n < count; n++) {
-      const i = nextDust
-      nextDust = (nextDust + 1) % DUST_COUNT
-      const emitters = rig.dustEmitters
-      const emitter = emitters[Math.floor(Math.random() * emitters.length)]
-      dustPositions[i * 3] = emitter.x + (Math.random() - 0.5) * 0.4
-      dustPositions[i * 3 + 1] = emitter.y + (Math.random() - 0.5) * 0.35
-      dustPositions[i * 3 + 2] = emitter.z + 0.05
-      dustVelocity[i * 3] = (Math.random() - 0.5) * 0.8
-      dustVelocity[i * 3 + 1] = (Math.random() - 0.3) * 0.5
-      dustVelocity[i * 3 + 2] = (1.5 + Math.random() * 2.5) * strength
-      dustLife[i] = 1
-      dustSize[i] = 0.05 + Math.random() * 0.12
-    }
-  }
-
   const spectrum = new SpectrumBars(5, 30, 16000)
-  let dustAccumulator = 0
   const bandAverages = new Float32Array(5)
 
   // --- SYSTEM MB: a stack loaded from a Blender model ------------------------
@@ -1393,8 +1313,8 @@ function create(): ThemeInstance {
   // four folded-horn bins (bin_1..4), two mid/top boxes (top_1, top_2) each
   // with a column of small horns (horns_1, horns_2) and a grilled driver
   // hole. The bins' drivers fire inside the horn, so they get "virtual"
-  // drivers (springs with no cone) that still drive recoil, rings and
-  // dust; a real cone is added behind each grille.
+  // drivers (springs with no cone) that still drive recoil and rings; a
+  // real cone is added behind each grille.
   const MODEL_SCALE = 1.5 // the model is life-size (~2m); scaled up to hold the frame
   interface ModelStack {
     rig: Rig
@@ -1459,7 +1379,6 @@ function create(): ThemeInstance {
         pressureRings: [],
         hornGlows: [],
         tweeterDomes: [],
-        dustEmitters: [],
         view: { lookY: 1.6, height: 1.5, distance: 7.2, sway: 1 },
       },
       woodMeshes: [],
@@ -1506,8 +1425,8 @@ function create(): ThemeInstance {
     })
     modelRig.hornGlows.push({ material: hornMaterial, strength: 0.03 })
 
-    // Bins: virtual sub drivers → recoil, pressure rings and dust from
-    // the horn mouths (the lower part of each bin's front).
+    // Bins: virtual sub drivers → recoil and pressure rings from the horn
+    // mouths (the lower part of each bin's front).
     for (let i = 1; i <= 4; i++) {
       const bin = root.getObjectByName(`bin_${i}`)
       if (!bin) continue
@@ -1519,11 +1438,6 @@ function create(): ThemeInstance {
       modelRig.boxes.push({ group: bin, base: bin.position.clone(), band: SUB, shake: 0.06 / MODEL_SCALE })
       const mouth = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + size.y * 0.3, box.max.z + 0.05)
       addPressureRing(mouth, size.x * 0.42, source, group, modelRig.pressureRings)
-      for (const fx of [-0.25, 0.25]) {
-        for (const fy of [0.12, 0.42]) {
-          modelRig.dustEmitters.push(new THREE.Vector3(mouth.x + size.x * fx, box.min.y + size.y * fy, box.max.z))
-        }
-      }
     }
 
     // Tops: a real cone behind each grille, on the mids.
@@ -1737,12 +1651,10 @@ function create(): ThemeInstance {
     // in quiet passages: it looks for bass jumping above its own recent
     // average, which a sustained heavy bassline rarely does, while any
     // bass returning after a breakdown does.)
-    let subPush = false
     for (const ring of rig.pressureRings) {
       const { position, velocity } = ring.source
       if (position > RING_MIN_EXCURSION && velocity > RING_MIN_VELOCITY && ring.age > RING_MIN_INTERVAL) {
         ring.age = 0
-        if (ring.source.band === SUB) subPush = true
       }
       ring.age += dt
       const material = ring.mesh.material as THREE.MeshBasicMaterial
@@ -1756,30 +1668,6 @@ function create(): ThemeInstance {
       ring.mesh.position.set(ring.origin.x, ring.origin.y, ring.origin.z + ring.age * 1.8)
       material.opacity = life * life * 0.35 * (0.4 + strength)
     }
-
-    // Dust: a steady trickle with the sub, a burst on every kick.
-    dustAccumulator += dt * sub * sub * 120
-    const steady = Math.floor(dustAccumulator)
-    dustAccumulator -= steady
-    emitDust(steady + (subPush ? 35 : 0), 0.5 + sub)
-    for (let i = 0; i < DUST_COUNT; i++) {
-      if (dustLife[i] <= 0) {
-        dustAlpha[i] = 0
-        continue
-      }
-      dustLife[i] -= dt * 0.45
-      dustVelocity[i * 3] *= 0.97
-      dustVelocity[i * 3 + 1] = dustVelocity[i * 3 + 1] * 0.97 + dt * 0.12
-      dustVelocity[i * 3 + 2] *= 0.95
-      dustPositions[i * 3] += dustVelocity[i * 3] * dt
-      dustPositions[i * 3 + 1] += dustVelocity[i * 3 + 1] * dt
-      dustPositions[i * 3 + 2] += dustVelocity[i * 3 + 2] * dt
-      dustAlpha[i] = Math.max(0, dustLife[i]) * 0.45
-      dustSize[i] += dt * 0.08
-    }
-    dustGeometry.attributes.position.needsUpdate = true
-    dustGeometry.attributes.alpha.needsUpdate = true
-    dustGeometry.attributes.size.needsUpdate = true
 
     if (fieldEnv.visible) for (const { tree, phase } of trees) tree.rotation.z = Math.sin(t * 0.5 + phase) * 0.012
     if (urban?.group.visible) {

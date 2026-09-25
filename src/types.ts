@@ -283,3 +283,29 @@ export type MidiMappings = Partial<Record<MidiControlKey, MidiBinding>>
 // Result of reading a MIDI mappings file (Settings → Audio → MIDI →
 // Import) — `skipped` names bindings that were dropped as unknown/invalid.
 export type MidiImportResult = { mappings: MidiMappings; skipped: string[] } | { error: string }
+
+// A Google Cast device (Chromecast, Google TV, Nest speaker) found on the
+// LAN — see electron/main/cast/castDiscovery.ts.
+export interface CastDevice {
+  id: string
+  name: string
+  model: string | null
+  host: string
+  port: number
+  // No screen (Nest/Home speakers, speaker groups) — gets an audio-only
+  // stream instead of video.
+  audioOnly: boolean
+}
+
+// Cast session state, pushed from main (electron/main/cast/castSession.ts).
+//   connecting — reaching the device / starting the stream encoder
+//   buffering  — encoding the first segments before the TV is told to play
+//   casting    — the TV is playing the stream
+//   error      — the session ended because of `error`; otherwise idle
+export interface CastStatus {
+  state: 'idle' | 'connecting' | 'buffering' | 'casting' | 'error'
+  deviceName?: string
+  // The device has no screen (gets audio only).
+  audioOnly?: boolean
+  error?: string
+}

@@ -32,7 +32,13 @@
       "icon": "resources/icon.png",
       "identity": "-",
       "hardenedRuntime": false,
-      "artifactName": "MCO-${version}-${arch}.${ext}"
+      "artifactName": "MCO-${version}-${arch}.${ext}",
+      "extendInfo": {
+        "NSLocalNetworkUsageDescription": "MCO looks for Chromecast and Google TV devices on your network so it can cast to them.",
+        "NSBonjourServices": [
+          "_googlecast._tcp"
+        ]
+      }
     },
     "extraMetadata": {
       "name": "v1-library-organizer"
@@ -42,6 +48,7 @@
     }
   },
   "devDependencies": {
+    "@types/multicast-dns": "^7.2.4",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
@@ -60,6 +67,7 @@
     "essentia.js": "^0.1.3",
     "ffmpeg-static": "^5.3.0",
     "material-symbols": "^0.46.0",
+    "multicast-dns": "^7.2.5",
     "music-metadata": "^11.15.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

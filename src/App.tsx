@@ -21,6 +21,8 @@ import { UndoToast } from './components/UndoToast'
 import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
+import { registerCastSource } from './cast/castMixer'
+import { initCast } from './cast/castSession'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags' | 'subtags' | 'duplicates'
@@ -109,6 +111,16 @@ export default function App() {
   useEffect(() => {
     getDubSirenEngine().setSinkId(audioOutputDeviceId)
   }, [audioOutputDeviceId])
+
+  // Casting: main-process status/device events, and the siren's share of
+  // the cast mix (the track's share is registered by Player per track).
+  useEffect(() => initCast(), [])
+  useEffect(() => registerCastSource(getDubSirenEngine().getCastStream()), [])
+  const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
+  const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)
+  useEffect(() => {
+    getDubSirenEngine().setLocalMuted(castPlaying && castMuteLocal)
+  }, [castPlaying, castMuteLocal])
 
   // Hold-S keyboard trigger, mirroring the FxPanel button. Lives here
   // (not in Player) for the same reason as the effect above — it must
