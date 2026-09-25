@@ -1,7 +1,7 @@
 // src/components/CastButton.tsx
 import { useEffect, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { isCastActive, restartCastingToScreen, startCasting, stopCasting } from '../cast/castSession'
+import { isCastActive, startCasting, stopCasting } from '../cast/castSession'
 import { ToggleSwitch } from './ToggleSwitch'
 import { contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 
@@ -21,8 +21,6 @@ export function CastButton() {
   const setShowVisualizer = useCollectionStore((s) => s.setCastShowVisualizer)
   const muteLocal = useCollectionStore((s) => s.castMuteLocal)
   const setMuteLocal = useCollectionStore((s) => s.setCastMuteLocal)
-  const lowLatency = useCollectionStore((s) => s.castLowLatency)
-  const setLowLatency = useCollectionStore((s) => s.setCastLowLatency)
   const frameStats = useCollectionStore((s) => s.castFrameStats)
   const active = isCastActive(status)
 
@@ -172,24 +170,8 @@ export function CastButton() {
               Mute this Mac while casting
               <ToggleSwitch checked={muteLocal} onChange={setMuteLocal} title="Mute this Mac while casting" />
             </label>
-            <label
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}
-              title="About 3–5 s behind instead of 6–10 s. May stutter on weak Wi-Fi. TVs only."
-            >
-              Lower delay on TVs
-              <ToggleSwitch
-                checked={lowLatency}
-                onChange={(checked) => {
-                  setLowLatency(checked)
-                  // Changes the stream itself, so a running cast restarts.
-                  restartCastingToScreen()
-                }}
-                title="Lower delay on TVs"
-              />
-            </label>
             <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
-              Plays everything you hear in MCO, effects included, a few seconds behind ({lowLatency ? 'about 3–5 s' : 'about 6–10 s'} on
-              TVs). Lower delay can stutter on weak Wi-Fi.
+              Plays everything you hear in MCO, effects included, a few seconds behind.
             </div>
           </div>
         </div>

@@ -5,8 +5,8 @@
 // src/cast/castSession.ts).
 import { CastClient } from './castClient'
 import { CastDiscovery } from './castDiscovery'
-import { CastStream, pickLocalAddress, SEGMENT_SECONDS, LOW_LATENCY_SEGMENT_SECONDS } from './castStream'
-import type { CastDevice, CastOptions, CastStatus } from '../../../src/types'
+import { CastStream, pickLocalAddress } from './castStream'
+import type { CastDevice, CastStatus } from '../../../src/types'
 
 const STREAM_READY_TIMEOUT_MS = 20000
 const READY_POLL_MS = 250
@@ -46,7 +46,7 @@ export class CastController {
   // Starts the encoder and server and resolves once they're ready to
   // take chunks; connecting to the TV and loading the stream carries on
   // in the background, reported through status updates.
-  async start(deviceId: string, options: CastOptions): Promise<void> {
+  async start(deviceId: string): Promise<void> {
     const device = this.discovery.get(deviceId)
     if (!device) throw new Error('That device is no longer available')
     // Replacing a running session (e.g. a restart with new settings):
@@ -55,11 +55,7 @@ export class CastController {
     this.stop(false)
 
     const id = this.nextSessionId++
-    const stream = new CastStream(
-      device.audioOnly ? 'audio' : 'video',
-      options.lowLatency ? LOW_LATENCY_SEGMENT_SECONDS : SEGMENT_SECONDS,
-      (message) => this.endSession(id, message),
-    )
+    const stream = new CastStream(device.audioOnly ? 'audio' : 'video', (message) => this.endSession(id, message))
     const client = new CastClient(device.host, device.port)
     this.session = { id, device, stream, client }
     this.setStatus({ state: 'connecting', deviceName: device.name, audioOnly: device.audioOnly })

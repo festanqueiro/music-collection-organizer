@@ -260,9 +260,6 @@ interface CollectionState {
   // seconds behind, so hearing both at once is an echo.
   castMuteLocal: boolean
   setCastMuteLocal: (mute: boolean) => void
-  // Shorter stream segments for less delay on TVs (see CastOptions).
-  castLowLatency: boolean
-  setCastLowLatency: (lowLatency: boolean) => void
   // The TV picture's measured frame rate/draw time, updated once a
   // second while casting to a screen (see src/cast/framePacer.ts).
   castFrameStats: FrameStats | null
@@ -452,7 +449,6 @@ function loadVisualizerHideTrackInfo(): boolean {
 
 const CAST_SHOW_VISUALIZER_KEY = 'castShowVisualizer'
 const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
-const CAST_LOW_LATENCY_KEY = 'castLowLatency'
 function loadBooleanPreference(key: string, fallback: boolean): boolean {
   try {
     const value = localStorage.getItem(key)
@@ -539,7 +535,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castDevices: [],
   castShowVisualizer: loadBooleanPreference(CAST_SHOW_VISUALIZER_KEY, true),
   castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
-  castLowLatency: loadBooleanPreference(CAST_LOW_LATENCY_KEY, false),
   castFrameStats: null,
   delayDivisionSync: null,
   midiMappings: {},
@@ -613,10 +608,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     saveBooleanPreference(CAST_MUTE_LOCAL_KEY, mute)
   },
   setCastFrameStats: (stats) => set({ castFrameStats: stats }),
-  setCastLowLatency: (lowLatency) => {
-    set({ castLowLatency: lowLatency })
-    saveBooleanPreference(CAST_LOW_LATENCY_KEY, lowLatency)
-  },
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
   loadMidiMappings: async () => {

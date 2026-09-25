@@ -80,7 +80,6 @@ import type {
   TrackTableSortState,
   UpdateState,
   CastStatus,
-  CastOptions,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -678,9 +677,7 @@ export function registerIpcHandlers(
   ipcMain.handle('cast:startDiscovery', (): void => cast.startDiscovery())
   ipcMain.handle('cast:stopDiscovery', (): void => cast.stopDiscovery())
   ipcMain.handle('cast:getStatus', (): CastStatus => cast.getStatus())
-  ipcMain.handle('cast:start', (_e, deviceId: string, options: CastOptions): Promise<void> =>
-    cast.start(String(deviceId), { lowLatency: options?.lowLatency === true })
-  )
+  ipcMain.handle('cast:start', (_e, deviceId: string): Promise<void> => cast.start(String(deviceId)))
   ipcMain.handle('cast:stop', (): void => cast.stop())
   ipcMain.on('cast:chunk', (_e, chunk: unknown) => {
     if (chunk instanceof Uint8Array) cast.writeChunk(chunk)
