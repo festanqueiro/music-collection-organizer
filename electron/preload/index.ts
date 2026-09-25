@@ -14,6 +14,8 @@ import type {
   TrackTableColumnKey,
   TrackTableSortState,
   UpdateState,
+  CastDevice,
+  CastStatus,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import type { ScanResult } from '../main/scan'
@@ -131,6 +133,26 @@ const api = {
     ipcRenderer.on('scan:progress', listener)
     return () => {
       ipcRenderer.removeListener('scan:progress', listener)
+    }
+  },
+  startCastDiscovery: (): Promise<void> => ipcRenderer.invoke('cast:startDiscovery'),
+  stopCastDiscovery: (): Promise<void> => ipcRenderer.invoke('cast:stopDiscovery'),
+  getCastStatus: (): Promise<CastStatus> => ipcRenderer.invoke('cast:getStatus'),
+  startCast: (deviceId: string): Promise<void> => ipcRenderer.invoke('cast:start', deviceId),
+  stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),
+  sendCastChunk: (chunk: ArrayBuffer): void => ipcRenderer.send('cast:chunk', new Uint8Array(chunk)),
+  onCastDevices: (cb: (devices: CastDevice[]) => void): (() => void) => {
+    const listener = (_e: unknown, devices: CastDevice[]) => cb(devices)
+    ipcRenderer.on('cast:devices', listener)
+    return () => {
+      ipcRenderer.removeListener('cast:devices', listener)
+    }
+  },
+  onCastStatus: (cb: (status: CastStatus) => void): (() => void) => {
+    const listener = (_e: unknown, status: CastStatus) => cb(status)
+    ipcRenderer.on('cast:status', listener)
+    return () => {
+      ipcRenderer.removeListener('cast:status', listener)
     }
   },
 }

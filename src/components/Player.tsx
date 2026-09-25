@@ -5,6 +5,8 @@ import { useCollectionStore } from '../state/store'
 import { EffectsChain } from '../audio/effectsChain'
 import { getActiveAnalyser, setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
+import { CastButton } from './CastButton'
+import { registerCastSource } from '../cast/castMixer'
 import { ConfirmDialog } from './ConfirmDialog'
 import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
@@ -203,7 +205,9 @@ export function Player({
     effectsChainRef.current = chain
     const analyser = chain.getAnalyser()
     setActiveAnalyser(analyser)
+    const unregisterCastSource = registerCastSource(chain.getCastStream())
     return () => {
+      unregisterCastSource()
       // Only clear it if the next track's Player hasn't already registered
       // its own — don't depend on React's unmount/mount ordering.
       if (getActiveAnalyser() === analyser) setActiveAnalyser(null)
@@ -247,6 +251,14 @@ export function Player({
   useEffect(() => {
     effectsChainRef.current?.setSinkId(audioOutputDeviceId)
   }, [audioOutputDeviceId])
+
+  // While the TV is playing (a few seconds behind), optionally silence
+  // this Mac so the two don't echo — the cast tap is upstream of this.
+  const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
+  const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)
+  useEffect(() => {
+    effectsChainRef.current?.setLocalMuted(castPlaying && castMuteLocal)
+  }, [castPlaying, castMuteLocal])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -369,6 +381,8 @@ export function Player({
         >
           <span className="material-symbols-outlined">graphic_eq</span>
         </button>
+        <span style={{ width: '10px', flexShrink: 0 }} />
+        <CastButton />
         <span
           style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 10px', flexShrink: 0 }}
         />

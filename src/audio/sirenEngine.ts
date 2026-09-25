@@ -89,6 +89,8 @@ export class DubSirenEngine {
   private echoDelay: DelayNode
   private echoFeedbackGain: GainNode
   private echoWetGain: GainNode
+  private localGain: GainNode
+  private castTap: MediaStreamAudioDestinationNode
 
   private mode: SirenMode = 'siren'
   private pitchHz = 350
@@ -142,7 +144,12 @@ export class DubSirenEngine {
     softClip.oversample = '2x'
     dryTrim.connect(softClip)
     this.echoWetGain.connect(softClip)
-    softClip.connect(this.context.destination)
+    // Same local-mute + cast-tap split as EffectsChain.
+    this.localGain = this.context.createGain()
+    softClip.connect(this.localGain)
+    this.localGain.connect(this.context.destination)
+    this.castTap = this.context.createMediaStreamDestination()
+    softClip.connect(this.castTap)
 
     this.osc.start()
     this.lfoOsc.start()
@@ -228,6 +235,14 @@ export class DubSirenEngine {
     } catch (err) {
       console.error('failed to set siren audio output device', err)
     }
+  }
+
+  getCastStream(): MediaStream {
+    return this.castTap.stream
+  }
+
+  setLocalMuted(muted: boolean): void {
+    this.localGain.gain.setTargetAtTime(muted ? 0 : 1, this.context.currentTime, PARAM_SMOOTH_TAU)
   }
 
   close(): void {

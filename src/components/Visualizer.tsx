@@ -1,13 +1,8 @@
 // src/components/Visualizer.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
-import * as THREE from 'three'
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js'
-import { getActiveAnalyser, computeBands, BeatDetector, follow } from '../audio/audioAnalysis'
 import { VISUALIZER_THEMES, getVisualizerTheme } from '../visualizer/themes'
-import type { AudioFrame, ThemeInstance } from '../visualizer/types'
+import { VisualizerEngine } from '../visualizer/engine'
+import type { ThemeInstance } from '../visualizer/types'
 import { useCollectionStore } from '../state/store'
 import { decodeHtmlEntities } from '../format'
 import { ToggleSwitch } from './ToggleSwitch'
@@ -15,14 +10,11 @@ import type { Track } from '../types'
 
 const UI_HIDE_DELAY_MS = 2500
 
-// Full-screen audio-reactive overlay. This shell owns everything shared
-// across themes — fullscreen, the WebGL renderer + bloom, the render
-// loop, and per-frame audio analysis (bands, beats, hue drift) — and
-// hands each frame to the active theme (src/visualizer/themes/), which
-// owns its own scene and camera. Reads the current track's AnalyserNode
-// every frame (getActiveAnalyser) rather than capturing one, so it keeps
-// running seamlessly across track changes and idles gently when nothing
-// is playing.
+// Full-screen audio-reactive overlay. This shell owns fullscreen, the
+// render loop and the theme picker; VisualizerEngine (src/visualizer/
+// engine.ts) owns the renderer and audio analysis and hands each frame to
+// the active theme (src/visualizer/themes/), which owns its own scene and
+// camera.
 export function Visualizer({ track, onClose }: { track: Track | null; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasHostRef = useRef<HTMLDivElement>(null)
@@ -57,7 +49,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const instanceRef = useRef<ThemeInstance | null>(null)
   const fpsRef = useRef<HTMLSpanElement>(null)
   // Set by the renderer effect; the theme effect swaps what it renders.
-  const rendererRef = useRef<{ renderPass: RenderPass; setTheme: (instance: ThemeInstance) => void } | null>(null)
+  const rendererRef = useRef<VisualizerEngine | null>(null)
 
   // Fullscreen + exit handling. Esc while fullscreen is swallowed by the
   // browser to exit fullscreen (no keydown reaches us), so leaving
@@ -116,117 +108,29 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     const host = canvasHostRef.current
     if (!host) return
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.setSize(host.clientWidth, host.clientHeight)
-    renderer.setClearColor(0x000000, 1)
-    renderer.shadowMap.type = THREE.PCFShadowMap
-    host.appendChild(renderer.domElement)
+    const engine = new VisualizerEngine(host.clientWidth, host.clientHeight, Math.min(window.devicePixelRatio, 2))
+    host.appendChild(engine.canvas)
+    rendererRef.current = engine
 
-    // The composer renders into its own off-screen targets, so the
-    // renderer's `antialias` never applies — without a multisampled
-    // target every edge is aliased and crawls as the camera drifts.
-    // Sized in device pixels; later composer.setSize() calls (CSS pixels)
-    // are scaled by the renderer's pixel ratio.
-    const pixelRatio = renderer.getPixelRatio()
-    const composer = new EffectComposer(
-      renderer,
-      new THREE.WebGLRenderTarget(host.clientWidth * pixelRatio, host.clientHeight * pixelRatio, {
-        samples: 4,
-        type: THREE.HalfFloatType,
-      }),
-    )
-    const renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera())
-    composer.addPass(renderPass)
-    const bloom = new UnrealBloomPass(new THREE.Vector2(host.clientWidth, host.clientHeight), 1, 0.5, 0.3)
-    composer.addPass(bloom)
-    composer.addPass(new OutputPass())
-
-    let theme: ThemeInstance | null = null
-    function fitCamera() {
-      if (!host || !theme) return
-      theme.camera.aspect = host.clientWidth / host.clientHeight
-      theme.camera.updateProjectionMatrix()
-    }
-    function setTheme(instance: ThemeInstance) {
-      theme = instance
-      renderer.shadowMap.enabled = !!instance.shadows
-      renderer.toneMapping = instance.toneMapping ?? THREE.NoToneMapping
-      renderPass.scene = instance.scene
-      renderPass.camera = instance.camera
-      fitCamera()
-    }
-    rendererRef.current = { renderPass, setTheme }
-
-    const resizeObserver = new ResizeObserver(() => {
-      renderer.setSize(host.clientWidth, host.clientHeight)
-      composer.setSize(host.clientWidth, host.clientHeight)
-      fitCamera()
-    })
+    const resizeObserver = new ResizeObserver(() => engine.setSize(host.clientWidth, host.clientHeight))
     resizeObserver.observe(host)
 
-    const beatDetector = new BeatDetector()
-    const frame: AudioFrame = {
-      t: 0,
-      dt: 0,
-      bass: 0,
-      mid: 0,
-      high: 0,
-      energy: 0,
-      beat: false,
-      flash: 0,
-      hue: Math.random(),
-      freq: new Uint8Array(0),
-      sampleRate: 48000,
-    }
-    let freq: Uint8Array<ArrayBuffer> = new Uint8Array(0)
-    const silent = new Uint8Array(0)
-    let lastMs = performance.now()
     let raf = 0
     // FPS readout: written straight to the DOM once a second rather than
     // through React state, so it doesn't re-render the overlay.
     let fpsFrames = 0
-    let fpsSince = lastMs
+    let fpsSince = performance.now()
 
     function tick() {
       raf = requestAnimationFrame(tick)
       const nowMs = performance.now()
-      frame.dt = Math.min(0.05, (nowMs - lastMs) / 1000)
-      frame.t = nowMs / 1000
-      lastMs = nowMs
       fpsFrames++
       if (nowMs - fpsSince >= 1000) {
         if (fpsRef.current) fpsRef.current.textContent = `${Math.round((fpsFrames * 1000) / (nowMs - fpsSince))} fps`
         fpsFrames = 0
         fpsSince = nowMs
       }
-
-      const analyser = getActiveAnalyser()
-      let bands = { bass: 0, mid: 0, high: 0 }
-      if (analyser) {
-        if (freq.length !== analyser.frequencyBinCount) freq = new Uint8Array(analyser.frequencyBinCount)
-        analyser.getByteFrequencyData(freq)
-        frame.freq = freq
-        frame.sampleRate = analyser.context.sampleRate
-        bands = computeBands(freq, frame.sampleRate)
-      } else {
-        frame.freq = silent
-      }
-      frame.bass = follow(frame.bass, bands.bass)
-      frame.mid = follow(frame.mid, bands.mid)
-      frame.high = follow(frame.high, bands.high)
-      frame.energy = (frame.bass + frame.mid + frame.high) / 3
-      frame.beat = beatDetector.update(bands.bass, nowMs)
-      if (frame.beat) {
-        frame.flash = 1
-        frame.hue = (frame.hue + 0.06) % 1
-      }
-      frame.flash = Math.max(0, frame.flash - frame.dt * 3)
-      frame.hue = (frame.hue + frame.dt * 0.01) % 1
-
-      if (!theme) return
-      bloom.strength = theme.update(frame)
-      composer.render()
+      engine.render(nowMs)
     }
     tick()
 
@@ -234,10 +138,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       cancelAnimationFrame(raf)
       resizeObserver.disconnect()
       rendererRef.current = null
-      composer.dispose()
-      bloom.dispose()
-      renderer.dispose()
-      renderer.domElement.remove()
+      engine.dispose()
     }
   }, [])
 

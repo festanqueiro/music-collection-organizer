@@ -14,6 +14,8 @@ import type {
   TrackTableColumnKey,
   TrackTableSortState,
   UpdateState,
+  CastDevice,
+  CastStatus,
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
@@ -244,6 +246,19 @@ interface CollectionState {
   // element) so the track table can show a pause icon on the playing row.
   playerPlaying: boolean
   setPlayerPlaying: (playing: boolean) => void
+  // Casting to a Google Cast device — status/devices are pushed from main;
+  // the session itself lives in src/cast/castSession.ts.
+  castStatus: CastStatus
+  setCastStatus: (status: CastStatus) => void
+  castDevices: CastDevice[]
+  setCastDevices: (devices: CastDevice[]) => void
+  // What the TV shows: the visualizer (true) or a now-playing card.
+  castShowVisualizer: boolean
+  setCastShowVisualizer: (show: boolean) => void
+  // Silences this Mac's speakers while the TV plays — the TV runs a few
+  // seconds behind, so hearing both at once is an echo.
+  castMuteLocal: boolean
+  setCastMuteLocal: (mute: boolean) => void
   setPlaybackControls: (controls: PlaybackControls | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
@@ -427,6 +442,24 @@ function loadVisualizerHideTrackInfo(): boolean {
   }
 }
 
+const CAST_SHOW_VISUALIZER_KEY = 'castShowVisualizer'
+const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
+function loadBooleanPreference(key: string, fallback: boolean): boolean {
+  try {
+    const value = localStorage.getItem(key)
+    return value === null ? fallback : value === 'true'
+  } catch {
+    return fallback
+  }
+}
+function saveBooleanPreference(key: string, value: boolean): void {
+  try {
+    localStorage.setItem(key, String(value))
+  } catch {
+    // Non-essential preference — fine to lose.
+  }
+}
+
 const SHOW_MIDI_CONTROLS_KEY = 'showMidiControls'
 function loadShowMidiControls(): boolean {
   try {
@@ -493,6 +526,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   toastMessage: null,
   playbackControls: null,
   playerPlaying: false,
+  castStatus: { state: 'idle' },
+  castDevices: [],
+  castShowVisualizer: loadBooleanPreference(CAST_SHOW_VISUALIZER_KEY, true),
+  castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
@@ -554,6 +591,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setPlaybackControls: (controls) => set({ playbackControls: controls }),
   setPlayerPlaying: (playing) => set({ playerPlaying: playing }),
+  setCastStatus: (status) => set({ castStatus: status }),
+  setCastDevices: (devices) => set({ castDevices: devices }),
+  setCastShowVisualizer: (show) => {
+    set({ castShowVisualizer: show })
+    saveBooleanPreference(CAST_SHOW_VISUALIZER_KEY, show)
+  },
+  setCastMuteLocal: (mute) => {
+    set({ castMuteLocal: mute })
+    saveBooleanPreference(CAST_MUTE_LOCAL_KEY, mute)
+  },
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
   loadMidiMappings: async () => {

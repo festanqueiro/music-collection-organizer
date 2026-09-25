@@ -108,6 +108,8 @@ export class EffectsChain {
   private reverbWetGain: GainNode
   private lastDecaySeconds: number
   private masterGain: GainNode
+  private localGain: GainNode
+  private castTap: MediaStreamAudioDestinationNode
   private analyser: AnalyserNode
 
   constructor(audioElement: HTMLAudioElement) {
@@ -121,7 +123,18 @@ export class EffectsChain {
     // those sends land here downstream of themselves rather than upstream.
     this.masterGain = this.context.createGain()
     this.masterGain.gain.value = 1
-    this.masterGain.connect(this.context.destination)
+    // localGain only mutes this Mac's own speakers while casting (see
+    // setLocalMuted) — the cast tap below sits before it, so the TV keeps
+    // getting the full signal.
+    this.localGain = this.context.createGain()
+    this.masterGain.connect(this.localGain)
+    this.localGain.connect(this.context.destination)
+
+    // What gets cast (src/cast/castMixer.ts): the same post-master signal
+    // that's heard locally. Always wired — a MediaStreamDestination with
+    // nobody reading it costs next to nothing.
+    this.castTap = this.context.createMediaStreamDestination()
+    this.masterGain.connect(this.castTap)
 
     // Read-only tap for the Visualizer, after masterGain so it reflects
     // exactly what's heard (FX tails included, silent when muted). An
@@ -277,6 +290,15 @@ export class EffectsChain {
 
   setVolume(value: number): void {
     this.dryGain.gain.value = value
+  }
+
+  // This chain's output as a MediaStream, for casting.
+  getCastStream(): MediaStream {
+    return this.castTap.stream
+  }
+
+  setLocalMuted(muted: boolean): void {
+    this.localGain.gain.setTargetAtTime(muted ? 0 : 1, this.context.currentTime, FILTER_PARAM_TAU)
   }
 
   // Routes this context's output to a specific Core Audio device (an
