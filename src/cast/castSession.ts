@@ -1,12 +1,15 @@
-// Renderer side of casting: records MCO's live output — the mixed audio
-// (castMixer) plus the cast picture (castFrames) — with MediaRecorder and
-// streams the chunks to the main process, which encodes them to HLS for
-// the TV (electron/main/cast/). The TV plays a few seconds behind.
+// Renderer side of casting. In stream mode (a TV with "Show visualizer"
+// on) it records MCO's live output — the mixed audio (castMixer) plus the
+// visualizer picture (castFrames) — with MediaRecorder and streams the
+// chunks to the main process, which encodes them to HLS for the TV
+// (electron/main/cast/); the TV plays a few seconds behind. In direct mode
+// (speakers, or "Show visualizer" off) nothing is recorded: the device
+// plays each track file itself, driven by the Player (directCast.ts).
 import { useCollectionStore } from '../state/store'
 import { startCastMixer, stopCastMixer } from './castMixer'
 import { CastFrameRenderer } from './castFrames'
 import { FramePacer } from './framePacer'
-import type { CastDevice, CastStatus } from '../types'
+import type { CastDevice, CastMode, CastStatus } from '../types'
 
 const FPS = 30
 const CHUNK_MS = 250
@@ -21,62 +24,82 @@ const VIDEO_MIME_CANDIDATES = [
   'video/webm;codecs=vp8,opus',
   'video/webm',
 ]
-const AUDIO_MIME_CANDIDATES = ['audio/webm;codecs=pcm', 'audio/webm;codecs=opus', 'audio/webm']
 
-// `video` is null when casting to a speaker (audio only).
 interface LocalSession {
   video: { frames: CastFrameRenderer; pacer: FramePacer; track: CanvasCaptureMediaStreamTrack } | null
   recorder: MediaRecorder | null
 }
 
 let local: LocalSession | null = null
+// The device of the current (or last) session, so switching mode can
+// restart casting to the same device.
+let currentDevice: CastDevice | null = null
 
 export function isCastActive(status: CastStatus): boolean {
   return status.state === 'connecting' || status.state === 'buffering' || status.state === 'casting'
 }
 
+// Speakers can't show the visualizer, and without it there's nothing the
+// live stream gives that the device playing the file itself doesn't do
+// better (instant controls, full quality) — except MCO's effects.
+export function castModeFor(device: CastDevice, showVisualizer: boolean): CastMode {
+  return device.audioOnly || !showVisualizer ? 'direct' : 'stream'
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err)
+}
+
 export async function startCasting(device: CastDevice): Promise<void> {
   teardownLocal()
-  const setStatus = useCollectionStore.getState().setCastStatus
+  currentDevice = device
+  const { setCastStatus: setStatus, castShowVisualizer } = useCollectionStore.getState()
+  const mode = castModeFor(device, castShowVisualizer)
+
+  if (mode === 'direct') {
+    try {
+      await window.api.startCast(device.id, 'direct')
+    } catch (err) {
+      setStatus({ state: 'error', error: errorMessage(err) })
+    }
+    return
+  }
 
   const audioTrack = startCastMixer()
   const session: LocalSession = { video: null, recorder: null }
-  if (!device.audioOnly) {
-    const frames = new CastFrameRenderer()
-    const track = frames.canvas.captureStream(0).getVideoTracks()[0] as CanvasCaptureMediaStreamTrack
-    // A failing frame (e.g. a theme throwing) is logged once rather than
-    // every tick, and doesn't stop the stream — the next frame may work.
-    let loggedDrawError = false
-    const pacer = new FramePacer(
-      FPS,
-      () => {
-        try {
-          frames.draw()
-        } catch (err) {
-          if (!loggedDrawError) console.error('cast frame failed', err)
-          loggedDrawError = true
-        }
-        track.requestFrame()
-      },
-      (stats) => {
-        if (local === session) useCollectionStore.getState().setCastFrameStats(stats)
-      },
-    )
-    session.video = { frames, pacer, track }
-  }
+  const frames = new CastFrameRenderer()
+  const track = frames.canvas.captureStream(0).getVideoTracks()[0] as CanvasCaptureMediaStreamTrack
+  // A failing frame (e.g. a theme throwing) is logged once rather than
+  // every tick, and doesn't stop the stream — the next frame may work.
+  let loggedDrawError = false
+  const pacer = new FramePacer(
+    FPS,
+    () => {
+      try {
+        frames.draw()
+      } catch (err) {
+        if (!loggedDrawError) console.error('cast frame failed', err)
+        loggedDrawError = true
+      }
+      track.requestFrame()
+    },
+    (stats) => {
+      if (local === session) useCollectionStore.getState().setCastFrameStats(stats)
+    },
+  )
+  session.video = { frames, pacer, track }
   local = session
 
   try {
-    await window.api.startCast(device.id)
+    await window.api.startCast(device.id, 'stream')
   } catch (err) {
     teardownLocal()
-    setStatus({ state: 'error', error: err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err) })
+    setStatus({ state: 'error', error: errorMessage(err) })
     return
   }
   if (local !== session) return
 
-  const candidates = session.video ? VIDEO_MIME_CANDIDATES : AUDIO_MIME_CANDIDATES
-  const mimeType = candidates.find((type) => MediaRecorder.isTypeSupported(type))
+  const mimeType = VIDEO_MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type))
   const tracks = session.video ? [session.video.track, audioTrack] : [audioTrack]
   const recorder = new MediaRecorder(new MediaStream(tracks), {
     mimeType,
@@ -96,6 +119,15 @@ export async function startCasting(device: CastDevice): Promise<void> {
     })
   }
   recorder.start(CHUNK_MS)
+}
+
+// Restarts a running cast to the same device in whichever mode the
+// current settings call for (e.g. after "Show visualizer" was toggled).
+export function restartCasting(): void {
+  const status = useCollectionStore.getState().castStatus
+  if (!currentDevice || !isCastActive(status)) return
+  const mode = castModeFor(currentDevice, useCollectionStore.getState().castShowVisualizer)
+  if (mode !== status.mode) void startCasting(currentDevice)
 }
 
 export function stopCasting(): void {

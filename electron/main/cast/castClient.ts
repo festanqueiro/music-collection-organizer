@@ -27,6 +27,38 @@ export interface CastLoadRequest {
   title: string
 }
 
+// A whole track for the device to play itself (direct mode).
+export interface CastTrackRequest {
+  url: string
+  contentType: string
+  title: string
+  artist: string | null
+  album: string | null
+  imageUrl: string | null
+  startTime: number
+  autoplay: boolean
+}
+
+// What the device reports about its media player.
+export interface CastMediaStatus {
+  mediaSessionId: number | null
+  playerState: 'IDLE' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'LOADING'
+  idleReason: string | null
+  currentTime: number
+}
+
+export function parseMediaStatus(message: { status?: unknown }): CastMediaStatus | null {
+  const statuses = Array.isArray(message.status) ? (message.status as Array<Record<string, unknown>>) : []
+  const s = statuses[0]
+  if (!s || typeof s.playerState !== 'string') return null
+  return {
+    mediaSessionId: typeof s.mediaSessionId === 'number' ? s.mediaSessionId : null,
+    playerState: s.playerState as CastMediaStatus['playerState'],
+    idleReason: typeof s.idleReason === 'string' ? s.idleReason : null,
+    currentTime: typeof s.currentTime === 'number' ? s.currentTime : 0,
+  }
+}
+
 type JsonMessage = { type?: string; requestId?: number; [key: string]: unknown }
 
 interface ReceiverApplication {
@@ -36,7 +68,9 @@ interface ReceiverApplication {
 }
 
 // Events: 'closed' (the session ended from the device side — another app
-// took over the TV, the TV turned off, the socket dropped) and 'error'.
+// took over the TV, the TV turned off, the socket dropped), 'error', and
+// 'media' (a CastMediaStatus the device pushed on its own — e.g. paused
+// from the TV remote, or the track finished).
 export class CastClient extends EventEmitter {
   private socket: TLSSocket | null = null
   private heartbeat: ReturnType<typeof setInterval> | null = null
@@ -93,13 +127,19 @@ export class CastClient extends EventEmitter {
   }
 
   // Launches the Default Media Receiver (or joins it if it's already
-  // running) and loads `request` on it as a live stream.
-  async load(request: CastLoadRequest): Promise<void> {
+  // running).
+  async launch(): Promise<void> {
     const status = await this.request(NS_RECEIVER, RECEIVER_ID, { type: 'LAUNCH', appId: DEFAULT_MEDIA_RECEIVER_APP_ID })
     const app = findApplication(status, DEFAULT_MEDIA_RECEIVER_APP_ID)
     if (!app) throw new Error('The TV did not start its media player')
     this.app = app
     this.send(NS_CONNECTION, app.transportId, { type: 'CONNECT' })
+  }
+
+  // Launches the receiver and loads `request` on it as a live stream.
+  async load(request: CastLoadRequest): Promise<void> {
+    await this.launch()
+    const app = this.app!
     const result = await this.request(NS_MEDIA, app.transportId, {
       type: 'LOAD',
       sessionId: app.sessionId,
@@ -113,6 +153,52 @@ export class CastClient extends EventEmitter {
       },
     })
     if (result.type !== 'MEDIA_STATUS') throw new Error(`The TV couldn't play the stream (${result.type ?? 'unknown error'})`)
+  }
+
+  // Loads a whole track (direct mode); the device buffers and plays it
+  // itself. Resolves with the new media session's status.
+  async loadTrack(request: CastTrackRequest): Promise<CastMediaStatus> {
+    const app = this.requireApp()
+    const reply = await this.request(NS_MEDIA, app.transportId, {
+      type: 'LOAD',
+      sessionId: app.sessionId,
+      autoplay: request.autoplay,
+      currentTime: request.startTime,
+      media: {
+        contentId: request.url,
+        contentUrl: request.url,
+        contentType: request.contentType,
+        streamType: 'BUFFERED',
+        metadata: {
+          metadataType: 3, // MUSIC_TRACK
+          title: request.title,
+          ...(request.artist ? { artist: request.artist } : {}),
+          ...(request.album ? { albumName: request.album } : {}),
+          ...(request.imageUrl ? { images: [{ url: request.imageUrl }] } : {}),
+        },
+      },
+    })
+    const status = reply.type === 'MEDIA_STATUS' ? parseMediaStatus(reply as { status?: unknown }) : null
+    if (!status) throw new Error(`The TV couldn't play this track (${reply.type ?? 'unknown error'})`)
+    return status
+  }
+
+  // Transport commands for the loaded track (direct mode).
+  async play(mediaSessionId: number): Promise<void> {
+    await this.request(NS_MEDIA, this.requireApp().transportId, { type: 'PLAY', mediaSessionId })
+  }
+
+  async pause(mediaSessionId: number): Promise<void> {
+    await this.request(NS_MEDIA, this.requireApp().transportId, { type: 'PAUSE', mediaSessionId })
+  }
+
+  async seek(mediaSessionId: number, seconds: number): Promise<void> {
+    await this.request(NS_MEDIA, this.requireApp().transportId, { type: 'SEEK', mediaSessionId, currentTime: seconds })
+  }
+
+  async getMediaStatus(): Promise<CastMediaStatus | null> {
+    const reply = await this.request(NS_MEDIA, this.requireApp().transportId, { type: 'GET_STATUS' }, 3000)
+    return parseMediaStatus(reply as { status?: unknown })
   }
 
   // Stops the receiver app on the TV (back to its home screen) and closes
@@ -168,17 +254,18 @@ export class CastClient extends EventEmitter {
       if (!findApplication(message, DEFAULT_MEDIA_RECEIVER_APP_ID, this.app.sessionId)) this.endFromDevice()
       return
     }
+    // What an IDLE means depends on the mode (a finished live stream ends
+    // the session; a finished track just means "next"), so it's up to the
+    // listener.
     if (namespace === NS_MEDIA && message.type === 'MEDIA_STATUS') {
-      const statuses = Array.isArray(message.status) ? (message.status as Array<Record<string, unknown>>) : []
-      for (const s of statuses) {
-        if (s.playerState === 'IDLE' && s.idleReason === 'ERROR') {
-          this.emit('error', new Error('The TV hit a playback error'))
-          this.endFromDevice()
-        } else if (s.playerState === 'IDLE' && (s.idleReason === 'CANCELLED' || s.idleReason === 'FINISHED')) {
-          this.endFromDevice()
-        }
-      }
+      const status = parseMediaStatus(message as { status?: unknown })
+      if (status) this.emit('media', status)
     }
+  }
+
+  private requireApp(): ReceiverApplication {
+    if (!this.app || this.closed) throw new Error('Not connected to the TV')
+    return this.app
   }
 
   private request(namespace: string, destinationId: string, body: JsonMessage, timeoutMs = REQUEST_TIMEOUT_MS): Promise<JsonMessage> {

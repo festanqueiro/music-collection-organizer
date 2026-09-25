@@ -1,7 +1,7 @@
 // src/components/CastButton.tsx
 import { useEffect, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { isCastActive, startCasting, stopCasting } from '../cast/castSession'
+import { isCastActive, restartCasting, startCasting, stopCasting } from '../cast/castSession'
 import { ToggleSwitch } from './ToggleSwitch'
 import { contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 
@@ -164,14 +164,25 @@ export function CastButton() {
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
               Show visualizer on the TV
-              <ToggleSwitch checked={showVisualizer} onChange={setShowVisualizer} title="Show visualizer on the TV" />
+              <ToggleSwitch
+                checked={showVisualizer}
+                onChange={(checked) => {
+                  setShowVisualizer(checked)
+                  // Switches between streaming MCO's output and letting the
+                  // TV play the tracks itself, so a running cast restarts.
+                  restartCasting()
+                }}
+                title="Show visualizer on the TV"
+              />
             </label>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
               Mute this Mac while casting
               <ToggleSwitch checked={muteLocal} onChange={setMuteLocal} title="Mute this Mac while casting" />
             </label>
             <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
-              Plays everything you hear in MCO, effects included, a few seconds behind.
+              With the visualizer, the TV gets everything you hear in MCO, effects included, a few seconds behind.
+              Without it (and on speakers), the device plays the tracks itself: controls respond right away, but
+              MCO&apos;s effects aren&apos;t heard.
             </div>
           </div>
         </div>
