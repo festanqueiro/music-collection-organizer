@@ -176,6 +176,9 @@ function createWindow(onShown?: () => void): void {
     width: 1200,
     height: 800,
     show: false,
+    // Matches the startup loader's background (src/splash.css), so there's
+    // no white flash before the first paint.
+    backgroundColor: '#12151a',
     webPreferences: {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
