@@ -10,6 +10,7 @@ describe('reconcile', () => {
       pause: false,
       play: false,
       seekTo: null,
+      finished: false,
     })
   })
 
@@ -18,6 +19,7 @@ describe('reconcile', () => {
       pause: true,
       play: false,
       seekTo: null,
+      finished: false,
     })
   })
 
@@ -30,12 +32,17 @@ describe('reconcile', () => {
     expect(reconcile({ playerState: 'PLAYING', idleReason: null, currentTime: 29.8 }, playing, 10_000).seekTo).toBeNull()
   })
 
-  it('leaves MCO alone while the device is buffering or has finished', () => {
+  it('reports the device finishing the track, even right after a command', () => {
+    expect(reconcile({ playerState: 'IDLE', idleReason: 'FINISHED', currentTime: 0 }, playing, 100).finished).toBe(true)
+  })
+
+  it('leaves MCO alone while the device is buffering, or idle for another reason', () => {
     for (const playerState of ['BUFFERING', 'LOADING', 'IDLE'] as const) {
       expect(reconcile({ playerState, idleReason: null, currentTime: 0 }, playing, 10_000)).toEqual({
         pause: false,
         play: false,
         seekTo: null,
+        finished: false,
       })
     }
   })
