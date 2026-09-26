@@ -5,7 +5,6 @@ import { ScanPrompt } from './components/ScanPrompt'
 import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
-import { DuplicatesPanel } from './components/DuplicatesPanel'
 import { CuePlayer } from './components/CuePlayer'
 import { hideBootSplash } from './bootSplash'
 import { UpdateBanner } from './components/UpdateBanner'
@@ -25,7 +24,7 @@ import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
 
-type LeftView = 'folders' | 'tags' | 'subtags' | 'duplicates'
+type LeftView = 'folders' | 'tags' | 'subtags'
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
@@ -305,15 +304,6 @@ export default function App() {
                 >
                   Subtags
                 </button>
-                <button
-                  onClick={() => changeLeftView('duplicates')}
-                  title="Find likely duplicate tracks"
-                  style={{
-                    border: leftView === 'duplicates' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-                  }}
-                >
-                  Duplicates
-                </button>
               </div>
               {leftView === 'folders' && (
                 <FolderTree
@@ -327,14 +317,6 @@ export default function App() {
               )}
               {leftView === 'tags' && (
                 <TagTree
-                  onFilterChange={(filter) => {
-                    setTagFilter(() => filter)
-                    clearCheckedTracks()
-                  }}
-                />
-              )}
-              {leftView === 'duplicates' && (
-                <DuplicatesPanel
                   onFilterChange={(filter) => {
                     setTagFilter(() => filter)
                     clearCheckedTracks()

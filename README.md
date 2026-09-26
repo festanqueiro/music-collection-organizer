@@ -38,8 +38,8 @@ MCO's own database.
 - **DJ tools** — keys in Camelot notation with a "Compatible" filter for
   harmonic mixing (same key, one step round the
   [Camelot wheel](https://mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp), or the relative major/minor, at a BPM that
-  matches), headphone pre-listen on a second output, a duplicate finder,
-  and export of your tags as Rekordbox playlists.
+  matches), headphone pre-listen on a second output, and export of your
+  tags as Rekordbox playlists.
 - **MIDI** — map any knob, toggle, or playback button to your controller
   in two clicks, with LED feedback where your controller supports it.
 - **Visualizer** — a full-screen, audio-reactive visualizer with eight

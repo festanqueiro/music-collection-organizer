@@ -1,8 +1,7 @@
 # DJ tools
 
 Helpers for preparing sets: finding tracks that mix, hearing the next one
-in your headphones, cleaning up duplicates, and taking your tags to
-Rekordbox.
+in your headphones, and taking your tags to Rekordbox.
 
 ## Harmonic mixing
 
@@ -50,29 +49,6 @@ the queue or the main player. If the cue device is unplugged, it falls
 back to the default output.
 
 Code: `src/components/CuePlayer.tsx`.
-
-## Duplicate finder
-
-The **Duplicates** tab in the left panel lists groups of likely
-duplicates: the same recording saved twice, for example as WAV and MP3,
-or as two downloads. Tracks count as duplicates when their durations are
-within a second of each other and either:
-
-- their title and artist match (ignoring case, accents, and
-  punctuation), or
-- their filenames match (ignoring track-number prefixes and the
-  extension).
-
-Different mixes stay separate, e.g. "(Dub Mix)" vs "(Vocal Mix)".
-
-The table shows all duplicates, or one group when you click it. For each
-copy you see its format, size, duration, and tag count, plus a **Show in
-Finder** button. **Merge tags** gives every copy in the group all the
-group's tags, so nothing is lost whichever copy you keep. MCO never
-deletes files: remove the copy you don't want in Finder, then click
-**Update Collection**.
-
-Code: `src/state/duplicates.ts`, `src/components/DuplicatesPanel.tsx`.
 
 ## Export to Rekordbox
 
