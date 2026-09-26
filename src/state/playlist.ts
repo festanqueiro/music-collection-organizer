@@ -54,6 +54,13 @@ export function advanceToNext(playlist: PlaylistState): PlaylistState {
   return playlist.slice(1)
 }
 
+// "Clear queue": drops everything queued AFTER the head — the current
+// (playing/loaded) track stays. Same array back when there's nothing to drop.
+export function clearUpcoming(playlist: PlaylistState): PlaylistState {
+  if (playlist.length <= 1) return playlist
+  return playlist.slice(0, 1)
+}
+
 // Shuffles everything queued AFTER the head — the current track keeps
 // playing uninterrupted, only the upcoming order changes. Fisher-Yates;
 // `random` is injectable so tests can make it deterministic.

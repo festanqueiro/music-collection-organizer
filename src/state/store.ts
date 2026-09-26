@@ -34,6 +34,7 @@ import {
   movePlaylistItem as movePlaylistItemPure,
   advanceToNext as advanceToNextPure,
   shufflePlaylist as shufflePlaylistPure,
+  clearUpcoming as clearUpcomingPure,
   playQueueItemNow as playQueueItemNowPure,
   playQueueItemNext as playQueueItemNextPure,
 } from './playlist'
@@ -1151,7 +1152,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   removeFromPlaylist: (index) => set({ playlist: removeFromPlaylistPure(get().playlist, index) }),
 
-  clearPlaylist: () => set({ playlist: [] }),
+  clearPlaylist: () => set({ playlist: clearUpcomingPure(get().playlist) }),
 
   movePlaylistItem: (fromIndex, toIndex) =>
     set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),

@@ -3,6 +3,7 @@ import {
   playTrackNow,
   addToPlaylist,
   addManyToPlaylist,
+  clearUpcoming,
   playNext,
   removeFromPlaylist,
   movePlaylistItem,
@@ -140,5 +141,18 @@ describe('playQueueItemNext', () => {
     expect(playQueueItemNext(playlist, 0)).toBe(playlist)
     expect(playQueueItemNext(playlist, 1)).toBe(playlist)
     expect(playQueueItemNext(playlist, 9)).toBe(playlist)
+  })
+})
+
+describe('clearUpcoming', () => {
+  it('keeps only the current (head) track', () => {
+    expect(clearUpcoming([5, 6, 7])).toEqual([5])
+  })
+
+  it('returns the same array when there is nothing after the head', () => {
+    const one = [5]
+    expect(clearUpcoming(one)).toBe(one)
+    const empty: number[] = []
+    expect(clearUpcoming(empty)).toBe(empty)
   })
 })

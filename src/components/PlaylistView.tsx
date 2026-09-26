@@ -223,7 +223,8 @@ export function PlaylistView() {
         </button>
         <button
           onClick={() => clearPlaylist()}
-          disabled={playlist.length === 0}
+          disabled={playlist.length <= 1}
+          title="Remove every upcoming track (the current track stays)"
           style={{ fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>clear_all</span>
