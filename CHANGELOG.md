@@ -6,6 +6,15 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.43 — 2026-09-26
+
+### Fixed
+- Casting could drop with "The TV stopped responding" while the TV was
+  fine and still playing, when MCO was busy for a while (e.g. scanning the
+  collection).
+
+## 1.0.42 — 2026-09-26
+
 ### Fixed
 - The Mac no longer goes to sleep while casting (which left the TV hanging);
   the display can still turn off.
