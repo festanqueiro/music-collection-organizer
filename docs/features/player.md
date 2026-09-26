@@ -15,7 +15,8 @@ interrupts playback.
   level.
 - **Track info** — click the title for the track's details; click the
   artist to search the collection for that artist.
-- **Expand queue** (chevron) opens the full-screen queue and FX panel.
+- **Queue** and **FX** (right of the track info) open the full-screen
+  [queue](queue.md) and [effects](fx.md) screens; click again to close.
 - **Open visualizer** — see [Visualizer](visualizer.md).
 - **Cast** — play on a TV or speaker; see [Casting](casting.md).
 

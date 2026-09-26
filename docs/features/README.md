@@ -13,7 +13,7 @@ in the code.
 | [FX](fx.md) | EQ, Filter, Delay, Reverb, Dub Siren, master volume |
 | [MIDI](midi.md) | MIDI learn, LED feedback, export/import/reset of bindings |
 | [DJ tools](dj-tools.md) | Harmonic mixing (Camelot keys, Compatible filter), headphone pre-listen, Rekordbox export |
-| [Visualizer](visualizer.md) | Full-screen visualizer and its seven themes |
+| [Visualizer](visualizer.md) | Full-screen visualizer and its eight themes |
 | [Casting](casting.md) | Casting to a Chromecast, Google TV or Nest speaker in MCO's own Cast app — effects, siren and the visualizer on the TV |
 | [Settings & data](settings-and-data.md) | Settings modal, where data lives, backups and restore, automatic updates |
 

@@ -181,6 +181,8 @@ export interface PlaybackControls {
   cueUp: () => void
 }
 
+export type PlayerScreen = 'queue' | 'fx'
+
 export interface CollectionState {
   tracks: Track[]
   genres: Genre[]
@@ -191,7 +193,8 @@ export interface CollectionState {
   pendingSubgenreDeletion: { snapshot: SubgenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
   playlist: number[]
   continuousPlay: boolean
-  playerExpanded: boolean
+  // The full-screen view opened from the player bar's icons, if any.
+  playerScreen: PlayerScreen | null
   playTrackNow: (trackId: number) => Promise<void>
   addToPlaylist: (trackId: number) => void
   // `analyse` (default true) also starts analysing any not-yet-analysed
@@ -215,7 +218,9 @@ export interface CollectionState {
   playQueueItemNext: (index: number) => void
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
-  setPlayerExpanded: (value: boolean) => void
+  // Opens that screen, or closes it if it's already the one open.
+  togglePlayerScreen: (screen: PlayerScreen) => void
+  setPlayerScreen: (screen: PlayerScreen | null) => void
   // Full-screen Visualizer overlay. Only the open/closed flag lives here —
   // the per-frame audio data is read straight from the AnalyserNode inside
   // the Visualizer's render loop (see audio/audioAnalysis.ts), since
@@ -528,7 +533,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   pendingSubgenreDeletion: null,
   playlist: [],
   continuousPlay: true,
-  playerExpanded: false,
+  playerScreen: null,
   queueRequest: null,
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
@@ -1173,7 +1178,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setContinuousPlay: (value) => set({ continuousPlay: value }),
 
-  setPlayerExpanded: (value) => set({ playerExpanded: value }),
+  togglePlayerScreen: (screen) => set({ playerScreen: get().playerScreen === screen ? null : screen }),
+  setPlayerScreen: (screen) => set({ playerScreen: screen }),
 
   setVisualizerOpen: (open) => set({ visualizerOpen: open }),
 

@@ -12,10 +12,11 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
+import { PlayerScreenButtons } from './PlayerScreenButtons'
 
 // Renders as the app's footer player bar: track name + BPM, play/pause,
-// waveform (doubles as the seek bar), and volume. The delay/reverb FX
-// controls live in FxPanel instead, inside the full-screen queue view —
+// waveform (doubles as the seek bar), and volume. The FX controls live in
+// FxPanel instead, on their own full screen (FxView, the FX button) —
 // they need real screen space (and will grow further once the Dub Siren
 // module lands), which the compact footer strip can't spare. All other
 // track detail (artist, tags, full ID3) lives in DetailPanel instead —
@@ -58,8 +59,6 @@ export function Player({
   const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
   const continuousPlay = useCollectionStore((s) => s.continuousPlay)
   const advanceToNext = useCollectionStore((s) => s.advanceToNext)
-  const playerExpanded = useCollectionStore((s) => s.playerExpanded)
-  const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
   const setPlaybackProgress = useCollectionStore((s) => s.setPlaybackProgress)
   const playlist = useCollectionStore((s) => s.playlist)
   const hasNext = playlist.length > 1
@@ -499,15 +498,9 @@ export function Player({
             Analysed
           </span>
         )}
-        <button
-          onClick={() => setPlayerExpanded(!playerExpanded)}
-          title={playerExpanded ? 'Collapse queue' : 'Expand queue'}
-          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
-        >
-          <span className="material-symbols-outlined">
-            {playerExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_up'}
-          </span>
-        </button>
+        <div style={{ marginLeft: 'auto', paddingLeft: '8px' }}>
+          <PlayerScreenButtons />
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

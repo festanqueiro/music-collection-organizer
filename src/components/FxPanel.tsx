@@ -158,13 +158,27 @@ export function FxPanel({ track }: { track: Track | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const sectionStyle = { borderTop: '1px solid var(--color-border)', paddingTop: '16px' }
+  // Each effect is a card; the cards flow into as many columns as fit.
+  const sectionStyle = {
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-border)',
+    borderRadius: '8px',
+    padding: '12px 14px',
+  }
   const headerRowStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }
   const knobRowStyle = { display: 'flex', flexWrap: 'wrap' as const, gap: '10px', alignItems: 'flex-start' }
 
   return (
-    <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto' }}>
-      <div style={{ ...sectionStyle, borderTop: 'none', paddingTop: 0 }}>
+    <div
+      style={{
+        padding: '16px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: '12px',
+        alignItems: 'start',
+      }}
+    >
+      <div style={sectionStyle}>
         <div style={headerRowStyle}>
           <h4 style={{ margin: 0 }}>Master</h4>
           <MidiLearnBadge control="master.volume" />

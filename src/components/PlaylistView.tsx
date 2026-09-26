@@ -1,7 +1,6 @@
 // src/components/PlaylistView.tsx
 import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { FxPanel } from './FxPanel'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import { formatKey } from '../state/harmonic'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
@@ -149,7 +148,7 @@ export function PlaylistView() {
   const shufflePlaylist = useCollectionStore((s) => s.shufflePlaylist)
   const playQueueItemNow = useCollectionStore((s) => s.playQueueItemNow)
   const playQueueItemNext = useCollectionStore((s) => s.playQueueItemNext)
-  const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
+  const setPlayerScreen = useCollectionStore((s) => s.setPlayerScreen)
   const playbackProgress = useCollectionStore((s) => s.playbackProgress)
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   // trackId is kept alongside index so an action from a menu opened just
@@ -177,7 +176,6 @@ export function PlaylistView() {
     setContextMenu(null)
   }
 
-  const currentTrack = playlist[0] != null ? (tracks.find((t) => t.id === playlist[0]) ?? null) : null
 
   const totalDuration = useMemo(() => {
     return playlist.reduce((sum, trackId) => sum + (tracks.find((t) => t.id === trackId)?.duration ?? 0), 0)
@@ -203,6 +201,9 @@ export function PlaylistView() {
           borderBottom: '1px solid var(--color-border)',
         }}
       >
+        <span className="material-symbols-outlined" style={{ fontSize: '20px', color: 'var(--color-accent)' }}>
+          queue_music
+        </span>
         <h3 style={{ margin: 0 }}>Queue</h3>
         <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', marginLeft: '12px' }}>
           <input
@@ -243,16 +244,16 @@ export function PlaylistView() {
           </span>
         )}
         <button
-          onClick={() => setPlayerExpanded(false)}
-          title="Collapse queue"
+          onClick={() => setPlayerScreen(null)}
+          title="Close queue"
           style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}
         >
-          <span className="material-symbols-outlined">keyboard_arrow_down</span>
+          <span className="material-symbols-outlined">close</span>
         </button>
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ width: '50%', overflowY: 'auto', borderRight: '1px solid var(--color-border)' }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
           {playlist.length === 0 ? (
             <div style={{ padding: '16px', color: 'var(--color-text-dim)' }}>
               Queue is empty. Add tracks from the collection view via right-click.
@@ -281,9 +282,6 @@ export function PlaylistView() {
           )}
         </div>
 
-        <div style={{ width: '50%', overflowY: 'auto' }}>
-          <FxPanel track={currentTrack} />
-        </div>
       </div>
 
       {contextMenu && (
