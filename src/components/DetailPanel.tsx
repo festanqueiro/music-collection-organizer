@@ -642,6 +642,45 @@ export function DetailPanel({
       )}
 
       <FullId3Section track={track} />
+      <FilePathSection track={track} />
+    </div>
+  )
+}
+
+// The file's full path, at the very bottom — selectable, with shortcuts to
+// copy it or reveal the file in Finder.
+function FilePathSection({ track }: { track: Track }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => setCopied(false), [track.id])
+  return (
+    <div style={{ marginTop: '16px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', fontSize: '12px' }}>
+      <div style={{ color: 'var(--color-text-dim)', marginBottom: '4px' }}>File</div>
+      <div style={{ userSelect: 'text', overflowWrap: 'anywhere', lineHeight: 1.4 }}>{track.path}</div>
+      <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
+        <button
+          onClick={() => {
+            navigator.clipboard
+              .writeText(track.path)
+              .then(() => setCopied(true))
+              .catch((err) => console.error('copying the path failed', err))
+          }}
+          style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+            {copied ? 'check' : 'content_copy'}
+          </span>
+          {copied ? 'Copied' : 'Copy path'}
+        </button>
+        <button
+          onClick={() => window.api.showTrackInFolder(track.id)}
+          style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+            folder_open
+          </span>
+          Show in Finder
+        </button>
+      </div>
     </div>
   )
 }
