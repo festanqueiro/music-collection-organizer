@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: [0023, 0025, 0029, 0034]
+---
 # FX
 
 The **FX** screen (the **FX** button on the right of the player bar; it
@@ -11,7 +16,7 @@ every knob and toggle can be [MIDI-mapped](midi.md).
 | --- | --- | --- |
 | **Master** | Volume | Overall output level. |
 | **EQ** | Low, Mid, High, Mix | 3-band EQ. |
-| **Filter** | LP, HP, Resonance, Mix | Separate low-pass and high-pass amounts ("Open" = off); a reset button opens both fully. |
+| **Filter** | LP, HP, Resonance, Mix | Separate low-pass and high-pass amounts ("Open" = off); a reset button opens both fully. Resonance fades in over the first quarter of each knob's travel and the filtered level is compensated, so it's transparent at rest and doesn't hiss, rumble or clip ([ADR 0029](../adr/0029-filter-resonance-fades-in.md)). |
 | **Delay** | Time, Feedback, Division, Mix | Division snaps the time to a note value (1/1, 1/2, 1/4, 1/8, 1/16, dotted 1/4 and 1/8, triplet 1/4 and 1/8) at the loaded track's BPM. |
 | **Reverb** | Decay, Pre-delay, Mix | Synthesized impulse response (no bundled assets). |
 | **Dub Siren** | Mode, Beat, Pitch, Speed, Depth, Echo, Mix, trigger | See below. |
@@ -37,3 +42,16 @@ The siren works even when nothing is playing.
 
 Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/effectsChain.ts`,
 `src/audio/sirenEngine.ts`, `src/audio/sirenSchedule.ts`.
+
+## Behaviour notes
+- The FX screen **scales up to fill the window** (the largest size that fits
+  without scrolling; never smaller than normal) — [ADR 0034](../adr/0034-fx-screen-fits-the-window.md).
+- Knobs don't redraw the rest of the app while you turn them
+  ([ADR 0023](../adr/0023-fx-settings-outside-react.md)).
+- The audio engines pause 15 s after going quiet and resume on play or a
+  siren trigger, so MCO uses ~0 % CPU while idle ([ADR 0025](../adr/0025-suspend-idle-audio-engines.md)).
+- While casting to a TV, the same effects run on the TV ([Casting](casting.md)).
+
+## Tests
+- `src/audio/effectsChain.test.ts` (filter resonance and compensation),
+  `sirenEngine.test.ts`, `sirenSchedule.test.ts`, `midi.test.ts`.

@@ -1,7 +1,7 @@
 // The messages MCO and its own Cast receiver app (cast-receiver/, running
 // on the TV) exchange. Shared by both sides so they can't drift apart.
 import type { EffectsSettings } from '../types'
-import type { VisualizerThemeId } from 'threejs-visualisers'
+import type { AnyVisualizerThemeId } from './tvVisualizers'
 
 // MCO's Cast application, registered in the Google Cast SDK Developer
 // Console with RECEIVER_URL as its receiver.
@@ -74,7 +74,7 @@ export type ToReceiver =
   | {
       type: 'display'
       showVisualizer: boolean
-      theme: VisualizerThemeId
+      theme: AnyVisualizerThemeId
       options: Record<string, string>
       hideTrackInfo: boolean
     }
@@ -110,6 +110,17 @@ export function isReceiverSettingsMessage(value: unknown): value is ReceiverSett
   if (!value || typeof value !== 'object') return false
   const type = (value as { type?: unknown }).type
   return type === 'effects' || type === 'siren' || type === 'display' || type === 'queue'
+}
+
+// Receiver → MCO, just before the receiver ends the session itself, so MCO
+// can say why (instead of the session just vanishing).
+export interface ReceiverGoodbye {
+  type: 'goodbye'
+  reason: 'hidden'
+}
+
+export function isReceiverGoodbye(value: unknown): value is ReceiverGoodbye {
+  return !!value && typeof value === 'object' && (value as { type?: unknown }).type === 'goodbye'
 }
 
 export function isReceiverStatus(value: unknown): value is ReceiverStatus {

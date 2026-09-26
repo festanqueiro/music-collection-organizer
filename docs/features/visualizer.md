@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: [0014]
+---
 # Visualizer
 
 A full-screen, audio-reactive visualizer built on `three.js`. Open it from
@@ -40,6 +45,11 @@ Options (saved per theme):
   **Style**: *3D* or *Lo-Res* (big dithered pixels in a few colours);
   **Palette**: *Shifting*, *Mercury*, *Game Boy*, *Amber*, *CGA*.
 
+While casting to a TV, the picker offers only the TV's own themes — **Spectrum**, **Scope**, **VU
+Meters**, **Drift**, **Ripples** and **Ridges** — drawn without the GPU; the themes above aren't offered
+then, and the TV visualizers never appear when not casting
+([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)).
+
 While casting to a TV, opening the visualizer shows it on the TV instead,
 rendered there, and this overlay shows just its controls (see
 [Casting](casting.md)).
@@ -53,3 +63,7 @@ themes, the renderer and the spectrum/beat analysis are the
 [threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers)
 package; `src/audio/audioAnalysis.ts` only tracks which track's analyser
 is live.
+
+## Limits & open questions
+- On a Chromecast HD only **Paint** runs smoothly when casting
+  ([research](../research/cast-devices.md#chromecast-hd-gpu)); TV quality settings are on the roadmap.

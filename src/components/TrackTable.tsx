@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { findDuplicates } from '../state/duplicates'
+import { isMissingId3Metadata, matchesMcoTagsFilter } from '../state/trackFilters'
 import { useCollectionStore } from '../state/store'
 import { BatchTagBar } from './BatchTagBar'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
@@ -142,8 +143,10 @@ export function TrackTable({
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
-  const untaggedFilter = useCollectionStore((s) => s.untaggedFilter)
-  const setUntaggedFilter = useCollectionStore((s) => s.setUntaggedFilter)
+  const mcoTagsFilter = useCollectionStore((s) => s.mcoTagsFilter)
+  const setMcoTagsFilter = useCollectionStore((s) => s.setMcoTagsFilter)
+  const missingMetadataFilter = useCollectionStore((s) => s.missingMetadataFilter)
+  const setMissingMetadataFilter = useCollectionStore((s) => s.setMissingMetadataFilter)
   // Over the whole collection, so a copy in another folder still counts.
   const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
   const currentTrackId = playlist[0] ?? null
@@ -279,9 +282,8 @@ export function TrackTable({
             : t.analysisStatus !== 'done'
       )
       .filter((t) => !duplicates || duplicates.has(t.id))
-      // Only once the file's tags have been read — before that, a missing
-      // artist just means not known yet.
-      .filter((t) => !untaggedFilter || (t.tagsRead && !t.artist?.trim()))
+      .filter((t) => !missingMetadataFilter || isMissingId3Metadata(t))
+      .filter((t) => matchesMcoTagsFilter(trackTags.get(t.id), mcoTagsFilter))
       .filter((t) =>
         query
           ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
@@ -316,7 +318,8 @@ export function TrackTable({
     currentTrack,
     analysedFilter,
     duplicates,
-    untaggedFilter,
+    missingMetadataFilter,
+    mcoTagsFilter,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
@@ -596,6 +599,17 @@ export function TrackTable({
     }
   }
 
+  // The tracks a right-click acts on: every checked track when the row is
+  // one of several checked ones, otherwise just that row.
+  const menuTrackIds = useMemo(() => {
+    if (!contextMenu || !checkedTrackIds.has(contextMenu.trackId) || checkedTrackIds.size < 2) {
+      return contextMenu ? [contextMenu.trackId] : []
+    }
+    const inTable = visibleTracks.filter((t) => checkedTrackIds.has(t.id)).map((t) => t.id)
+    const elsewhere = [...checkedTrackIds].filter((id) => !inTable.includes(id))
+    return [...inTable, ...elsewhere]
+  }, [contextMenu, checkedTrackIds, visibleTracks])
+
   function cellStyleFor(key: TrackTableColumnKey) {
     const width = columnWidths[key]
     return { ...cellStyle, width, maxWidth: width, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const }
@@ -672,7 +686,14 @@ export function TrackTable({
           />
         )}
         {duplicatesFilter && <FilterChip icon="content_copy" label="Duplicates" onClear={() => setDuplicatesFilter(false)} />}
-        {untaggedFilter && <FilterChip icon="person_off" label="Untagged" onClear={() => setUntaggedFilter(false)} />}
+        {mcoTagsFilter !== 'all' && (
+          <FilterChip
+            icon="sell"
+            label={mcoTagsFilter === 'no-tags' ? 'No Tags' : 'No Subtags'}
+            onClear={() => setMcoTagsFilter('all')}
+          />
+        )}
+        {missingMetadataFilter && <FilterChip icon="person_off" label="Missing ID3 metadata" onClear={() => setMissingMetadataFilter(false)} />}
         <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>
       {/* This div (not the ambient .pane it sits in, which App.tsx makes a
@@ -772,7 +793,9 @@ export function TrackTable({
               <tr
                 key={track.id}
                 data-track-id={track.id}
-                className={`track-row${track.id === selectedTrackId ? ' selected' : ''}`}
+                // Checked rows share the selected row's highlight, so a
+                // multi-selection reads as one group.
+                className={`track-row${track.id === selectedTrackId || checkedTrackIds.has(track.id) ? ' selected' : ''}`}
                 onClick={(e) => handleRowClick(track, e.shiftKey)}
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -843,6 +866,68 @@ export function TrackTable({
             onClick={(e) => e.stopPropagation()}
             style={{ ...contextMenuStyle, top: contextMenu.y, left: contextMenu.x }}
           >
+            {menuTrackIds.length > 1 ? (
+              // Right-click on one of several checked tracks: act on all of
+              // them, in table order.
+              <>
+                <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
+                  {menuTrackIds.length} tracks selected
+                </div>
+                <button
+                  onClick={() => {
+                    requestAddManyToQueue(menuTrackIds)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    playlist_add
+                  </span>
+                  Add all to queue
+                </button>
+                <button
+                  onClick={() => {
+                    // Each goes in right after the playing track, so adding
+                    // them last-first keeps their order.
+                    for (const id of [...menuTrackIds].reverse()) playNext(id)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    skip_next
+                  </span>
+                  Add all to top of the queue
+                </button>
+                <button
+                  onClick={() => {
+                    runAnalysis(menuTrackIds)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    graphic_eq
+                  </span>
+                  {menuTrackIds.every((id) => tracks.find((t) => t.id === id)?.analysisStatus === 'done')
+                    ? 'Re-analyse all'
+                    : 'Analyse all'}
+                </button>
+                <button
+                  onClick={() => {
+                    setTracksChecked(menuTrackIds, false)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    deselect
+                  </span>
+                  Clear selection
+                </button>
+              </>
+            ) : (
+              <>
             <button
               onClick={() => {
                 playTrackNow(contextMenu.trackId)
@@ -930,6 +1015,8 @@ export function TrackTable({
               </span>
               Show in Folder Tree View
             </button>
+              </>
+            )}
           </div>
         )}
       </div>

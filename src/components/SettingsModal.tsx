@@ -47,7 +47,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 20,
+        zIndex: 40, // above the analysis bar (20), like the other dialogs
       }}
     >
       <div

@@ -129,7 +129,7 @@ export default function App() {
   const [treeView, setTreeView] = useState<TreeView>(() => loadSidebarState().treeView)
   const activeFilterCount = useCollectionStore(
     (s) =>
-      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter) + Number(s.untaggedFilter)
+      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter) + Number(s.missingMetadataFilter) + Number(s.mcoTagsFilter !== 'all')
   )
   const [leftCollapsed, setLeftCollapsedState] = useState(() => {
     try {
@@ -161,6 +161,10 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracksLoaded])
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
+  // Several checked tracks: the details of one of them would be misleading,
+  // so the panel steps aside (the selection toolbar acts on them all).
+  const multipleChecked = useCollectionStore((s) => s.checkedTrackIds.size > 1)
+  const showDetails = !!selectedTrack && !multipleChecked
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
   // What the Tags/Subtags view has selected, for the chip above the table,
   // and a counter the chip's × bumps to make that view clear itself.
@@ -370,7 +374,7 @@ export default function App() {
         style={{
           gridTemplateRows: 'auto 1fr auto',
           gridTemplateAreas: "'toolbar toolbar toolbar' 'left center right' 'footer footer footer'",
-          gridTemplateColumns: `${leftCollapsed ? `${COLLAPSED_LEFT_WIDTH}px` : '260px'} 1fr ${selectedTrack ? '320px' : '0px'}`,
+          gridTemplateColumns: `${leftCollapsed ? `${COLLAPSED_LEFT_WIDTH}px` : '260px'} 1fr ${showDetails ? '320px' : '0px'}`,
         }}
       >
         {playerScreen && (
@@ -540,7 +544,7 @@ export default function App() {
 
         <div className="pane" style={{ gridArea: 'right', borderRight: 'none', overflowX: 'hidden' }}>
           <DetailPanel
-            track={selectedTrack}
+            track={showDetails ? selectedTrack : null}
             onClose={() => setSelectedTrack(null)}
             onLocateInTable={(trackId) => setScrollToTrack({ trackId, nonce: Date.now() })}
           />

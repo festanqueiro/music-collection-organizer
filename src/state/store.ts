@@ -25,7 +25,11 @@ import type { TrackTagIds } from './tagFilter'
 
 // 'unanalysed' includes tracks whose analysis failed.
 export type AnalysedFilter = 'all' | 'analysed' | 'unanalysed'
+// MCO's own tags: 'no-tags' = no Tags at all (so no Subtags either);
+// 'no-subtags' = no Subtag, whether or not it has Tags.
+export type McoTagsFilter = 'all' | 'no-tags' | 'no-subtags'
 import type { VisualizerThemeId } from 'threejs-visualisers'
+import { isTvVisualizer, type AnyVisualizerThemeId, type TvVisualizerId } from '../cast/tvVisualizers'
 import type { KeyNotation } from './harmonic'
 import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
 import { describeLibraryChange } from './libraryChange'
@@ -232,12 +236,17 @@ export interface CollectionState {
   // pushing it through the store would re-render React ~60 times a second.
   visualizerOpen: boolean
   setVisualizerOpen: (open: boolean) => void
+  // The theme on this Mac (a threejs-visualisers theme), and the one shown on
+  // the TV while casting (a TV-only theme, src/cast/tvVisualizers.ts) — each
+  // remembered on its own.
   visualizerTheme: VisualizerThemeId
   setVisualizerTheme: (theme: VisualizerThemeId) => void
+  castVisualizerTheme: TvVisualizerId
+  setCastVisualizerTheme: (theme: TvVisualizerId) => void
   // Chosen value per theme option (see VisualizerTheme.options); an option
   // with no entry uses its first value.
-  visualizerThemeOptions: Partial<Record<VisualizerThemeId, Record<string, string>>>
-  setVisualizerThemeOption: (theme: VisualizerThemeId, optionId: string, valueId: string) => void
+  visualizerThemeOptions: Partial<Record<AnyVisualizerThemeId, Record<string, string>>>
+  setVisualizerThemeOption: (theme: AnyVisualizerThemeId, optionId: string, valueId: string) => void
   // Track title/artist stays on screen in the Visualizer unless this
   // is switched on — unlike the theme picker/close controls, which fade
   // out whenever the mouse is idle.
@@ -263,9 +272,11 @@ export interface CollectionState {
   setAnalysedFilter: (filter: AnalysedFilter) => void
   duplicatesFilter: boolean
   setDuplicatesFilter: (on: boolean) => void
-  // Tracks whose file has no artist tag — only the filename to go by.
-  untaggedFilter: boolean
-  setUntaggedFilter: (on: boolean) => void
+  mcoTagsFilter: McoTagsFilter
+  setMcoTagsFilter: (filter: McoTagsFilter) => void
+  // Tracks whose file has no artist or title (see missingMetadata.ts).
+  missingMetadataFilter: boolean
+  setMissingMetadataFilter: (on: boolean) => void
   // Files whose tags the background read hasn't reached yet (0 when done).
   tagReadRemaining: number
   setTagReadRemaining: (remaining: number) => void
@@ -434,10 +445,22 @@ export interface CollectionState {
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
 const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
+const CAST_VISUALIZER_THEME_KEY = 'castVisualizerTheme'
+function loadCastVisualizerTheme(): TvVisualizerId {
+  try {
+    const stored = localStorage.getItem(CAST_VISUALIZER_THEME_KEY)
+    if (stored && isTvVisualizer(stored)) return stored
+  } catch {
+    // localStorage unavailable (e.g. under Vitest's node environment).
+  }
+  return 'tv-drift'
+}
 function loadVisualizerTheme(): VisualizerThemeId {
   try {
     const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
-    if (stored && (VISUALIZER_THEME_IDS as string[]).includes(stored)) return stored as VisualizerThemeId
+    if (stored && (VISUALIZER_THEME_IDS as string[]).includes(stored)) {
+      return stored as VisualizerThemeId
+    }
   } catch {
     // localStorage unavailable (e.g. under Vitest's node environment).
   }
@@ -448,7 +471,7 @@ const VISUALIZER_THEME_OPTIONS_KEY = 'visualizerThemeOptions'
 // Before options, a theme had a single "variant" — Sound System's colour
 // scheme — stored per theme under this key; read once as a fallback.
 const LEGACY_VISUALIZER_THEME_VARIANTS_KEY = 'visualizerThemeVariants'
-function loadVisualizerThemeOptions(): Partial<Record<VisualizerThemeId, Record<string, string>>> {
+function loadVisualizerThemeOptions(): Partial<Record<AnyVisualizerThemeId, Record<string, string>>> {
   const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value)
   try {
@@ -462,7 +485,7 @@ function loadVisualizerThemeOptions(): Partial<Record<VisualizerThemeId, Record<
         Object.entries(parsed)
           .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
           .map(([theme, values]) => [theme, Object.fromEntries(Object.entries(values).filter(([, v]) => typeof v === 'string'))]),
-      ) as Partial<Record<VisualizerThemeId, Record<string, string>>>
+      ) as Partial<Record<AnyVisualizerThemeId, Record<string, string>>>
     }
     const legacy: unknown = JSON.parse(localStorage.getItem(LEGACY_VISUALIZER_THEME_VARIANTS_KEY) ?? '{}')
     if (!isRecord(legacy)) return {}
@@ -470,7 +493,7 @@ function loadVisualizerThemeOptions(): Partial<Record<VisualizerThemeId, Record<
       Object.entries(legacy)
         .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
         .map(([theme, variant]) => [theme, { colours: variant }]),
-    ) as Partial<Record<VisualizerThemeId, Record<string, string>>>
+    ) as Partial<Record<AnyVisualizerThemeId, Record<string, string>>>
   } catch {
     return {}
   }
@@ -562,6 +585,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   queueRequest: null,
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
+  castVisualizerTheme: loadCastVisualizerTheme(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
@@ -570,7 +594,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   compatibleFilter: false,
   analysedFilter: 'all',
   duplicatesFilter: false,
-  untaggedFilter: false,
+  missingMetadataFilter: false,
+  mcoTagsFilter: 'all',
   tagReadRemaining: 0,
   searchText: '',
   collectionFolder: null,
@@ -1250,7 +1275,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),
   setAnalysedFilter: (filter) => set({ analysedFilter: filter, checkedTrackIds: new Set() }),
   setDuplicatesFilter: (on) => set({ duplicatesFilter: on, checkedTrackIds: new Set() }),
-  setUntaggedFilter: (on) => set({ untaggedFilter: on, checkedTrackIds: new Set() }),
+  setMcoTagsFilter: (filter) => set({ mcoTagsFilter: filter, checkedTrackIds: new Set() }),
+  setMissingMetadataFilter: (on) => set({ missingMetadataFilter: on, checkedTrackIds: new Set() }),
   setTagReadRemaining: (remaining) => set({ tagReadRemaining: remaining }),
   refreshTrackFileTags: async (trackId) => {
     const track = await window.api.readFileTags(trackId)
@@ -1276,6 +1302,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ visualizerThemeOptions: options })
     try {
       localStorage.setItem(VISUALIZER_THEME_OPTIONS_KEY, JSON.stringify(options))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setCastVisualizerTheme: (theme) => {
+    set({ castVisualizerTheme: theme })
+    try {
+      localStorage.setItem(CAST_VISUALIZER_THEME_KEY, theme)
     } catch {
       // Non-essential preference — fine to lose.
     }

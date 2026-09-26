@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: []
+---
 # DJ tools
 
 Helpers for preparing sets: finding tracks that mix, hearing the next one
@@ -16,16 +21,16 @@ or both (8A · Am). The detail panel and queue follow the same setting.
 
 ### Compatible filter
 
-With a track playing, **Compatible** (above the table) shows only tracks
-that mix with it:
+With a track playing, **Compatible** (in the sidebar's [Filters](filters.md)
+view) shows only tracks that mix with it:
 
 - **key**: the same key, one step either way round the wheel (8A → 7A or
   9A), or the relative major/minor (8A ↔ 8B);
 - **BPM**: within 6%, or half/double time (70 BPM mixes with 140).
   Tracks with no BPM yet aren't ruled out.
 
-It combines with search, the folder tree, and tag filters. Click it
-again to switch it off.
+It combines with search, the folder tree, and tag filters, and shows as a
+chip above the table (× switches it off).
 
 Code: `src/state/harmonic.ts`, `src/components/TrackTable.tsx`. The
 tests in `src/state/harmonic.test.ts` check every key's position and
@@ -68,3 +73,7 @@ one-way and never changes your files or your Rekordbox library. Beat
 grids and cue points aren't included: Rekordbox analyses those itself.
 
 Code: `electron/main/rekordboxExport.ts`.
+
+## Tests
+- `src/state/harmonic.test.ts` (every key against Mixed In Key's wheel),
+  `electron/main/rekordboxExport.test.ts`.

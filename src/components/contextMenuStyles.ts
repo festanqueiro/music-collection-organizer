@@ -1,12 +1,15 @@
-// Shared look for right-click menus (TrackTable's track menu, the queue
-// view's entry menu).
+// Shared look for right-click menus (the track table, queue view, folder
+// tree and tag tree). CONTEXT_MENU_Z_INDEX keeps them above everything that
+// floats over the panes — the analysis progress bar (z-index 20) included.
+export const CONTEXT_MENU_Z_INDEX = 100
+
 export const contextMenuStyle = {
   position: 'fixed' as const,
   background: 'var(--color-surface-raised)',
   border: '1px solid var(--color-border)',
   borderRadius: '6px',
   padding: '4px',
-  zIndex: 20,
+  zIndex: CONTEXT_MENU_Z_INDEX,
 }
 
 export const contextMenuItemStyle = {

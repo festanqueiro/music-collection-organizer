@@ -6,6 +6,41 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.43 — 2026-09-27
+
+### Added
+- **Selecting several tracks**: checked rows are highlighted like the
+  selected one, the details panel steps aside, and
+  right-clicking one of the checked tracks acts on all of them — **Add all to
+  queue**, **Add all to top of the queue**, **Analyse all**, **Clear
+  selection**.
+- **MCO tags filter**: show tracks with **No Tags** or **No Subtags** yet.
+- **TV visualizers** while casting: **Spectrum**, **Scope**, **VU Meters**,
+  **Drift**, **Ripples** and **Ridges**, drawn without the GPU so they run
+  smoothly on a Chromecast. While casting, the visualizer picker shows only
+  these; when not casting, only the regular ones.
+- A **project vault** in `docs/`: the feature guide, every design decision
+  (ADRs), research notes, the roadmap and session write-ups.
+
+### Changed
+- The **Untagged** filter is now **Missing ID3 Metadata**, and also lists
+  files that have an artist but no title.
+- The TV's now-playing screen keeps every part in a fixed place — nothing
+  moves when a track with more or less information loads — and its stats
+  are easier to read.
+
+### Fixed
+- Casting ended by itself after a few minutes: Google TV's screensaver hid
+  MCO's app, which then ended the session. The TV's screen is now kept awake
+  during a session; if the TV does move on, MCO says why.
+- The analysis progress bar covered right-click menus (and could cover
+  Settings).
+- Casting could drop with "The TV stopped responding" while the TV was
+  fine and still playing, when MCO was busy for a while (e.g. scanning the
+  collection).
+
+## 1.0.42 — 2026-09-26
+
 ### Fixed
 - The Mac no longer goes to sleep while casting (which left the TV hanging);
   the display can still turn off.

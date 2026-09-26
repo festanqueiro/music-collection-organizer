@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: [0010, 0012, 0023, 0025]
+---
 # Player
 
 The footer player plays the track at the head of the [queue](queue.md). It
@@ -7,7 +12,8 @@ interrupts playback.
 ## Controls
 
 - **Waveform** — the track's waveform doubles as the seek bar, with a live
-  progress line. Click to seek.
+  progress line. Click to seek; a click within 6 px of the left edge goes to
+  0:00.
 - **Play/pause** and **Play next in queue**.
 - **CUE** — CDJ-style cue button (see below).
 - **Time** — shows elapsed / total; click to switch to time left.
@@ -15,13 +21,14 @@ interrupts playback.
   level.
 - **Track info** — click the title for the track's details; click the
   artist to search the collection for that artist.
-- On the right, in this order:
-  - **Queue** (with the number queued) and **FX** (lit while an effect is
-    engaged) open the full-screen [queue](queue.md) and [effects](fx.md)
-    screens; click again to close;
-  - **Visualizer** — see [Visualizer](visualizer.md);
-  - then, after a divider, **Cast** — play on a TV or speaker; see
-    [Casting](casting.md).
+- On the right, in this order: **Cast** (play on a TV or speaker — see
+  [Casting](casting.md)), a divider, then **Visualizer** ([Visualizer](visualizer.md)),
+  **FX** (lit while an effect is engaged — [effects](fx.md)) and **Queue**
+  (with the number queued — [queue](queue.md)). FX and Queue open full-screen
+  views; click again to close.
+
+With nothing queued, the bar keeps the same layout (controls greyed out,
+volume still working), so the screen doesn't jump when a track loads.
 
 A track starts playing as soon as it's loaded. Loading a track that hasn't
 been analysed yet starts its analysis in the background; a cloud-only
@@ -69,3 +76,9 @@ are removed at startup when it's over.
 Code: `src/components/Player.tsx`, `src/audio/effectsChain.ts`,
 `electron/main/index.ts` (the `media://` protocol),
 `electron/main/audioTranscode.ts`.
+
+## Tests
+- `src/state/playlist.test.ts`, `playCount.test.ts`; playback and waveform checked in the BETA build.
+
+## Limits & open questions
+- `npm run dev` with React StrictMode runs the player's mount effect twice (dev only).

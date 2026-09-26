@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: [0007, 0009, 0011, 0013, 0033]
+---
 # Settings & data
 
 Open **Settings** from the toolbar. Its pages are listed down the left
@@ -64,8 +69,31 @@ data is separate from production.
 - **Restore** replaces the database and settings with a chosen snapshot
   and relaunches the app.
 
-Code: `src/components/SettingsModal.tsx`, `electron/main/config.ts`,
-`bootstrap.ts`, `dataMigration.ts`, `backup.ts`.
+## Backup to an external disk
+
+**Settings → Backups & data → Backup to an external disk** copies the
+database, settings and every file in the collection folder to a folder on
+another disk, under `MCO Backup/` ([ADR 0033](../adr/0033-external-backup-to-another-disk.md)):
+
+- **Choose disk…** refuses a folder on the collection's own disk (your
+  Google Drive folder is on the Mac's internal disk, so anywhere on the Mac
+  is refused), inside the collection, or not writable; a disk that isn't
+  connected shows as such.
+- **Back up now** snapshots the database and settings (the last 10 are
+  kept in `MCO Backup/Database/`) and copies the collection's files into
+  `MCO Backup/Files/`, keeping folders and modification times. Hidden files
+  and the `.mco` folder are skipped.
+- Later runs copy only new and changed files (size and modification time),
+  and **nothing is ever deleted** from the backup.
+- Cloud-only files are skipped and counted — download them to back them up.
+- It checks there's enough free space first, shows progress, and can be
+  stopped; an interrupted copy is never mistaken for a finished one.
+- The last run's summary (copied, already up to date, skipped, failed) is
+  shown.
+
+Code: `src/components/SettingsModal.tsx`, `src/components/settings/DataPage.tsx`,
+`electron/main/config.ts`, `bootstrap.ts`, `dataMigration.ts`, `backup.ts`,
+`externalBackup.ts`.
 
 ## Automatic updates
 
@@ -91,3 +119,11 @@ partway, the old app is kept and the banner says so.
 
 Code: `electron/main/updater.ts`, `src/components/UpdateBanner.tsx`.
 
+## Tests
+- `backup.test.ts`, `externalBackup.test.ts` (same-disk and inside-collection refusals, incremental
+  copy, hidden files skipped, cancel), `config.test.ts`, `bootstrap.test.ts`, `dataFolder.test.ts`,
+  `dataMigration.test.ts`, `updater.test.ts`.
+
+## Limits & open questions
+- The external backup hasn't been run against a real external disk yet (none connected, 2026-09-26).
+- Files removed from the collection stay in the external backup (by design; pruning would be opt-in).
