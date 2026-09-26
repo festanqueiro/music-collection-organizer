@@ -131,6 +131,8 @@ export function TrackTable({
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
+  const untaggedFilter = useCollectionStore((s) => s.untaggedFilter)
+  const setUntaggedFilter = useCollectionStore((s) => s.setUntaggedFilter)
   // Over the whole collection, so a copy in another folder still counts.
   const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
   const currentTrackId = playlist[0] ?? null
@@ -262,6 +264,9 @@ export function TrackTable({
             : t.analysisStatus !== 'done'
       )
       .filter((t) => !duplicates || duplicates.has(t.id))
+      // Only once the file's tags have been read — before that, a missing
+      // artist just means not known yet.
+      .filter((t) => !untaggedFilter || (t.tagsRead && !t.artist?.trim()))
       .filter((t) =>
         query
           ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
@@ -296,6 +301,7 @@ export function TrackTable({
     currentTrack,
     analysedFilter,
     duplicates,
+    untaggedFilter,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
@@ -637,6 +643,7 @@ export function TrackTable({
           />
         )}
         {duplicatesFilter && <FilterChip icon="content_copy" label="Duplicates" onClear={() => setDuplicatesFilter(false)} />}
+        {untaggedFilter && <FilterChip icon="person_off" label="Untagged" onClear={() => setUntaggedFilter(false)} />}
         <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>
       {/* This div (not the ambient .pane it sits in, which App.tsx makes a

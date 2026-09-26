@@ -28,6 +28,7 @@ function track(id: number, over: Partial<Track> = {}): Track {
     lastPlayedAt: null,
     cloudStatus: 'local',
     analysisStatus: 'done',
+    tagsRead: true,
     ...over,
   }
 }

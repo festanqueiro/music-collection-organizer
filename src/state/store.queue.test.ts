@@ -37,6 +37,7 @@ function track(id: number, overrides: Partial<Track> = {}): Track {
     lastPlayedAt: null,
     cloudStatus: 'local',
     analysisStatus: 'done',
+    tagsRead: true,
     ...overrides,
   }
 }

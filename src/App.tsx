@@ -100,7 +100,8 @@ export default function App() {
   // with it rather than replacing it.
   const [treeView, setTreeView] = useState<TreeView>('folders')
   const activeFilterCount = useCollectionStore(
-    (s) => Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter)
+    (s) =>
+      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter) + Number(s.untaggedFilter)
   )
   const [leftCollapsed, setLeftCollapsedState] = useState(() => {
     try {
@@ -242,6 +243,12 @@ export default function App() {
     const unsubscribeLibrary = window.api.onLibraryChanged((result) => {
       handleLibraryChanged(result).catch((err) => console.error('refresh after background scan failed', err))
     })
+    // The background tag read (tagReader.ts): show its titles/artists as
+    // they come in, and how many are left (the Filters view uses it).
+    const unsubscribeTagRead = window.api.onTagReadProgress(({ remaining }) => {
+      useCollectionStore.getState().setTagReadRemaining(remaining)
+      refreshTracks().catch((err) => console.error('refresh after reading tags failed', err))
+    })
     const unsubscribe = window.api.onScanProgress((progress) => {
       setAnalysisProgress(progress)
       const isFinal = progress.done === progress.total
@@ -258,6 +265,7 @@ export default function App() {
       unsubscribe()
       unsubscribeUpdates()
       unsubscribeLibrary()
+      unsubscribeTagRead()
     }
   }, [
     loadLibrarySettings,

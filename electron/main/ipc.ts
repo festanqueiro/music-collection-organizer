@@ -41,6 +41,7 @@ import { getDragIcon } from './dragIcon'
 import { runAnalysisQueue } from './analysis/queue'
 import { extractArtwork } from './analysis/metadata'
 import { writeTags, supportsTagEditing, TagWriteError } from './tagWriter'
+import { TagReader, readFileTags, saveFileTags } from './tagReader'
 import { getMediaCacheDir } from './mediaCacheDir'
 import { listBackups, restoreBackup, runBackup } from './backup'
 import {
@@ -119,6 +120,7 @@ interface TrackRow {
   last_played_at: number | null
   cloud_status: 'local' | 'cloud_only'
   analysis_status: 'pending' | 'analyzing' | 'done' | 'error'
+  tags_read_at: number | null
 }
 
 interface GenreRow {
@@ -160,6 +162,7 @@ function rowToTrack(row: TrackRow): Track {
     lastPlayedAt: row.last_played_at,
     cloudStatus: row.cloud_status,
     analysisStatus: row.analysis_status,
+    tagsRead: row.tags_read_at !== null,
   }
 }
 
@@ -391,6 +394,11 @@ export function registerIpcHandlers(
   // Background rescans for the folder watcher. runScan is synchronous, so
   // this can't overlap a manual scan:run; it just skips a round if one is
   // somehow marked in progress (the next change schedules another).
+  // Reads files' own tags in the background (see tagReader.ts) — at
+  // startup, and after every scan picks up new or changed files.
+  const tagReader = new TagReader(db, (progress) => sendToRenderer('tags:progress', progress))
+  tagReader.run()
+
   const folderWatcher = new FolderWatcher({
     debounceMs: WATCH_DEBOUNCE_MS,
     onChange: () => {
@@ -399,6 +407,7 @@ export function registerIpcHandlers(
       try {
         const result = runScan(db, folder)
         if (result.inserted || result.updated || result.missing) sendToRenderer('library:changed', result)
+        if (result.inserted || result.updated) tagReader.run()
       } catch (err) {
         console.error('background scan failed', err)
       }
@@ -436,7 +445,9 @@ export function registerIpcHandlers(
     try {
       const folder = getCollectionFolder()
       if (!folder) throw new Error('No collection folder configured')
-      return runScan(db, folder)
+      const result = runScan(db, folder)
+      tagReader.run()
+      return result
     } finally {
       scanInProgress = false
     }
@@ -665,10 +676,28 @@ export function registerIpcHandlers(
     }
     const stats = statSync(row.path)
     db.prepare(
-      'UPDATE tracks SET title = ?, artist = ?, album = ?, genre_tag = ?, year = ?, size = ?, mtime = ? WHERE id = ?'
-    ).run(next.title, next.artist, next.album, next.genre, next.year, stats.size, Math.floor(stats.mtimeMs), trackId)
+      'UPDATE tracks SET title = ?, artist = ?, album = ?, genre_tag = ?, year = ?, size = ?, mtime = ?, tags_read_at = ? WHERE id = ?'
+    ).run(next.title, next.artist, next.album, next.genre, next.year, stats.size, Math.floor(stats.mtimeMs), Date.now(), trackId)
     const updated = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as unknown as TrackRow
     return { ok: true, track: rowToTrack(updated) }
+  })
+
+  // The file's current tags, read now and saved to the row — the detail
+  // panel asks for this when a track is selected, so what it shows (and
+  // what the tag editor starts from) is what's really in the file, even
+  // before the background read gets to it.
+  ipcMain.handle('tracks:readFileTags', async (_e, trackId: number): Promise<Track | null> => {
+    const row = db.prepare('SELECT id, path, cloud_status FROM tracks WHERE id = ?').get(trackId) as
+      | { id: number; path: string; cloud_status: string }
+      | undefined
+    if (!row || row.cloud_status === 'cloud_only') return null
+    try {
+      saveFileTags(db, trackId, await readFileTags(row.path))
+    } catch (err) {
+      console.error('reading tags failed', row.path, err)
+      return null
+    }
+    return rowToTrack(db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as unknown as TrackRow)
   })
 
   ipcMain.handle('tracks:getArtwork', async (_e, trackId: number): Promise<string | null> => {

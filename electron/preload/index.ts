@@ -116,6 +116,14 @@ const api = {
   recordPlay: (trackId: number): Promise<{ playCount: number; lastPlayedAt: number } | null> =>
     ipcRenderer.invoke('tracks:recordPlay', trackId),
   getTrackArtwork: (trackId: number): Promise<string | null> => ipcRenderer.invoke('tracks:getArtwork', trackId),
+  readFileTags: (trackId: number): Promise<Track | null> => ipcRenderer.invoke('tracks:readFileTags', trackId),
+  onTagReadProgress: (cb: (progress: { remaining: number; done: boolean }) => void): (() => void) => {
+    const listener = (_e: unknown, progress: { remaining: number; done: boolean }) => cb(progress)
+    ipcRenderer.on('tags:progress', listener)
+    return () => {
+      ipcRenderer.removeListener('tags:progress', listener)
+    }
+  },
   // Writes the tags into the file itself; resolves with the updated track.
   writeTrackTags: (trackId: number, tags: EditableTags): Promise<WriteTagsResult> =>
     ipcRenderer.invoke('tracks:writeTags', trackId, tags),
