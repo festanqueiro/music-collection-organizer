@@ -4,6 +4,7 @@ import { useCollectionStore } from '../state/store'
 import { isCastActive, startCasting, stopCasting } from '../cast/castSession'
 import { ToggleSwitch } from './ToggleSwitch'
 import { contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
+import { barButtonStyle } from './playerBarStyles'
 
 const POPOVER_WIDTH = 300
 
@@ -64,14 +65,12 @@ export function CastButton() {
         ref={buttonRef}
         onClick={toggleOpen}
         title={active ? (statusText ?? 'Casting') : 'Cast to a TV or speaker'}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, display: 'flex' }}
+        style={barButtonStyle(open, status.state === 'casting')}
       >
-        <span
-          className="material-symbols-outlined"
-          style={{ color: status.state === 'casting' ? 'var(--color-accent)' : undefined }}
-        >
+        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
           {active ? 'cast_connected' : 'cast'}
         </span>
+        Cast
       </button>
       {open && anchor && (
         <div

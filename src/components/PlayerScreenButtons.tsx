@@ -1,7 +1,11 @@
-// The player bar's Queue and FX icons: each opens its own full-screen
-// view (PlaylistView / FxView), and closes it again when it's open.
+// The right end of the player bar, in this order: Queue, FX and
+// Visualizer — the full-screen views, most used first; the visualizer
+// last of them since it shows the sound after FX — then, set apart, Cast,
+// which changes where the sound goes rather than opening a view.
 import { useCollectionStore, type PlayerScreen } from '../state/store'
 import { activeEffects } from '../cast/fxIndicators'
+import { CastButton } from './CastButton'
+import { barButtonStyle } from './playerBarStyles'
 
 function ScreenButton({
   screen,
@@ -23,17 +27,7 @@ function ScreenButton({
       onClick={() => togglePlayerScreen(screen)}
       title={open ? `Close ${label}` : `Open ${label}`}
       aria-pressed={open}
-      style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        padding: '3px 8px',
-        fontSize: '12px',
-        border: open ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-        background: open ? 'var(--color-selected)' : 'var(--color-surface-raised)',
-        color: open || lit ? 'var(--color-accent)' : 'var(--color-text)',
-      }}
+      style={barButtonStyle(open, lit)}
     >
       <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
         {icon}
@@ -44,14 +38,35 @@ function ScreenButton({
   )
 }
 
-export function PlayerScreenButtons() {
+// hasTrack: the visualizer needs something playing.
+export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
   const queued = useCollectionStore((s) => s.playlist.length)
   // Lit while any effect is audibly engaged, so it's visible from here.
   const fxActive = useCollectionStore((s) => activeEffects(s.effectsSettings, s.sirenTriggered).length > 0)
+  const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   return (
-    <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
       <ScreenButton screen="queue" icon="queue_music" label="Queue" badge={queued > 0 ? String(queued) : undefined} />
       <ScreenButton screen="fx" icon="tune" label="FX" lit={fxActive} />
+      <button
+        onClick={(e) => {
+          setVisualizerOpen(true)
+          // Otherwise focus stays on this button behind the overlay, and
+          // the Space shortcut (which ignores focused buttons) stops
+          // toggling play/pause while the visualizer is up.
+          e.currentTarget.blur()
+        }}
+        disabled={!hasTrack}
+        title={hasTrack ? 'Open the visualizer (full screen, or on the TV while casting)' : 'Play a track to open the visualizer'}
+        style={barButtonStyle(false)}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+          graphic_eq
+        </span>
+        Visualizer
+      </button>
+      <span style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 4px' }} />
+      <CastButton />
     </div>
   )
 }

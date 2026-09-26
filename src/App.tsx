@@ -393,7 +393,7 @@ export default function App() {
               >
                 Nothing queued
                 <div style={{ marginLeft: 'auto' }}>
-                  <PlayerScreenButtons />
+                  <PlayerScreenButtons hasTrack={false} />
                 </div>
               </div>
             )

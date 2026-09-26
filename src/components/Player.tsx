@@ -6,7 +6,6 @@ import { listenedSeconds, playedThreshold } from '../state/playCount'
 import { EffectsChain } from '../audio/effectsChain'
 import { getActiveAnalyser, setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
-import { CastButton } from './CastButton'
 import { attachDirectCast } from '../cast/directCast'
 import { ConfirmDialog } from './ConfirmDialog'
 import { sendMidiFeedback } from '../audio/midi'
@@ -64,7 +63,6 @@ export function Player({
   const hasNext = playlist.length > 1
   const setPlaybackControls = useCollectionStore((s) => s.setPlaybackControls)
   const midiMappings = useCollectionStore((s) => s.midiMappings)
-  const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const recordPlay = useCollectionStore((s) => s.recordPlay)
   // Listening time on this track, for its play count (see playCount.ts).
   // Player remounts per track, so these start fresh for each one.
@@ -391,24 +389,6 @@ export function Player({
       />
 
       <div style={{ display: 'flex', alignItems: 'center' }}>
-        <button
-          onClick={(e) => {
-            setVisualizerOpen(true)
-            // Otherwise focus stays on this button behind the overlay, and
-            // the Space shortcut (which ignores focused buttons) stops
-            // toggling play/pause while the visualizer is up.
-            e.currentTarget.blur()
-          }}
-          title="Open visualizer (full screen)"
-          style={{ background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0, padding: 0, display: 'flex' }}
-        >
-          <span className="material-symbols-outlined">graphic_eq</span>
-        </button>
-        <span style={{ width: '10px', flexShrink: 0 }} />
-        <CastButton />
-        <span
-          style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 10px', flexShrink: 0 }}
-        />
         {artworkUrl && (
           <img
             src={artworkUrl}
@@ -499,7 +479,7 @@ export function Player({
           </span>
         )}
         <div style={{ marginLeft: 'auto', paddingLeft: '8px' }}>
-          <PlayerScreenButtons />
+          <PlayerScreenButtons hasTrack />
         </div>
       </div>
 

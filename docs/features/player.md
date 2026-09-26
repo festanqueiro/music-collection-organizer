@@ -15,10 +15,13 @@ interrupts playback.
   level.
 - **Track info** — click the title for the track's details; click the
   artist to search the collection for that artist.
-- **Queue** and **FX** (right of the track info) open the full-screen
-  [queue](queue.md) and [effects](fx.md) screens; click again to close.
-- **Open visualizer** — see [Visualizer](visualizer.md).
-- **Cast** — play on a TV or speaker; see [Casting](casting.md).
+- On the right, in this order:
+  - **Queue** (with the number queued) and **FX** (lit while an effect is
+    engaged) open the full-screen [queue](queue.md) and [effects](fx.md)
+    screens; click again to close;
+  - **Visualizer** — see [Visualizer](visualizer.md);
+  - then, after a divider, **Cast** — play on a TV or speaker; see
+    [Casting](casting.md).
 
 A track starts playing as soon as it's loaded. Loading a track that hasn't
 been analysed yet starts its analysis in the background; a cloud-only
