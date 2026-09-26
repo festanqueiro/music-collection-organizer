@@ -18,6 +18,10 @@ const NS_MEDIA = 'urn:x-cast:com.google.cast.media'
 const SENDER_ID = 'sender-0'
 const RECEIVER_ID = 'receiver-0'
 const HEARTBEAT_INTERVAL_MS = 5000
+// Nothing at all from the device (it answers every PING) for this long
+// means the connection is dead — e.g. after this Mac slept, or the device
+// lost power — rather than waiting on a socket that never errors.
+const SILENCE_TIMEOUT_MS = 20000
 const REQUEST_TIMEOUT_MS = 15000
 const CONNECT_TIMEOUT_MS = 8000
 
@@ -80,6 +84,7 @@ export class CastClient extends EventEmitter {
   private app: ReceiverApplication | null = null
   private appId = DEFAULT_MEDIA_RECEIVER_APP_ID
   private closed = false
+  private lastHeardAt = 0
 
   constructor(
     private readonly host: string,
@@ -103,10 +108,18 @@ export class CastClient extends EventEmitter {
       socket.once('secureConnect', () => {
         clearTimeout(timer)
         this.send(NS_CONNECTION, RECEIVER_ID, { type: 'CONNECT' })
-        this.heartbeat = setInterval(() => this.send(NS_HEARTBEAT, RECEIVER_ID, { type: 'PING' }), HEARTBEAT_INTERVAL_MS)
+        this.lastHeardAt = Date.now()
+        this.heartbeat = setInterval(() => {
+          if (Date.now() - this.lastHeardAt > SILENCE_TIMEOUT_MS) {
+            this.fail(new Error('The TV stopped responding'))
+            return
+          }
+          this.send(NS_HEARTBEAT, RECEIVER_ID, { type: 'PING' })
+        }, HEARTBEAT_INTERVAL_MS)
         resolve()
       })
       socket.on('data', (chunk: Buffer) => {
+        this.lastHeardAt = Date.now()
         let messages
         try {
           messages = reader.push(chunk)

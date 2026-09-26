@@ -6,6 +6,14 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Fixed
+- The Mac no longer goes to sleep while casting (which left the TV hanging);
+  the display can still turn off.
+- Opening another app on the TV (Plex, YouTube…) now ends casting, instead
+  of MCO still showing "casting".
+- MCO notices when a cast device stops responding (e.g. after the Mac
+  slept) and stops casting, instead of hanging.
+
 ## 1.0.41 — 2026-09-26
 
 ### Added
