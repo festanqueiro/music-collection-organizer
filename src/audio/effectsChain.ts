@@ -36,6 +36,12 @@ export function resonanceCompensation(lowpassQ: number, highpassQ: number): numb
   return Math.sqrt((FLAT_Q / lowpassQ) * (FLAT_Q / highpassQ))
 }
 
+// How long after playback stops the context keeps running — long enough
+// for a delay/reverb tail to ring out — before it's suspended. A running
+// context renders the whole FX graph (convolver included) even in silence,
+// which kept the app busy while nothing played.
+const IDLE_SUSPEND_MS = 15000
+
 const EQ_LOW_HZ = 200
 const EQ_MID_HZ = 1000
 const EQ_HIGH_HZ = 5000
@@ -131,10 +137,16 @@ export class EffectsChain {
   private masterGain: GainNode
   private localGain: GainNode
   private analyser: AnalyserNode
+  private audioElement: HTMLAudioElement
+  private suspendTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(audioElement: HTMLAudioElement) {
     this.context = new AudioContext()
     const source = this.context.createMediaElementSource(audioElement)
+    this.audioElement = audioElement
+    audioElement.addEventListener('play', this.handlePlay)
+    audioElement.addEventListener('pause', this.handleStop)
+    audioElement.addEventListener('ended', this.handleStop)
 
     // The true final stage, after every FX send (filter/EQ wet+dry, delay
     // wet, reverb wet) — unlike dryGain (setVolume/playerVolume, right at
@@ -345,10 +357,26 @@ export class EffectsChain {
   // AudioContexts start suspended until a user gesture resumes them — call
   // this from the same click handler that starts playback.
   resume(): void {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
+    this.suspendTimer = null
     if (this.context.state === 'suspended') this.context.resume().catch(() => {})
   }
 
   close(): void {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
+    this.audioElement.removeEventListener('play', this.handlePlay)
+    this.audioElement.removeEventListener('pause', this.handleStop)
+    this.audioElement.removeEventListener('ended', this.handleStop)
     this.context.close().catch(() => {})
+  }
+
+  private handlePlay = (): void => this.resume()
+
+  private handleStop = (): void => {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
+    this.suspendTimer = setTimeout(() => {
+      this.suspendTimer = null
+      if (this.audioElement.paused && this.context.state === 'running') this.context.suspend().catch(() => {})
+    }, IDLE_SUSPEND_MS)
   }
 }
