@@ -66,7 +66,7 @@ import { buildRekordboxXml } from './rekordboxExport'
 import { CastController, type DirectMediaSources } from './cast/castSession'
 import { isReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
-import { getPlayableFilePath } from './audioTranscode'
+import { getCastableFilePath } from './audioTranscode'
 import { mimeTypeFor } from './mediaTypes'
 import type {
   Track,
@@ -691,9 +691,13 @@ export function registerIpcHandlers(
   const castSources: DirectMediaSources = {
     track: async (trackId) => {
       const filePath = castableTrackPath(trackId)
-      if (!filePath) return null
-      // Cast devices can't play AIFF either — same FLAC transcode as media://.
-      const playable = await getPlayableFilePath(filePath, getMediaCacheDir())
+      if (!filePath) {
+        if (process.env.MCO_CAST_DEBUG) console.log('[cast] track', trackId, 'not servable (not in the DB, cloud-only, or outside the collection folder)')
+        return null
+      }
+      // Cast devices can't play AIFF, and can't seek in FLAC without a seek
+      // table — see getCastableFilePath.
+      const playable = await getCastableFilePath(filePath, getMediaCacheDir())
       return { filePath: playable, contentType: mimeTypeFor(playable) }
     },
     artwork: async (trackId) => {

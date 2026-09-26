@@ -30,6 +30,11 @@ const READY_POLL_MS = 250
 // (silent) player can stay in step with it.
 const DIRECT_POSITION_POLL_MS = 2000
 
+// MCO_CAST_DEBUG=1 logs every direct-mode command and why one was dropped.
+const debug = (...args: unknown[]) => {
+  if (process.env.MCO_CAST_DEBUG) console.log('[cast]', ...args)
+}
+
 export interface TrackInfo {
   title: string
   artist: string | null
@@ -168,6 +173,7 @@ export class CastController {
   // in order, so a play or seek sent right after a load waits for it.
   runDirect(command: CastDirectCommand): void {
     const session = this.session
+    debug('command', JSON.stringify(command), 'session mode:', session?.mode ?? 'none')
     if (!session || session.mode === 'stream') return
     session.commands = session.commands
       .then(() => this.execute(session, command))
@@ -232,12 +238,19 @@ export class CastController {
     const { client, media, localAddress } = session
     if (command.type === 'load') {
       const info = this.sources.describe(command.trackId)
-      if (!info || !media || !localAddress) return
+      if (!info || !media || !localAddress) {
+        debug('load dropped:', { info: !!info, media: !!media, localAddress })
+        return
+      }
       session.trackId = command.trackId
       session.mediaSessionId = null
       const hasArtwork = (await this.sources.artwork(command.trackId)) !== null
       const track = await this.sources.track(command.trackId)
-      if (!track || this.session !== session) return
+      if (!track || this.session !== session) {
+        debug('load dropped: track file', track ? 'ok' : 'not servable', 'session current:', this.session === session)
+        return
+      }
+      debug('loading', track.filePath, track.contentType, 'artwork:', hasArtwork)
       const status = await client.loadTrack({
         url: media.url(localAddress, 'track', command.trackId),
         contentType: track.contentType,
@@ -251,6 +264,7 @@ export class CastController {
       // A newer load may have been queued while this one was in flight.
       if (this.session !== session || session.trackId !== command.trackId) return
       session.mediaSessionId = status.mediaSessionId
+      debug('loaded, media session', status.mediaSessionId, status.playerState)
       this.forwardMedia(session, status)
       return
     }

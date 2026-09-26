@@ -17,6 +17,20 @@ export function needsTranscode(filePath: string): boolean {
   return TRANSCODABLE_EXTENSIONS.has(filePath.slice(dot).toLowerCase())
 }
 
+// Cast devices (Google's player, and MCO's receiver on the device) crash or
+// stall seeking in — or starting part-way into — a FLAC without a SEEKTABLE,
+// which is every FLAC this bundled ffmpeg writes (see getPlayableFilePath).
+// So what gets cast is 16-bit PCM WAV instead: lossless at CD quality,
+// seekable by plain byte arithmetic, supported by every Cast device, and
+// nearly instant to produce. Compressed formats with their own seek index
+// pass through unchanged.
+const CAST_PASSTHROUGH_EXTENSIONS = new Set(['.mp3', '.m4a', '.aac', '.ogg', '.opus'])
+
+export function needsCastTranscode(filePath: string): boolean {
+  const dot = filePath.lastIndexOf('.')
+  return dot === -1 || !CAST_PASSTHROUGH_EXTENSIONS.has(filePath.slice(dot).toLowerCase())
+}
+
 function cacheKeyFor(filePath: string, mtimeMs: number): string {
   return createHash('sha256').update(`${filePath}:${mtimeMs}`).digest('hex')
 }
@@ -37,7 +51,19 @@ const inFlightTranscodes = new Map<string, Promise<string>>()
 // track then just reuses the cached file instead of re-invoking ffmpeg.
 export function getPlayableFilePath(filePath: string, cacheDir: string): Promise<string> {
   if (!needsTranscode(filePath)) return Promise.resolve(filePath)
+  return cachedTranscode(filePath, cacheDir, '.flac', ['-f', 'flac'])
+}
 
+// Returns a path a cast device can play and seek in (see
+// needsCastTranscode), converting into cacheDir the same way.
+export function getCastableFilePath(filePath: string, cacheDir: string): Promise<string> {
+  if (!needsCastTranscode(filePath)) return Promise.resolve(filePath)
+  // -map 0:a: audio only — embedded cover art would otherwise become a
+  // video stream WAV can't hold.
+  return cachedTranscode(filePath, cacheDir, '.cast.wav', ['-map', '0:a', '-c:a', 'pcm_s16le', '-ar', '44100', '-f', 'wav'])
+}
+
+function cachedTranscode(filePath: string, cacheDir: string, suffix: string, outputArgs: string[]): Promise<string> {
   let mtimeMs: number
   try {
     mtimeMs = statSync(filePath).mtimeMs
@@ -45,20 +71,20 @@ export function getPlayableFilePath(filePath: string, cacheDir: string): Promise
     return Promise.reject(err)
   }
 
-  const cachePath = join(cacheDir, `${cacheKeyFor(filePath, mtimeMs)}.flac`)
+  const cachePath = join(cacheDir, `${cacheKeyFor(filePath, mtimeMs)}${suffix}`)
   if (existsSync(cachePath)) return Promise.resolve(cachePath)
 
   const inFlight = inFlightTranscodes.get(cachePath)
   if (inFlight) return inFlight
 
-  const promise = transcodeToCache(filePath, cachePath, cacheDir).finally(() => {
+  const promise = transcodeToCache(filePath, cachePath, cacheDir, outputArgs).finally(() => {
     inFlightTranscodes.delete(cachePath)
   })
   inFlightTranscodes.set(cachePath, promise)
   return promise
 }
 
-function transcodeToCache(filePath: string, cachePath: string, cacheDir: string): Promise<string> {
+function transcodeToCache(filePath: string, cachePath: string, cacheDir: string, outputArgs: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const ffmpegPath = resolveFfmpegPath()
     if (!ffmpegPath) {
@@ -80,7 +106,7 @@ function transcodeToCache(filePath: string, cachePath: string, cacheDir: string)
     // races only on the final rename, which is a plain overwrite on POSIX,
     // not a missing-source error, regardless of which one wins.
     const tmpPath = `${cachePath}.${process.pid}-${randomBytes(4).toString('hex')}.tmp`
-    const proc = spawn(ffmpegPath, ['-y', '-i', filePath, '-f', 'flac', '-loglevel', 'error', tmpPath])
+    const proc = spawn(ffmpegPath, ['-y', '-i', filePath, ...outputArgs, '-loglevel', 'error', tmpPath])
 
     let stderr = ''
     proc.stderr.on('data', (d: Buffer) => {
@@ -104,7 +130,7 @@ function transcodeToCache(filePath: string, cachePath: string, cacheDir: string)
 }
 
 // The cache otherwise grows forever (one FLAC per AIFF ever played or
-// analysed). Run once at startup: drops leftover .tmp files from an
+// analysed, one WAV per track ever cast). Run once at startup: drops leftover .tmp files from an
 // interrupted transcode, then evicts the oldest-transcoded FLACs (by mtime —
 // atime isn't reliably maintained) until the cache fits within maxBytes. An
 // evicted track that's played again just re-transcodes.

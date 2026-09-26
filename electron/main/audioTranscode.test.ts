@@ -2,8 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { mkdtempSync, rmSync, statSync, writeFileSync, existsSync, mkdirSync, utimesSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createTestToneWav, createTestToneAiff } from '../../tests/fixtures/audioFixture'
-import { needsTranscode, getPlayableFilePath, pruneMediaCache } from './audioTranscode'
+import { readFileSync } from 'node:fs'
+import { createTestToneWav, createTestToneAiff, createTestToneMp3 } from '../../tests/fixtures/audioFixture'
+import { needsTranscode, needsCastTranscode, getPlayableFilePath, getCastableFilePath, pruneMediaCache } from './audioTranscode'
 
 describe('needsTranscode', () => {
   it('is true for .aiff', () => {
@@ -28,6 +29,45 @@ describe('needsTranscode', () => {
 
   it('is false for a path with no extension', () => {
     expect(needsTranscode('/music/track')).toBe(false)
+  })
+})
+
+describe('needsCastTranscode', () => {
+  it('converts formats cast devices can’t seek in', () => {
+    for (const path of ['/a/b.aiff', '/a/b.AIF', '/a/b.flac', '/a/b.wav', '/a/noext']) expect(needsCastTranscode(path)).toBe(true)
+  })
+
+  it('passes compressed formats with their own seek index through', () => {
+    for (const path of ['/a/b.mp3', '/a/b.M4A', '/a/b.aac', '/a/b.ogg', '/a/b.opus']) expect(needsCastTranscode(path)).toBe(false)
+  })
+})
+
+describe('getCastableFilePath', () => {
+  let dir: string
+  let cacheDir: string
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'cast-transcode-test-'))
+    cacheDir = join(dir, 'cache')
+  })
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('converts an AIFF to a cached 16-bit PCM WAV', async () => {
+    const result = await getCastableFilePath(createTestToneAiff(dir), cacheDir)
+    expect(result).toMatch(/\.cast\.wav$/)
+    const header = readFileSync(result).subarray(0, 36)
+    expect(header.subarray(0, 4).toString()).toBe('RIFF')
+    expect(header.subarray(8, 12).toString()).toBe('WAVE')
+    expect(header.readUInt16LE(20)).toBe(1) // PCM
+    expect(header.readUInt16LE(34)).toBe(16) // bits per sample
+  })
+
+  it('passes an MP3 through unchanged', async () => {
+    const mp3 = createTestToneMp3(dir)
+    expect(await getCastableFilePath(mp3, cacheDir)).toBe(mp3)
   })
 })
 
