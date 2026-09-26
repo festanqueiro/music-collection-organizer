@@ -15,6 +15,33 @@ const FILTER_LOWPASS_OPEN_HZ = 20000
 const FILTER_LOWPASS_CLOSED_HZ = 80
 const FILTER_HIGHPASS_OPEN_HZ = 20
 const FILTER_HIGHPASS_CLOSED_HZ = 8000
+// A flat (Butterworth) filter: no resonant peak at the cutoff.
+const FLAT_Q = Math.SQRT1_2
+// How much of a stage's travel (0..1) the resonance fades in over.
+const RESONANCE_FADE_IN = 0.25
+
+// Resonance for one filter stage at `amount` (0 open .. 1 closed). An open
+// stage stays flat: the dialed-in Q at 20kHz/20Hz would boost hiss and
+// rumble by up to +26dB with the knob at rest. It reaches full resonance
+// a quarter of the way in, so the sweep still sounds resonant.
+export function stageQ(amount: number, resonance: number): number {
+  const engaged = Math.min(1, amount / RESONANCE_FADE_IN)
+  return FLAT_Q + (Math.max(FLAT_Q, resonance) - FLAT_Q) * engaged
+}
+
+// Level compensation for the resonant peaks (a stage peaks at about Q
+// times its input): pulls the filtered signal down so sweeping with high
+// resonance doesn't clip the output into noise. 1 when both stages are flat.
+export function resonanceCompensation(lowpassQ: number, highpassQ: number): number {
+  return Math.sqrt((FLAT_Q / lowpassQ) * (FLAT_Q / highpassQ))
+}
+
+// How long after playback stops the context keeps running — long enough
+// for a delay/reverb tail to ring out — before it's suspended. A running
+// context renders the whole FX graph (convolver included) even in silence,
+// which kept the app busy while nothing played.
+const IDLE_SUSPEND_MS = 15000
+
 const EQ_LOW_HZ = 200
 const EQ_MID_HZ = 1000
 const EQ_HIGH_HZ = 5000
@@ -110,10 +137,16 @@ export class EffectsChain {
   private masterGain: GainNode
   private localGain: GainNode
   private analyser: AnalyserNode
+  private audioElement: HTMLAudioElement
+  private suspendTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(audioElement: HTMLAudioElement) {
     this.context = new AudioContext()
     const source = this.context.createMediaElementSource(audioElement)
+    this.audioElement = audioElement
+    audioElement.addEventListener('play', this.handlePlay)
+    audioElement.addEventListener('pause', this.handleStop)
+    audioElement.addEventListener('ended', this.handleStop)
 
     // The true final stage, after every FX send (filter/EQ wet+dry, delay
     // wet, reverb wet) — unlike dryGain (setVolume/playerVolume, right at
@@ -269,10 +302,16 @@ export class EffectsChain {
       FILTER_HIGHPASS_OPEN_HZ * (FILTER_HIGHPASS_CLOSED_HZ / FILTER_HIGHPASS_OPEN_HZ) ** highpassAmount
     this.lowpassNode.frequency.setTargetAtTime(lowpassFreq, now, FILTER_PARAM_TAU)
     this.highpassNode.frequency.setTargetAtTime(highpassFreq, now, FILTER_PARAM_TAU)
-    this.lowpassNode.Q.setTargetAtTime(resonance, now, FILTER_PARAM_TAU)
-    this.highpassNode.Q.setTargetAtTime(resonance, now, FILTER_PARAM_TAU)
+    const lowpassQ = stageQ(lowpassAmount, resonance)
+    const highpassQ = stageQ(highpassAmount, resonance)
+    this.lowpassNode.Q.setTargetAtTime(lowpassQ, now, FILTER_PARAM_TAU)
+    this.highpassNode.Q.setTargetAtTime(highpassQ, now, FILTER_PARAM_TAU)
     const filterWet = enabled ? mix : 0
-    this.filterWetGain.gain.setTargetAtTime(filterWet, now, FILTER_PARAM_TAU)
+    this.filterWetGain.gain.setTargetAtTime(
+      filterWet * resonanceCompensation(lowpassQ, highpassQ),
+      now,
+      FILTER_PARAM_TAU
+    )
     this.filterDryGain.gain.setTargetAtTime(1 - filterWet, now, FILTER_PARAM_TAU)
     this.masterGain.gain.setTargetAtTime(settings.masterVolume, now, FILTER_PARAM_TAU)
   }
@@ -318,10 +357,26 @@ export class EffectsChain {
   // AudioContexts start suspended until a user gesture resumes them — call
   // this from the same click handler that starts playback.
   resume(): void {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
+    this.suspendTimer = null
     if (this.context.state === 'suspended') this.context.resume().catch(() => {})
   }
 
   close(): void {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
+    this.audioElement.removeEventListener('play', this.handlePlay)
+    this.audioElement.removeEventListener('pause', this.handleStop)
+    this.audioElement.removeEventListener('ended', this.handleStop)
     this.context.close().catch(() => {})
+  }
+
+  private handlePlay = (): void => this.resume()
+
+  private handleStop = (): void => {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
+    this.suspendTimer = setTimeout(() => {
+      this.suspendTimer = null
+      if (this.audioElement.paused && this.context.state === 'running') this.context.suspend().catch(() => {})
+    }, IDLE_SUSPEND_MS)
   }
 }

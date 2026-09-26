@@ -1,6 +1,6 @@
 import { app, ipcMain, dialog, shell, BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
 import { join } from 'node:path'
-import { writeFileSync, readFileSync } from 'node:fs'
+import { writeFileSync, readFileSync, statSync } from 'node:fs'
 import type { AppDatabase } from './db'
 import {
   getCollectionFolder,
@@ -40,6 +40,7 @@ import { downloadTrack } from './cloudDownload'
 import { getDragIcon } from './dragIcon'
 import { runAnalysisQueue } from './analysis/queue'
 import { extractArtwork } from './analysis/metadata'
+import { writeTags, supportsTagEditing, TagWriteError } from './tagWriter'
 import { getMediaCacheDir } from './mediaCacheDir'
 import { listBackups, restoreBackup, runBackup } from './backup'
 import {
@@ -88,6 +89,8 @@ import type {
   UpdateState,
   CastStatus,
   CastDirectCommand,
+  EditableTags,
+  WriteTagsResult,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -633,6 +636,39 @@ export function registerIpcHandlers(
     db.prepare('UPDATE tracks SET play_count = play_count + 1, last_played_at = ? WHERE id = ?').run(now, trackId)
     const row = db.prepare('SELECT play_count FROM tracks WHERE id = ?').get(trackId) as { play_count: number } | undefined
     return row ? { playCount: row.play_count, lastPlayedAt: now } : null
+  })
+
+  // Edits the file's own tags, then mirrors them (and the file's new size/
+  // mtime, so the next scan doesn't take it for a changed file needing
+  // re-analysis) into the DB. Errors come back as a message to show, not a
+  // rejection, so the renderer gets the plain text.
+  ipcMain.handle('tracks:writeTags', async (_e, trackId: number, tags: EditableTags): Promise<WriteTagsResult> => {
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as unknown as TrackRow | undefined
+    if (!row) return { ok: false, error: 'That track is no longer in the collection' }
+    if (row.cloud_status === 'cloud_only') return { ok: false, error: 'Download the track first — it is only in the cloud' }
+    if (!supportsTagEditing(row.format)) {
+      return { ok: false, error: `Editing tags in ${row.format.toUpperCase()} files isn't supported yet` }
+    }
+    const clean = (value: string | null) => (value?.trim() ? value.trim() : null)
+    const next: EditableTags = {
+      title: clean(tags.title),
+      artist: clean(tags.artist),
+      album: clean(tags.album),
+      genre: clean(tags.genre),
+      year: tags.year && Number.isInteger(tags.year) && tags.year > 0 ? tags.year : null,
+    }
+    try {
+      await writeTags(row.path, row.format, next, getMediaCacheDir())
+    } catch (err) {
+      console.error('writing tags failed', row.path, err)
+      return { ok: false, error: err instanceof TagWriteError ? err.message : "Couldn't write to the file" }
+    }
+    const stats = statSync(row.path)
+    db.prepare(
+      'UPDATE tracks SET title = ?, artist = ?, album = ?, genre_tag = ?, year = ?, size = ?, mtime = ? WHERE id = ?'
+    ).run(next.title, next.artist, next.album, next.genre, next.year, stats.size, Math.floor(stats.mtimeMs), trackId)
+    const updated = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as unknown as TrackRow
+    return { ok: true, track: rowToTrack(updated) }
   })
 
   ipcMain.handle('tracks:getArtwork', async (_e, trackId: number): Promise<string | null> => {

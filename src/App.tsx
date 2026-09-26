@@ -11,6 +11,7 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
 import { Player, EmptyPlayer } from './components/Player'
+import { FiltersPanel } from './components/FiltersPanel'
 import { PlaylistView } from './components/PlaylistView'
 import { FxView } from './components/FxView'
 import { Visualizer } from './components/Visualizer'
@@ -25,7 +26,35 @@ import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
 
-type LeftView = 'folders' | 'tags' | 'subtags'
+type LeftView = 'folders' | 'tags' | 'subtags' | 'filters'
+type TreeView = Exclude<LeftView, 'filters'>
+const LEFT_VIEWS: { key: LeftView; label: string; icon: string }[] = [
+  { key: 'folders', label: 'Folders', icon: 'folder' },
+  { key: 'tags', label: 'Tags', icon: 'sell' },
+  { key: 'subtags', label: 'Subtags', icon: 'label' },
+  { key: 'filters', label: 'Filters', icon: 'filter_list' },
+]
+function FilterCountBadge({ count }: { count: number }) {
+  return (
+    <span
+      style={{
+        fontSize: '10px',
+        lineHeight: '14px',
+        minWidth: '14px',
+        padding: '0 3px',
+        borderRadius: '99px',
+        background: 'var(--color-accent)',
+        color: 'var(--color-on-accent)',
+        textAlign: 'center',
+      }}
+    >
+      {count}
+    </span>
+  )
+}
+
+const LEFT_COLLAPSED_KEY = 'leftSidebarCollapsed'
+const COLLAPSED_LEFT_WIDTH = 48
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
@@ -60,13 +89,34 @@ export default function App() {
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const playlist = useCollectionStore((s) => s.playlist)
   const playerScreen = useCollectionStore((s) => s.playerScreen)
-  const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const visualizerOpen = useCollectionStore((s) => s.visualizerOpen)
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
+  // The folder/tag view the Filters view was opened from: kept mounted
+  // (hidden) meanwhile, with its selection still applied — filters combine
+  // with it rather than replacing it.
+  const [treeView, setTreeView] = useState<TreeView>('folders')
+  const activeFilterCount = useCollectionStore(
+    (s) => Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter)
+  )
+  const [leftCollapsed, setLeftCollapsedState] = useState(() => {
+    try {
+      return localStorage.getItem(LEFT_COLLAPSED_KEY) === 'true'
+    } catch {
+      return false
+    }
+  })
+  function setLeftCollapsed(collapsed: boolean) {
+    setLeftCollapsedState(collapsed)
+    try {
+      localStorage.setItem(LEFT_COLLAPSED_KEY, String(collapsed))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  }
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
@@ -82,8 +132,14 @@ export default function App() {
   // shows nothing checked. Switching views now always resets the filter
   // to "show everything" first — the newly-shown view then narrows it
   // again the moment the user actually picks something in it.
+  // Going to or from Filters doesn't count as a switch: the folder/tag
+  // view underneath keeps its selection.
   function changeLeftView(view: LeftView) {
+    setLeftCollapsed(false)
+    if (view === leftView) return
     setLeftView(view)
+    if (view === 'filters' || view === treeView) return
+    setTreeView(view)
     setTagFilter(() => () => true)
   }
 
@@ -100,9 +156,14 @@ export default function App() {
   // per-track like EffectsChain) — pushing settings here, not from inside
   // Player (which remounts per track and unmounts entirely when the queue
   // is empty), keeps it in sync regardless of what's playing.
+  // Subscribed outside React: a hook here would re-render the whole app
+  // (track table included) on every siren knob tick.
   useEffect(() => {
-    getDubSirenEngine().update(effectsSettings.siren)
-  }, [effectsSettings.siren])
+    getDubSirenEngine().update(useCollectionStore.getState().effectsSettings.siren)
+    return useCollectionStore.subscribe((state, previous) => {
+      if (state.effectsSettings.siren !== previous.effectsSettings.siren) getDubSirenEngine().update(state.effectsSettings.siren)
+    })
+  }, [])
 
   // Same reasoning as above — the siren is its own separate AudioContext,
   // so the chosen output device has to be applied to it independently of
@@ -255,7 +316,7 @@ export default function App() {
         style={{
           gridTemplateRows: 'auto 1fr auto',
           gridTemplateAreas: "'toolbar toolbar toolbar' 'left center right' 'footer footer footer'",
-          gridTemplateColumns: selectedTrack ? undefined : '260px 1fr 0px',
+          gridTemplateColumns: `${leftCollapsed ? `${COLLAPSED_LEFT_WIDTH}px` : '260px'} 1fr ${selectedTrack ? '320px' : '0px'}`,
         }}
       >
         {playerScreen && (
@@ -274,65 +335,129 @@ export default function App() {
           />
         </div>
 
-        <div className="pane" style={{ gridArea: 'left', padding: '12px' }}>
-          {!collectionFolder ? (
-            <button onClick={() => pickCollectionFolder()}>Choose collection folder…</button>
-          ) : (
-            <>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        <div className="pane" style={{ gridArea: 'left', padding: leftCollapsed ? '12px 0' : '12px', overflowX: 'hidden' }}>
+          {leftCollapsed && collectionFolder && (
+            // Collapsed: a thin strip of the view icons — any of them
+            // reopens the sidebar on that view.
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              <button
+                onClick={() => setLeftCollapsed(false)}
+                title="Expand the sidebar"
+                aria-label="Expand the sidebar"
+                style={{ background: 'none', border: 'none', padding: '2px', display: 'flex', color: 'var(--color-text-dim)' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
+                  left_panel_open
+                </span>
+              </button>
+              {LEFT_VIEWS.map((view) => (
                 <button
-                  onClick={() => changeLeftView('folders')}
+                  key={view.key}
+                  onClick={() => changeLeftView(view.key)}
+                  title={view.label}
+                  aria-label={view.label}
                   style={{
-                    border: leftView === 'folders' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                    display: 'flex',
+                    padding: '6px',
+                    border: leftView === view.key ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
                   }}
                 >
-                  Folders
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    {view.icon}
+                  </span>
+                  {view.key === 'filters' && activeFilterCount > 0 && <FilterCountBadge count={activeFilterCount} />}
                 </button>
-                <button
-                  onClick={() => changeLeftView('tags')}
-                  style={{
-                    border: leftView === 'tags' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-                  }}
-                >
-                  Tags
-                </button>
-                <button
-                  onClick={() => changeLeftView('subtags')}
-                  style={{
-                    border: leftView === 'subtags' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-                  }}
-                >
-                  Subtags
-                </button>
-              </div>
-              {leftView === 'folders' && (
-                <FolderTree
-                  rootPath={collectionFolder}
-                  selectedFolder={selectedFolder}
-                  onSelect={(folder) => {
-                    setSelectedFolder(folder)
-                    clearCheckedTracks()
-                  }}
-                />
-              )}
-              {leftView === 'tags' && (
-                <TagTree
-                  onFilterChange={(filter) => {
-                    setTagFilter(() => filter)
-                    clearCheckedTracks()
-                  }}
-                />
-              )}
-              {leftView === 'subtags' && (
-                <SubtagTree
-                  onFilterChange={(filter) => {
-                    setTagFilter(() => filter)
-                    clearCheckedTracks()
-                  }}
-                />
-              )}
-            </>
+              ))}
+            </div>
           )}
+          {/* Hidden rather than unmounted while collapsed, so the trees keep
+              their expanded folders and checked tags. */}
+          <div style={{ display: leftCollapsed && collectionFolder ? 'none' : undefined }}>
+            {!collectionFolder ? (
+              <button onClick={() => pickCollectionFolder()}>Choose collection folder…</button>
+            ) : (
+              <>
+                <div style={{ display: 'flex', gap: '4px', marginBottom: '12px', alignItems: 'center' }}>
+                  {LEFT_VIEWS.map((view) => (
+                    <button
+                      key={view.key}
+                      onClick={() => changeLeftView(view.key)}
+                      title={view.label}
+                      aria-label={view.label}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        fontSize: '12px',
+                        padding: '4px 6px',
+                        minWidth: 0,
+                        overflow: 'hidden',
+                        border: leftView === view.key ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                        {view.icon}
+                      </span>
+                      {/* Only the open view is labelled — four labels don't fit. */}
+                      {leftView === view.key && view.label}
+                      {view.key === 'filters' && activeFilterCount > 0 && <FilterCountBadge count={activeFilterCount} />}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setLeftCollapsed(true)}
+                    title="Collapse the sidebar"
+                    aria-label="Collapse the sidebar"
+                    style={{
+                      marginLeft: 'auto',
+                      flexShrink: 0,
+                      background: 'none',
+                      border: 'none',
+                      padding: 0,
+                      display: 'flex',
+                      color: 'var(--color-text-dim)',
+                    }}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                      left_panel_close
+                    </span>
+                  </button>
+                </div>
+                {leftView === 'filters' && <FiltersPanel />}
+                {treeView === 'folders' && (
+                  <div hidden={leftView !== 'folders'}>
+                    <FolderTree
+                      rootPath={collectionFolder}
+                      selectedFolder={selectedFolder}
+                      onSelect={(folder) => {
+                        setSelectedFolder(folder)
+                        clearCheckedTracks()
+                      }}
+                    />
+                  </div>
+                )}
+                {treeView === 'tags' && (
+                  <div hidden={leftView !== 'tags'}>
+                    <TagTree
+                      onFilterChange={(filter) => {
+                        setTagFilter(() => filter)
+                        clearCheckedTracks()
+                      }}
+                    />
+                  </div>
+                )}
+                {treeView === 'subtags' && (
+                  <div hidden={leftView !== 'subtags'}>
+                    <SubtagTree
+                      onFilterChange={(filter) => {
+                        setTagFilter(() => filter)
+                        clearCheckedTracks()
+                      }}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="pane" style={{ gridArea: 'center', display: 'flex', flexDirection: 'column' }}>

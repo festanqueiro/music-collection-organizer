@@ -38,6 +38,10 @@ const MODE_VOICES: Record<SirenMode, ModeVoice> = {
   },
 }
 
+// How long after the siren goes quiet (released, beat off) its context
+// keeps running for the echo tail, before it's suspended — a running
+// context keeps rendering its oscillators and echo even when silent.
+const IDLE_SUSPEND_MS = 15000
 const SUSTAIN_GAIN = 0.9
 const SUSTAIN_ATTACK_TAU = 0.005
 const RELEASE_TAU = 0.08
@@ -99,6 +103,7 @@ export class DubSirenEngine {
   private beatSchedulerId: ReturnType<typeof setInterval> | null = null
   private lastBeatStabTime: number | null = null
   private currentBeat: SirenSettings['beat'] = 'off'
+  private suspendTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor() {
     this.context = new AudioContext()
@@ -150,6 +155,7 @@ export class DubSirenEngine {
 
     this.osc.start()
     this.lfoOsc.start()
+    this.suspendWhenIdle()
   }
 
   update(settings: SirenSettings): void {
@@ -191,6 +197,7 @@ export class DubSirenEngine {
   triggerDown(): void {
     if (this.held) return
     this.held = true
+    this.resume()
     const voice = MODE_VOICES[this.mode]
 
     if (voice.oneShot) {
@@ -209,6 +216,7 @@ export class DubSirenEngine {
   triggerUp(): void {
     this.held = false
     this.stopGunRetrigger()
+    this.suspendWhenIdle()
     const voice = MODE_VOICES[this.mode]
     if (voice.oneShot) return // one-shots decay on their own schedule
     const now = this.context.currentTime
@@ -217,7 +225,21 @@ export class DubSirenEngine {
   }
 
   resume(): void {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
+    this.suspendTimer = null
     if (this.context.state === 'suspended') this.context.resume().catch(() => {})
+  }
+
+  // Suspends the context once the siren has been silent for a while — not
+  // held and no beat running.
+  private suspendWhenIdle(): void {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
+    this.suspendTimer = setTimeout(() => {
+      this.suspendTimer = null
+      if (!this.held && this.currentBeat === 'off' && this.context.state === 'running') {
+        this.context.suspend().catch(() => {})
+      }
+    }, IDLE_SUSPEND_MS)
   }
 
   // Same output-device routing as EffectsChain.setSinkId — the siren is
@@ -239,6 +261,7 @@ export class DubSirenEngine {
   }
 
   close(): void {
+    if (this.suspendTimer) clearTimeout(this.suspendTimer)
     this.stopGunRetrigger()
     this.stopBeatScheduler()
     this.context.close().catch(() => {})
@@ -292,9 +315,11 @@ export class DubSirenEngine {
   private updateBeat(beat: SirenSettings['beat']): void {
     this.currentBeat = beat
     if (beat === 'off') {
+      if (this.beatSchedulerId) this.suspendWhenIdle()
       this.stopBeatScheduler()
       return
     }
+    this.resume()
     if (this.beatSchedulerId) return // already running — the interval below reads this.currentBeat live on every tick
 
     this.lastBeatStabTime = null

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { findDuplicates } from '../state/duplicates'
 import { useCollectionStore } from '../state/store'
 import { BatchTagBar } from './BatchTagBar'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
@@ -29,6 +30,12 @@ const MIN_COLUMN_WIDTH = 50
 const CHECKBOX_COL_WIDTH = 36
 const STATUS_COL_WIDTH = 90
 const CLOUD_COL_WIDTH = 70
+// Every row is exactly this tall (the tallest a one-line row gets, with a
+// status/cloud icon), so the virtualized table can place rows by index.
+const ROW_HEIGHT = 36
+// Rows rendered beyond each edge of the viewport, so a fast scroll doesn't
+// flash empty space before React catches up.
+const OVERSCAN_ROWS = 15
 // Per-viewer sizing convenience, not collection data — plain localStorage
 // rather than the electron-store-backed column *order*, which is shared
 // config synced through the main process.
@@ -42,6 +49,38 @@ function loadColumnWidths(): Record<TrackTableColumnKey, number> {
   } catch {
     return { ...DEFAULT_COLUMN_WIDTHS }
   }
+}
+
+function FilterChip({ icon, label, onClear }: { icon: string; label: string; onClear: () => void }) {
+  return (
+    <span
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '12px',
+        padding: '2px 4px 2px 8px',
+        borderRadius: '99px',
+        border: '1px solid var(--color-accent)',
+        color: 'var(--color-accent)',
+      }}
+    >
+      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+        {icon}
+      </span>
+      {label}
+      <button
+        onClick={onClear}
+        title="Remove this filter"
+        aria-label={`Remove the ${label} filter`}
+        style={{ background: 'none', border: 'none', padding: 0, display: 'flex', color: 'inherit', cursor: 'pointer' }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+          close
+        </span>
+      </button>
+    </span>
+  )
 }
 
 export function TrackTable({
@@ -88,6 +127,12 @@ export function TrackTable({
   const previewTrack = useCollectionStore((s) => s.previewTrack)
   const compatibleFilter = useCollectionStore((s) => s.compatibleFilter)
   const setCompatibleFilter = useCollectionStore((s) => s.setCompatibleFilter)
+  const analysedFilter = useCollectionStore((s) => s.analysedFilter)
+  const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
+  const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
+  const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
+  // Over the whole collection, so a copy in another folder still counts.
+  const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
   const currentTrackId = playlist[0] ?? null
   const currentTrack = useMemo(
     () => (currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null),
@@ -210,12 +255,27 @@ export function TrackTable({
         return !t.bpm || !currentTrack.bpm || areBpmsCompatible(t.bpm, currentTrack.bpm)
       })
       .filter((t) =>
+        analysedFilter === 'all'
+          ? true
+          : analysedFilter === 'analysed'
+            ? t.analysisStatus === 'done'
+            : t.analysisStatus !== 'done'
+      )
+      .filter((t) => !duplicates || duplicates.has(t.id))
+      .filter((t) =>
         query
           ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
             tagNamesFor(t.id).some((tag) => tag.name.toLowerCase().includes(query))
           : true
       )
       .sort((a, b) => {
+        // Duplicates: copies of the same song sit together, each group in
+        // the chosen sort order.
+        if (duplicates) {
+          const ga = duplicates.get(a.id)!
+          const gb = duplicates.get(b.id)!
+          if (ga !== gb) return ga < gb ? -1 : 1
+        }
         const av = sortValueFor(a, sortKey)
         const bv = sortValueFor(b, sortKey)
         const cmp = av < bv ? -1 : av > bv ? 1 : 0
@@ -234,16 +294,42 @@ export function TrackTable({
     compatibleFilter,
     canFilterCompatible,
     currentTrack,
+    analysedFilter,
+    duplicates,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
+  // Only the rows in (and just around) the viewport are rendered — the
+  // rest are two spacer rows of the same total height. A whole collection
+  // as real rows is tens of thousands of DOM nodes, which slowed every
+  // frame of the app (FX knobs, the visualizer, scrolling).
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(800)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => setViewportHeight(el.clientHeight))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const firstRendered = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN_ROWS)
+  const lastRendered = Math.min(visibleTracks.length, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN_ROWS)
+  const renderedTracks = visibleTracks.slice(firstRendered, lastRendered)
+
   // Re-analysing a track changes its BPM/Key, which can shift its sort
   // position out of the visible scroll area — clicking the track's title
-  // in the detail panel scrolls it back into view.
+  // in the detail panel scrolls it back into view. By index, since the row
+  // may not be rendered.
   useEffect(() => {
     if (!scrollToTrack) return
-    const row = document.querySelector(`tr[data-track-id="${scrollToTrack.trackId}"]`)
-    row?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const index = visibleTracks.findIndex((t) => t.id === scrollToTrack.trackId)
+    const el = scrollRef.current
+    if (index < 0 || !el) return
+    el.scrollTo({ top: Math.max(0, index * ROW_HEIGHT - el.clientHeight / 2), behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToTrack])
 
   useEffect(() => {
@@ -399,16 +485,6 @@ export function TrackTable({
                 progress_activity
               </span>
             )}
-            {(trackTags.get(track.id)?.genreIds.length ?? 0) + (trackTags.get(track.id)?.subgenreIds.length ?? 0) >
-              0 && (
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
-                title="This track has tags"
-              >
-                label
-              </span>
-            )}
             {decodeHtmlEntities(track.title ?? track.filename)}
           </>
         )
@@ -545,28 +621,22 @@ export function TrackTable({
           </span>
           Add all to queue
         </button>
-        <button
-          onClick={() => setCompatibleFilter(!compatibleFilter)}
-          disabled={!canFilterCompatible && !compatibleFilter}
-          title={
-            canFilterCompatible
-              ? `Only tracks that mix with the playing track (${formatKey(currentTrack?.musicalKey, 'both')}): on the Camelot wheel, the same key, one step either way, or its relative major/minor — and a BPM within 6% (or half/double time)`
-              : 'Play an analysed track to find tracks that mix with it'
-          }
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '12px',
-            border: compatibleFilter ? '1px solid var(--color-accent)' : undefined,
-            color: compatibleFilter ? 'var(--color-accent)' : undefined,
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-            join
-          </span>
-          Compatible
-        </button>
+        {/* The Filters view's active filters, each with a quick way off. */}
+        {compatibleFilter && (
+          <FilterChip
+            icon="join"
+            label={canFilterCompatible ? `Compatible with ${formatKey(currentTrack?.musicalKey, 'both')}` : 'Compatible (nothing playing)'}
+            onClear={() => setCompatibleFilter(false)}
+          />
+        )}
+        {analysedFilter !== 'all' && (
+          <FilterChip
+            icon="graphic_eq"
+            label={analysedFilter === 'analysed' ? 'Analysed' : 'Not analysed'}
+            onClear={() => setAnalysedFilter('all')}
+          />
+        )}
+        {duplicatesFilter && <FilterChip icon="content_copy" label="Duplicates" onClear={() => setDuplicatesFilter(false)} />}
         <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>
       {/* This div (not the ambient .pane it sits in, which App.tsx makes a
@@ -577,7 +647,11 @@ export function TrackTable({
           set), the div's overflow-y gets silently promoted to 'auto' too
           (CSS spec) but never actually scrolls, so a sticky child inside it
           never visibly sticks — the ancestor .pane scrolls past it instead. */}
-      <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
+      <div
+        ref={scrollRef}
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        style={{ overflow: 'auto', flex: 1, minHeight: 0 }}
+      >
         <table
           style={{
             borderCollapse: 'collapse',
@@ -653,7 +727,12 @@ export function TrackTable({
                 </td>
               </tr>
             )}
-            {visibleTracks.map((track) => (
+            {firstRendered > 0 && (
+              <tr aria-hidden style={{ height: firstRendered * ROW_HEIGHT }}>
+                <td colSpan={orderedColumns.length + 3} style={{ padding: 0 }} />
+              </tr>
+            )}
+            {renderedTracks.map((track) => (
               <tr
                 key={track.id}
                 data-track-id={track.id}
@@ -679,7 +758,7 @@ export function TrackTable({
                       : [track.id]
                   window.api.startTrackDrag(ids)
                 }}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: 'pointer', height: ROW_HEIGHT }}
               >
                 <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                   <input
@@ -716,6 +795,11 @@ export function TrackTable({
                 </td>
               </tr>
             ))}
+            {lastRendered < visibleTracks.length && (
+              <tr aria-hidden style={{ height: (visibleTracks.length - lastRendered) * ROW_HEIGHT }}>
+                <td colSpan={orderedColumns.length + 3} style={{ padding: 0 }} />
+              </tr>
+            )}
           </tbody>
         </table>
         {contextMenu && (
