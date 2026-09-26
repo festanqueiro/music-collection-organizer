@@ -56,7 +56,6 @@ export function Player({
   const cuePreviewingRef = useRef(false)
   const [cueHeld, setCueHeld] = useState(false)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
-  const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const playerVolume = useCollectionStore((s) => s.playerVolume)
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
@@ -208,7 +207,7 @@ export function Player({
     const audio = audioRef.current
     if (!audio) return
     const chain = new EffectsChain(audio)
-    chain.update(effectsSettings)
+    chain.update(useCollectionStore.getState().effectsSettings)
     chain.setVolume(playerVolume)
     effectsChainRef.current = chain
     const analyser = chain.getAnalyser()
@@ -235,9 +234,16 @@ export function Player({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => {
-    effectsChainRef.current?.update(effectsSettings)
-  }, [effectsSettings])
+  // Subscribed outside React: FX knobs change these many times a second,
+  // and re-rendering the player (waveform included) for each one is what
+  // made dragging a knob feel stuck.
+  useEffect(
+    () =>
+      useCollectionStore.subscribe((state, previous) => {
+        if (state.effectsSettings !== previous.effectsSettings) effectsChainRef.current?.update(state.effectsSettings)
+      }),
+    []
+  )
 
   // playerVolume lives in the global store (not local state) so a MIDI
   // binding can drive it regardless of which track's Player is currently

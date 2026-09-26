@@ -60,7 +60,6 @@ export default function App() {
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const playlist = useCollectionStore((s) => s.playlist)
   const playerScreen = useCollectionStore((s) => s.playerScreen)
-  const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const visualizerOpen = useCollectionStore((s) => s.visualizerOpen)
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
@@ -100,9 +99,14 @@ export default function App() {
   // per-track like EffectsChain) — pushing settings here, not from inside
   // Player (which remounts per track and unmounts entirely when the queue
   // is empty), keeps it in sync regardless of what's playing.
+  // Subscribed outside React: a hook here would re-render the whole app
+  // (track table included) on every siren knob tick.
   useEffect(() => {
-    getDubSirenEngine().update(effectsSettings.siren)
-  }, [effectsSettings.siren])
+    getDubSirenEngine().update(useCollectionStore.getState().effectsSettings.siren)
+    return useCollectionStore.subscribe((state, previous) => {
+      if (state.effectsSettings.siren !== previous.effectsSettings.siren) getDubSirenEngine().update(state.effectsSettings.siren)
+    })
+  }, [])
 
   // Same reasoning as above — the siren is its own separate AudioContext,
   // so the chosen output device has to be applied to it independently of
