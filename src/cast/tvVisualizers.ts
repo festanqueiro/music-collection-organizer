@@ -138,3 +138,40 @@ export class BeatDetector {
     return false
   }
 }
+
+// Smooth 2D value noise, 0..1 — the same recipe as threejs-visualisers'
+// shaders (smoothstep between hashed lattice values), done on the CPU.
+function hash2(ix: number, iy: number): number {
+  let h = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263)) | 0
+  h = Math.imul(h ^ (h >>> 13), 1274126177)
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296
+}
+
+export function valueNoise(x: number, y: number): number {
+  const ix = Math.floor(x)
+  const iy = Math.floor(y)
+  const fx = x - ix
+  const fy = y - iy
+  const ux = fx * fx * (3 - 2 * fx)
+  const uy = fy * fy * (3 - 2 * fy)
+  const a = hash2(ix, iy)
+  const b = hash2(ix + 1, iy)
+  const c = hash2(ix, iy + 1)
+  const d = hash2(ix + 1, iy + 1)
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy
+}
+
+// Octaves of value noise, each turned and doubled in frequency (as the
+// shaders' fbm), 0..1. Fewer octaves are cheaper and softer.
+export function fbm(x: number, y: number, octaves: number): number {
+  let value = 0
+  let amplitude = 0.5
+  for (let i = 0; i < octaves; i++) {
+    value += amplitude * valueNoise(x, y)
+    const nx = 1.6 * x - 1.2 * y
+    y = 1.2 * x + 1.6 * y
+    x = nx
+    amplitude *= 0.5
+  }
+  return value
+}

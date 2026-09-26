@@ -28,8 +28,13 @@ installed copies update themselves.
 - The TV's now-playing screen keeps every part in a fixed place — nothing
   moves when a track with more or less information loads — and its stats
   are easier to read.
+- TV visualizers: **Smoke** now looks like the regular Smoke visualizer
+  (swirling smoke, a lamp below, three beams), and **Ridges** flies over a
+  landscape in real perspective, faster when the music is loud.
 
 ### Fixed
+- The TV's now-playing screen no longer pushes the progress bar and times
+  off the bottom of the screen; the song title is a little smaller.
 - Casting ended by itself after a few minutes: Google TV's screensaver hid
   MCO's app, which then ended the session. The TV's screen is now kept awake
   during a session; if the TV does move on, MCO says why.

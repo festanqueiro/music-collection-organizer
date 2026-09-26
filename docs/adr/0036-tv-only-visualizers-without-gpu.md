@@ -14,10 +14,12 @@ casting that don't use the GPU.
 Themes that exist only for the Cast receiver: **Drift** (particles on a slowly turning flow field,
 thrown outward on kicks), **Ripples** (rings from the kicks whose outlines keep morphing — each ring has
 its own few drifting wobbles following spectrum bands, plus a breathing stretch — around a bass core),
-**Ridges** (the spectrum's recent history as stacked lines in perspective, gliding back, swaying and
-pulsing — "Unknown Pleasures" style), **Mandala** (a spectrum-shaped motif mirrored round 6/8/12-fold,
-rotating and pulsing), **Smoke** (a 2D take on the three.js Smoke theme: pre-drawn soft puffs rising
-from a lamp that pumps with the kick, tinted, with two stage beams sweeping through) and **Scope**
+**Ridges** (the spectrum's recent history as lines across a noise-hill landscape, projected in true
+perspective from a camera that drifts, bobs, rolls and jolts on kicks; lines arrive faster when it's
+loud and fade into a horizon glow — "Unknown Pleasures" in 3D, drawn in 2D), **Mandala** (a spectrum-shaped motif mirrored round 6/8/12-fold,
+rotating and pulsing), **Smoke** (a CPU port of the three.js Smoke shader: domain-warped value-noise
+smoke lit by a lamp below and three swaying beams, worked out per pixel on a 96×54 grid and scaled
+up — about 0.6 ms a frame on an M-series Mac; one warp layer fewer than the shader) and **Scope**
 (oscilloscope with a phosphor trail). Every theme's colour option includes **Color Changing** (the hue
 goes round the wheel in ~45 s). Spectrum and VU Meters existed briefly on 2026-09-27 and were removed.
 Defined in
