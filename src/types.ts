@@ -342,3 +342,15 @@ export interface CastStatus {
   mode?: CastMode
   error?: string
 }
+
+// The ID3 fields the user can edit (DetailPanel's Full ID3 tags). null or
+// '' clears the field in the file.
+export interface EditableTags {
+  title: string | null
+  artist: string | null
+  album: string | null
+  genre: string | null
+  year: number | null
+}
+
+export type WriteTagsResult = { ok: true; track: Track } | { ok: false; error: string }

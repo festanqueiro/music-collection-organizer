@@ -2,6 +2,7 @@
 import { create, type StoreApi } from 'zustand'
 import type {
   Track,
+  EditableTags,
   Genre,
   Subgenre,
   ImportResult,
@@ -385,6 +386,8 @@ export interface CollectionState {
   runAnalysis: (trackIds?: number[]) => Promise<void>
   // One play of a track (see Player.tsx): bumps its play count.
   recordPlay: (trackId: number) => Promise<void>
+  // Writes the ID3 fields into the file; returns an error message, or null.
+  writeTrackTags: (trackId: number, tags: EditableTags) => Promise<string | null>
   stopAnalysis: () => Promise<void>
   createGenre: (name: string) => Promise<void>
   createSubgenre: (name: string, genreId: number) => Promise<void>
@@ -1292,6 +1295,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const played = await window.api.recordPlay(trackId)
     if (!played) return
     set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, ...played } : t)) })
+  },
+
+  writeTrackTags: async (trackId, tags) => {
+    const result = await window.api.writeTrackTags(trackId, tags)
+    if (!result.ok) return result.error
+    set({ tracks: get().tracks.map((t) => (t.id === trackId ? result.track : t)) })
+    return null
   },
 
   stopAnalysis: async () => {

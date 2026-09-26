@@ -18,6 +18,8 @@ import type {
   CastStatus,
   CastDirectCommand,
   CastMediaEvent,
+  EditableTags,
+  WriteTagsResult,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -114,6 +116,9 @@ const api = {
   recordPlay: (trackId: number): Promise<{ playCount: number; lastPlayedAt: number } | null> =>
     ipcRenderer.invoke('tracks:recordPlay', trackId),
   getTrackArtwork: (trackId: number): Promise<string | null> => ipcRenderer.invoke('tracks:getArtwork', trackId),
+  // Writes the tags into the file itself; resolves with the updated track.
+  writeTrackTags: (trackId: number, tags: EditableTags): Promise<WriteTagsResult> =>
+    ipcRenderer.invoke('tracks:writeTags', trackId, tags),
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
   listBackups: (): Promise<BackupEntry[]> => ipcRenderer.invoke('backup:list'),
   runBackupNow: (): Promise<BackupEntry> => ipcRenderer.invoke('backup:runNow'),
