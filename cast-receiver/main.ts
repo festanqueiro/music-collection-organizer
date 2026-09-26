@@ -31,6 +31,7 @@ interface CastContext {
   addCustomMessageListener(namespace: string, listener: (event: { data: unknown }) => void): void
   sendCustomMessage(namespace: string, senderId: string | undefined, message: unknown): void
   start(options: object): void
+  stop(): void
 }
 declare const cast:
   | {
@@ -43,6 +44,9 @@ declare const cast:
 
 // MCO's seekbar follows these reports (see src/cast/directCast.ts).
 const STATUS_INTERVAL_MS = 500
+// How long the app can be out of view (another app opened on the TV)
+// before it ends the session.
+const HIDDEN_STOP_MS = 5000
 
 // MCO's accent (--accent in index.html), for the waveform canvas.
 const ACCENT = '#2dd4bf'
@@ -563,6 +567,23 @@ if (context) {
   options.disableIdleTimeout = true
   options.skipPlayersLoad = true
   context.start(options)
+
+  // Opening another app on the TV (Plex, YouTube…) only sends this one to
+  // the background — the Cast session would stay up, and MCO would keep
+  // showing "casting" to a TV that's moved on. Out of view for a few
+  // seconds (not just a blip) ends the session, which MCO sees.
+  let hiddenTimer: ReturnType<typeof setTimeout> | null = null
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      hiddenTimer ??= setTimeout(() => {
+        audio.pause()
+        context.stop()
+      }, HIDDEN_STOP_MS)
+    } else if (hiddenTimer) {
+      clearTimeout(hiddenTimer)
+      hiddenTimer = null
+    }
+  })
 } else {
   ;(window as unknown as { mcoReceiver: { receive: typeof receive } }).mcoReceiver = { receive }
   console.log('[receiver] dev mode: call window.mcoReceiver.receive(message)')
