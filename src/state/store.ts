@@ -260,6 +260,10 @@ interface CollectionState {
   // seconds behind, so hearing both at once is an echo.
   castMuteLocal: boolean
   setCastMuteLocal: (mute: boolean) => void
+  // Beta: TVs without the visualizer use MCO's own receiver app instead of
+  // Google's media player (see CastMode).
+  castUseReceiver: boolean
+  setCastUseReceiver: (use: boolean) => void
   // The TV picture's measured frame rate/draw time, updated once a
   // second while casting to a screen (see src/cast/framePacer.ts).
   castFrameStats: FrameStats | null
@@ -449,6 +453,7 @@ function loadVisualizerHideTrackInfo(): boolean {
 
 const CAST_SHOW_VISUALIZER_KEY = 'castShowVisualizer'
 const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
+const CAST_USE_RECEIVER_KEY = 'castUseReceiver'
 function loadBooleanPreference(key: string, fallback: boolean): boolean {
   try {
     const value = localStorage.getItem(key)
@@ -535,6 +540,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castDevices: [],
   castShowVisualizer: loadBooleanPreference(CAST_SHOW_VISUALIZER_KEY, true),
   castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
+  castUseReceiver: loadBooleanPreference(CAST_USE_RECEIVER_KEY, false),
   castFrameStats: null,
   delayDivisionSync: null,
   midiMappings: {},
@@ -606,6 +612,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setCastMuteLocal: (mute) => {
     set({ castMuteLocal: mute })
     saveBooleanPreference(CAST_MUTE_LOCAL_KEY, mute)
+  },
+  setCastUseReceiver: (use) => {
+    set({ castUseReceiver: use })
+    saveBooleanPreference(CAST_USE_RECEIVER_KEY, use)
   },
   setCastFrameStats: (stats) => set({ castFrameStats: stats }),
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),

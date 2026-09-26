@@ -300,8 +300,10 @@ export interface CastDevice {
 // How a cast session plays (see electron/main/cast/castSession.ts):
 // 'stream' records MCO's live output (effects, siren, visualizer) and
 // streams it, a few seconds behind; 'direct' has the device play each
-// track file itself, with near-instant controls but no effects.
-export type CastMode = 'stream' | 'direct'
+// track file itself in Google's media player, with near-instant controls
+// but no effects; 'receiver' is the same but in MCO's own receiver app
+// (cast-receiver/) — beta.
+export type CastMode = 'stream' | 'direct' | 'receiver'
 
 // Direct mode: MCO's player → the device.
 export type CastDirectCommand =

@@ -11,6 +11,9 @@
 //            left to the TV remote / Google Home app), and the device
 //            shows its own player, but MCO's effects aren't heard.
 //            Used for speakers, and TVs with "Show visualizer" off.
+//   receiver — direct mode, but in MCO's own receiver app on the TV
+//            (cast-receiver/) instead of Google's player, talking over
+//            MCO's own message channel. Beta.
 //
 // The renderer owns the other half of each (src/cast/castSession.ts,
 // src/cast/directCast.ts).
@@ -19,6 +22,7 @@ import { CastDiscovery } from './castDiscovery'
 import { CastStream, pickLocalAddress } from './castStream'
 import { CastMediaServer, type MediaResolvers } from './castMediaServer'
 import type { CastDevice, CastDirectCommand, CastMediaEvent, CastMode, CastStatus } from '../../../src/types'
+import { RECEIVER_APP_ID, isReceiverStatus, type ToReceiver } from '../../../src/cast/receiverProtocol'
 
 const STREAM_READY_TIMEOUT_MS = 20000
 const READY_POLL_MS = 250
@@ -127,13 +131,15 @@ export class CastController {
       await session.media.start()
       this.watchClient(session)
       await session.client.connect()
-      await session.client.launch()
+      await session.client.launch(mode === 'receiver' ? RECEIVER_APP_ID : undefined)
     } catch (err) {
       this.endSession(id, err instanceof Error ? err.message : String(err))
       throw err
     }
     if (this.session !== session) return
-    session.positionTimer = setInterval(() => this.pollPosition(session), DIRECT_POSITION_POLL_MS)
+    // MCO's receiver reports its position itself; Google's player has to
+    // be asked.
+    if (mode === 'direct') session.positionTimer = setInterval(() => this.pollPosition(session), DIRECT_POSITION_POLL_MS)
     this.setStatus(this.statusFor(session, 'casting'))
   }
 
@@ -145,7 +151,7 @@ export class CastController {
   // in order, so a play or seek sent right after a load waits for it.
   runDirect(command: CastDirectCommand): void {
     const session = this.session
-    if (!session || session.mode !== 'direct') return
+    if (!session || session.mode === 'stream') return
     session.commands = session.commands
       .then(() => this.execute(session, command))
       .catch((err) => console.error('cast command failed', command.type, err))
@@ -191,6 +197,10 @@ export class CastController {
 
   private async execute(session: ActiveSession, command: CastDirectCommand): Promise<void> {
     if (this.session !== session) return
+    if (session.mode === 'receiver') {
+      await this.executeOnReceiver(session, command)
+      return
+    }
     const { client, media, localAddress } = session
     if (command.type === 'load') {
       const info = this.sources.describe(command.trackId)
@@ -223,6 +233,32 @@ export class CastController {
     else if (command.type === 'seek') await client.seek(mediaSessionId, command.position)
   }
 
+  // Receiver mode: the same commands as MCO's own messages.
+  private async executeOnReceiver(session: ActiveSession, command: CastDirectCommand): Promise<void> {
+    const { client, media, localAddress } = session
+    let message: ToReceiver
+    if (command.type === 'load') {
+      const info = this.sources.describe(command.trackId)
+      if (!info || !media || !localAddress) return
+      session.trackId = command.trackId
+      const hasArtwork = (await this.sources.artwork(command.trackId)) !== null
+      if (this.session !== session || session.trackId !== command.trackId) return
+      message = {
+        type: 'load',
+        trackId: command.trackId,
+        url: media.url(localAddress, 'track', command.trackId),
+        artworkUrl: hasArtwork ? media.url(localAddress, 'art', command.trackId) : null,
+        title: info.title,
+        artist: info.artist,
+        position: command.position,
+        autoplay: command.autoplay,
+      }
+    } else {
+      message = command
+    }
+    client.sendToReceiver(message)
+  }
+
   private async pollPosition(session: ActiveSession): Promise<void> {
     if (this.session !== session || session.mediaSessionId === null) return
     const status = await session.client.getMediaStatus().catch(() => null)
@@ -244,6 +280,19 @@ export class CastController {
     // The TV ended the session (turned off, switched app, someone else
     // cast to it) — not an error, just over.
     client.on('closed', () => this.endSession(id, null))
+    client.on('receiver', (message: unknown) => {
+      if (this.session !== session || !isReceiverStatus(message)) return
+      if (message.idleReason === 'ERROR') {
+        this.endSession(id, "The TV couldn't play this track")
+        return
+      }
+      this.sendMedia({
+        trackId: message.trackId,
+        playerState: message.playerState,
+        idleReason: message.idleReason,
+        currentTime: message.currentTime,
+      })
+    })
     client.on('media', (status: CastMediaStatus) => {
       if (this.session !== session) return
       if (status.playerState !== 'IDLE') {

@@ -22,6 +22,8 @@ export function CastButton() {
   const muteLocal = useCollectionStore((s) => s.castMuteLocal)
   const setMuteLocal = useCollectionStore((s) => s.setCastMuteLocal)
   const frameStats = useCollectionStore((s) => s.castFrameStats)
+  const useReceiver = useCollectionStore((s) => s.castUseReceiver)
+  const setUseReceiver = useCollectionStore((s) => s.setCastUseReceiver)
   const active = isCastActive(status)
 
   useEffect(() => {
@@ -173,6 +175,20 @@ export function CastButton() {
                   restartCasting()
                 }}
                 title="Show visualizer on the TV"
+              />
+            </label>
+            <label
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}
+              title="On TVs without the visualizer, play in MCO's own app on the TV instead of Google's player."
+            >
+              MCO app on the TV (beta)
+              <ToggleSwitch
+                checked={useReceiver}
+                onChange={(checked) => {
+                  setUseReceiver(checked)
+                  restartCasting()
+                }}
+                title="MCO app on the TV (beta)"
               />
             </label>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>

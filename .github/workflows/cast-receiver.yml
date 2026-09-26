@@ -1,0 +1,55 @@
+# Publishes MCO's Cast receiver page (cast-receiver/) to GitHub Pages, at
+# the receiver URL registered for MCO's Cast application (see
+# src/cast/receiverProtocol.ts).
+name: Deploy Cast receiver
+
+on:
+  push:
+    # feat/cast-receiver: temporary, so it can be tested on the TV before
+    # merging — remove before merge.
+    branches: [main, feat/cast-receiver]
+    paths:
+      - cast-receiver/**
+      - src/cast/receiverProtocol.ts
+      - src/format.ts
+      - resources/icon.png
+      - vite.receiver.config.ts
+      - .github/workflows/cast-receiver.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # The receiver needs none of the desktop app's binaries.
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run build:receiver
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-pages
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

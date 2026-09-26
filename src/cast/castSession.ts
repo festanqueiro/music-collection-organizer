@@ -41,9 +41,17 @@ export function isCastActive(status: CastStatus): boolean {
 
 // Speakers can't show the visualizer, and without it there's nothing the
 // live stream gives that the device playing the file itself doesn't do
-// better (instant controls, full quality) — except MCO's effects.
-export function castModeFor(device: CastDevice, showVisualizer: boolean): CastMode {
-  return device.audioOnly || !showVisualizer ? 'direct' : 'stream'
+// better (instant controls, full quality) — except MCO's effects. On a
+// TV, "the device plays it" can be MCO's own receiver app (beta).
+export function castModeFor(device: CastDevice, showVisualizer: boolean, useReceiver: boolean): CastMode {
+  if (device.audioOnly) return 'direct'
+  if (showVisualizer) return 'stream'
+  return useReceiver ? 'receiver' : 'direct'
+}
+
+function modeForCurrentSettings(device: CastDevice): CastMode {
+  const { castShowVisualizer, castUseReceiver } = useCollectionStore.getState()
+  return castModeFor(device, castShowVisualizer, castUseReceiver)
 }
 
 function errorMessage(err: unknown): string {
@@ -53,12 +61,12 @@ function errorMessage(err: unknown): string {
 export async function startCasting(device: CastDevice): Promise<void> {
   teardownLocal()
   currentDevice = device
-  const { setCastStatus: setStatus, castShowVisualizer } = useCollectionStore.getState()
-  const mode = castModeFor(device, castShowVisualizer)
+  const setStatus = useCollectionStore.getState().setCastStatus
+  const mode = modeForCurrentSettings(device)
 
-  if (mode === 'direct') {
+  if (mode !== 'stream') {
     try {
-      await window.api.startCast(device.id, 'direct')
+      await window.api.startCast(device.id, mode)
     } catch (err) {
       setStatus({ state: 'error', error: errorMessage(err) })
     }
@@ -126,8 +134,7 @@ export async function startCasting(device: CastDevice): Promise<void> {
 export function restartCasting(): void {
   const status = useCollectionStore.getState().castStatus
   if (!currentDevice || !isCastActive(status)) return
-  const mode = castModeFor(currentDevice, useCollectionStore.getState().castShowVisualizer)
-  if (mode !== status.mode) void startCasting(currentDevice)
+  if (modeForCurrentSettings(currentDevice) !== status.mode) void startCasting(currentDevice)
 }
 
 export function stopCasting(): void {

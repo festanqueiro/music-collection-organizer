@@ -10,3 +10,4 @@ release/
 .env.local
 .superpowers/
 *.tsbuildinfo
+dist-pages

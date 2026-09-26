@@ -262,9 +262,10 @@ export function Player({
     effectsChainRef.current?.setLocalMuted(castPlaying && castMuteLocal)
   }, [castPlaying, castMuteLocal])
 
-  // Direct cast mode: the device plays this track's file itself, and this
-  // Player becomes its remote (see cast/directCast.ts).
-  const castingDirect = castPlaying && castMode === 'direct'
+  // Direct cast modes: the device (Google's player, or MCO's own receiver
+  // app) plays this track's file itself, and this Player becomes its
+  // remote (see cast/directCast.ts).
+  const castingDirect = castPlaying && (castMode === 'direct' || castMode === 'receiver')
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !castingDirect) return

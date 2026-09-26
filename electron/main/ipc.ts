@@ -743,7 +743,7 @@ export function registerIpcHandlers(
   ipcMain.handle('cast:stopDiscovery', (): void => cast.stopDiscovery())
   ipcMain.handle('cast:getStatus', (): CastStatus => cast.getStatus())
   ipcMain.handle('cast:start', (_e, deviceId: string, mode: CastMode): Promise<void> =>
-    cast.start(String(deviceId), mode === 'direct' ? 'direct' : 'stream'),
+    cast.start(String(deviceId), mode === 'direct' || mode === 'receiver' ? mode : 'stream'),
   )
   ipcMain.on('cast:direct', (_e, command: CastDirectCommand) => {
     if (command && typeof command === 'object' && typeof command.type === 'string') cast.runDirect(command)
