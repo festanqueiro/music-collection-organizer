@@ -25,6 +25,17 @@ const SPECTRUM_COLOURS: Record<string, [string, string, string]> = {
 }
 const SCOPE_COLOURS: Record<string, string> = { green: '#4ade80', cyan: '#22d3ee', amber: '#fbbf24' }
 
+// Drift: particles carried by a slowly turning flow field.
+const DRIFT_PARTICLES = 320
+// Hue range (start, span) per palette; mono is drawn in white.
+const DRIFT_PALETTES: Record<string, [number, number]> = { aurora: [160, 110], ember: [0, 45], mono: [0, 0] }
+// Ripples: rings from the kicks, their outlines shaped by the spectrum.
+const RIPPLE_POINTS = 72
+const RIPPLE_PALETTES: Record<string, [number, number]> = { neon: [280, 120], ice: [185, 40], sunset: [340, 60] }
+// Ridges: the spectrum's recent history as stacked lines.
+const RIDGE_LINES = 26
+const RIDGE_POINTS = 72
+
 export class TvVisualizer {
   private canvas: HTMLCanvasElement
   private ctx: CanvasRenderingContext2D
@@ -40,6 +51,11 @@ export class TvVisualizer {
   private needles = [0, 0]
   private flash = 0
   private beats = new BeatDetector()
+  private t = 0
+  private drift: { x: number; y: number; age: number }[] = []
+  private ripples: { r: number; speed: number; life: number; hue: number; twist: number }[] = []
+  private ridges: number[][] = []
+  private ridgeClock = 0
 
   constructor(
     host: HTMLElement,
@@ -58,6 +74,9 @@ export class TvVisualizer {
     this.options = options
     // Pixels for the LED look; smooth lines for the scope and meters.
     this.canvas.style.imageRendering = theme === 'tv-spectrum' ? 'pixelated' : 'auto'
+    this.drift = []
+    this.ripples = []
+    this.ridges = []
     this.ctx.fillStyle = '#000'
     this.ctx.fillRect(0, 0, WIDTH, HEIGHT)
   }
@@ -97,9 +116,13 @@ export class TvVisualizer {
     const beat = this.beats.update(bass, dt)
     this.flash = beat ? 1 : Math.max(0, this.flash - dt * 4)
 
+    this.t += dt
     if (this.theme === 'tv-spectrum') this.drawSpectrum(dt, sampleRate)
     else if (this.theme === 'tv-scope') this.drawScope()
-    else this.drawVu(dt, bass)
+    else if (this.theme === 'tv-vu') this.drawVu(dt, bass)
+    else if (this.theme === 'tv-drift') this.drawDrift(dt, sampleRate, bass, beat)
+    else if (this.theme === 'tv-ripples') this.drawRipples(dt, sampleRate, bass, beat)
+    else this.drawRidges(dt, sampleRate)
   }
 
   private drawSpectrum(dt: number, sampleRate: number): void {
@@ -240,5 +263,133 @@ export class TvVisualizer {
       ctx.lineWidth = 2
       ctx.strokeRect(x, y, faceWidth, faceHeight)
     })
+  }
+
+  private drawDrift(dt: number, sampleRate: number, bass: number, beat: boolean): void {
+    const ctx = this.ctx
+    const [hueStart, hueSpan] = DRIFT_PALETTES[this.options.palette] ?? DRIFT_PALETTES.aurora
+    const mono = this.options.palette === 'mono'
+    const bands = logBands(this.freq, sampleRate, 3)
+    const energy = (bands[0] + bands[1] + bands[2]) / 3
+    // Fading instead of clearing leaves the trails.
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.09)'
+    ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    while (this.drift.length < DRIFT_PARTICLES) {
+      this.drift.push({ x: Math.random() * WIDTH, y: Math.random() * HEIGHT, age: Math.random() * 400 })
+    }
+    const speed = (0.4 + energy * 3.2 + (beat ? 5 : 0)) * dt * 30
+    const cx = WIDTH / 2
+    const cy = HEIGHT / 2
+    for (const p of this.drift) {
+      const angle =
+        Math.sin(p.x * 0.011 + this.t * 0.23) * Math.cos(p.y * 0.017 - this.t * 0.17) * Math.PI * 2 + bands[1] * 2
+      let vx = Math.cos(angle) * speed
+      let vy = Math.sin(angle) * speed
+      if (beat) {
+        // Kicks throw everything outward from the centre.
+        const dx = p.x - cx
+        const dy = p.y - cy
+        const d = Math.hypot(dx, dy) || 1
+        vx += (dx / d) * 6 * bass
+        vy += (dy / d) * 6 * bass
+      }
+      p.x += vx
+      p.y += vy
+      p.age += 1
+      if (p.x < 0 || p.x > WIDTH || p.y < 0 || p.y > HEIGHT || p.age > 500) {
+        p.x = Math.random() * WIDTH
+        p.y = Math.random() * HEIGHT
+        p.age = 0
+      }
+      const hue = hueStart + ((p.x / WIDTH) * 0.6 + bands[2] * 0.4) * hueSpan
+      const light = 45 + energy * 35
+      ctx.fillStyle = mono ? `hsl(0, 0%, ${light + 10}%)` : `hsl(${hue}, 85%, ${light}%)`
+      const size = 1.2 + bass * 1.6
+      ctx.fillRect(p.x, p.y, size, size)
+    }
+  }
+
+  private drawRipples(dt: number, sampleRate: number, bass: number, beat: boolean): void {
+    const ctx = this.ctx
+    const [hueStart, hueSpan] = RIPPLE_PALETTES[this.options.palette] ?? RIPPLE_PALETTES.neon
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.28)'
+    ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    const shape = logBands(this.freq, sampleRate, 12)
+    const cx = WIDTH / 2
+    const cy = HEIGHT / 2
+    if (beat && this.ripples.length < 14) {
+      this.ripples.push({ r: 8, speed: 60 + bass * 140, life: 1, hue: hueStart + Math.random() * hueSpan, twist: Math.random() * Math.PI })
+    }
+    // Something keeps moving in a quiet passage.
+    if (this.ripples.length === 0 || (this.ripples[this.ripples.length - 1].r > 90 && Math.random() < dt)) {
+      this.ripples.push({ r: 8, speed: 40, life: 0.6, hue: hueStart + Math.random() * hueSpan, twist: Math.random() * Math.PI })
+    }
+    // A core that swells with the bass.
+    const core = 6 + bass * 34
+    ctx.fillStyle = `hsla(${hueStart + hueSpan / 2}, 90%, 60%, ${0.25 + bass * 0.5})`
+    ctx.beginPath()
+    ctx.arc(cx, cy, core, 0, Math.PI * 2)
+    ctx.fill()
+    for (const ring of this.ripples) {
+      ring.r += ring.speed * dt
+      ring.life -= dt * 0.35
+      ring.twist += dt * 0.4
+      ctx.strokeStyle = `hsla(${ring.hue}, 90%, 62%, ${Math.max(0, ring.life)})`
+      ctx.lineWidth = 1 + ring.life * 2
+      ctx.beginPath()
+      for (let i = 0; i <= RIPPLE_POINTS; i++) {
+        const a = (i / RIPPLE_POINTS) * Math.PI * 2
+        // The outline wobbles with the spectrum, going round the ring.
+        const band = shape[Math.floor((i / RIPPLE_POINTS) * shape.length) % shape.length]
+        const r = ring.r * (1 + band * 0.18 * Math.sin(a * 5 + ring.twist))
+        const x = cx + Math.cos(a) * r * 1.25
+        const y = cy + Math.sin(a) * r
+        if (i === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
+      }
+      ctx.stroke()
+    }
+    this.ripples = this.ripples.filter((ring) => ring.life > 0 && ring.r < WIDTH)
+  }
+
+  private drawRidges(dt: number, sampleRate: number): void {
+    const ctx = this.ctx
+    const paper = this.options.ink === 'paper'
+    // A new line every ~70 ms; the stack rolls up the screen.
+    this.ridgeClock += dt
+    if (this.ridgeClock > 0.07 || this.ridges.length === 0) {
+      this.ridgeClock = 0
+      const bands = logBands(this.freq, sampleRate, RIDGE_POINTS / 2, 40, 12000)
+      // Mirrored, loudest in the middle, under a bell-shaped envelope.
+      const line = [...bands.slice().reverse(), ...bands].map((v, i) => {
+        const x = i / (RIDGE_POINTS - 1) - 0.5
+        return v * Math.exp(-(x * x) / 0.045) + Math.random() * 0.015
+      })
+      this.ridges.unshift(line)
+      if (this.ridges.length > RIDGE_LINES) this.ridges.pop()
+    }
+    ctx.fillStyle = paper ? '#efe9dc' : '#000'
+    ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    const left = WIDTH * 0.2
+    const width = WIDTH * 0.6
+    const top = HEIGHT * 0.12
+    const spacing = (HEIGHT * 0.8) / RIDGE_LINES
+    ctx.lineWidth = 1.2
+    ctx.strokeStyle = paper ? '#111' : '#f4f4f5'
+    ctx.fillStyle = paper ? '#efe9dc' : '#000'
+    // Back (top) to front (bottom): each line hides the ones behind it.
+    for (let i = this.ridges.length - 1; i >= 0; i--) {
+      const base = top + (RIDGE_LINES - 1 - i) * spacing + spacing
+      const line = this.ridges[i]
+      ctx.beginPath()
+      ctx.moveTo(left, base)
+      for (let p = 0; p < line.length; p++) {
+        ctx.lineTo(left + (p / (line.length - 1)) * width, base - line[p] * spacing * 5)
+      }
+      ctx.lineTo(left + width, base)
+      ctx.closePath()
+      ctx.fill()
+      ctx.stroke()
+    }
   }
 }

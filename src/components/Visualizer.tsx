@@ -25,6 +25,8 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const [uiVisible, setUiVisible] = useState(true)
   const themeId = useCollectionStore((s) => s.visualizerTheme)
   const setThemeId = useCollectionStore((s) => s.setVisualizerTheme)
+  const castThemeId = useCollectionStore((s) => s.castVisualizerTheme)
+  const setCastThemeId = useCollectionStore((s) => s.setCastVisualizerTheme)
   const hideTrackInfo = useCollectionStore((s) => s.visualizerHideTrackInfo)
   const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
   const onCloseRef = useRef(onClose)
@@ -35,12 +37,21 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const castingToScreen = isCastActive(castStatus) && castStatus.mode === 'receiver' && !castStatus.audioOnly
   const showUi = uiVisible || castingToScreen
 
-  // The theme this Mac renders: a TV-only theme (chosen while casting)
-  // falls back to the default here.
-  const desktopThemeId = getVisualizerTheme(isTvVisualizer(themeId) ? 'nebula' : themeId).id
-  // The theme the picker shows as chosen: TV-only themes count only while
-  // casting to a screen.
-  const activeThemeId = castingToScreen && isTvVisualizer(themeId) ? themeId : desktopThemeId
+  // The theme this Mac renders, and the one the picker shows as chosen:
+  // while casting to a screen the picker offers only the TV's own themes
+  // (drawn without the GPU), otherwise only this Mac's.
+  const desktopThemeId = getVisualizerTheme(themeId).id
+  const activeThemeId = castingToScreen ? castThemeId : desktopThemeId
+  // The themes on offer, and how to pick one.
+  const pickerThemes: { id: typeof activeThemeId; name: string }[] = castingToScreen ? TV_VISUALIZERS : VISUALIZER_THEMES
+  const pickTheme = (id: string) => {
+    if (isTvVisualizer(id)) setCastThemeId(id)
+    else setThemeId(id as typeof themeId)
+  }
+  const pickThemeRef = useRef(pickTheme)
+  pickThemeRef.current = pickTheme
+  const pickerThemesRef = useRef(pickerThemes)
+  pickerThemesRef.current = pickerThemes
 
   // The active theme's options (e.g. Sound System's Colours/Background) —
   // a stored choice that's no longer valid falls back to the first value.
@@ -83,9 +94,8 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       }
       // 1..N pick a theme directly.
       const index = Number(e.key) - 1
-      if (Number.isInteger(index) && index >= 0 && index < VISUALIZER_THEMES.length) {
-        useCollectionStore.getState().setVisualizerTheme(VISUALIZER_THEMES[index].id)
-      }
+      const themes = pickerThemesRef.current
+      if (Number.isInteger(index) && index >= 0 && index < themes.length) pickThemeRef.current(themes[index].id)
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     window.addEventListener('keydown', onKeyDown)
@@ -280,15 +290,15 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             background: 'rgba(0,0,0,0.35)',
           }}
         >
-          {VISUALIZER_THEMES.map((theme, i) => (
+          {pickerThemes.map((theme, i) => (
             <button
               key={theme.id}
               onClick={(e) => {
-                setThemeId(theme.id)
+                pickTheme(theme.id)
                 // Otherwise the focused button swallows Space (play/pause).
                 e.currentTarget.blur()
               }}
-              title={`${theme.name} (${i + 1})`}
+              title={castingToScreen ? `${theme.name} (${i + 1}) — drawn without the GPU, for the TV` : `${theme.name} (${i + 1})`}
               style={{
                 border: 'none',
                 borderRadius: '16px',
@@ -302,37 +312,6 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
               {theme.name}
             </button>
           ))}
-          {castingToScreen && (
-            <>
-              <span
-                title="Drawn without the GPU, for TVs that can't run the 3D themes smoothly"
-                style={{ alignSelf: 'center', fontSize: '11px', opacity: 0.7, padding: '0 4px 0 10px' }}
-              >
-                TV
-              </span>
-              {TV_VISUALIZERS.map((theme) => (
-                <button
-                  key={theme.id}
-                  onClick={(e) => {
-                    setThemeId(theme.id)
-                    e.currentTarget.blur()
-                  }}
-                  title={`${theme.name} — for the TV, drawn without the GPU`}
-                  style={{
-                    border: 'none',
-                    borderRadius: '16px',
-                    padding: '6px 14px',
-                    cursor: 'pointer',
-                    fontSize: '13px',
-                    color: '#fff',
-                    background: theme.id === activeThemeId ? 'rgba(255,255,255,0.25)' : 'transparent',
-                  }}
-                >
-                  {theme.name}
-                </button>
-              ))}
-            </>
-          )}
         </div>
         <button
           onClick={onClose}

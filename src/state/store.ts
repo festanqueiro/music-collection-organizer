@@ -28,7 +28,8 @@ export type AnalysedFilter = 'all' | 'analysed' | 'unanalysed'
 // MCO's own tags: 'no-tags' = no Tags at all (so no Subtags either);
 // 'no-subtags' = no Subtag, whether or not it has Tags.
 export type McoTagsFilter = 'all' | 'no-tags' | 'no-subtags'
-import { isTvVisualizer, type AnyVisualizerThemeId } from '../cast/tvVisualizers'
+import type { VisualizerThemeId } from 'threejs-visualisers'
+import { isTvVisualizer, type AnyVisualizerThemeId, type TvVisualizerId } from '../cast/tvVisualizers'
 import type { KeyNotation } from './harmonic'
 import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
 import { describeLibraryChange } from './libraryChange'
@@ -235,9 +236,13 @@ export interface CollectionState {
   // pushing it through the store would re-render React ~60 times a second.
   visualizerOpen: boolean
   setVisualizerOpen: (open: boolean) => void
-  // A threejs-visualisers theme, or a TV-only one (src/cast/tvVisualizers.ts).
-  visualizerTheme: AnyVisualizerThemeId
-  setVisualizerTheme: (theme: AnyVisualizerThemeId) => void
+  // The theme on this Mac (a threejs-visualisers theme), and the one shown on
+  // the TV while casting (a TV-only theme, src/cast/tvVisualizers.ts) — each
+  // remembered on its own.
+  visualizerTheme: VisualizerThemeId
+  setVisualizerTheme: (theme: VisualizerThemeId) => void
+  castVisualizerTheme: TvVisualizerId
+  setCastVisualizerTheme: (theme: TvVisualizerId) => void
   // Chosen value per theme option (see VisualizerTheme.options); an option
   // with no entry uses its first value.
   visualizerThemeOptions: Partial<Record<AnyVisualizerThemeId, Record<string, string>>>
@@ -439,12 +444,22 @@ export interface CollectionState {
 // (per-app userData, like everything else) rather than an electron-store
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
-const VISUALIZER_THEME_IDS: AnyVisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
-function loadVisualizerTheme(): AnyVisualizerThemeId {
+const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
+const CAST_VISUALIZER_THEME_KEY = 'castVisualizerTheme'
+function loadCastVisualizerTheme(): TvVisualizerId {
+  try {
+    const stored = localStorage.getItem(CAST_VISUALIZER_THEME_KEY)
+    if (stored && isTvVisualizer(stored)) return stored
+  } catch {
+    // localStorage unavailable (e.g. under Vitest's node environment).
+  }
+  return 'tv-spectrum'
+}
+function loadVisualizerTheme(): VisualizerThemeId {
   try {
     const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
-    if (stored && ((VISUALIZER_THEME_IDS as string[]).includes(stored) || isTvVisualizer(stored))) {
-      return stored as AnyVisualizerThemeId
+    if (stored && (VISUALIZER_THEME_IDS as string[]).includes(stored)) {
+      return stored as VisualizerThemeId
     }
   } catch {
     // localStorage unavailable (e.g. under Vitest's node environment).
@@ -570,6 +585,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   queueRequest: null,
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
+  castVisualizerTheme: loadCastVisualizerTheme(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
@@ -1286,6 +1302,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ visualizerThemeOptions: options })
     try {
       localStorage.setItem(VISUALIZER_THEME_OPTIONS_KEY, JSON.stringify(options))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setCastVisualizerTheme: (theme) => {
+    set({ castVisualizerTheme: theme })
+    try {
+      localStorage.setItem(CAST_VISUALIZER_THEME_KEY, theme)
     } catch {
       // Non-essential preference — fine to lose.
     }

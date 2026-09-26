@@ -30,11 +30,32 @@ describe('ballistic', () => {
 })
 
 describe('BeatDetector', () => {
-  it('fires on a jump in bass, not on steady bass', () => {
+  // 10 s at 30 fps of 2 kicks a second; the bass rises over a few frames,
+  // as the analyser smooths it.
+  const count = (low: number, high: number) => {
     const detector = new BeatDetector()
-    for (let i = 0; i < 60; i++) detector.update(0.3, 1 / 30)
-    expect(detector.update(0.3, 1 / 30)).toBe(false)
-    expect(detector.update(0.9, 1 / 30)).toBe(true)
+    let beats = 0
+    for (let f = 0; f < 300; f++) {
+      const phase = (f / 30) % 0.5
+      const bass = phase < 0.1 ? low + (high - low) * Math.min(1, phase / 0.066) : low
+      if (detector.update(bass, 1 / 30)) beats++
+    }
+    return beats
+  }
+
+  it('fires once per kick', () => {
+    expect(count(0.2, 0.9)).toBe(20)
+  })
+
+  it('still hears kicks when the bass never drops much between them', () => {
+    expect(count(0.6, 0.85)).toBe(20)
+  })
+
+  it('stays quiet on steady bass', () => {
+    const detector = new BeatDetector()
+    let beats = 0
+    for (let f = 0; f < 300; f++) if (detector.update(0.7, 1 / 30)) beats++
+    expect(beats).toBeLessThanOrEqual(1)
   })
 })
 

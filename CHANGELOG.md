@@ -15,8 +15,10 @@ installed copies update themselves.
   queue**, **Add all to top of the queue**, **Analyse all**, **Clear
   selection**.
 - **MCO tags filter**: show tracks with **No Tags** or **No Subtags** yet.
-- **TV-only visualizers** while casting: **Spectrum**, **Scope** and **VU
-  Meters**, drawn without the GPU so they run smoothly on a Chromecast.
+- **TV visualizers** while casting: **Spectrum**, **Scope**, **VU Meters**,
+  **Drift**, **Ripples** and **Ridges**, drawn without the GPU so they run
+  smoothly on a Chromecast. While casting, the visualizer picker shows only
+  these; when not casting, only the regular ones.
 - A **project vault** in `docs/`: the feature guide, every design decision
   (ADRs), research notes, the roadmap and session write-ups.
 

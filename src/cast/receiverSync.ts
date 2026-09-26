@@ -25,8 +25,9 @@ function displayMessage(state: CollectionState): ReceiverSettingsMessage {
     // Opening the visualizer in MCO puts it on the TV (MCO then shows just
     // its controls). Speakers have nothing to show it on.
     showVisualizer: state.visualizerOpen && !state.castStatus.audioOnly,
-    theme: state.visualizerTheme,
-    options: state.visualizerThemeOptions[state.visualizerTheme] ?? {},
+    // The TV shows its own (GPU-free) themes only.
+    theme: state.castVisualizerTheme,
+    options: state.visualizerThemeOptions[state.castVisualizerTheme] ?? {},
     hideTrackInfo: state.visualizerHideTrackInfo,
   }
 }
@@ -69,7 +70,7 @@ export function initReceiverSync(): () => void {
     }
     if (
       state.visualizerOpen !== previous.visualizerOpen ||
-      state.visualizerTheme !== previous.visualizerTheme ||
+      state.castVisualizerTheme !== previous.castVisualizerTheme ||
       state.visualizerThemeOptions !== previous.visualizerThemeOptions ||
       state.visualizerHideTrackInfo !== previous.visualizerHideTrackInfo
     ) {

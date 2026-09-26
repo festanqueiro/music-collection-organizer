@@ -6,7 +6,7 @@
 // screen, and only the receiver renders them.
 import type { ThemeOption, VisualizerThemeId } from 'threejs-visualisers'
 
-export type TvVisualizerId = 'tv-spectrum' | 'tv-scope' | 'tv-vu'
+export type TvVisualizerId = 'tv-spectrum' | 'tv-scope' | 'tv-vu' | 'tv-drift' | 'tv-ripples' | 'tv-ridges'
 // Any theme MCO can show: a threejs-visualisers theme or a TV-only one.
 export type AnyVisualizerThemeId = VisualizerThemeId | TvVisualizerId
 
@@ -61,6 +61,50 @@ export const TV_VISUALIZERS: TvVisualizerDef[] = [
       },
     ],
   },
+  {
+    id: 'tv-drift',
+    name: 'Drift',
+    options: [
+      {
+        id: 'palette',
+        name: 'Palette',
+        values: [
+          { id: 'aurora', name: 'Aurora' },
+          { id: 'ember', name: 'Ember' },
+          { id: 'mono', name: 'Mono' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'tv-ripples',
+    name: 'Ripples',
+    options: [
+      {
+        id: 'palette',
+        name: 'Palette',
+        values: [
+          { id: 'neon', name: 'Neon' },
+          { id: 'ice', name: 'Ice' },
+          { id: 'sunset', name: 'Sunset' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'tv-ridges',
+    name: 'Ridges',
+    options: [
+      {
+        id: 'ink',
+        name: 'Ink',
+        values: [
+          { id: 'white', name: 'White on black' },
+          { id: 'paper', name: 'Black on paper' },
+        ],
+      },
+    ],
+  },
 ]
 
 export function isTvVisualizer(id: string): id is TvVisualizerId {
@@ -109,13 +153,21 @@ export function ballistic(current: number, target: number, dt: number, riseTau: 
   return current + (target - current) * (1 - Math.exp(-dt / tau))
 }
 
-// A kick: bass energy well above its recent average.
+// A kick: the bass jumping up sharply from one frame to the next (not just
+// being loud — in most dance music it hardly drops between kicks), at most
+// one every quarter second.
 export class BeatDetector {
-  private average = 0
+  private previous = 0
+  private sinceBeat = Infinity
 
   update(bass: number, dt: number): boolean {
-    const beat = bass > 0.35 && bass > this.average * 1.35
-    this.average = ballistic(this.average, bass, dt, 0.5, 0.5)
-    return beat
+    const rise = bass - this.previous
+    this.previous = bass
+    this.sinceBeat += dt
+    if (bass > 0.3 && rise > 0.06 && this.sinceBeat >= 0.25) {
+      this.sinceBeat = 0
+      return true
+    }
+    return false
   }
 }
