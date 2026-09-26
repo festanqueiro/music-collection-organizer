@@ -6,6 +6,8 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.41 — 2026-09-26
+
 ### Added
 - **Backup to an external disk** (Settings → Backups & data): copies the
   database, settings and every file in the collection folder to another
