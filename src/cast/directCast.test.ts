@@ -25,9 +25,9 @@ describe('reconcile', () => {
     expect(reconcile({ playerState: 'PLAYING', idleReason: null, currentTime: 30 }, paused, 10_000).play).toBe(true)
   })
 
-  it('follows the device position once it has drifted more than a second', () => {
-    expect(reconcile({ playerState: 'PLAYING', idleReason: null, currentTime: 28.4 }, playing, 10_000).seekTo).toBe(28.4)
-    expect(reconcile({ playerState: 'PLAYING', idleReason: null, currentTime: 29.5 }, playing, 10_000).seekTo).toBeNull()
+  it('follows the device position once it has drifted more than about a third of a second', () => {
+    expect(reconcile({ playerState: 'PLAYING', idleReason: null, currentTime: 29.5 }, playing, 10_000).seekTo).toBe(29.5)
+    expect(reconcile({ playerState: 'PLAYING', idleReason: null, currentTime: 29.8 }, playing, 10_000).seekTo).toBeNull()
   })
 
   it('leaves MCO alone while the device is buffering or has finished', () => {

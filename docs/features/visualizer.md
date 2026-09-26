@@ -36,8 +36,9 @@ Options (saved per theme):
   whips on the mids and highs, sinking to dark stains. **Colours**:
   *Yellow*, *Shifting*, *Mixed*.
 
-While casting to a TV the visualizer plays on the TV instead, and this
-overlay shows just its controls (see [Casting](casting.md)).
+While casting to a TV, opening the visualizer shows it on the TV instead,
+rendered there, and this overlay shows just its controls (see
+[Casting](casting.md)).
 
 The Mais Baixo model is exported from Blender by
 `scripts/blender/export-system-mb.py` into the threejs-visualisers repo

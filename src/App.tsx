@@ -21,8 +21,8 @@ import { UndoToast } from './components/UndoToast'
 import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
-import { registerCastSource } from './cast/castMixer'
 import { initCast } from './cast/castSession'
+import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags' | 'subtags' | 'duplicates'
@@ -112,10 +112,10 @@ export default function App() {
     getDubSirenEngine().setSinkId(audioOutputDeviceId)
   }, [audioOutputDeviceId])
 
-  // Casting: main-process status/device events, and the siren's share of
-  // the cast mix (the track's share is registered by Player per track).
+  // Casting: main-process status/device events, and keeping MCO's app on
+  // the device in step with the effects, siren and visualizer.
   useEffect(() => initCast(), [])
-  useEffect(() => registerCastSource(getDubSirenEngine().getCastStream()), [])
+  useEffect(() => initReceiverSync(), [])
   const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
   const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)
   useEffect(() => {

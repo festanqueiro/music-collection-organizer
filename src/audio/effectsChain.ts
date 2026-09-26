@@ -109,7 +109,6 @@ export class EffectsChain {
   private lastDecaySeconds: number
   private masterGain: GainNode
   private localGain: GainNode
-  private castTap: MediaStreamAudioDestinationNode
   private analyser: AnalyserNode
 
   constructor(audioElement: HTMLAudioElement) {
@@ -124,17 +123,11 @@ export class EffectsChain {
     this.masterGain = this.context.createGain()
     this.masterGain.gain.value = 1
     // localGain only mutes this Mac's own speakers while casting (see
-    // setLocalMuted) — the cast tap below sits before it, so the TV keeps
-    // getting the full signal.
+    // setLocalMuted) — downstream of the analyser tap below, so the
+    // visualizer keeps reacting.
     this.localGain = this.context.createGain()
     this.masterGain.connect(this.localGain)
     this.localGain.connect(this.context.destination)
-
-    // What gets cast (src/cast/castMixer.ts): the same post-master signal
-    // that's heard locally. Always wired — a MediaStreamDestination with
-    // nobody reading it costs next to nothing.
-    this.castTap = this.context.createMediaStreamDestination()
-    this.masterGain.connect(this.castTap)
 
     // Read-only tap for the Visualizer, after masterGain so it reflects
     // exactly what's heard (FX tails included, silent when muted). An
@@ -292,9 +285,12 @@ export class EffectsChain {
     this.dryGain.gain.value = value
   }
 
-  // This chain's output as a MediaStream, for casting.
-  getCastStream(): MediaStream {
-    return this.castTap.stream
+  // How far behind the element's currentTime the sound actually coming out
+  // of the speakers is (the audio graph plus the output device), where the
+  // browser reports it.
+  outputLatencySeconds(): number {
+    const context = this.context as AudioContext & { outputLatency?: number }
+    return (context.baseLatency || 0) + (context.outputLatency || 0)
   }
 
   setLocalMuted(muted: boolean): void {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { NetworkInterfaceInfo } from 'node:os'
-import { pickLocalAddress } from './castStream'
+import { pickLocalAddress } from './castNetwork'
 
 function iface(address: string, netmask: string, internal = false): NetworkInterfaceInfo {
   return { address, netmask, family: 'IPv4', mac: '00:00:00:00:00:00', internal, cidr: null }

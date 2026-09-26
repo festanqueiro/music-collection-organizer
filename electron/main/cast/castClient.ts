@@ -1,12 +1,12 @@
 // Minimal Google Cast v2 sender: TLS to the device's port 8009, launch
 // Google's Default Media Receiver (a built-in receiver app every Cast
-// device ships with — no developer registration needed), then LOAD a URL
-// on it. Only what casting a live stream needs is implemented: no queue,
-// seek or track-level control, since the stream itself carries MCO's
-// output live.
+// device ships with — no developer registration needed) or MCO's own
+// app, then load tracks on it and drive them (play/pause/seek), or talk to
+// MCO's app over its own channel. No queue: MCO sends one track at a time.
 import { EventEmitter } from 'node:events'
 import { connect as tlsConnect, type TLSSocket } from 'node:tls'
 import { CastFrameReader, encodeCastMessage } from './castMessage'
+import { RECEIVER_NAMESPACE } from '../../../src/cast/receiverProtocol'
 
 export const DEFAULT_MEDIA_RECEIVER_APP_ID = 'CC1AD845'
 
@@ -20,12 +20,6 @@ const RECEIVER_ID = 'receiver-0'
 const HEARTBEAT_INTERVAL_MS = 5000
 const REQUEST_TIMEOUT_MS = 15000
 const CONNECT_TIMEOUT_MS = 8000
-
-export interface CastLoadRequest {
-  url: string
-  contentType: string
-  title: string
-}
 
 // A whole track for the device to play itself (direct mode).
 export interface CastTrackRequest {
@@ -45,6 +39,8 @@ export interface CastMediaStatus {
   playerState: 'IDLE' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'LOADING'
   idleReason: string | null
   currentTime: number
+  // Why the device's player failed, when it says (for logging).
+  errorDetail: string | null
 }
 
 export function parseMediaStatus(message: { status?: unknown }): CastMediaStatus | null {
@@ -56,6 +52,10 @@ export function parseMediaStatus(message: { status?: unknown }): CastMediaStatus
     playerState: s.playerState as CastMediaStatus['playerState'],
     idleReason: typeof s.idleReason === 'string' ? s.idleReason : null,
     currentTime: typeof s.currentTime === 'number' ? s.currentTime : 0,
+    errorDetail:
+      s.idleReason === 'ERROR'
+        ? JSON.stringify({ detailedErrorCode: s.detailedErrorCode, extendedStatus: s.extendedStatus, media: (s.media as { contentId?: unknown } | undefined)?.contentId })
+        : null,
   }
 }
 
@@ -70,13 +70,15 @@ interface ReceiverApplication {
 // Events: 'closed' (the session ended from the device side — another app
 // took over the TV, the TV turned off, the socket dropped), 'error', and
 // 'media' (a CastMediaStatus the device pushed on its own — e.g. paused
-// from the TV remote, or the track finished).
+// from the TV remote, or the track finished), and 'receiver' (a message
+// from MCO's own receiver app, parsed JSON).
 export class CastClient extends EventEmitter {
   private socket: TLSSocket | null = null
   private heartbeat: ReturnType<typeof setInterval> | null = null
   private nextRequestId = 1
   private pending = new Map<number, { resolve: (m: JsonMessage) => void; reject: (e: Error) => void; timer: ReturnType<typeof setTimeout> }>()
   private app: ReceiverApplication | null = null
+  private appId = DEFAULT_MEDIA_RECEIVER_APP_ID
   private closed = false
 
   constructor(
@@ -126,33 +128,15 @@ export class CastClient extends EventEmitter {
     })
   }
 
-  // Launches the Default Media Receiver (or joins it if it's already
-  // running).
-  async launch(): Promise<void> {
-    const status = await this.request(NS_RECEIVER, RECEIVER_ID, { type: 'LAUNCH', appId: DEFAULT_MEDIA_RECEIVER_APP_ID })
-    const app = findApplication(status, DEFAULT_MEDIA_RECEIVER_APP_ID)
+  // Launches a receiver app — Google's Default Media Receiver unless
+  // another app id is given (MCO's own) — or joins it if already running.
+  async launch(appId = DEFAULT_MEDIA_RECEIVER_APP_ID): Promise<void> {
+    this.appId = appId
+    const status = await this.request(NS_RECEIVER, RECEIVER_ID, { type: 'LAUNCH', appId })
+    const app = findApplication(status, appId)
     if (!app) throw new Error('The TV did not start its media player')
     this.app = app
     this.send(NS_CONNECTION, app.transportId, { type: 'CONNECT' })
-  }
-
-  // Launches the receiver and loads `request` on it as a live stream.
-  async load(request: CastLoadRequest): Promise<void> {
-    await this.launch()
-    const app = this.app!
-    const result = await this.request(NS_MEDIA, app.transportId, {
-      type: 'LOAD',
-      sessionId: app.sessionId,
-      autoplay: true,
-      media: {
-        contentId: request.url,
-        contentUrl: request.url,
-        contentType: request.contentType,
-        streamType: 'LIVE',
-        metadata: { metadataType: 0, title: request.title },
-      },
-    })
-    if (result.type !== 'MEDIA_STATUS') throw new Error(`The TV couldn't play the stream (${result.type ?? 'unknown error'})`)
   }
 
   // Loads a whole track (direct mode); the device buffers and plays it
@@ -181,6 +165,11 @@ export class CastClient extends EventEmitter {
     const status = reply.type === 'MEDIA_STATUS' ? parseMediaStatus(reply as { status?: unknown }) : null
     if (!status) throw new Error(`The TV couldn't play this track (${reply.type ?? 'unknown error'})`)
     return status
+  }
+
+  // A message to MCO's own receiver app (see receiverProtocol.ts).
+  sendToReceiver(body: object): void {
+    this.send(RECEIVER_NAMESPACE, this.requireApp().transportId, body as JsonMessage)
   }
 
   // Transport commands for the loaded track (direct mode).
@@ -251,11 +240,14 @@ export class CastClient extends EventEmitter {
       return
     }
     if (namespace === NS_RECEIVER && message.type === 'RECEIVER_STATUS') {
-      if (!findApplication(message, DEFAULT_MEDIA_RECEIVER_APP_ID, this.app.sessionId)) this.endFromDevice()
+      if (!findApplication(message, this.appId, this.app.sessionId)) this.endFromDevice()
       return
     }
-    // What an IDLE means depends on the mode (a finished live stream ends
-    // the session; a finished track just means "next"), so it's up to the
+    if (namespace === RECEIVER_NAMESPACE && sourceId === this.app.transportId) {
+      this.emit('receiver', message)
+      return
+    }
+    // What an IDLE means (finished, cancelled, failed) is up to the
     // listener.
     if (namespace === NS_MEDIA && message.type === 'MEDIA_STATUS') {
       const status = parseMediaStatus(message as { status?: unknown })

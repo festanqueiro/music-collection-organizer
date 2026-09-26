@@ -64,8 +64,9 @@ import { exportTagData, importTagData, type TagExportData } from './tagExport'
 import { buildMidiExport, parseMidiExportText } from './midiExport'
 import { buildRekordboxXml } from './rekordboxExport'
 import { CastController, type DirectMediaSources } from './cast/castSession'
+import { isReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
-import { getPlayableFilePath } from './audioTranscode'
+import { getCastableFilePath } from './audioTranscode'
 import { mimeTypeFor } from './mediaTypes'
 import type {
   Track,
@@ -83,7 +84,6 @@ import type {
   TrackTableSortState,
   UpdateState,
   CastStatus,
-  CastMode,
   CastDirectCommand,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
@@ -690,9 +690,13 @@ export function registerIpcHandlers(
   const castSources: DirectMediaSources = {
     track: async (trackId) => {
       const filePath = castableTrackPath(trackId)
-      if (!filePath) return null
-      // Cast devices can't play AIFF either — same FLAC transcode as media://.
-      const playable = await getPlayableFilePath(filePath, getMediaCacheDir())
+      if (!filePath) {
+        if (process.env.MCO_CAST_DEBUG) console.log('[cast] track', trackId, 'not servable (not in the DB, cloud-only, or outside the collection folder)')
+        return null
+      }
+      // Cast devices can't play AIFF, and can't seek in FLAC without a seek
+      // table — see getCastableFilePath.
+      const playable = await getCastableFilePath(filePath, getMediaCacheDir())
       return { filePath: playable, contentType: mimeTypeFor(playable) }
     },
     artwork: async (trackId) => {
@@ -742,15 +746,12 @@ export function registerIpcHandlers(
   ipcMain.handle('cast:startDiscovery', (): void => cast.startDiscovery())
   ipcMain.handle('cast:stopDiscovery', (): void => cast.stopDiscovery())
   ipcMain.handle('cast:getStatus', (): CastStatus => cast.getStatus())
-  ipcMain.handle('cast:start', (_e, deviceId: string, mode: CastMode): Promise<void> =>
-    cast.start(String(deviceId), mode === 'direct' ? 'direct' : 'stream'),
-  )
+  ipcMain.handle('cast:start', (_e, deviceId: string): Promise<void> => cast.start(String(deviceId)))
+  ipcMain.on('cast:receiver', (_e, message: unknown) => {
+    if (isReceiverSettingsMessage(message)) cast.sendReceiverSettings(message)
+  })
   ipcMain.on('cast:direct', (_e, command: CastDirectCommand) => {
     if (command && typeof command === 'object' && typeof command.type === 'string') cast.runDirect(command)
   })
   ipcMain.handle('cast:stop', (): void => cast.stop())
-  ipcMain.on('cast:chunk', (_e, chunk: unknown) => {
-    if (chunk instanceof Uint8Array) cast.writeChunk(chunk)
-    else if (chunk instanceof ArrayBuffer) cast.writeChunk(new Uint8Array(chunk))
-  })
 }

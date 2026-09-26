@@ -57,8 +57,11 @@ export function parseCastResponse(records: MdnsRecord[]): CastDevice[] {
 }
 
 // Scans while running, reporting the full device list whenever it
-// changes. Devices aren't expired while a scan is running — the picker
-// is only open for a few seconds at a time.
+// changes. Each scan starts from an empty list, so the picker only ever
+// offers devices (and addresses) that have just answered — a device that
+// went away, or came back on a new IP, doesn't linger from an earlier
+// scan. Devices aren't expired during a scan: the picker is only open for
+// a few seconds at a time.
 export class CastDiscovery {
   private mdns: ReturnType<typeof makeMdns> | null = null
   private timer: ReturnType<typeof setInterval> | null = null
@@ -71,6 +74,7 @@ export class CastDiscovery {
       this.onDevices(this.list())
       return
     }
+    this.devices.clear()
     const mdns = makeMdns()
     this.mdns = mdns
     mdns.on('response', (response) => {

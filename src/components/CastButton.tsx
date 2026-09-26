@@ -1,7 +1,7 @@
 // src/components/CastButton.tsx
 import { useEffect, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { isCastActive, restartCasting, startCasting, stopCasting } from '../cast/castSession'
+import { isCastActive, startCasting, stopCasting } from '../cast/castSession'
 import { ToggleSwitch } from './ToggleSwitch'
 import { contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 
@@ -17,11 +17,8 @@ export function CastButton() {
   const popoverRef = useRef<HTMLDivElement>(null)
   const status = useCollectionStore((s) => s.castStatus)
   const devices = useCollectionStore((s) => s.castDevices)
-  const showVisualizer = useCollectionStore((s) => s.castShowVisualizer)
-  const setShowVisualizer = useCollectionStore((s) => s.setCastShowVisualizer)
   const muteLocal = useCollectionStore((s) => s.castMuteLocal)
   const setMuteLocal = useCollectionStore((s) => s.setCastMuteLocal)
-  const frameStats = useCollectionStore((s) => s.castFrameStats)
   const active = isCastActive(status)
 
   useEffect(() => {
@@ -57,11 +54,9 @@ export function CastButton() {
   const statusText =
     status.state === 'connecting'
       ? `Connecting to ${status.deviceName}…`
-      : status.state === 'buffering'
-        ? `Starting the stream on ${status.deviceName}…`
-        : status.state === 'casting'
-          ? `Casting to ${status.deviceName}`
-          : null
+      : status.state === 'casting'
+        ? `Casting to ${status.deviceName}`
+        : null
 
   return (
     <>
@@ -110,18 +105,6 @@ export function CastButton() {
               <button onClick={() => stopCasting()}>Stop</button>
             </div>
           )}
-          {active && frameStats && (
-            <div
-              style={{
-                fontSize: '12px',
-                fontVariantNumeric: 'tabular-nums',
-                color: frameStats.fps < 27 ? 'var(--color-secondary)' : 'var(--color-text-dim)',
-              }}
-              title="How smoothly MCO is drawing the TV picture. Below 30 fps (or above ~30 ms per frame) the picture on the TV stutters — try a lighter visualizer theme."
-            >
-              TV picture: {Math.round(frameStats.fps)} fps · {frameStats.drawMs.toFixed(1)} ms per frame
-            </div>
-          )}
           {!active && (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {devices.map((device) => (
@@ -163,26 +146,12 @@ export function CastButton() {
 
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
-              Show visualizer on the TV
-              <ToggleSwitch
-                checked={showVisualizer}
-                onChange={(checked) => {
-                  setShowVisualizer(checked)
-                  // Switches between streaming MCO's output and letting the
-                  // TV play the tracks itself, so a running cast restarts.
-                  restartCasting()
-                }}
-                title="Show visualizer on the TV"
-              />
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
               Mute this Mac while casting
               <ToggleSwitch checked={muteLocal} onChange={setMuteLocal} title="Mute this Mac while casting" />
             </label>
             <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
-              With the visualizer, the TV gets everything you hear in MCO, effects included, a few seconds behind.
-              Without it (and on speakers), the device plays the tracks itself: controls respond right away, but
-              MCO&apos;s effects aren&apos;t heard.
+              The TV or speaker plays the tracks itself in MCO&apos;s app, with your effects and siren. Open the
+              visualizer to show it on the TV.
             </div>
           </div>
         </div>

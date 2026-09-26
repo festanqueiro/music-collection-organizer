@@ -16,11 +16,11 @@ import type {
   UpdateState,
   CastDevice,
   CastStatus,
-  CastMode,
   CastDirectCommand,
   CastMediaEvent,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
+import type { ReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import type { ScanResult } from '../main/scan'
 
 const api = {
@@ -141,8 +141,9 @@ const api = {
   startCastDiscovery: (): Promise<void> => ipcRenderer.invoke('cast:startDiscovery'),
   stopCastDiscovery: (): Promise<void> => ipcRenderer.invoke('cast:stopDiscovery'),
   getCastStatus: (): Promise<CastStatus> => ipcRenderer.invoke('cast:getStatus'),
-  startCast: (deviceId: string, mode: CastMode): Promise<void> => ipcRenderer.invoke('cast:start', deviceId, mode),
+  startCast: (deviceId: string): Promise<void> => ipcRenderer.invoke('cast:start', deviceId),
   sendCastCommand: (command: CastDirectCommand): void => ipcRenderer.send('cast:direct', command),
+  sendReceiverSettings: (message: ReceiverSettingsMessage): void => ipcRenderer.send('cast:receiver', message),
   onCastMedia: (cb: (event: CastMediaEvent) => void): (() => void) => {
     const listener = (_e: unknown, event: CastMediaEvent) => cb(event)
     ipcRenderer.on('cast:media', listener)
@@ -151,7 +152,6 @@ const api = {
     }
   },
   stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),
-  sendCastChunk: (chunk: ArrayBuffer): void => ipcRenderer.send('cast:chunk', new Uint8Array(chunk)),
   onCastDevices: (cb: (devices: CastDevice[]) => void): (() => void) => {
     const listener = (_e: unknown, devices: CastDevice[]) => cb(devices)
     ipcRenderer.on('cast:devices', listener)
