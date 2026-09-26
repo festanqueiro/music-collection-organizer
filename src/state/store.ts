@@ -387,7 +387,7 @@ export interface CollectionState {
 // (per-app userData, like everything else) rather than an electron-store
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
-const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint']
+const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
 function loadVisualizerTheme(): VisualizerThemeId {
   try {
     const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
