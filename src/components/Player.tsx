@@ -624,3 +624,74 @@ export function Player({
     </div>
   )
 }
+
+// Shown when the queue is empty: the same layout as Player, so the footer
+// (and the panes above it) don't jump when a track loads or the queue runs
+// out — just with the transport controls disabled. Volume still works,
+// since it's global player state rather than tied to a track.
+export function EmptyPlayer() {
+  const playerVolume = useCollectionStore((s) => s.playerVolume)
+  const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
+  const lastVolumeRef = useRef(1)
+  return (
+    <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <span style={{ color: 'var(--color-text-dim)' }}>Nothing queued</span>
+        <div style={{ marginLeft: 'auto', paddingLeft: '8px' }}>
+          <PlayerScreenButtons hasTrack={false} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button disabled style={{ fontWeight: 700, fontSize: '11px', letterSpacing: '0.05em' }}>
+          CUE
+        </button>
+        <MidiLearnBadge control="player.cue" />
+
+        <button disabled title="Nothing to play — add a track to the queue">
+          <span className="material-symbols-outlined">play_arrow</span>
+        </button>
+        <MidiLearnBadge control="player.playPause" />
+
+        <button disabled title="Play next in queue">
+          <span className="material-symbols-outlined">skip_next</span>
+        </button>
+        <MidiLearnBadge control="player.playNext" />
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ height: '40px', borderBottom: '1px solid var(--color-border)' }} />
+          <div style={{ marginTop: '4px', height: '2px', background: 'var(--color-border)', borderRadius: '1px' }} />
+        </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: '4px' }} title="Volume">
+          <button
+            onClick={() => {
+              if (playerVolume > 0) {
+                lastVolumeRef.current = playerVolume
+                setPlayerVolume(0)
+              } else {
+                setPlayerVolume(lastVolumeRef.current || 1)
+              }
+            }}
+            title={playerVolume > 0 ? 'Mute' : 'Unmute'}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              {playerVolume === 0 ? 'volume_off' : playerVolume < 0.5 ? 'volume_down' : 'volume_up'}
+            </span>
+          </button>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={playerVolume}
+            onChange={(e) => setPlayerVolume(Number(e.target.value))}
+            style={{ width: '80px' }}
+          />
+          <MidiLearnBadge control="volume" />
+        </label>
+      </div>
+    </div>
+  )
+}

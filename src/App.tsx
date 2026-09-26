@@ -10,10 +10,9 @@ import { hideBootSplash } from './bootSplash'
 import { UpdateBanner } from './components/UpdateBanner'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
-import { Player } from './components/Player'
+import { Player, EmptyPlayer } from './components/Player'
 import { PlaylistView } from './components/PlaylistView'
 import { FxView } from './components/FxView'
-import { PlayerScreenButtons } from './components/PlayerScreenButtons'
 import { Visualizer } from './components/Visualizer'
 import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
@@ -383,19 +382,7 @@ export default function App() {
                 }}
               />
             ) : (
-              <div
-                style={{
-                  padding: '16px',
-                  color: 'var(--color-text-dim)',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
-              >
-                Nothing queued
-                <div style={{ marginLeft: 'auto' }}>
-                  <PlayerScreenButtons hasTrack={false} />
-                </div>
-              </div>
+              <EmptyPlayer />
             )
           })()}
           {analysisProgress && (
