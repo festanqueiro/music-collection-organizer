@@ -1,6 +1,7 @@
 // The FX screen (the player bar's FX icon): every effect, full screen.
 import { useCollectionStore } from '../state/store'
 import { FxPanel } from './FxPanel'
+import { FitToArea } from './FitToArea'
 import { activeEffects } from '../cast/fxIndicators'
 
 export function FxView() {
@@ -47,9 +48,9 @@ export function FxView() {
           <span className="material-symbols-outlined">close</span>
         </button>
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <FitToArea>
         <FxPanel track={currentTrack} />
-      </div>
+      </FitToArea>
     </div>
   )
 }
