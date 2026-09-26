@@ -59,6 +59,9 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const storedOptions = useCollectionStore((s) => s.visualizerThemeOptions[activeThemeId])
   const setThemeOption = useCollectionStore((s) => s.setVisualizerThemeOption)
   const themeOptions = activeTheme.options ?? []
+  const optionSlots = Math.max(
+    ...pickerThemes.map(({ id }) => (isTvVisualizer(id) ? getTvVisualizer(id) : getVisualizerTheme(id)).options?.length ?? 0),
+  )
   const selectedOptions = useMemo(
     () =>
       Object.fromEntries(
@@ -275,15 +278,22 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           options={pickerThemes.map((theme, i) => ({ id: theme.id, name: i < 9 ? `${i + 1}  ${theme.name}` : theme.name }))}
           onChange={pickTheme}
         />
-        {themeOptions.map((option) => (
-          <PickerSelect
-            key={option.id}
-            label={option.name}
-            value={selectedOptions[option.id]}
-            options={option.values}
-            onChange={(value) => setThemeOption(activeThemeId, option.id, value)}
-          />
-        ))}
+        {/* As many slots as the theme with the most options, unused ones kept
+            empty, so switching theme doesn't shift the bar. */}
+        {Array.from({ length: optionSlots }, (_, i) => {
+          const option = themeOptions[i]
+          return option ? (
+            <PickerSelect
+              key={option.id}
+              label={option.name}
+              value={selectedOptions[option.id]}
+              options={option.values}
+              onChange={(value) => setThemeOption(activeThemeId, option.id, value)}
+            />
+          ) : (
+            <div key={`empty-${i}`} style={{ width: PICKER_WIDTH, flexShrink: 0 }} />
+          )
+        })}
         <label
           style={{
             display: 'flex',
@@ -352,6 +362,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
 
 // Dark, so the controls stay readable over bright (daylight) scenes.
 const PICKER_BACKGROUND = 'rgba(0,0,0,0.45)'
+const PICKER_WIDTH = '150px'
 
 // A labelled dropdown in the visualizer's control bar: the label small
 // above the chosen value, a native menu underneath.
@@ -377,7 +388,10 @@ function PickerSelect({
         flexDirection: 'column',
         justifyContent: 'center',
         height: '40px',
-        minWidth: '110px',
+        // Fixed, so a longer or shorter choice doesn't shift the bar.
+        width: PICKER_WIDTH,
+        flexShrink: 0,
+        boxSizing: 'border-box',
         padding: '0 30px 0 12px',
         borderRadius: '12px',
         background: PICKER_BACKGROUND,
@@ -386,7 +400,7 @@ function PickerSelect({
       }}
     >
       <span style={{ fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.6 }}>{label}</span>
-      <span style={{ fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {options.find((option) => option.id === value)?.name.replace(/^\d+\s+/, '') ?? ''}
       </span>
       <span

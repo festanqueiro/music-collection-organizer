@@ -29,7 +29,8 @@ installed copies update themselves.
   moves when a track with more or less information loads — and its stats
   are easier to read.
 - The visualizer's theme and its options are picked from dropdowns in one
-  bar at the top right, instead of rows of buttons.
+  bar at the top right, instead of rows of buttons; the bar keeps its layout
+  when you switch theme.
 
 ### Fixed
 - The TV's now-playing screen no longer pushes the progress bar and times
