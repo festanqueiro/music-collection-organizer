@@ -453,7 +453,13 @@ function sendStatus(): void {
   renderProgress()
 }
 
-for (const event of ['play', 'pause', 'playing', 'waiting', 'seeked']) audio.addEventListener(event, sendStatus)
+for (const event of ['play', 'playing', 'waiting', 'seeked']) audio.addEventListener(event, sendStatus)
+// At the end of a track the element pauses just before it ends — that
+// isn't a pause to report (MCO would pause its own copy to match, short of
+// its end); 'ended' reports FINISHED instead.
+audio.addEventListener('pause', () => {
+  if (!audio.ended) sendStatus()
+})
 audio.addEventListener('ended', () => {
   idleReason = 'FINISHED'
   sendStatus()

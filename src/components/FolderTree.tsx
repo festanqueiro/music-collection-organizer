@@ -23,6 +23,8 @@ function TreeNode({
   selectedFolder,
   rootPath,
   onContextMenu,
+  expanded,
+  onToggle,
 }: {
   node: FolderTreeNode
   onSelect: (path: string) => void
@@ -30,18 +32,12 @@ function TreeNode({
   selectedFolder: string | null
   rootPath: string
   onContextMenu: (folder: string, isRoot: boolean, x: number, y: number) => void
+  expanded: Set<string>
+  onToggle: (path: string) => void
 }) {
-  // Starts collapsed — with a large real-world collection this tree can be
-  // deep, and showing everything expanded by default buries the folder
-  // list under hundreds of nested rows. A node containing the currently
-  // selected folder auto-expands regardless (e.g. "Show in Folder Tree
-  // View" from a track's context menu), so the highlighted row is
-  // actually reachable without the user manually drilling down to it.
-  const [expanded, setExpanded] = useState(false)
   const hasChildren = node.children.length > 0
   const isSelected = node.path === selectedFolder
-  const containsSelected = selectedFolder !== null && selectedFolder.startsWith(node.path + '/')
-  const showChildren = expanded || containsSelected
+  const showChildren = expanded.has(node.path)
 
   return (
     <div>
@@ -70,7 +66,7 @@ function TreeNode({
             style={{ fontSize: '14px', cursor: 'pointer' }}
             onClick={(e) => {
               e.stopPropagation()
-              setExpanded((v) => !v)
+              onToggle(node.path)
             }}
           >
             {showChildren ? 'expand_more' : 'chevron_right'}
@@ -90,10 +86,34 @@ function TreeNode({
             selectedFolder={selectedFolder}
             rootPath={rootPath}
             onContextMenu={onContextMenu}
+            expanded={expanded}
+            onToggle={onToggle}
           />
         ))}
     </div>
   )
+}
+
+// Which folders are open, remembered across launches so the tree comes
+// back the way it was left. Starts all collapsed the first time — a real
+// collection can be deep, and everything open buries the list.
+const EXPANDED_FOLDERS_KEY = 'folderTreeExpanded'
+
+function loadExpanded(): Set<string> {
+  try {
+    const stored = JSON.parse(localStorage.getItem(EXPANDED_FOLDERS_KEY) ?? '[]')
+    return new Set(Array.isArray(stored) ? stored.filter((p): p is string => typeof p === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function saveExpanded(expanded: Set<string>): void {
+  try {
+    localStorage.setItem(EXPANDED_FOLDERS_KEY, JSON.stringify([...expanded]))
+  } catch {
+    // Non-essential — fine to lose.
+  }
 }
 
 // A track belongs to `folder` if it's directly in it or in any subfolder —
@@ -120,6 +140,11 @@ export function FolderTree({
   const [contextMenu, setContextMenu] = useState<{ folder: string; isRoot: boolean; x: number; y: number } | null>(
     null
   )
+  const [expanded, setExpanded] = useState(loadExpanded)
+  function updateExpanded(next: Set<string>) {
+    setExpanded(next)
+    saveExpanded(next)
+  }
 
   useEffect(() => {
     if (!contextMenu) return
@@ -134,30 +159,54 @@ export function FolderTree({
     }
   }, [contextMenu])
 
-  // Scrolls the selected folder's row into view once its ancestors have
-  // auto-expanded (see TreeNode's containsSelected) — otherwise "Show in
-  // Folder Tree View" could highlight a row that's still off-screen.
+  // Opens the selected folder's ancestors (e.g. after "Show in Folder Tree
+  // View" from a track's context menu, or on launch) and scrolls its row
+  // into view — otherwise the highlighted row could be hidden or
+  // off-screen.
   useEffect(() => {
     if (!selectedFolder) return
-    const row = document.querySelector(`[data-folder-path="${CSS.escape(selectedFolder)}"]`)
-    row?.scrollIntoView({ block: 'center' })
-  }, [selectedFolder])
+    const ancestors: string[] = []
+    for (let path = selectedFolder; path.length > rootPath.length; path = path.slice(0, path.lastIndexOf('/'))) {
+      const parent = path.slice(0, path.lastIndexOf('/'))
+      if (parent.length >= rootPath.length) ancestors.push(parent)
+    }
+    const current = loadExpanded()
+    if (ancestors.some((p) => !current.has(p))) updateExpanded(new Set([...current, ...ancestors]))
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-folder-path="${CSS.escape(selectedFolder)}"]`)?.scrollIntoView({ block: 'center' })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFolder, rootPath])
 
   return (
     <div>
-      <div
-        style={{
-          cursor: 'pointer',
-          fontWeight: 600,
-          marginBottom: '8px',
-          padding: '2px 4px',
-          borderRadius: '4px',
-          background: selectedFolder === null ? 'var(--color-surface-raised)' : undefined,
-          color: selectedFolder === null ? 'var(--color-accent)' : undefined,
-        }}
-        onClick={() => onSelect(null)}
-      >
-        All Tracks
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
+        <div
+          style={{
+            flex: 1,
+            cursor: 'pointer',
+            fontWeight: 600,
+            padding: '2px 4px',
+            borderRadius: '4px',
+            background: selectedFolder === null ? 'var(--color-surface-raised)' : undefined,
+            color: selectedFolder === null ? 'var(--color-accent)' : undefined,
+          }}
+          onClick={() => onSelect(null)}
+        >
+          All Tracks
+        </div>
+        {expanded.size > 0 && (
+          <button
+            onClick={() => updateExpanded(new Set())}
+            title="Collapse all folders"
+            aria-label="Collapse all folders"
+            style={{ background: 'none', border: 'none', padding: '2px', display: 'flex', color: 'var(--color-text-dim)' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+              unfold_less
+            </span>
+          </button>
+        )}
       </div>
       <TreeNode
         node={tree}
@@ -166,6 +215,13 @@ export function FolderTree({
         selectedFolder={selectedFolder}
         rootPath={rootPath}
         onContextMenu={(folder, isRoot, x, y) => setContextMenu({ folder, isRoot, x, y })}
+        expanded={expanded}
+        onToggle={(path) => {
+          const next = new Set(expanded)
+          if (next.has(path)) next.delete(path)
+          else next.add(path)
+          updateExpanded(next)
+        }}
       />
       {contextMenu && (
         <div

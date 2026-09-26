@@ -25,6 +25,10 @@ import {
   setAutoCheckUpdates,
   getWatchCollectionFolder,
   setWatchCollectionFolder,
+  getExternalBackupFolder,
+  setExternalBackupFolder,
+  getLastExternalBackup,
+  setLastExternalBackup,
   getAutoAnalyseNewTracks,
   setAutoAnalyseNewTracks,
   setAppThemeId,
@@ -44,6 +48,7 @@ import { writeTags, supportsTagEditing, TagWriteError } from './tagWriter'
 import { TagReader, readFileTags, saveFileTags } from './tagReader'
 import { getMediaCacheDir } from './mediaCacheDir'
 import { listBackups, restoreBackup, runBackup } from './backup'
+import { checkDestination, runExternalBackup } from './externalBackup'
 import {
   createGenre,
   createSubgenre,
@@ -92,6 +97,8 @@ import type {
   CastDirectCommand,
   EditableTags,
   WriteTagsResult,
+  ExternalBackupInfo,
+  ExternalBackupResult,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -292,6 +299,68 @@ export function registerIpcHandlers(
   }))
 
   ipcMain.handle('backup:list', (): BackupEntry[] => listBackups(backupFolder))
+
+  // Backup to an external disk (externalBackup.ts). One run at a time;
+  // progress goes out on backup:externalProgress.
+  let externalBackupController: AbortController | null = null
+
+  async function externalBackupInfo(): Promise<ExternalBackupInfo> {
+    const folder = getExternalBackupFolder()
+    const collectionFolder = getCollectionFolder()
+    let problem: string | null = null
+    if (folder && collectionFolder) problem = await checkDestination(folder, collectionFolder)
+    else if (folder) problem = 'Choose a collection folder first'
+    return { folder, problem, last: getLastExternalBackup(), running: externalBackupController !== null }
+  }
+
+  ipcMain.handle('backup:getExternalInfo', (): Promise<ExternalBackupInfo> => externalBackupInfo())
+
+  // Picks the backup folder; refuses one on the collection's own disk.
+  ipcMain.handle('backup:chooseExternalFolder', async (e): Promise<{ ok: true } | { ok: false; error: string } | null> => {
+    const collectionFolder = getCollectionFolder()
+    if (!collectionFolder) return { ok: false, error: 'Choose a collection folder first' }
+    const result = await showOpenDialog(e, {
+      title: 'Choose a folder on an external disk for the backup',
+      defaultPath: '/Volumes',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    const folder = result.canceled ? null : result.filePaths[0]
+    if (!folder) return null
+    const problem = await checkDestination(folder, collectionFolder)
+    if (problem) return { ok: false, error: problem }
+    setExternalBackupFolder(folder)
+    return { ok: true }
+  })
+
+  ipcMain.handle('backup:runExternal', async (): Promise<ExternalBackupResult | { error: string } | null> => {
+    const folder = getExternalBackupFolder()
+    const collectionFolder = getCollectionFolder()
+    if (!folder || !collectionFolder) return { error: 'Choose a backup folder first' }
+    if (externalBackupController) return { error: 'A backup is already running' }
+    const controller = new AbortController()
+    externalBackupController = controller
+    try {
+      const result = await runExternalBackup({
+        db,
+        configFilePath: getConfigFilePath(),
+        collectionFolder,
+        dataFolder: getDataFolder(),
+        destination: folder,
+        onProgress: (progress) => sendToRenderer('backup:externalProgress', progress),
+        signal: controller.signal,
+      })
+      if (result) setLastExternalBackup(result)
+      return result
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      sendToRenderer('backup:externalProgress', { phase: 'error', filesDone: 0, filesTotal: 0, bytesDone: 0, bytesTotal: 0, error })
+      return { error }
+    } finally {
+      externalBackupController = null
+    }
+  })
+
+  ipcMain.handle('backup:cancelExternal', (): void => externalBackupController?.abort())
 
   // On-demand backup ("Back up now" in Settings) — the same VACUUM INTO
   // snapshot as the automatic daily one, just triggered immediately rather
@@ -636,6 +705,23 @@ export function registerIpcHandlers(
     const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
     if (!row) return
     shell.showItemInFolder(row.path)
+  })
+
+  // Moves the file to the Trash (recoverable — and on a synced folder,
+  // the cloud's own trash too), then hides its row like any file that's
+  // gone missing: the row and its tags are kept, so restoring the file
+  // brings the track back as it was on the next scan.
+  ipcMain.handle('tracks:trash', async (_e, trackId: number): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
+    if (!row) return { ok: false, error: 'That track is no longer in the collection' }
+    try {
+      await shell.trashItem(row.path)
+    } catch (err) {
+      console.error('moving to the Trash failed', row.path, err)
+      return { ok: false, error: "Couldn't move the file to the Trash" }
+    }
+    db.prepare('UPDATE tracks SET present = 0 WHERE id = ?').run(trackId)
+    return { ok: true }
   })
 
   // On-demand cover art for the detail panel — see extractArtwork's own

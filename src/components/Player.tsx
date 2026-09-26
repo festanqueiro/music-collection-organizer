@@ -273,6 +273,14 @@ export function Player({
     effectsChainRef.current?.setLocalMuted(castPlaying && castMuteLocal)
   }, [castPlaying, castMuteLocal])
 
+  // The track played to its end — here, or on the cast device.
+  function handleTrackEnded() {
+    if (continuousPlay) advanceToNext()
+    else setPlaying(false)
+  }
+  const trackEndedRef = useRef(handleTrackEnded)
+  trackEndedRef.current = handleTrackEnded
+
   // Direct cast modes: the device (Google's player, or MCO's own receiver
   // app) plays this track's file itself, and this Player becomes its
   // remote (see cast/directCast.ts).
@@ -280,7 +288,7 @@ export function Player({
   useEffect(() => {
     const audio = audioRef.current
     if (!audio || !castingDirect) return
-    return attachDirectCast(audio, track.id)
+    return attachDirectCast(audio, track.id, () => trackEndedRef.current())
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [castingDirect])
 
@@ -378,10 +386,7 @@ export function Player({
         // registration or any response headers — createMediaElementSource
         // (the delay/reverb FX graph) would silently output silence.
         crossOrigin="anonymous"
-        onEnded={() => {
-          if (continuousPlay) advanceToNext()
-          else setPlaying(false)
-        }}
+        onEnded={handleTrackEnded}
         onError={() => setPlaying(false)}
         onTimeUpdate={(e) => {
           const audio = e.currentTarget

@@ -33,7 +33,22 @@ export function SubtagRing({ color }: { color: string }) {
 
 type ContextMenuTarget = { kind: 'genre'; id: number; name: string } | { kind: 'subgenre'; id: number; name: string }
 
-export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: Track) => boolean) => void }) {
+// A short description of the ticked tags, for the chip above the table.
+function describeTagSelection(names: string[], mode: TagFilterMode): string | null {
+  if (names.length === 0) return null
+  const shown = names.slice(0, 3).join(mode === 'AND' ? ' + ' : ' or ')
+  return names.length > 3 ? `${shown} +${names.length - 3}` : shown
+}
+
+export function TagTree({
+  onFilterChange,
+  clearSignal,
+}: {
+  // label: what's ticked, or null when nothing is.
+  onFilterChange: (filter: (track: Track) => boolean, label: string | null) => void
+  // Changes when the table's chip is cleared: untick everything.
+  clearSignal: number
+}) {
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
   const trackTags = useCollectionStore((s) => s.trackTags)
@@ -61,11 +76,23 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
   }, [subgenres])
 
   function applyFilter(next: TagFilterState, mode: TagFilterMode) {
+    const names = [
+      ...genres.filter((g) => next.genreIds.has(g.id)).map((g) => g.name),
+      ...subgenres.filter((sg) => next.subgenreIds.has(sg.id)).map((sg) => sg.name),
+    ]
     onFilterChange((track: Track) => {
       const tags = trackTags.get(track.id) ?? { trackId: track.id, genreIds: [], subgenreIds: [] }
       return matchesTagFilter(tags, next, subgenreIdsByGenreId, mode)
-    })
+    }, describeTagSelection(names, mode))
   }
+
+  useEffect(() => {
+    if (clearSignal === 0) return
+    setGenreIds(new Set())
+    setSubgenreIds(new Set())
+    applyFilter({ genreIds: new Set(), subgenreIds: new Set() }, filterMode)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearSignal])
 
   // A checkbox toggle rebuilds the filter closure over trackTags as it was
   // at that moment — if a tag edit elsewhere changes trackTags afterward

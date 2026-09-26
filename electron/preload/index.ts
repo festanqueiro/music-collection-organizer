@@ -20,6 +20,9 @@ import type {
   CastMediaEvent,
   EditableTags,
   WriteTagsResult,
+  ExternalBackupInfo,
+  ExternalBackupProgress,
+  ExternalBackupResult,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -113,6 +116,8 @@ const api = {
   // response is awaited.
   startTrackDrag: (trackIds: number[]): void => ipcRenderer.send('tracks:startDrag', trackIds),
   showTrackInFolder: (trackId: number): void => ipcRenderer.send('tracks:showInFolder', trackId),
+  trashTrack: (trackId: number): Promise<{ ok: true } | { ok: false; error: string }> =>
+    ipcRenderer.invoke('tracks:trash', trackId),
   recordPlay: (trackId: number): Promise<{ playCount: number; lastPlayedAt: number } | null> =>
     ipcRenderer.invoke('tracks:recordPlay', trackId),
   getTrackArtwork: (trackId: number): Promise<string | null> => ipcRenderer.invoke('tracks:getArtwork', trackId),
@@ -130,6 +135,18 @@ const api = {
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
   listBackups: (): Promise<BackupEntry[]> => ipcRenderer.invoke('backup:list'),
   runBackupNow: (): Promise<BackupEntry> => ipcRenderer.invoke('backup:runNow'),
+  getExternalBackupInfo: (): Promise<ExternalBackupInfo> => ipcRenderer.invoke('backup:getExternalInfo'),
+  chooseExternalBackupFolder: (): Promise<{ ok: true } | { ok: false; error: string } | null> =>
+    ipcRenderer.invoke('backup:chooseExternalFolder'),
+  runExternalBackup: (): Promise<ExternalBackupResult | { error: string } | null> => ipcRenderer.invoke('backup:runExternal'),
+  cancelExternalBackup: (): Promise<void> => ipcRenderer.invoke('backup:cancelExternal'),
+  onExternalBackupProgress: (cb: (progress: ExternalBackupProgress) => void): (() => void) => {
+    const listener = (_e: unknown, progress: ExternalBackupProgress) => cb(progress)
+    ipcRenderer.on('backup:externalProgress', listener)
+    return () => {
+      ipcRenderer.removeListener('backup:externalProgress', listener)
+    }
+  },
   restoreBackup: (timestamp: string): Promise<void> => ipcRenderer.invoke('backup:restore', timestamp),
   exportTagData: (): Promise<{ path: string } | null> => ipcRenderer.invoke('tags:exportData'),
   importTagData: (): Promise<ImportResult | null> => ipcRenderer.invoke('tags:importData'),

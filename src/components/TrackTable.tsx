@@ -13,7 +13,8 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   title: 260,
   filename: 220,
   artist: 160,
-  tags: 200,
+  tags: 160,
+  subtags: 160,
   bpm: 70,
   musicalKey: 70,
   format: 80,
@@ -51,9 +52,10 @@ function loadColumnWidths(): Record<TrackTableColumnKey, number> {
   }
 }
 
-function FilterChip({ icon, label, onClear }: { icon: string; label: string; onClear: () => void }) {
+function FilterChip({ icon, label, title, onClear }: { icon: string; label: string; title?: string; onClear: () => void }) {
   return (
     <span
+      title={title}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -90,6 +92,9 @@ export function TrackTable({
   selectedTrackId,
   scrollToTrack,
   onShowInFolderTree,
+  onClearFolder,
+  tagFilterChip,
+  onClearTagFilter,
 }: {
   onSelect: (track: Track) => void
   selectedFolder: string | null
@@ -100,12 +105,18 @@ export function TrackTable({
   // trackId prop wouldn't change identity on a second click.
   scrollToTrack?: { trackId: number; nonce: number } | null
   onShowInFolderTree: (folder: string) => void
+  // Back to All Tracks (the folder chip's ×).
+  onClearFolder: () => void
+  // The Tags/Subtags view's selection, shown as a chip, and its ×.
+  tagFilterChip: { icon: string; label: string } | null
+  onClearTagFilter: () => void
 }) {
   const tracks = useCollectionStore((s) => s.tracks)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
   const trackTags = useCollectionStore((s) => s.trackTags)
   const searchText = useCollectionStore((s) => s.searchText)
+  const setSearchText = useCollectionStore((s) => s.setSearchText)
   const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
   const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
   const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
@@ -218,25 +229,29 @@ export function TrackTable({
   const subgenresById = useMemo(() => new Map(subgenres.map((sg) => [sg.id, sg])), [subgenres])
   const genresById = useMemo(() => new Map(genres.map((g) => [g.id, g])), [genres])
 
-  function tagNamesFor(trackId: number): { name: string; color: string | null; sub: boolean }[] {
+  // A track's Tags (genres) or Subtags, A-Z, with their colours.
+  function tagNamesFor(trackId: number, kind: 'tags' | 'subtags'): { name: string; color: string | null }[] {
     const tags = trackTags.get(trackId)
     if (!tags) return []
-    const genreNames = tags.genreIds
-      .map((id) => genresById.get(id))
-      .filter((g): g is NonNullable<typeof g> => !!g)
-      .map((g) => ({ name: g.name, color: g.color, sub: false }))
-    const subgenreNames = tags.subgenreIds
-      .map((id) => subgenresById.get(id))
-      .filter((sg): sg is NonNullable<typeof sg> => !!sg)
-      .map((sg) => ({ name: sg.name, color: sg.color, sub: true }))
-    return [...genreNames, ...subgenreNames].sort((a, b) => a.name.localeCompare(b.name))
+    const names =
+      kind === 'tags'
+        ? tags.genreIds.map((id) => genresById.get(id))
+        : tags.subgenreIds.map((id) => subgenresById.get(id))
+    return names
+      .filter((t): t is NonNullable<typeof t> => !!t)
+      .map((t) => ({ name: t.name, color: t.color }))
+      .sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  // 'tags' has no matching field on Track (it's derived from trackTags),
+  function allTagNamesFor(trackId: number): string[] {
+    return [...tagNamesFor(trackId, 'tags'), ...tagNamesFor(trackId, 'subtags')].map((t) => t.name)
+  }
+
+  // 'tags'/'subtags' have no matching field on Track (they're derived from trackTags),
   // so it needs its own comparable value instead of the direct property
   // lookup every other column uses.
   function sortValueFor(track: Track, key: SortKey): string | number {
-    if (key === 'tags') return tagNamesFor(track.id).map((t) => t.name).join(', ')
+    if (key === 'tags' || key === 'subtags') return tagNamesFor(track.id, key).map((t) => t.name).join(', ')
     if (key === 'dateAdded') return track.birthtime ?? 0
     if (key === 'dateModified') return track.mtime ?? 0
     if (key === 'musicalKey') return keySortValue(track.musicalKey)
@@ -270,7 +285,7 @@ export function TrackTable({
       .filter((t) =>
         query
           ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
-            tagNamesFor(t.id).some((tag) => tag.name.toLowerCase().includes(query))
+            allTagNamesFor(t.id).some((name) => name.toLowerCase().includes(query))
           : true
       )
       .sort((a, b) => {
@@ -378,6 +393,7 @@ export function TrackTable({
     filename: 'Filename',
     artist: 'Artist',
     tags: 'Tags',
+    subtags: 'Subtags',
     bpm: 'BPM',
     musicalKey: 'Key',
     format: 'Format',
@@ -498,18 +514,19 @@ export function TrackTable({
         return decodeHtmlEntities(track.filename)
       case 'artist':
         return track.artist ? decodeHtmlEntities(track.artist) : '—'
-      case 'tags': {
-        const names = tagNamesFor(track.id)
+      case 'tags':
+      case 'subtags': {
+        const names = tagNamesFor(track.id, key)
         if (names.length === 0) return '—'
         return (
           <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
             {names.map((t, i) => (
               <span
                 key={i}
-                // Genres are filled with their colour; sub-genres are
-                // outlined in theirs.
+                // Tags are filled with their colour; Subtags are outlined
+                // in theirs.
                 style={
-                  t.sub
+                  key === 'subtags'
                     ? {
                         fontSize: '11px',
                         padding: '0 5px',
@@ -627,6 +644,18 @@ export function TrackTable({
           </span>
           Add all to queue
         </button>
+        {searchText.trim() && (
+          <FilterChip icon="search" label={`“${searchText.trim()}”`} onClear={() => setSearchText('')} />
+        )}
+        {selectedFolder && (
+          <FilterChip
+            icon="folder"
+            label={selectedFolder.split('/').filter(Boolean).pop() ?? selectedFolder}
+            title={selectedFolder}
+            onClear={onClearFolder}
+          />
+        )}
+        {tagFilterChip && <FilterChip icon={tagFilterChip.icon} label={tagFilterChip.label} onClear={onClearTagFilter} />}
         {/* The Filters view's active filters, each with a quick way off. */}
         {compatibleFilter && (
           <FilterChip
