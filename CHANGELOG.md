@@ -14,12 +14,15 @@ installed copies update themselves.
   right-clicking one of the checked tracks acts on all of them — **Add all to
   queue**, **Add all to top of the queue**, **Analyse all**, **Clear
   selection**.
+- **MCO tags filter**: show tracks with **No Tags** or **No Subtags** yet.
 - **TV-only visualizers** while casting: **Spectrum**, **Scope** and **VU
   Meters**, drawn without the GPU so they run smoothly on a Chromecast.
 - A **project vault** in `docs/`: the feature guide, every design decision
   (ADRs), research notes, the roadmap and session write-ups.
 
 ### Changed
+- The **Untagged** filter is now **Missing ID3 Metadata**, and also lists
+  files that have an artist but no title.
 - The TV's now-playing screen keeps every part in a fixed place — nothing
   moves when a track with more or less information loads — and its stats
   are easier to read.

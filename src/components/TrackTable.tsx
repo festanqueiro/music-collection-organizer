@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { findDuplicates } from '../state/duplicates'
+import { isMissingId3Metadata, matchesMcoTagsFilter } from '../state/trackFilters'
 import { useCollectionStore } from '../state/store'
 import { BatchTagBar } from './BatchTagBar'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
@@ -142,8 +143,10 @@ export function TrackTable({
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
-  const untaggedFilter = useCollectionStore((s) => s.untaggedFilter)
-  const setUntaggedFilter = useCollectionStore((s) => s.setUntaggedFilter)
+  const mcoTagsFilter = useCollectionStore((s) => s.mcoTagsFilter)
+  const setMcoTagsFilter = useCollectionStore((s) => s.setMcoTagsFilter)
+  const missingMetadataFilter = useCollectionStore((s) => s.missingMetadataFilter)
+  const setMissingMetadataFilter = useCollectionStore((s) => s.setMissingMetadataFilter)
   // Over the whole collection, so a copy in another folder still counts.
   const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
   const currentTrackId = playlist[0] ?? null
@@ -279,9 +282,8 @@ export function TrackTable({
             : t.analysisStatus !== 'done'
       )
       .filter((t) => !duplicates || duplicates.has(t.id))
-      // Only once the file's tags have been read — before that, a missing
-      // artist just means not known yet.
-      .filter((t) => !untaggedFilter || (t.tagsRead && !t.artist?.trim()))
+      .filter((t) => !missingMetadataFilter || isMissingId3Metadata(t))
+      .filter((t) => matchesMcoTagsFilter(trackTags.get(t.id), mcoTagsFilter))
       .filter((t) =>
         query
           ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
@@ -316,7 +318,8 @@ export function TrackTable({
     currentTrack,
     analysedFilter,
     duplicates,
-    untaggedFilter,
+    missingMetadataFilter,
+    mcoTagsFilter,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
@@ -683,7 +686,14 @@ export function TrackTable({
           />
         )}
         {duplicatesFilter && <FilterChip icon="content_copy" label="Duplicates" onClear={() => setDuplicatesFilter(false)} />}
-        {untaggedFilter && <FilterChip icon="person_off" label="Untagged" onClear={() => setUntaggedFilter(false)} />}
+        {mcoTagsFilter !== 'all' && (
+          <FilterChip
+            icon="sell"
+            label={mcoTagsFilter === 'no-tags' ? 'No Tags' : 'No Subtags'}
+            onClear={() => setMcoTagsFilter('all')}
+          />
+        )}
+        {missingMetadataFilter && <FilterChip icon="person_off" label="Missing ID3 metadata" onClear={() => setMissingMetadataFilter(false)} />}
         <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>
       {/* This div (not the ambient .pane it sits in, which App.tsx makes a

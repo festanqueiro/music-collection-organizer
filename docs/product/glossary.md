@@ -11,7 +11,9 @@ updated: 2026-09-26
 - **ID3 tags / file tags** — the tags inside the audio file (title, artist, album, genre, year),
   shown under "Full ID3 tags" and editable there.
 - **Genre (ID3)** — the file's own genre text; distinct from MCO's Tags.
-- **Untagged** — a track whose file has no artist tag.
+- **Missing ID3 Metadata** — a track whose file has no artist or no title in its own tags (called
+  "Untagged" before 2026-09-27).
+- **No Tags / No Subtags** — the MCO tags filter: tracks you haven't tagged in MCO yet.
 - **Pending / analysed** — analysis status: BPM, key, waveform, loudness and energy computed or not.
 - **Energy** — a 1–10 rating from loudness (55 %) and onset rate (45 %) ([casting](../features/casting.md)).
 - **Camelot key** — key notation used by DJ software (8A = A minor, 8B = C major).
@@ -23,7 +25,7 @@ updated: 2026-09-26
 - **Cloud-only** — a Google Drive placeholder not downloaded to this Mac.
 - **Present / missing** — a track whose file the last scan found or didn't; missing rows are hidden,
   not deleted.
-- **Filters** — the sidebar view with Compatible, Analysed, Duplicates and Untagged.
+- **Filters** — the sidebar view with Compatible, Analysed, Duplicates, MCO tags and Missing ID3 Metadata.
 - **Chip** — a pill above the table showing an active narrowing (search, folder, tags, a filter).
 - **FX** — the effects: EQ, Filter (LP/HP), Delay, Reverb, Dub Siren, Master.
 - **Dub Siren** — the synthesized siren effect (Siren, Bomb, Gun, Laser; manual or Beat).

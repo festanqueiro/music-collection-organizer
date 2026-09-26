@@ -2,9 +2,10 @@
 // of the folder/tag selection and the search box; the active ones also
 // show as chips above the table, so they're visible from any view.
 import { useMemo, type ReactNode } from 'react'
-import { useCollectionStore, type AnalysedFilter } from '../state/store'
+import { useCollectionStore, type AnalysedFilter, type McoTagsFilter } from '../state/store'
 import { toCamelot, formatKey } from '../state/harmonic'
 import { findDuplicates } from '../state/duplicates'
+import { isMissingId3Metadata, matchesMcoTagsFilter } from '../state/trackFilters'
 
 function Section({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
   return (
@@ -25,6 +26,43 @@ function Toggle({ on, onChange, disabled, label }: { on: boolean; onChange: (on:
   )
 }
 
+const MCO_TAGS_OPTIONS: { value: McoTagsFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'no-tags', label: 'No Tags' },
+  { value: 'no-subtags', label: 'No Subtags' },
+]
+
+// A row of choices, one selected — the Analysed and MCO tags filters.
+function Choice<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: T; label: string }[]
+  value: T
+  onChange: (value: T) => void
+}) {
+  return (
+    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+      {options.map((option) => (
+        <button
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          aria-pressed={value === option.value}
+          style={{
+            fontSize: '12px',
+            padding: '4px 8px',
+            border: value === option.value ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+            color: value === option.value ? 'var(--color-accent)' : undefined,
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 const ANALYSED_OPTIONS: { value: AnalysedFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'analysed', label: 'Analysed' },
@@ -41,15 +79,26 @@ export function FiltersPanel() {
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
-  const untaggedFilter = useCollectionStore((s) => s.untaggedFilter)
-  const setUntaggedFilter = useCollectionStore((s) => s.setUntaggedFilter)
+  const trackTags = useCollectionStore((s) => s.trackTags)
+  const mcoTagsFilter = useCollectionStore((s) => s.mcoTagsFilter)
+  const setMcoTagsFilter = useCollectionStore((s) => s.setMcoTagsFilter)
+  const missingMetadataFilter = useCollectionStore((s) => s.missingMetadataFilter)
+  const setMissingMetadataFilter = useCollectionStore((s) => s.setMissingMetadataFilter)
   const tagReadRemaining = useCollectionStore((s) => s.tagReadRemaining)
 
   const current = playlist[0] != null ? tracks.find((t) => t.id === playlist[0]) : undefined
   const canFilterCompatible = !!current && toCamelot(current.musicalKey) !== null
   const duplicateCount = useMemo(() => findDuplicates(tracks).size, [tracks])
   const unanalysedCount = useMemo(() => tracks.filter((t) => t.analysisStatus !== 'done').length, [tracks])
-  const untaggedCount = useMemo(() => tracks.filter((t) => t.tagsRead && !t.artist?.trim()).length, [tracks])
+  const noTagsCount = useMemo(
+    () => tracks.filter((t) => matchesMcoTagsFilter(trackTags.get(t.id), 'no-tags')).length,
+    [tracks, trackTags]
+  )
+  const noSubtagsCount = useMemo(
+    () => tracks.filter((t) => matchesMcoTagsFilter(trackTags.get(t.id), 'no-subtags')).length,
+    [tracks, trackTags]
+  )
+  const missingMetadataCount = useMemo(() => tracks.filter(isMissingId3Metadata).length, [tracks])
 
   return (
     <div>
@@ -70,23 +119,7 @@ export function FiltersPanel() {
       </Section>
 
       <Section title="Analysed" hint={`${unanalysedCount} of ${tracks.length} tracks aren't analysed yet (no BPM, key or waveform).`}>
-        <div style={{ display: 'flex', gap: '4px' }}>
-          {ANALYSED_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setAnalysedFilter(option.value)}
-              aria-pressed={analysedFilter === option.value}
-              style={{
-                fontSize: '12px',
-                padding: '4px 8px',
-                border: analysedFilter === option.value ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-                color: analysedFilter === option.value ? 'var(--color-accent)' : undefined,
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <Choice options={ANALYSED_OPTIONS} value={analysedFilter} onChange={setAnalysedFilter} />
       </Section>
 
       <Section
@@ -97,10 +130,17 @@ export function FiltersPanel() {
       </Section>
 
       <Section
-        title="Untagged"
-        hint={`Tracks whose file has no artist tag — only the filename to go by. Select one to see tags suggested from its filename. ${untaggedCount} tracks${tagReadRemaining > 0 ? ` so far (still reading tags from ${tagReadRemaining} files)` : ''}.`}
+        title="MCO tags"
+        hint={`Tracks you haven't tagged in MCO yet: ${noTagsCount} have no Tags, ${noSubtagsCount} have no Subtags.`}
       >
-        <Toggle on={untaggedFilter} onChange={setUntaggedFilter} label="Only tracks with no artist tag" />
+        <Choice options={MCO_TAGS_OPTIONS} value={mcoTagsFilter} onChange={setMcoTagsFilter} />
+      </Section>
+
+      <Section
+        title="Missing ID3 Metadata"
+        hint={`Tracks whose file has no artist or no title in its tags — only the filename to go by. Select one to see tags suggested from its filename. ${missingMetadataCount} tracks${tagReadRemaining > 0 ? ` so far (still reading tags from ${tagReadRemaining} files)` : ''}.`}
+      >
+        <Toggle on={missingMetadataFilter} onChange={setMissingMetadataFilter} label="Only tracks missing an artist or title" />
       </Section>
     </div>
   )

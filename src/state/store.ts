@@ -25,6 +25,9 @@ import type { TrackTagIds } from './tagFilter'
 
 // 'unanalysed' includes tracks whose analysis failed.
 export type AnalysedFilter = 'all' | 'analysed' | 'unanalysed'
+// MCO's own tags: 'no-tags' = no Tags at all (so no Subtags either);
+// 'no-subtags' = no Subtag, whether or not it has Tags.
+export type McoTagsFilter = 'all' | 'no-tags' | 'no-subtags'
 import { isTvVisualizer, type AnyVisualizerThemeId } from '../cast/tvVisualizers'
 import type { KeyNotation } from './harmonic'
 import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
@@ -264,9 +267,11 @@ export interface CollectionState {
   setAnalysedFilter: (filter: AnalysedFilter) => void
   duplicatesFilter: boolean
   setDuplicatesFilter: (on: boolean) => void
-  // Tracks whose file has no artist tag — only the filename to go by.
-  untaggedFilter: boolean
-  setUntaggedFilter: (on: boolean) => void
+  mcoTagsFilter: McoTagsFilter
+  setMcoTagsFilter: (filter: McoTagsFilter) => void
+  // Tracks whose file has no artist or title (see missingMetadata.ts).
+  missingMetadataFilter: boolean
+  setMissingMetadataFilter: (on: boolean) => void
   // Files whose tags the background read hasn't reached yet (0 when done).
   tagReadRemaining: number
   setTagReadRemaining: (remaining: number) => void
@@ -573,7 +578,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   compatibleFilter: false,
   analysedFilter: 'all',
   duplicatesFilter: false,
-  untaggedFilter: false,
+  missingMetadataFilter: false,
+  mcoTagsFilter: 'all',
   tagReadRemaining: 0,
   searchText: '',
   collectionFolder: null,
@@ -1253,7 +1259,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),
   setAnalysedFilter: (filter) => set({ analysedFilter: filter, checkedTrackIds: new Set() }),
   setDuplicatesFilter: (on) => set({ duplicatesFilter: on, checkedTrackIds: new Set() }),
-  setUntaggedFilter: (on) => set({ untaggedFilter: on, checkedTrackIds: new Set() }),
+  setMcoTagsFilter: (filter) => set({ mcoTagsFilter: filter, checkedTrackIds: new Set() }),
+  setMissingMetadataFilter: (on) => set({ missingMetadataFilter: on, checkedTrackIds: new Set() }),
   setTagReadRemaining: (remaining) => set({ tagReadRemaining: remaining }),
   refreshTrackFileTags: async (trackId) => {
     const track = await window.api.readFileTags(trackId)
