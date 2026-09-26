@@ -403,6 +403,9 @@ export interface CollectionState {
   runAnalysis: (trackIds?: number[]) => Promise<void>
   // One play of a track (see Player.tsx): bumps its play count.
   recordPlay: (trackId: number) => Promise<void>
+  // Moves a track's file to the Trash and drops it from the collection,
+  // queue and selection; returns an error message, or null.
+  trashTrack: (trackId: number) => Promise<string | null>
   // Writes the ID3 fields into the file; returns an error message, or null.
   writeTrackTags: (trackId: number, tags: EditableTags) => Promise<string | null>
   stopAnalysis: () => Promise<void>
@@ -1337,6 +1340,20 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const played = await window.api.recordPlay(trackId)
     if (!played) return
     set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, ...played } : t)) })
+  },
+
+  trashTrack: async (trackId) => {
+    const result = await window.api.trashTrack(trackId)
+    if (!result.ok) return result.error
+    const checkedTrackIds = new Set(get().checkedTrackIds)
+    checkedTrackIds.delete(trackId)
+    set({
+      tracks: get().tracks.filter((t) => t.id !== trackId),
+      playlist: get().playlist.filter((id) => id !== trackId),
+      checkedTrackIds,
+      cueTrackId: get().cueTrackId === trackId ? null : get().cueTrackId,
+    })
+    return null
   },
 
   writeTrackTags: async (trackId, tags) => {

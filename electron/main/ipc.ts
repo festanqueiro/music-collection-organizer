@@ -638,6 +638,23 @@ export function registerIpcHandlers(
     shell.showItemInFolder(row.path)
   })
 
+  // Moves the file to the Trash (recoverable — and on a synced folder,
+  // the cloud's own trash too), then hides its row like any file that's
+  // gone missing: the row and its tags are kept, so restoring the file
+  // brings the track back as it was on the next scan.
+  ipcMain.handle('tracks:trash', async (_e, trackId: number): Promise<{ ok: true } | { ok: false; error: string }> => {
+    const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
+    if (!row) return { ok: false, error: 'That track is no longer in the collection' }
+    try {
+      await shell.trashItem(row.path)
+    } catch (err) {
+      console.error('moving to the Trash failed', row.path, err)
+      return { ok: false, error: "Couldn't move the file to the Trash" }
+    }
+    db.prepare('UPDATE tracks SET present = 0 WHERE id = ?').run(trackId)
+    return { ok: true }
+  })
+
   // On-demand cover art for the detail panel — see extractArtwork's own
   // comment for why this isn't bulk-loaded with the rest of getTracks().
   // One play of a track: bumps its count and returns the new totals, for

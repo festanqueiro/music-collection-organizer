@@ -1,6 +1,7 @@
 // src/components/DetailPanel.tsx
 import { useEffect, useId, useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { ConfirmDialog } from './ConfirmDialog'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { formatKey } from '../state/harmonic'
@@ -642,16 +643,23 @@ export function DetailPanel({
       )}
 
       <FullId3Section track={track} />
-      <FilePathSection track={track} />
+      <FilePathSection track={track} onTrashed={onClose} />
     </div>
   )
 }
 
 // The file's full path, at the very bottom — selectable, with shortcuts to
 // copy it or reveal the file in Finder.
-function FilePathSection({ track }: { track: Track }) {
+function FilePathSection({ track, onTrashed }: { track: Track; onTrashed: () => void }) {
   const [copied, setCopied] = useState(false)
-  useEffect(() => setCopied(false), [track.id])
+  const [confirmingTrash, setConfirmingTrash] = useState(false)
+  const [trashError, setTrashError] = useState<string | null>(null)
+  const trashTrack = useCollectionStore((s) => s.trashTrack)
+  useEffect(() => {
+    setCopied(false)
+    setConfirmingTrash(false)
+    setTrashError(null)
+  }, [track.id])
   return (
     <div style={{ marginTop: '16px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', fontSize: '12px' }}>
       <div style={{ color: 'var(--color-text-dim)', marginBottom: '4px' }}>File</div>
@@ -680,7 +688,40 @@ function FilePathSection({ track }: { track: Track }) {
           </span>
           Show in Finder
         </button>
+        <button
+          onClick={() => setConfirmingTrash(true)}
+          title="Move this file to the Trash"
+          style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', marginLeft: 'auto', color: 'var(--color-error)' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+            delete
+          </span>
+          Delete
+        </button>
       </div>
+      {trashError && <div style={{ color: 'var(--color-error)', marginTop: '6px' }}>{trashError}</div>}
+      {confirmingTrash && (
+        <ConfirmDialog
+          title="Delete this file?"
+          icon="delete"
+          confirmLabel="Move to Trash"
+          onCancel={() => setConfirmingTrash(false)}
+          onConfirm={async () => {
+            setConfirmingTrash(false)
+            const error = await trashTrack(track.id)
+            if (error) setTrashError(error)
+            else onTrashed()
+          }}
+        >
+          <div style={{ color: 'var(--color-text)', fontWeight: 500, overflowWrap: 'anywhere' }}>
+            {decodeHtmlEntities(track.title ?? track.filename)}
+          </div>
+          <div style={{ marginTop: '6px' }}>
+            The file is moved to the Trash (and, in a synced folder, the cloud's trash), so it can be restored. It's
+            removed from the collection and the queue; its tags come back if you restore it.
+          </div>
+        </ConfirmDialog>
+      )}
     </div>
   )
 }
