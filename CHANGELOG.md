@@ -15,7 +15,7 @@ installed copies update themselves.
   queue**, **Add all to top of the queue**, **Analyse all**, **Clear
   selection**.
 - **MCO tags filter**: show tracks with **No Tags** or **No Subtags** yet.
-- **TV visualizers** while casting: **Drift**, **Ripples**, **Ridges**,
+- **TV visualizers** while casting: **Drift**, **Ripples** (rising from the bottom),
   **Mandala** and **Scope**, drawn without the GPU so they run
   smoothly on a Chromecast; each has a **Color Changing** option. While casting, the visualizer picker shows only
   these; when not casting, only the regular ones.

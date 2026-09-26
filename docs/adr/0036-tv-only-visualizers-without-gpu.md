@@ -12,14 +12,12 @@ casting that don't use the GPU.
 
 ## Decision
 Themes that exist only for the Cast receiver: **Drift** (particles on a slowly turning flow field,
-thrown outward on kicks), **Ripples** (rings from the kicks whose outlines keep morphing — each ring has
-its own few drifting wobbles following spectrum bands, plus a breathing stretch — around a bass core),
-**Ridges** (the spectrum's recent history as stacked lines in perspective, gliding back, swaying and
-pulsing — "Unknown Pleasures" style; a version flying over a noise-hill landscape with a moving camera
-was tried on 2026-09-27 and reverted as worse), **Mandala** (a spectrum-shaped motif mirrored round 6/8/12-fold,
+thrown outward on kicks), **Ripples** (rings from the kicks rising from the middle of the bottom edge, whose outlines keep
+morphing — each ring has its own few drifting wobbles following spectrum bands, plus a breathing
+stretch), **Mandala** (a spectrum-shaped motif mirrored round 6/8/12-fold,
 rotating and pulsing) and **Scope**
 (oscilloscope with a phosphor trail). Every theme's colour option includes **Color Changing** (the hue
-goes round the wheel in ~45 s). Spectrum, VU Meters and a TV Smoke (first soft puffs, then a CPU port of the three.js Smoke shader) existed briefly on 2026-09-27 and were removed.
+goes round the wheel in ~45 s). Spectrum, VU Meters, Ridges (stacked spectrum lines in perspective, "Unknown Pleasures" style) and a TV Smoke (first soft puffs, then a CPU port of the three.js Smoke shader) existed briefly on 2026-09-27 and were removed.
 Defined in
 `src/cast/tvVisualizers.ts` and rendered by `cast-receiver/tvVisualizer.ts` on a 480×270 2D canvas
 created with `willReadFrequently` (Chromium rasterizes it in software, on the CPU), at 30 fps, scaled up

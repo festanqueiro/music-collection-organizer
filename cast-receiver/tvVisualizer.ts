@@ -22,11 +22,6 @@ const DRIFT_PALETTES: Record<string, [number, number]> = { aurora: [160, 110], e
 // Ripples: rings from the kicks, their outlines shaped by the spectrum.
 const RIPPLE_POINTS = 96
 const RIPPLE_PALETTES: Record<string, [number, number]> = { neon: [280, 120], ice: [185, 40], sunset: [340, 60] }
-// Ridges: the spectrum's recent history as stacked lines.
-const RIDGE_LINES = 30
-const RIDGE_POINTS = 72
-// Seconds between new lines.
-const RIDGE_STEP = 0.07
 // Mandala: a motif drawn in one wedge, mirrored and repeated round.
 const MANDALA_BANDS = 16
 // Hue start/span and lightness per palette.
@@ -80,8 +75,6 @@ export class TvVisualizer {
   private t = 0
   private drift: { x: number; y: number; age: number }[] = []
   private ripples: Ripple[] = []
-  private ridges: number[][] = []
-  private ridgeClock = 0
 
   constructor(
     host: HTMLElement,
@@ -100,7 +93,6 @@ export class TvVisualizer {
     this.options = options
     this.drift = []
     this.ripples = []
-    this.ridges = []
     this.ctx.fillStyle = '#000'
     this.ctx.fillRect(0, 0, WIDTH, HEIGHT)
   }
@@ -149,8 +141,7 @@ export class TvVisualizer {
     if (this.theme === 'tv-scope') this.drawScope()
     else if (this.theme === 'tv-drift') this.drawDrift(dt, sampleRate, bass, beat)
     else if (this.theme === 'tv-ripples') this.drawRipples(dt, sampleRate, bass, beat)
-    else if (this.theme === 'tv-mandala') this.drawMandala(sampleRate, bass)
-    else this.drawRidges(dt, sampleRate)
+    else this.drawMandala(sampleRate, bass)
   }
 
   private drawScope(): void {
@@ -251,17 +242,13 @@ export class TvVisualizer {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.28)'
     ctx.fillRect(0, 0, WIDTH, HEIGHT)
     const bands = logBands(this.freq, sampleRate, 12)
+    // The rings rise from the middle of the bottom edge.
     const cx = WIDTH / 2
-    const cy = HEIGHT / 2
+    const cy = HEIGHT + 6
     if (beat && this.ripples.length < 14) this.ripples.push(newRipple(hueStart + Math.random() * hueSpan, 60 + bass * 140, 1))
     // Something keeps moving in a quiet passage.
     const last = this.ripples[this.ripples.length - 1]
     if (!last || (last.r > 90 && Math.random() < dt)) this.ripples.push(newRipple(hueStart + Math.random() * hueSpan, 40, 0.6))
-    // A core that swells with the bass.
-    ctx.fillStyle = `hsla(${hueStart + hueSpan / 2}, 90%, 60%, ${0.25 + bass * 0.5})`
-    ctx.beginPath()
-    ctx.arc(cx, cy, 6 + bass * 34, 0, Math.PI * 2)
-    ctx.fill()
     for (const ring of this.ripples) {
       ring.r += ring.speed * dt
       ring.life -= dt * 0.35
@@ -290,65 +277,7 @@ export class TvVisualizer {
       }
       ctx.stroke()
     }
-    this.ripples = this.ripples.filter((ring) => ring.life > 0 && ring.r < WIDTH)
-  }
-
-  private drawRidges(dt: number, sampleRate: number): void {
-    const ctx = this.ctx
-    const paper = this.options.ink === 'paper'
-    const changing = this.options.ink === CHANGING
-    // A new line joins at the front every ~70 ms and the stack glides back
-    // into the distance between them (not in steps).
-    this.ridgeClock += dt
-    if (this.ridgeClock > RIDGE_STEP || this.ridges.length === 0) {
-      this.ridgeClock = 0
-      const bands = logBands(this.freq, sampleRate, RIDGE_POINTS / 2, 40, 12000)
-      // Mirrored, loudest in the middle, under a bell-shaped envelope.
-      const line = [...bands.slice().reverse(), ...bands].map((v, i) => {
-        const x = i / (RIDGE_POINTS - 1) - 0.5
-        return v * Math.exp(-(x * x) / 0.045) + Math.random() * 0.015
-      })
-      this.ridges.unshift(line)
-      if (this.ridges.length > RIDGE_LINES) this.ridges.pop()
-    }
-    const glide = Math.min(1, this.ridgeClock / RIDGE_STEP)
-    ctx.fillStyle = paper ? '#efe9dc' : '#000'
-    ctx.fillRect(0, 0, WIDTH, HEIGHT)
-    const horizon = HEIGHT * 0.2
-    const front = HEIGHT * 0.95
-    const hue = this.shiftingHue()
-    // Back to front, so each line hides the ones behind it.
-    for (let i = this.ridges.length - 1; i >= 0; i--) {
-      // 0 at the front, 1 at the far end.
-      const depth = Math.min(1, (i + glide) / RIDGE_LINES)
-      const near = 1 - depth
-      const scale = 0.4 + 0.6 * near
-      // Perspective: the far lines bunch up towards the horizon.
-      const base = horizon + (front - horizon) * near ** 1.6
-      const width = WIDTH * 0.8 * scale
-      // A slow sway, stronger up close — parallax.
-      const sway = Math.sin(this.t * 0.35) * 22 * near
-      const left = (WIDTH - width) / 2 + sway
-      const height = HEIGHT * 0.34 * scale * (1 + this.flash * 0.35)
-      const alpha = 0.25 + 0.75 * near
-      const line = this.ridges[i]
-      ctx.beginPath()
-      ctx.moveTo(left, base)
-      for (let p = 0; p < line.length; p++) {
-        ctx.lineTo(left + (p / (line.length - 1)) * width, base - line[p] * height)
-      }
-      ctx.lineTo(left + width, base)
-      ctx.closePath()
-      ctx.fillStyle = paper ? '#efe9dc' : '#000'
-      ctx.fill()
-      ctx.lineWidth = 0.7 + 1.1 * near
-      ctx.strokeStyle = changing
-        ? `hsla(${(hue + depth * 60) % 360}, 80%, 65%, ${alpha})`
-        : paper
-          ? `rgba(17, 17, 17, ${alpha})`
-          : `rgba(244, 244, 245, ${alpha})`
-      ctx.stroke()
-    }
+    this.ripples = this.ripples.filter((ring) => ring.life > 0 && ring.r < WIDTH * 1.2)
   }
 
   private drawMandala(sampleRate: number, bass: number): void {

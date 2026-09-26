@@ -6,7 +6,7 @@
 // screen, and only the receiver renders them.
 import type { ThemeOption, VisualizerThemeId } from 'threejs-visualisers'
 
-export type TvVisualizerId = 'tv-drift' | 'tv-ripples' | 'tv-ridges' | 'tv-mandala' | 'tv-scope'
+export type TvVisualizerId = 'tv-drift' | 'tv-ripples' | 'tv-mandala' | 'tv-scope'
 // Any theme MCO can show: a threejs-visualisers theme or a TV-only one.
 export type AnyVisualizerThemeId = VisualizerThemeId | TvVisualizerId
 
@@ -38,17 +38,6 @@ export const TV_VISUALIZERS: TvVisualizerDef[] = [
         id: 'palette',
         name: 'Palette',
         values: [{ id: 'neon', name: 'Neon' }, { id: 'ice', name: 'Ice' }, { id: 'sunset', name: 'Sunset' }, CHANGING],
-      },
-    ],
-  },
-  {
-    id: 'tv-ridges',
-    name: 'Ridges',
-    options: [
-      {
-        id: 'ink',
-        name: 'Ink',
-        values: [{ id: 'white', name: 'White on black' }, { id: 'paper', name: 'Black on paper' }, CHANGING],
       },
     ],
   },
