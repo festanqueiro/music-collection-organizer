@@ -1,12 +1,20 @@
 // src/components/CastButton.tsx
 import { useEffect, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { isCastActive, startCasting, stopCasting } from '../cast/castSession'
+import { castingToAScreen, isCastActive, startCasting, stopCasting } from '../cast/castSession'
+import { TV_VISUALIZERS, type CastScreen } from '../cast/tvVisualizers'
 import { ToggleSwitch } from './ToggleSwitch'
 import { contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 import { barButtonStyle } from './playerBarStyles'
 
 const POPOVER_WIDTH = 300
+
+// What the TV can show: the now-playing screen (the track's details, the
+// queue) or one of its own visualizers.
+const SCREEN_CHOICES: { id: CastScreen; name: string; icon: string }[] = [
+  { id: 'now-playing', name: 'Now playing (track details)', icon: 'info' },
+  ...TV_VISUALIZERS.map((v) => ({ id: v.id, name: `Visualizer: ${v.name}`, icon: 'graphic_eq' })),
+]
 
 // Player-bar button + popover for casting to a Google Cast device (Google
 // TV, Chromecast, Nest). Devices are only searched for while the popover
@@ -21,6 +29,11 @@ export function CastButton() {
   const muteLocal = useCollectionStore((s) => s.castMuteLocal)
   const setMuteLocal = useCollectionStore((s) => s.setCastMuteLocal)
   const active = isCastActive(status)
+  const toScreen = castingToAScreen(status)
+  const castScreen = useCollectionStore((s) => s.castScreen)
+  const setCastScreen = useCollectionStore((s) => s.setCastScreen)
+  const hideTrackInfo = useCollectionStore((s) => s.visualizerHideTrackInfo)
+  const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
 
   useEffect(() => {
     if (!open) return
@@ -137,6 +150,48 @@ export function CastButton() {
             </div>
           )}
 
+          {toScreen && (
+            <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ fontSize: '11px', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--color-text-dim)' }}>
+                On the TV
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {SCREEN_CHOICES.map((choice) => {
+                  const selected = castScreen === choice.id
+                  return (
+                    <button
+                      key={choice.id}
+                      onClick={(e) => {
+                        setCastScreen(choice.id)
+                        // Otherwise the focused button swallows Space (play/pause).
+                        e.currentTarget.blur()
+                      }}
+                      style={{
+                        ...contextMenuItemStyle,
+                        borderRadius: '6px',
+                        ...(selected ? { background: 'var(--color-surface)', color: 'var(--color-accent)' } : {}),
+                      }}
+                    >
+                      <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                        {selected ? 'radio_button_checked' : 'radio_button_unchecked'}
+                      </span>
+                      <span style={{ flex: 1 }}>{choice.name}</span>
+                      <span className="material-symbols-outlined" style={{ ...contextMenuIconStyle, opacity: 0.5 }}>
+                        {choice.icon}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {castScreen !== 'now-playing' && (
+                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', padding: '0 8px' }}>
+                  Hide track info
+                  <ToggleSwitch checked={hideTrackInfo} onChange={setHideTrackInfo} title="Hide the track info over the TV visualizer" />
+                </label>
+              )}
+            </div>
+          )}
+
           {status.state === 'error' && (
             <div style={{ fontSize: '12px', color: 'var(--color-secondary)' }}>
               Casting stopped: {status.error}
@@ -149,8 +204,8 @@ export function CastButton() {
               <ToggleSwitch checked={muteLocal} onChange={setMuteLocal} title="Mute this Mac while casting" />
             </label>
             <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
-              The TV or speaker plays the tracks itself in MCO&apos;s app, with your effects and siren. Open the
-              visualizer to show it on the TV.
+              The TV or speaker plays the tracks itself in MCO&apos;s app, with your effects and siren. On a TV,
+              pick above whether it shows the track&apos;s details or a visualizer.
             </div>
           </div>
         </div>

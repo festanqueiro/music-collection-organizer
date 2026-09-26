@@ -4,79 +4,41 @@
 // drawing on a small canvas that Chromium rasterizes in software (see
 // TvVisualizer below), at 30 fps. They're offered only while casting to a
 // screen, and only the receiver renders them.
-import type { ThemeOption, VisualizerThemeId } from 'threejs-visualisers'
+import type { VisualizerThemeId } from 'threejs-visualisers'
 
 export type TvVisualizerId = 'tv-drift' | 'tv-ripples' | 'tv-mandala' | 'tv-scope'
 // Any theme MCO can show: a threejs-visualisers theme or a TV-only one.
 export type AnyVisualizerThemeId = VisualizerThemeId | TvVisualizerId
 
+// What the TV shows while casting, picked in MCO's Cast menu: the
+// now-playing screen or one of these visualizers.
+export type CastScreen = 'now-playing' | TvVisualizerId
+
 export interface TvVisualizerDef {
   id: TvVisualizerId
   name: string
-  options: ThemeOption[]
 }
 
-const CHANGING = { id: 'changing', name: 'Color Changing' }
-
 export const TV_VISUALIZERS: TvVisualizerDef[] = [
-  {
-    id: 'tv-drift',
-    name: 'Drift',
-    options: [
-      {
-        id: 'palette',
-        name: 'Palette',
-        values: [{ id: 'aurora', name: 'Aurora' }, { id: 'ember', name: 'Ember' }, { id: 'mono', name: 'Mono' }, CHANGING],
-      },
-    ],
-  },
-  {
-    id: 'tv-ripples',
-    name: 'Ripples',
-    options: [
-      {
-        id: 'palette',
-        name: 'Palette',
-        values: [{ id: 'neon', name: 'Neon' }, { id: 'ice', name: 'Ice' }, { id: 'sunset', name: 'Sunset' }, CHANGING],
-      },
-    ],
-  },
-  {
-    id: 'tv-mandala',
-    name: 'Mandala',
-    options: [
-      {
-        id: 'symmetry',
-        name: 'Symmetry',
-        values: [{ id: '8', name: '8' }, { id: '6', name: '6' }, { id: '12', name: '12' }],
-      },
-      {
-        id: 'palette',
-        name: 'Palette',
-        values: [{ id: 'jewel', name: 'Jewel' }, { id: 'pastel', name: 'Pastel' }, CHANGING],
-      },
-    ],
-  },
-  {
-    id: 'tv-scope',
-    name: 'Scope',
-    options: [
-      {
-        id: 'colour',
-        name: 'Colour',
-        values: [{ id: 'green', name: 'Green' }, { id: 'cyan', name: 'Cyan' }, { id: 'amber', name: 'Amber' }, CHANGING],
-      },
-    ],
-  },
+  { id: 'tv-drift', name: 'Drift' },
+  { id: 'tv-ripples', name: 'Ripples' },
+  { id: 'tv-mandala', name: 'Mandala' },
+  { id: 'tv-scope', name: 'Scope' },
 ]
+
+// No options to pick for now: every TV visualizer's colours keep shifting
+// slowly, and the Mandala is 6-fold. The receiver still understands the
+// other values (palettes, symmetries), should they come back.
+export const TV_VISUALIZER_OPTIONS: Record<string, string> = { palette: 'changing', colour: 'changing', symmetry: '6' }
+
+export function isCastScreen(id: string): id is CastScreen {
+  return id === 'now-playing' || isTvVisualizer(id)
+}
 
 export function isTvVisualizer(id: string): id is TvVisualizerId {
   return TV_VISUALIZERS.some((v) => v.id === id)
 }
 
-export function getTvVisualizer(id: TvVisualizerId): TvVisualizerDef {
-  return TV_VISUALIZERS.find((v) => v.id === id)!
-}
 
 // --- Audio maths (pure, tested) ----------------------------------------------
 

@@ -21,9 +21,9 @@ goes round the wheel in ~45 s). Spectrum, VU Meters, Ridges (stacked spectrum li
 Defined in
 `src/cast/tvVisualizers.ts` and rendered by `cast-receiver/tvVisualizer.ts` on a 480×270 2D canvas
 created with `willReadFrequently` (Chromium rasterizes it in software, on the CPU), at 30 fps, scaled up
-to the screen. When one is chosen the three.js visualizer isn't created or run at all. While casting
-to a screen, MCO's picker offers **only** these, and the TV's choice is remembered separately from this
-Mac's (`castVisualizerTheme`); when not casting, only this Mac's themes are offered. Kicks are detected
+to the screen. When one is chosen the three.js visualizer isn't created or run at all. They're picked
+in the Cast menu, with no options for now ([ADR 0038](0038-pick-the-tv-screen-in-the-cast-menu.md),
+which replaced the earlier TV-only picker in MCO's visualizer). Kicks are detected
 as a sharp rise in bass with at least 0.25 s between them (tested).
 
 ## Alternatives considered

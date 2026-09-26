@@ -29,7 +29,7 @@ export type AnalysedFilter = 'all' | 'analysed' | 'unanalysed'
 // 'no-subtags' = no Subtag, whether or not it has Tags.
 export type McoTagsFilter = 'all' | 'no-tags' | 'no-subtags'
 import type { VisualizerThemeId } from 'threejs-visualisers'
-import { isTvVisualizer, type AnyVisualizerThemeId, type TvVisualizerId } from '../cast/tvVisualizers'
+import { isCastScreen, type AnyVisualizerThemeId, type CastScreen } from '../cast/tvVisualizers'
 import type { KeyNotation } from './harmonic'
 import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
 import { describeLibraryChange } from './libraryChange'
@@ -236,13 +236,13 @@ export interface CollectionState {
   // pushing it through the store would re-render React ~60 times a second.
   visualizerOpen: boolean
   setVisualizerOpen: (open: boolean) => void
-  // The theme on this Mac (a threejs-visualisers theme), and the one shown on
-  // the TV while casting (a TV-only theme, src/cast/tvVisualizers.ts) — each
-  // remembered on its own.
+  // The visualizer theme on this Mac (a threejs-visualisers theme), and what
+  // the TV shows while casting (picked in the Cast menu: the now-playing
+  // screen or a TV-only theme, src/cast/tvVisualizers.ts).
   visualizerTheme: VisualizerThemeId
   setVisualizerTheme: (theme: VisualizerThemeId) => void
-  castVisualizerTheme: TvVisualizerId
-  setCastVisualizerTheme: (theme: TvVisualizerId) => void
+  castScreen: CastScreen
+  setCastScreen: (screen: CastScreen) => void
   // Chosen value per theme option (see VisualizerTheme.options); an option
   // with no entry uses its first value.
   visualizerThemeOptions: Partial<Record<AnyVisualizerThemeId, Record<string, string>>>
@@ -445,15 +445,15 @@ export interface CollectionState {
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
 const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
-const CAST_VISUALIZER_THEME_KEY = 'castVisualizerTheme'
-function loadCastVisualizerTheme(): TvVisualizerId {
+const CAST_SCREEN_KEY = 'castScreen'
+function loadCastScreen(): CastScreen {
   try {
-    const stored = localStorage.getItem(CAST_VISUALIZER_THEME_KEY)
-    if (stored && isTvVisualizer(stored)) return stored
+    const stored = localStorage.getItem(CAST_SCREEN_KEY)
+    if (stored && isCastScreen(stored)) return stored
   } catch {
     // localStorage unavailable (e.g. under Vitest's node environment).
   }
-  return 'tv-drift'
+  return 'now-playing'
 }
 function loadVisualizerTheme(): VisualizerThemeId {
   try {
@@ -585,7 +585,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   queueRequest: null,
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
-  castVisualizerTheme: loadCastVisualizerTheme(),
+  castScreen: loadCastScreen(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
@@ -1307,10 +1307,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }
   },
 
-  setCastVisualizerTheme: (theme) => {
-    set({ castVisualizerTheme: theme })
+  setCastScreen: (screen) => {
+    set({ castScreen: screen })
     try {
-      localStorage.setItem(CAST_VISUALIZER_THEME_KEY, theme)
+      localStorage.setItem(CAST_SCREEN_KEY, screen)
     } catch {
       // Non-essential preference — fine to lose.
     }

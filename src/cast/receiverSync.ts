@@ -1,12 +1,13 @@
 // Keeps MCO's own Cast app on the device in step with MCO — what it
-// displays (the visualizer while it's open in MCO, with its theme and
-// options; the now-playing screen otherwise), the FX chain and volume,
+// displays (the now-playing screen or a TV visualizer, as picked in the
+// Cast menu), the FX chain and volume,
 // the Dub Siren trigger, and the current track's details and the queue
 // for the now-playing screen. Sends everything once when a session starts
 // in MCO's app, then just what changes.
 import { useCollectionStore, type CollectionState } from '../state/store'
 import type { ReceiverSettingsMessage } from './receiverProtocol'
 import { buildReceiverQueue } from './receiverQueue'
+import { TV_VISUALIZER_OPTIONS } from './tvVisualizers'
 
 // FX knobs (and MIDI) can move many times a second; the TV only needs the
 // latest value about this often.
@@ -22,12 +23,11 @@ function receiverActive(state: CollectionState): boolean {
 function displayMessage(state: CollectionState): ReceiverSettingsMessage {
   return {
     type: 'display',
-    // Opening the visualizer in MCO puts it on the TV (MCO then shows just
-    // its controls). Speakers have nothing to show it on.
-    showVisualizer: state.visualizerOpen && !state.castStatus.audioOnly,
+    // Picked in the Cast menu. Speakers have nothing to show it on.
+    showVisualizer: state.castScreen !== 'now-playing' && !state.castStatus.audioOnly,
     // The TV shows its own (GPU-free) themes only.
-    theme: state.castVisualizerTheme,
-    options: state.visualizerThemeOptions[state.castVisualizerTheme] ?? {},
+    theme: state.castScreen === 'now-playing' ? 'tv-drift' : state.castScreen,
+    options: TV_VISUALIZER_OPTIONS,
     hideTrackInfo: state.visualizerHideTrackInfo,
   }
 }
@@ -69,9 +69,7 @@ export function initReceiverSync(): () => void {
       return
     }
     if (
-      state.visualizerOpen !== previous.visualizerOpen ||
-      state.castVisualizerTheme !== previous.castVisualizerTheme ||
-      state.visualizerThemeOptions !== previous.visualizerThemeOptions ||
+      state.castScreen !== previous.castScreen ||
       state.visualizerHideTrackInfo !== previous.visualizerHideTrackInfo
     ) {
       send(displayMessage(state))

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { BeatDetector, isTvVisualizer, logBands } from './tvVisualizers'
+import { BeatDetector, isCastScreen, isTvVisualizer, logBands } from './tvVisualizers'
 
 describe('logBands', () => {
   it('puts a tone in the band that covers its frequency', () => {
@@ -48,5 +48,15 @@ describe('isTvVisualizer', () => {
     expect(isTvVisualizer('tv-ripples')).toBe(true)
     expect(isTvVisualizer('tv-vu')).toBe(false)
     expect(isTvVisualizer('nebula')).toBe(false)
+  })
+})
+
+describe('isCastScreen', () => {
+  it('accepts now playing and the current TV visualizers, not removed ones', () => {
+    expect(isCastScreen('now-playing')).toBe(true)
+    expect(isCastScreen('tv-mandala')).toBe(true)
+    expect(isCastScreen('tv-ridges')).toBe(false)
+    expect(isCastScreen('tv-smoke')).toBe(false)
+    expect(isCastScreen('nebula')).toBe(false)
   })
 })

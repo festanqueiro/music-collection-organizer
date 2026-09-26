@@ -17,8 +17,10 @@ installed copies update themselves.
 - **MCO tags filter**: show tracks with **No Tags** or **No Subtags** yet.
 - **TV visualizers** while casting: **Drift**, **Ripples** (rising from the bottom),
   **Mandala** and **Scope**, drawn without the GPU so they run
-  smoothly on a Chromecast; each has a **Color Changing** option. While casting, the visualizer picker shows only
-  these; when not casting, only the regular ones.
+  smoothly on a Chromecast, their colours slowly shifting.
+- **Pick what the TV shows in the Cast menu**: the track's details (now
+  playing) or one of the TV visualizers. MCO's own visualizer is off while
+  casting to a TV — its button says to use the Cast menu.
 - A **project vault** in `docs/`: the feature guide, every design decision
   (ADRs), research notes, the roadmap and session write-ups.
 
