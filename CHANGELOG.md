@@ -6,6 +6,8 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.42 — 2026-09-26
+
 ### Fixed
 - The Mac no longer goes to sleep while casting (which left the TV hanging);
   the display can still turn off.
