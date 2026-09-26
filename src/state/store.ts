@@ -453,7 +453,7 @@ function loadCastVisualizerTheme(): TvVisualizerId {
   } catch {
     // localStorage unavailable (e.g. under Vitest's node environment).
   }
-  return 'tv-spectrum'
+  return 'tv-drift'
 }
 function loadVisualizerTheme(): VisualizerThemeId {
   try {

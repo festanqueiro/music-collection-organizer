@@ -6,7 +6,7 @@
 // screen, and only the receiver renders them.
 import type { ThemeOption, VisualizerThemeId } from 'threejs-visualisers'
 
-export type TvVisualizerId = 'tv-spectrum' | 'tv-scope' | 'tv-vu' | 'tv-drift' | 'tv-ripples' | 'tv-ridges'
+export type TvVisualizerId = 'tv-drift' | 'tv-ripples' | 'tv-ridges' | 'tv-mandala' | 'tv-smoke' | 'tv-scope'
 // Any theme MCO can show: a threejs-visualisers theme or a TV-only one.
 export type AnyVisualizerThemeId = VisualizerThemeId | TvVisualizerId
 
@@ -16,51 +16,9 @@ export interface TvVisualizerDef {
   options: ThemeOption[]
 }
 
+const CHANGING = { id: 'changing', name: 'Color Changing' }
+
 export const TV_VISUALIZERS: TvVisualizerDef[] = [
-  {
-    id: 'tv-spectrum',
-    name: 'Spectrum',
-    options: [
-      {
-        id: 'colours',
-        name: 'Colours',
-        values: [
-          { id: 'classic', name: 'Classic' },
-          { id: 'mco', name: 'MCO' },
-          { id: 'amber', name: 'Amber' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'tv-scope',
-    name: 'Scope',
-    options: [
-      {
-        id: 'colour',
-        name: 'Colour',
-        values: [
-          { id: 'green', name: 'Green' },
-          { id: 'cyan', name: 'Cyan' },
-          { id: 'amber', name: 'Amber' },
-        ],
-      },
-    ],
-  },
-  {
-    id: 'tv-vu',
-    name: 'VU Meters',
-    options: [
-      {
-        id: 'face',
-        name: 'Face',
-        values: [
-          { id: 'cream', name: 'Cream' },
-          { id: 'black', name: 'Black' },
-        ],
-      },
-    ],
-  },
   {
     id: 'tv-drift',
     name: 'Drift',
@@ -68,11 +26,7 @@ export const TV_VISUALIZERS: TvVisualizerDef[] = [
       {
         id: 'palette',
         name: 'Palette',
-        values: [
-          { id: 'aurora', name: 'Aurora' },
-          { id: 'ember', name: 'Ember' },
-          { id: 'mono', name: 'Mono' },
-        ],
+        values: [{ id: 'aurora', name: 'Aurora' }, { id: 'ember', name: 'Ember' }, { id: 'mono', name: 'Mono' }, CHANGING],
       },
     ],
   },
@@ -83,11 +37,7 @@ export const TV_VISUALIZERS: TvVisualizerDef[] = [
       {
         id: 'palette',
         name: 'Palette',
-        values: [
-          { id: 'neon', name: 'Neon' },
-          { id: 'ice', name: 'Ice' },
-          { id: 'sunset', name: 'Sunset' },
-        ],
+        values: [{ id: 'neon', name: 'Neon' }, { id: 'ice', name: 'Ice' }, { id: 'sunset', name: 'Sunset' }, CHANGING],
       },
     ],
   },
@@ -98,10 +48,45 @@ export const TV_VISUALIZERS: TvVisualizerDef[] = [
       {
         id: 'ink',
         name: 'Ink',
-        values: [
-          { id: 'white', name: 'White on black' },
-          { id: 'paper', name: 'Black on paper' },
-        ],
+        values: [{ id: 'white', name: 'White on black' }, { id: 'paper', name: 'Black on paper' }, CHANGING],
+      },
+    ],
+  },
+  {
+    id: 'tv-mandala',
+    name: 'Mandala',
+    options: [
+      {
+        id: 'symmetry',
+        name: 'Symmetry',
+        values: [{ id: '8', name: '8' }, { id: '6', name: '6' }, { id: '12', name: '12' }],
+      },
+      {
+        id: 'palette',
+        name: 'Palette',
+        values: [{ id: 'jewel', name: 'Jewel' }, { id: 'pastel', name: 'Pastel' }, CHANGING],
+      },
+    ],
+  },
+  {
+    id: 'tv-smoke',
+    name: 'Smoke',
+    options: [
+      {
+        id: 'colour',
+        name: 'Colour',
+        values: [{ id: 'amber', name: 'Amber' }, { id: 'violet', name: 'Violet' }, { id: 'ghost', name: 'Ghost' }, CHANGING],
+      },
+    ],
+  },
+  {
+    id: 'tv-scope',
+    name: 'Scope',
+    options: [
+      {
+        id: 'colour',
+        name: 'Colour',
+        values: [{ id: 'green', name: 'Green' }, { id: 'cyan', name: 'Cyan' }, { id: 'amber', name: 'Amber' }, CHANGING],
       },
     ],
   },
@@ -133,24 +118,6 @@ export function logBands(freq: Uint8Array, sampleRate: number, count: number, lo
     bands.push(peak / 255)
   }
   return bands
-}
-
-// Loudness of a time-domain frame (bytes centred on 128) in dBFS.
-export function rmsDb(time: Uint8Array): number {
-  let sum = 0
-  for (let i = 0; i < time.length; i++) {
-    const v = (time[i] - 128) / 128
-    sum += v * v
-  }
-  const rms = Math.sqrt(sum / time.length)
-  return rms > 0 ? 20 * Math.log10(rms) : -Infinity
-}
-
-// Moves `current` towards `target`, fast when rising and slowly when
-// falling — a meter's ballistics (and the bars' falling peak caps).
-export function ballistic(current: number, target: number, dt: number, riseTau: number, fallTau: number): number {
-  const tau = target > current ? riseTau : fallTau
-  return current + (target - current) * (1 - Math.exp(-dt / tau))
 }
 
 // A kick: the bass jumping up sharply from one frame to the next (not just

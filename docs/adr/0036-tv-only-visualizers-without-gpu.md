@@ -11,11 +11,16 @@ full-screen shaders, bloom or many particles the TV's GPU can't keep up with
 casting that don't use the GPU.
 
 ## Decision
-Six themes that exist only for the Cast receiver — **Spectrum** (LED bars with peak caps), **Scope**
-(oscilloscope with a phosphor trail), **VU Meters** (level and bass needles), and three abstract ones:
-**Drift** (particles on a slowly turning flow field, thrown outward on kicks), **Ripples** (rings from
-the kicks, their outlines shaped by the spectrum, around a bass core) and **Ridges** (the spectrum's
-recent history as stacked lines, "Unknown Pleasures" style) — defined in
+Themes that exist only for the Cast receiver: **Drift** (particles on a slowly turning flow field,
+thrown outward on kicks), **Ripples** (rings from the kicks whose outlines keep morphing — each ring has
+its own few drifting wobbles following spectrum bands, plus a breathing stretch — around a bass core),
+**Ridges** (the spectrum's recent history as stacked lines in perspective, gliding back, swaying and
+pulsing — "Unknown Pleasures" style), **Mandala** (a spectrum-shaped motif mirrored round 6/8/12-fold,
+rotating and pulsing), **Smoke** (a 2D take on the three.js Smoke theme: pre-drawn soft puffs rising
+from a lamp that pumps with the kick, tinted, with two stage beams sweeping through) and **Scope**
+(oscilloscope with a phosphor trail). Every theme's colour option includes **Color Changing** (the hue
+goes round the wheel in ~45 s). Spectrum and VU Meters existed briefly on 2026-09-27 and were removed.
+Defined in
 `src/cast/tvVisualizers.ts` and rendered by `cast-receiver/tvVisualizer.ts` on a 480×270 2D canvas
 created with `willReadFrequently` (Chromium rasterizes it in software, on the CPU), at 30 fps, scaled up
 to the screen. When one is chosen the three.js visualizer isn't created or run at all. While casting
