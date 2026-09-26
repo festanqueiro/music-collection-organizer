@@ -23,6 +23,10 @@ CREATE TABLE IF NOT EXISTS tracks (
   bpm REAL,
   musical_key TEXT,
   waveform_peaks TEXT,
+  loudness REAL,
+  energy INTEGER,
+  play_count INTEGER NOT NULL DEFAULT 0,
+  last_played_at INTEGER,
   cloud_status TEXT NOT NULL DEFAULT 'local',
   analysis_status TEXT NOT NULL DEFAULT 'pending',
   analyzed_at INTEGER,
@@ -106,6 +110,23 @@ function migrate(db: AppDatabase): void {
         // File not reachable right now — leave birthtime NULL.
       }
     }
+  }
+
+  // Filled in by analysis; tracks analysed before these existed get them
+  // when they're next queued or played (see the store's
+  // triggerBackgroundAnalysisForMany).
+  if (!trackColumnNames.has('loudness')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN loudness REAL')
+  }
+  if (!trackColumnNames.has('energy')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN energy INTEGER')
+  }
+
+  if (!trackColumnNames.has('play_count')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0')
+  }
+  if (!trackColumnNames.has('last_played_at')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN last_played_at INTEGER')
   }
 
   const genreColumns = db.prepare('PRAGMA table_info(genres)').all() as { name: string }[]

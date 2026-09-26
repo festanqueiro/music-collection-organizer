@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
+import { listenedSeconds, playedThreshold } from '../state/playCount'
 import { EffectsChain } from '../audio/effectsChain'
 import { getActiveAnalyser, setActiveAnalyser } from '../audio/audioAnalysis'
 import { MidiLearnBadge } from './MidiLearnBadge'
@@ -65,6 +66,12 @@ export function Player({
   const setPlaybackControls = useCollectionStore((s) => s.setPlaybackControls)
   const midiMappings = useCollectionStore((s) => s.midiMappings)
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
+  const recordPlay = useCollectionStore((s) => s.recordPlay)
+  // Listening time on this track, for its play count (see playCount.ts).
+  // Player remounts per track, so these start fresh for each one.
+  const listenedRef = useRef(0)
+  const lastTimeRef = useRef(0)
+  const playRecordedRef = useRef(false)
 
   // Player remounts fresh per track, so this also resets the shared
   // progress back to 0 as soon as a new track takes over, rather than
@@ -369,6 +376,12 @@ export function Player({
         onTimeUpdate={(e) => {
           const audio = e.currentTarget
           setCurrentTime(audio.currentTime)
+          if (!audio.paused) listenedRef.current += listenedSeconds(lastTimeRef.current, audio.currentTime)
+          lastTimeRef.current = audio.currentTime
+          if (!playRecordedRef.current && listenedRef.current >= playedThreshold(audio.duration)) {
+            playRecordedRef.current = true
+            recordPlay(track.id).catch((err) => console.error('recording a play failed', err))
+          }
           if (audio.duration && isFinite(audio.duration)) {
             const ratio = audio.currentTime / audio.duration
             setProgress(ratio)

@@ -35,6 +35,10 @@ function track(id: number): Track {
     bpm: null,
     musicalKey: null,
     waveformPeaks: null,
+    loudness: null,
+    energy: null,
+    playCount: 0,
+    lastPlayedAt: null,
     cloudStatus: 'local',
     analysisStatus: 'done',
   }

@@ -124,8 +124,20 @@ function tracksNeedingAnalysis(tracks: Track[], trackIds: number[]): number[] {
     return track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')
   })
 }
+// Also re-analyses tracks analysed before loudness/energy existed, so they
+// fill in as they're played or queued rather than all at once. Deliberately
+// not part of tracksNeedingAnalysis, which the queue dialog counts as
+// "unanalysed".
+function tracksMissingEnergy(tracks: Track[], trackIds: number[]): number[] {
+  const byId = new Map(tracks.map((t) => [t.id, t]))
+  return trackIds.filter((id) => {
+    const track = byId.get(id)
+    return track && track.cloudStatus === 'local' && track.analysisStatus === 'done' && track.energy === null
+  })
+}
 function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getState'], trackIds: number[]): void {
-  const ids = tracksNeedingAnalysis(get().tracks, trackIds)
+  const tracks = get().tracks
+  const ids = [...tracksNeedingAnalysis(tracks, trackIds), ...tracksMissingEnergy(tracks, trackIds)]
   if (ids.length === 0) return
   get()
     .runAnalysis(ids)
@@ -360,6 +372,8 @@ export interface CollectionState {
   setSearchText: (text: string) => void
   runScan: () => Promise<void>
   runAnalysis: (trackIds?: number[]) => Promise<void>
+  // One play of a track (see Player.tsx): bumps its play count.
+  recordPlay: (trackId: number) => Promise<void>
   stopAnalysis: () => Promise<void>
   createGenre: (name: string) => Promise<void>
   createSubgenre: (name: string, genreId: number) => Promise<void>
@@ -387,7 +401,7 @@ export interface CollectionState {
 // (per-app userData, like everything else) rather than an electron-store
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
-const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint']
+const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
 function loadVisualizerTheme(): VisualizerThemeId {
   try {
     const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
@@ -1232,6 +1246,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // polling needed here.
   runAnalysis: async (trackIds) => {
     await window.api.analyzeCollection(trackIds)
+  },
+
+  recordPlay: async (trackId) => {
+    const played = await window.api.recordPlay(trackId)
+    if (!played) return
+    set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, ...played } : t)) })
   },
 
   stopAnalysis: async () => {

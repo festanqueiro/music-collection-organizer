@@ -30,6 +30,11 @@ function track(id: number, overrides: Partial<Track> = {}): Track {
     bpm: null,
     musicalKey: null,
     waveformPeaks: null,
+    // Analysed since loudness/energy were added.
+    loudness: -9,
+    energy: 6,
+    playCount: 0,
+    lastPlayedAt: null,
     cloudStatus: 'local',
     analysisStatus: 'done',
     ...overrides,
@@ -51,6 +56,13 @@ describe('requestAddManyToQueue / resolveQueueRequest', () => {
     expect(state.queueRequest).toBeNull()
     expect(state.playlist).toEqual([1, 2])
     expect(analyzeCollection).not.toHaveBeenCalled()
+  })
+
+  it('re-analyses queued tracks analysed before energy existed, without asking', () => {
+    useCollectionStore.setState({ tracks: [track(1, { energy: null, loudness: null }), track(2)] })
+    useCollectionStore.getState().requestAddManyToQueue([1, 2])
+    expect(useCollectionStore.getState().queueRequest).toBeNull()
+    expect(analyzeCollection).toHaveBeenCalledWith([1])
   })
 
   it('asks when any track still needs analysis, counting only local pending/error tracks', () => {

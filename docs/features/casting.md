@@ -23,9 +23,23 @@ Cast app**:
 - **The visualizer runs on the TV.** Open MCO's visualizer while casting
   and the TV shows it, rendered there from the audio it plays, so picture
   and sound are in sync. MCO then shows only its controls (theme, options,
-  *Hide track info*; keys 1–7). Close it and the TV shows MCO's
-  now-playing screen (artwork, title, artist, progress). With nothing
-  loaded, it shows **Load a song to continue**.
+  *Hide track info*; keys 1–8). Close it and the TV shows MCO's
+  now-playing screen:
+  - artwork (also blurred into the background), title, artist, album and
+    year, and the track's tags;
+  - BPM, key, energy (1–10) and loudness (LUFS), format/bitrate, date
+    added, how often and how recently it's been played, and its folder;
+  - its waveform, lit up to the playhead;
+  - **Up next**: the next tracks, each with its tempo change from the one
+    before (↑2, ↓3, 2×, ½×) and a ✓ on a BPM or key that mixes; how many
+    are queued, their total length and when the queue will end;
+  - **Just played**: the last two tracks of this casting session;
+  - along the top, the session's length and tracks played, a clock, and
+    the effects engaged in MCO right now (Filter, EQ, Delay, Reverb,
+    Siren), lit as they're used.
+
+  With the visualizer's track info on, it also shows BPM, key and the
+  next track. With nothing loaded, it shows **Load a song to continue**.
 - Speakers play the audio only.
 
 **If a device won't run MCO's app**, MCO uses Google's built-in player

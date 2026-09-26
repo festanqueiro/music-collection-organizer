@@ -8,7 +8,7 @@ output (after FX and master volume), so EQ/filter moves show up in it.
 Options (saved per theme):
 
 - **Theme** — Nebula, Warp, Horizon, Sound System, Smoke, Kaleidoscope,
-  or Paint (keys **1–7** switch while it's open);
+  Paint, or Liquid 3D (keys **1–8** switch while it's open);
 - **Hide track info** — hides the title/artist overlay;
 - per-theme options (below).
 
@@ -35,6 +35,10 @@ Options (saved per theme):
 - **Paint** — paint flung at a black wall: splats on the kicks, bright
   whips on the mids and highs, sinking to dark stains. **Colours**:
   *Yellow*, *Shifting*, *Mixed*.
+- **Liquid 3D** — raymarched liquid blobs flowing into each other in
+  front of a fixed camera; bass and kicks merge and ripple them.
+  **Style**: *3D* or *Lo-Res* (big dithered pixels in a few colours);
+  **Palette**: *Shifting*, *Mercury*, *Game Boy*, *Amber*, *CGA*.
 
 While casting to a TV, opening the visualizer shows it on the TV instead,
 rendered there, and this overlay shows just its controls (see
