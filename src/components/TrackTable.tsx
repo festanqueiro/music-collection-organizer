@@ -52,9 +52,10 @@ function loadColumnWidths(): Record<TrackTableColumnKey, number> {
   }
 }
 
-function FilterChip({ icon, label, onClear }: { icon: string; label: string; onClear: () => void }) {
+function FilterChip({ icon, label, title, onClear }: { icon: string; label: string; title?: string; onClear: () => void }) {
   return (
     <span
+      title={title}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -91,6 +92,9 @@ export function TrackTable({
   selectedTrackId,
   scrollToTrack,
   onShowInFolderTree,
+  onClearFolder,
+  tagFilterChip,
+  onClearTagFilter,
 }: {
   onSelect: (track: Track) => void
   selectedFolder: string | null
@@ -101,6 +105,11 @@ export function TrackTable({
   // trackId prop wouldn't change identity on a second click.
   scrollToTrack?: { trackId: number; nonce: number } | null
   onShowInFolderTree: (folder: string) => void
+  // Back to All Tracks (the folder chip's ×).
+  onClearFolder: () => void
+  // The Tags/Subtags view's selection, shown as a chip, and its ×.
+  tagFilterChip: { icon: string; label: string } | null
+  onClearTagFilter: () => void
 }) {
   const tracks = useCollectionStore((s) => s.tracks)
   const genres = useCollectionStore((s) => s.genres)
@@ -634,6 +643,15 @@ export function TrackTable({
           </span>
           Add all to queue
         </button>
+        {selectedFolder && (
+          <FilterChip
+            icon="folder"
+            label={selectedFolder.split('/').filter(Boolean).pop() ?? selectedFolder}
+            title={selectedFolder}
+            onClear={onClearFolder}
+          />
+        )}
+        {tagFilterChip && <FilterChip icon={tagFilterChip.icon} label={tagFilterChip.label} onClear={onClearTagFilter} />}
         {/* The Filters view's active filters, each with a quick way off. */}
         {compatibleFilter && (
           <FilterChip

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
 import { SubtagRing } from './TagTree'
@@ -9,7 +9,15 @@ import { SubtagRing } from './TagTree'
 // is which *other* genres (Dub, Dubstep, …) tracks carrying that subtag
 // also happen to be tagged with. That's derived per-subgenre from
 // trackTags, not read off the subgenres table.
-export function SubtagTree({ onFilterChange }: { onFilterChange: (filter: (track: Track) => boolean) => void }) {
+export function SubtagTree({
+  onFilterChange,
+  clearSignal,
+}: {
+  // label: the selected subtag (and tag), or null when nothing is.
+  onFilterChange: (filter: (track: Track) => boolean, label: string | null) => void
+  // Changes when the table's chip is cleared: deselect.
+  clearSignal: number
+}) {
   const subgenres = useCollectionStore((s) => s.subgenres)
   const genres = useCollectionStore((s) => s.genres)
   const trackTags = useCollectionStore((s) => s.trackTags)
@@ -37,16 +45,23 @@ export function SubtagTree({ onFilterChange }: { onFilterChange: (filter: (track
   function applyFilter(next: { subgenreId: number; genreId: number | null } | null) {
     setSelection(next)
     if (!next) {
-      onFilterChange(() => true)
+      onFilterChange(() => true, null)
       return
     }
+    const subtagName = subgenres.find((sg) => sg.id === next.subgenreId)?.name ?? 'Subtag'
+    const label = next.genreId != null ? `${subtagName} in ${genreNameById.get(next.genreId) ?? 'a tag'}` : subtagName
     onFilterChange((track: Track) => {
       const tags = trackTags.get(track.id) ?? { trackId: track.id, genreIds: [], subgenreIds: [] }
       if (!tags.subgenreIds.includes(next.subgenreId)) return false
       if (next.genreId != null && !tags.genreIds.includes(next.genreId)) return false
       return true
-    })
+    }, label)
   }
+
+  useEffect(() => {
+    if (clearSignal !== 0) applyFilter(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearSignal])
 
   function toggleExpand(subgenreId: number) {
     setExpandedSubgenreId((prev) => (prev === subgenreId ? null : subgenreId))

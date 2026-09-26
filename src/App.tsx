@@ -162,6 +162,10 @@ export default function App() {
   }, [tracksLoaded])
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
+  // What the Tags/Subtags view has selected, for the chip above the table,
+  // and a counter the chip's × bumps to make that view clear itself.
+  const [tagFilterLabel, setTagFilterLabel] = useState<string | null>(null)
+  const [tagClearSignal, setTagClearSignal] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [scrollToTrack, setScrollToTrack] = useState<{ trackId: number; nonce: number } | null>(null)
 
@@ -183,6 +187,7 @@ export default function App() {
     if (view === 'filters' || view === treeView) return
     setTreeView(view)
     setTagFilter(() => () => true)
+    setTagFilterLabel(null)
   }
 
   // Mounted once here (not inside Player, which remounts per track) so a
@@ -487,8 +492,10 @@ export default function App() {
                 {treeView === 'tags' && (
                   <div hidden={leftView !== 'tags'}>
                     <TagTree
-                      onFilterChange={(filter) => {
+                      clearSignal={tagClearSignal}
+                      onFilterChange={(filter, label) => {
                         setTagFilter(() => filter)
+                        setTagFilterLabel(label)
                         clearCheckedTracks()
                       }}
                     />
@@ -497,8 +504,10 @@ export default function App() {
                 {treeView === 'subtags' && (
                   <div hidden={leftView !== 'subtags'}>
                     <SubtagTree
-                      onFilterChange={(filter) => {
+                      clearSignal={tagClearSignal}
+                      onFilterChange={(filter, label) => {
                         setTagFilter(() => filter)
+                        setTagFilterLabel(label)
                         clearCheckedTracks()
                       }}
                     />
@@ -516,6 +525,12 @@ export default function App() {
             activeFilter={tagFilter}
             selectedTrackId={selectedTrack?.id ?? null}
             scrollToTrack={scrollToTrack}
+            tagFilterChip={tagFilterLabel ? { icon: treeView === 'subtags' ? 'label' : 'sell', label: tagFilterLabel } : null}
+            onClearTagFilter={() => setTagClearSignal((n) => n + 1)}
+            onClearFolder={() => {
+              setSelectedFolder(null)
+              clearCheckedTracks()
+            }}
             onShowInFolderTree={(folder) => {
               changeLeftView('folders')
               setSelectedFolder(folder)
