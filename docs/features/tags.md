@@ -44,7 +44,7 @@ Code: `src/components/BatchTagBar.tsx`, `electron/main/tags.ts`.
 
 ## Export / import
 
-**Settings → Backups → Tag data** exports every genre, sub-genre and track
+**Settings → Import & export → Tag data** exports every genre, sub-genre and track
 assignment to a JSON file, and imports one back. Import is additive: it
 creates missing tags and adds assignments to tracks whose **path** matches
 exactly; unmatched tracks are counted as skipped.

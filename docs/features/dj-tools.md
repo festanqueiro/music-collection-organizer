@@ -12,7 +12,7 @@ uses): numbers 1–12 go round the circle of fifths, **A** is minor and
 column shows a colour-coded badge, and neighbouring (compatible) keys get
 neighbouring colours. Sorting by Key goes round the wheel.
 
-**Settings → General → Key notation** chooses Camelot (8A), musical (Am),
+**Settings → Appearance → Key notation** chooses Camelot (8A), musical (Am),
 or both (8A · Am). The detail panel and queue follow the same setting.
 
 ### Compatible filter
@@ -74,7 +74,7 @@ Code: `src/state/duplicates.ts`, `src/components/DuplicatesPanel.tsx`.
 
 ## Export to Rekordbox
 
-**Settings → Backups → Rekordbox → Export to Rekordbox…** writes an XML
+**Settings → Import & export → Rekordbox → Export to Rekordbox…** writes an XML
 file Rekordbox can read:
 
 - every track (title, artist, album, genre tag, BPM, key, duration, date

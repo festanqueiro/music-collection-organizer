@@ -1,4 +1,4 @@
-// The app's colour themes (Settings → General). The palettes themselves
+// The app's colour themes (Settings → Appearance). The palettes themselves
 // are in src/themes.css, keyed by <html data-theme="…">; this is the list
 // the picker shows and main uses (the window's background colour, so
 // there's no flash of the wrong colour before first paint).

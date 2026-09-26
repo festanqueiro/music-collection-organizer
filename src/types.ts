@@ -287,7 +287,7 @@ export interface MidiBinding {
 
 export type MidiMappings = Partial<Record<MidiControlKey, MidiBinding>>
 
-// Result of reading a MIDI mappings file (Settings → Audio → MIDI →
+// Result of reading a MIDI mappings file (Settings → MIDI →
 // Import) — `skipped` names bindings that were dropped as unknown/invalid.
 export type MidiImportResult = { mappings: MidiMappings; skipped: string[] } | { error: string }
 

@@ -51,7 +51,7 @@ Hold **C** on the keyboard, or map the button to a MIDI pad (see
 
 ## Audio output device
 
-**Settings → Audio → Audio Output** sends playback (and the Dub Siren) to a
+**Settings → Audio → Main output** sends playback (and the Dub Siren) to a
 specific output — an audio interface, say — instead of the system default.
 The choice is saved.
 

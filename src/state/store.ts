@@ -234,13 +234,13 @@ export interface CollectionState {
   visualizerHideTrackInfo: boolean
   setVisualizerHideTrackInfo: (hide: boolean) => void
   // Whether MIDI-learn badges are shown next to mappable controls
-  // (Settings → Audio). Purely visual — bindings keep working when hidden.
+  // (Settings → MIDI). Purely visual — bindings keep working when hidden.
   showMidiControls: boolean
   setShowMidiControls: (show: boolean) => void
-  // How the Key column/detail panel/queue show keys (Settings → General).
+  // How the Key column/detail panel/queue show keys (Settings → Appearance).
   keyNotation: KeyNotation
   setKeyNotation: (notation: KeyNotation) => void
-  // The app's colour theme (Settings → General); see src/appThemes.ts.
+  // The app's colour theme (Settings → Appearance); see src/appThemes.ts.
   appTheme: AppThemeId
   setAppTheme: (theme: AppThemeId) => void
   // Track-table filter: only tracks that mix harmonically (key) and in
@@ -358,10 +358,10 @@ export interface CollectionState {
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
-  // Removes every binding at once (Settings → Audio → MIDI, behind a
+  // Removes every binding at once (Settings → MIDI, behind a
   // confirmation) and cancels any in-progress learn.
   resetMidiMappings: () => void
-  // Replaces every binding with an imported set (Settings → Audio → MIDI →
+  // Replaces every binding with an imported set (Settings → MIDI →
   // Import, after the file's been read and validated in main).
   replaceMidiMappings: (mappings: MidiMappings) => void
   handleMidiControlChange: (channel: number, controller: number, value: number, kind: 'cc' | 'note') => void

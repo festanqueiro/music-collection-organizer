@@ -1,124 +1,30 @@
+// Settings: a sidebar of pages on the left, the chosen page on the right.
+// Each page is its own component in ./settings/, built from the shared
+// blocks in ./settings/ui.tsx.
 import { useEffect, useState } from 'react'
-import { useCollectionStore } from '../state/store'
-import { ToggleSwitch } from './ToggleSwitch'
-import { ConfirmDialog } from './ConfirmDialog'
-import { ThemePicker } from './ThemePicker'
-import type { BackupInfo, BackupEntry, MidiMappings, UpdateState } from '../types'
-import type { KeyNotation } from '../state/harmonic'
+import { LibraryPage } from './settings/LibraryPage'
+import { AppearancePage } from './settings/AppearancePage'
+import { AudioPage } from './settings/AudioPage'
+import { MidiPage } from './settings/MidiPage'
+import { TransferPage } from './settings/TransferPage'
+import { DataPage } from './settings/DataPage'
+import { UpdatesPage } from './settings/UpdatesPage'
 
-// Backup filenames use `now.toISOString().replace(/[:.]/g, '-')` (see
-// electron/main/backup.ts) — undo that by re-inserting the standard ISO
-// separators positionally rather than trying to regex-guess which dashes
-// were colons. Format: YYYY-MM-DDTHH-MM-SS-mmmZ (24 chars incl. Z).
-function parseBackupTimestamp(timestamp: string): Date {
-  const iso = `${timestamp.slice(0, 13)}:${timestamp.slice(14, 16)}:${timestamp.slice(17, 19)}.${timestamp.slice(20, 23)}Z`
-  return new Date(iso)
-}
+type SettingsPage = 'library' | 'appearance' | 'audio' | 'midi' | 'transfer' | 'data' | 'updates'
 
-type SettingsTab = 'general' | 'audio' | 'backups'
-const SETTINGS_TABS: { key: SettingsTab; label: string }[] = [
-  { key: 'general', label: 'General' },
-  { key: 'audio', label: 'Audio' },
-  { key: 'backups', label: 'Backups' },
+const PAGES: { key: SettingsPage; label: string; icon: string }[] = [
+  { key: 'library', label: 'Library', icon: 'library_music' },
+  { key: 'appearance', label: 'Appearance', icon: 'palette' },
+  { key: 'audio', label: 'Audio', icon: 'speaker' },
+  { key: 'midi', label: 'MIDI', icon: 'piano' },
+  { key: 'transfer', label: 'Import & export', icon: 'swap_horiz' },
+  { key: 'data', label: 'Backups & data', icon: 'backup' },
+  { key: 'updates', label: 'Updates', icon: 'system_update' },
 ]
 
 export function SettingsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const collectionFolder = useCollectionStore((s) => s.collectionFolder)
-  const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
-  const exportTagData = useCollectionStore((s) => s.exportTagData)
-  const importTagData = useCollectionStore((s) => s.importTagData)
-  const [backupInfo, setBackupInfo] = useState<BackupInfo | null>(null)
-  const [backups, setBackups] = useState<BackupEntry[]>([])
-  const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
-  const [rekordboxMessage, setRekordboxMessage] = useState<string | null>(null)
-  const [dbFilePath, setDbFilePath] = useState<string | null>(null)
-  const [backingUp, setBackingUp] = useState(false)
-  const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
-  const setAudioOutputDeviceId = useCollectionStore((s) => s.setAudioOutputDeviceId)
-  const cueOutputDeviceId = useCollectionStore((s) => s.cueOutputDeviceId)
-  const setCueOutputDeviceId = useCollectionStore((s) => s.setCueOutputDeviceId)
-  const showMidiControls = useCollectionStore((s) => s.showMidiControls)
-  const setShowMidiControls = useCollectionStore((s) => s.setShowMidiControls)
-  const midiBindingCount = useCollectionStore((s) => Object.keys(s.midiMappings).length)
-  const resetMidiMappings = useCollectionStore((s) => s.resetMidiMappings)
-  const replaceMidiMappings = useCollectionStore((s) => s.replaceMidiMappings)
-  const showToast = useCollectionStore((s) => s.showToast)
-  const watchCollectionFolder = useCollectionStore((s) => s.watchCollectionFolder)
-  const setWatchCollectionFolder = useCollectionStore((s) => s.setWatchCollectionFolder)
-  const autoAnalyseNewTracks = useCollectionStore((s) => s.autoAnalyseNewTracks)
-  const setAutoAnalyseNewTracks = useCollectionStore((s) => s.setAutoAnalyseNewTracks)
-  const updateState = useCollectionStore((s) => s.updateState)
-  const checkForUpdates = useCollectionStore((s) => s.checkForUpdates)
-  const autoCheckUpdates = useCollectionStore((s) => s.autoCheckUpdates)
-  const setAutoCheckUpdates = useCollectionStore((s) => s.setAutoCheckUpdates)
-  const keyNotation = useCollectionStore((s) => s.keyNotation)
-  const setKeyNotation = useCollectionStore((s) => s.setKeyNotation)
-  // Both reset and an import that would overwrite existing bindings go
-  // through the same warning popup.
-  const [midiConfirm, setMidiConfirm] = useState<
-    { kind: 'reset' } | { kind: 'import'; mappings: MidiMappings; skipped: string[] } | null
-  >(null)
-  const [midiMessage, setMidiMessage] = useState<string | null>(null)
-
-  function applyMidiImport(mappings: MidiMappings, skipped: string[]) {
-    replaceMidiMappings(mappings)
-    const count = Object.keys(mappings).length
-    setMidiMessage(
-      `Imported ${count} binding${count === 1 ? '' : 's'}` +
-        (skipped.length > 0 ? ` — skipped ${skipped.length} unknown/invalid: ${skipped.join(', ')}` : '')
-    )
-  }
-
-  async function handleMidiImport() {
-    const result = await window.api.readMidiMappingsFile()
-    if (!result) return
-    if ('error' in result) {
-      setMidiMessage(result.error)
-      return
-    }
-    if (Object.keys(result.mappings).length === 0) {
-      setMidiMessage("That file doesn't contain any bindings this version can use.")
-      return
-    }
-    if (midiBindingCount > 0) setMidiConfirm({ kind: 'import', ...result })
-    else applyMidiImport(result.mappings, result.skipped)
-  }
-  const [audioOutputDevices, setAudioOutputDevices] = useState<MediaDeviceInfo[]>([])
-  const [audioDevicesError, setAudioDevicesError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
-
-  useEffect(() => {
-    if (open) {
-      window.api.getBackupInfo().then(setBackupInfo)
-      window.api.listBackups().then(setBackups)
-      window.api.getDbFilePath().then(setDbFilePath)
-    }
-  }, [open])
-
-  // Real device names come from main's 'media' permission-check grant
-  // (see registerPermissionHandlers in electron/main/index.ts) — no mic
-  // stream is ever opened, which would otherwise drop Bluetooth
-  // headphones into their low-quality hands-free profile.
-  useEffect(() => {
-    // Only listed once the Audio tab is actually opened.
-    if (!open || activeTab !== 'audio') return
-    let cancelled = false
-    async function loadDevices() {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices()
-        if (cancelled) return
-        setAudioOutputDevices(devices.filter((d) => d.kind === 'audiooutput'))
-        setAudioDevicesError(null)
-      } catch (err) {
-        if (!cancelled) setAudioDevicesError('Could not list audio output devices.')
-        console.error('enumerateDevices failed', err)
-      }
-    }
-    loadDevices()
-    return () => {
-      cancelled = true
-    }
-  }, [open, activeTab])
+  // Kept while the modal is closed, so it reopens on the same page.
+  const [page, setPage] = useState<SettingsPage>('library')
 
   useEffect(() => {
     if (!open) return
@@ -146,442 +52,78 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Settings"
         style={{
           background: 'var(--color-surface-raised)',
           border: '1px solid var(--color-border)',
-          borderRadius: '8px',
-          padding: '24px',
-          width: '480px',
-          height: '520px',
+          borderRadius: '10px',
+          width: 'min(760px, calc(100vw - 48px))',
+          height: 'min(560px, calc(100vh - 48px))',
           display: 'flex',
-          flexDirection: 'column',
+          overflow: 'hidden',
+          boxShadow: '0 16px 48px rgba(0, 0, 0, 0.35)',
         }}
       >
-        <div
+        <nav
           style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '16px',
+            width: '190px',
             flexShrink: 0,
+            padding: '16px 10px',
+            background: 'var(--color-surface)',
+            borderRight: '1px solid var(--color-border)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '2px',
           }}
         >
-          <h2 style={{ margin: 0 }}>Settings</h2>
-          <button onClick={onClose}>
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            marginBottom: '16px',
-            borderBottom: '1px solid var(--color-border)',
-            paddingBottom: '12px',
-            flexShrink: 0,
-          }}
-        >
-          {SETTINGS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              style={{
-                border: activeTab === tab.key ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-                color: activeTab === tab.key ? 'var(--color-accent)' : undefined,
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-        {activeTab === 'general' && (
-          <>
-            <section style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Collection folder</h3>
-              <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{collectionFolder ?? 'Not set'}</p>
+          <h2 style={{ margin: '0 8px 12px', fontSize: '14px' }}>Settings</h2>
+          {PAGES.map((item) => {
+            const active = item.key === page
+            return (
               <button
-                onClick={async () => {
-                  const changed = await pickCollectionFolder()
-                  if (changed) onClose()
-                }}
-              >
-                Change…
-              </button>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginTop: '10px' }}>
-                <ToggleSwitch
-                  checked={watchCollectionFolder}
-                  onChange={setWatchCollectionFolder}
-                  title="Watch the collection folder for changes"
-                />
-                Watch for new and removed files
-              </label>
-              <label
+                key={item.key}
+                onClick={() => setPage(item.key)}
+                aria-current={active ? 'page' : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  cursor: watchCollectionFolder ? 'pointer' : 'default',
-                  marginTop: '6px',
-                  opacity: watchCollectionFolder ? 1 : 0.5,
+                  gap: '10px',
+                  padding: '7px 8px',
+                  textAlign: 'left',
+                  border: 'none',
+                  borderRadius: '6px',
+                  background: active ? 'var(--color-selected)' : 'none',
+                  color: active ? 'var(--color-accent)' : 'var(--color-text)',
+                  fontWeight: active ? 500 : 400,
                 }}
               >
-                <ToggleSwitch
-                  checked={autoAnalyseNewTracks}
-                  onChange={setAutoAnalyseNewTracks}
-                  disabled={!watchCollectionFolder}
-                  title="Analyse new tracks automatically"
-                />
-                Analyse new tracks automatically
-              </label>
-              <p style={{ margin: '6px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                New downloads show up on their own a few seconds after they land in the folder — no need to click
-                Update Collection.
-              </p>
-            </section>
-
-            <section style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Updates</h3>
-              <p style={{ margin: '0 0 8px' }}>
-                Version {updateState?.currentVersion ?? '…'}
-                <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}> — {updateStatusText(updateState)}</span>
-              </p>
-              {updateState?.status !== 'disabled' && (
-                <>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
-                    <ToggleSwitch
-                      checked={autoCheckUpdates}
-                      onChange={setAutoCheckUpdates}
-                      title="Check for updates automatically"
-                    />
-                    Check for updates automatically
-                  </label>
-                  <button
-                    onClick={() => checkForUpdates()}
-                    disabled={
-                      updateState?.status === 'checking' ||
-                      updateState?.status === 'downloading' ||
-                      updateState?.status === 'installing'
-                    }
-                  >
-                    Check now
-                  </button>
-                </>
-              )}
-            </section>
-
-            <section style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Theme</h3>
-              <ThemePicker />
-            </section>
-
-            <section style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Key notation</h3>
-              <select value={keyNotation} onChange={(e) => setKeyNotation(e.target.value as KeyNotation)}>
-                <option value="both">Camelot and musical (8A · Am)</option>
-                <option value="camelot">Camelot (8A)</option>
-                <option value="musical">Musical (Am)</option>
-              </select>
-            </section>
-
-            <section>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Database &amp; settings</h3>
-              <p style={{ margin: '0 0 8px', wordBreak: 'break-all' }}>{dbFilePath ?? 'Loading…'}</p>
-              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                The first time you set a collection folder, this moves inside it automatically. Backups are kept
-                in the app's own folder and always restore to wherever this currently lives.
-              </p>
-              <button
-                onClick={async () => {
-                  if (
-                    window.confirm(
-                      'Move the database and settings to a new folder? The old copy is left in place, and the app will restart.'
-                    )
-                  ) {
-                    await window.api.chooseDbLocation()
-                  }
-                }}
-              >
-                Change…
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                  {item.icon}
+                </span>
+                {item.label}
               </button>
-            </section>
-          </>
-        )}
+            )
+          })}
+        </nav>
 
-        {activeTab === 'audio' && (
-          <>
-            <section style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Audio Output</h3>
-              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                Route playback to a specific audio interface instead of the system default — applies to both track
-                playback and the Dub Siren.
-              </p>
-              <select
-                value={audioOutputDeviceId ?? ''}
-                onChange={(e) => setAudioOutputDeviceId(e.target.value || null)}
-              >
-                <option value="">System default</option>
-                {audioOutputDevices.map((d, i) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || `Audio output ${i + 1}`}
-                  </option>
-                ))}
-              </select>
-              {audioDevicesError && (
-                <p style={{ margin: '8px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
-                  {audioDevicesError}
-                </p>
-              )}
-            </section>
-
-            <section style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Cue output (headphones)</h3>
-              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                Where pre-listen plays (the headphones icon on a track, or P) — pick your headphones or a second
-                output on your audio interface so you can audition the next track while the main output keeps
-                playing.
-              </p>
-              <select
-                value={cueOutputDeviceId ?? ''}
-                onChange={(e) => setCueOutputDeviceId(e.target.value || null)}
-              >
-                <option value="">System default</option>
-                {audioOutputDevices.map((d, i) => (
-                  <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || `Audio output ${i + 1}`}
-                  </option>
-                ))}
-              </select>
-              {(cueOutputDeviceId ?? '') === (audioOutputDeviceId ?? '') && (
-                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                  Same as the main output, so previews will be heard on the main speakers too.
-                </p>
-              )}
-            </section>
-
-            <section>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>MIDI</h3>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                <ToggleSwitch checked={showMidiControls} onChange={setShowMidiControls} title="Show MIDI mapping buttons" />
-                Show MIDI mapping buttons
-              </label>
-              <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                The small MIDI-learn buttons next to the player and FX controls. Hiding them doesn't remove any
-                bindings — a mapped controller keeps working.
-              </p>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                <button
-                  onClick={async () => {
-                    const result = await window.api.exportMidiMappings()
-                    if (result) setMidiMessage(`Exported to ${result.path}`)
-                  }}
-                  disabled={midiBindingCount === 0}
-                  title={midiBindingCount === 0 ? 'No MIDI bindings to export' : undefined}
-                >
-                  Export…
-                </button>
-                <button onClick={handleMidiImport}>Import…</button>
-                <button
-                  onClick={() => setMidiConfirm({ kind: 'reset' })}
-                  disabled={midiBindingCount === 0}
-                  title={midiBindingCount === 0 ? 'No MIDI bindings to reset' : undefined}
-                >
-                  Reset all MIDI bindings…
-                </button>
-              </div>
-              {midiMessage && (
-                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px', wordBreak: 'break-all' }}>
-                  {midiMessage}
-                </p>
-              )}
-              {midiConfirm?.kind === 'reset' && (
-                <ConfirmDialog
-                  title="Reset all MIDI bindings?"
-                  onCancel={() => setMidiConfirm(null)}
-                  onConfirm={() => {
-                    resetMidiMappings()
-                    setMidiConfirm(null)
-                    setMidiMessage(null)
-                    showToast('All MIDI bindings removed')
-                  }}
-                >
-                  This removes all {midiBindingCount} MIDI binding{midiBindingCount === 1 ? '' : 's'} — every mapped
-                  knob, fader and button will stop controlling the app until you map it again. This can't be undone.
-                </ConfirmDialog>
-              )}
-              {midiConfirm?.kind === 'import' && (
-                <ConfirmDialog
-                  title="Replace your MIDI bindings?"
-                  onCancel={() => setMidiConfirm(null)}
-                  onConfirm={() => {
-                    applyMidiImport(midiConfirm.mappings, midiConfirm.skipped)
-                    setMidiConfirm(null)
-                  }}
-                >
-                  Importing replaces all {midiBindingCount} current MIDI binding{midiBindingCount === 1 ? '' : 's'} with
-                  the {Object.keys(midiConfirm.mappings).length} in this file. Export first if you want to keep the
-                  current ones — this can't be undone.
-                </ConfirmDialog>
-              )}
-            </section>
-          </>
-        )}
-
-        {activeTab === 'backups' && (
-          <>
-            <section style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Backups</h3>
-              {backupInfo ? (
-                <>
-                  <p style={{ margin: '0 0 4px', wordBreak: 'break-all' }}>{backupInfo.backupFolder}</p>
-                  <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                    Last backup:{' '}
-                    {backupInfo.lastBackupAt ? new Date(backupInfo.lastBackupAt).toLocaleString() : 'Never yet'}
-                  </p>
-                  {backupInfo.lastBackupError && (
-                    <p style={{ margin: '4px 0 0', color: 'var(--color-secondary)', fontSize: '12px' }}>
-                      ⚠ Last backup failed: {backupInfo.lastBackupError}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p style={{ margin: 0, color: 'var(--color-text-dim)' }}>Loading…</p>
-              )}
-              <button
-                style={{ marginTop: '8px' }}
-                disabled={backingUp}
-                onClick={async () => {
-                  setBackingUp(true)
-                  try {
-                    await window.api.runBackupNow()
-                    setBackupInfo(await window.api.getBackupInfo())
-                    setBackups(await window.api.listBackups())
-                  } finally {
-                    setBackingUp(false)
-                  }
-                }}
-              >
-                {backingUp ? 'Backing up…' : 'Back up now'}
-              </button>
-            </section>
-
-            <section>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Restore</h3>
-              {backups.length === 0 ? (
-                <p style={{ margin: 0, color: 'var(--color-text-dim)', fontSize: '12px' }}>No backups yet.</p>
-              ) : (
-                <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
-                  {backups.map((entry) => (
-                    <div
-                      key={entry.timestamp}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: '4px',
-                      }}
-                    >
-                      <span style={{ fontSize: '12px' }}>{parseBackupTimestamp(entry.timestamp).toLocaleString()}</span>
-                      <button
-                        onClick={async () => {
-                          if (
-                            window.confirm(
-                              'Restore this backup? This overwrites the current collection and config, then relaunches the app.'
-                            )
-                          ) {
-                            await window.api.restoreBackup(entry.timestamp)
-                          }
-                        }}
-                      >
-                        Restore
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section style={{ marginTop: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Tag data</h3>
-              <button
-                onClick={async () => {
-                  const result = await exportTagData()
-                  setTagDataMessage(result ? `Exported to ${result.path}` : null)
-                }}
-              >
-                Export…
-              </button>{' '}
-              <button
-                onClick={async () => {
-                  const result = await importTagData()
-                  setTagDataMessage(
-                    result ? `Imported: ${result.matchedTracks} matched, ${result.skippedTracks} skipped` : null
-                  )
-                }}
-              >
-                Import…
-              </button>
-              {tagDataMessage && (
-                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{tagDataMessage}</p>
-              )}
-            </section>
-
-            <section style={{ marginTop: '20px' }}>
-              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Rekordbox</h3>
-              <p style={{ margin: '0 0 8px', color: 'var(--color-text-dim)', fontSize: '12px' }}>
-                Exports your library, with each genre and sub-genre as a playlist, to a file Rekordbox can read.
-                In Rekordbox, choose the file under Preferences → Advanced → Database → rekordbox xml, then find it
-                in the "rekordbox xml" section of the sidebar.
-              </p>
-              <button
-                onClick={async () => {
-                  setRekordboxMessage(null)
-                  try {
-                    const result = await window.api.exportRekordbox()
-                    if (result) {
-                      setRekordboxMessage(
-                        `Exported ${result.trackCount} tracks and ${result.playlistCount} playlists to ${result.path}`
-                      )
-                    }
-                  } catch (err) {
-                    setRekordboxMessage(`Export failed: ${err instanceof Error ? err.message : String(err)}`)
-                  }
-                }}
-              >
-                Export to Rekordbox…
-              </button>
-              {rekordboxMessage && (
-                <p style={{ margin: '8px 0 0', color: 'var(--color-text-dim)', fontSize: '12px' }}>{rekordboxMessage}</p>
-              )}
-            </section>
-          </>
-        )}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 10px 0', flexShrink: 0 }}>
+            <button onClick={onClose} title="Close (Esc)" style={{ background: 'none', border: 'none' }}>
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 24px 24px' }}>
+            {page === 'library' && <LibraryPage onClose={onClose} />}
+            {page === 'appearance' && <AppearancePage />}
+            {page === 'audio' && <AudioPage />}
+            {page === 'midi' && <MidiPage />}
+            {page === 'transfer' && <TransferPage />}
+            {page === 'data' && <DataPage />}
+            {page === 'updates' && <UpdatesPage />}
+          </div>
         </div>
       </div>
     </div>
   )
-}
-
-function updateStatusText(state: UpdateState | null): string {
-  if (!state) return 'loading…'
-  switch (state.status) {
-    case 'disabled':
-      return state.error ?? 'automatic updates are off for this build'
-    case 'checking':
-      return 'checking for updates…'
-    case 'up-to-date':
-      return state.checkedAt ? `up to date (checked ${new Date(state.checkedAt).toLocaleString()})` : 'up to date'
-    case 'available':
-      return `version ${state.latestVersion} is available — see the banner at the top`
-    case 'downloading':
-      return `downloading ${state.latestVersion}…`
-    case 'installing':
-      return `installing ${state.latestVersion}…`
-    case 'error':
-      return state.error ?? 'something went wrong'
-    default:
-      return 'not checked yet'
-  }
 }

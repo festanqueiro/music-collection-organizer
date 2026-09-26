@@ -1,16 +1,24 @@
 # Settings & data
 
-Open **Settings** from the toolbar. It has three tabs.
+Open **Settings** from the toolbar. Its pages are listed down the left
+(it reopens on the last one you used; **Esc** closes it):
 
-| Tab | Sections |
+| Page | What's there |
 | --- | --- |
-| **General** | Collection folder (Change…, watch for new files, analyse them automatically), Updates, Theme, Key notation, Database & settings location (Change…) |
-| **Audio** | Audio Output device, Cue output (headphones), MIDI (mapping buttons, export/import/reset) |
-| **Backups** | Backup status and **Back up now**, Restore, Tag data (export/import), Export to Rekordbox |
+| **Library** | Collection folder (Change…); watch for new and removed files; analyse new tracks automatically |
+| **Appearance** | Theme; key notation |
+| **Audio** | Main output device; cue output (headphones) |
+| **MIDI** | Show MIDI mapping buttons; export, import or reset all bindings |
+| **Import & export** | Tag data (export/import); Export to Rekordbox |
+| **Backups & data** | Database & settings location (Change…); backups and **Back up now**; restore |
+| **Updates** | Version; check automatically; **Check now** |
+
+Code: `src/components/SettingsModal.tsx` (the sidebar) and one file per
+page in `src/components/settings/`.
 
 ## Themes
 
-**Settings → General → Theme** picks the app's colours: three dark themes
+**Settings → Appearance → Theme** picks the app's colours: three dark themes
 (**MCO Dark**, the default; **Midnight**, indigo; **Carbon**, black and
 orange) and three light (**MCO Light**, teal; **Paper**, warm cream and
 rust; **Arctic**, cool white and blue). It applies straight away and is
@@ -63,7 +71,7 @@ Code: `src/components/SettingsModal.tsx`, `electron/main/config.ts`,
 
 The installed app checks GitHub for a newer release about 20 seconds
 after launch and every 6 hours after that. You can turn this off, or
-check straight away, under **Settings → General → Updates**.
+check straight away, under **Settings → Updates**.
 
 When a new version is found, a banner at the top offers:
 

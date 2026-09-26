@@ -1,8 +1,8 @@
-// Settings → General → Theme: one card per theme, each drawn in its own
+// Settings → Appearance → Theme: one card per theme, each drawn in its own
 // colours (data-theme scopes that theme's palette to the card — see
 // src/themes.css), dark themes on the first row and light on the second.
-import { useCollectionStore } from '../state/store'
-import { APP_THEMES, type AppTheme } from '../appThemes'
+import { useCollectionStore } from '../../state/store'
+import { APP_THEMES, type AppTheme } from '../../appThemes'
 
 function ThemeCard({ theme, selected, onSelect }: { theme: AppTheme; selected: boolean; onSelect: () => void }) {
   return (
@@ -43,11 +43,13 @@ function ThemeCard({ theme, selected, onSelect }: { theme: AppTheme; selected: b
       </div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 500 }}>
         {theme.name}
-        {selected && (
-          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--color-accent)' }}>
-            check_circle
-          </span>
-        )}
+        {/* Always laid out, so the selected card isn't taller than the rest. */}
+        <span
+          className="material-symbols-outlined"
+          style={{ fontSize: '16px', lineHeight: 1, color: 'var(--color-accent)', visibility: selected ? 'visible' : 'hidden' }}
+        >
+          check_circle
+        </span>
       </div>
     </button>
   )

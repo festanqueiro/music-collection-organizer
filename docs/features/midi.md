@@ -5,7 +5,7 @@ hardware MIDI controller.
 
 ## Mapping a control (MIDI learn)
 
-1. Turn on **Settings → Audio → MIDI → Show MIDI mapping buttons** (on by
+1. Turn on **Settings → MIDI → Show MIDI mapping buttons** (on by
    default). A small piano badge appears next to every mappable control.
 2. Click the badge — it pulses while it's listening.
 3. Move a knob/fader or press a button/pad on your controller. Done.
@@ -32,7 +32,7 @@ module's on/off toggle.
 
 ## Managing bindings
 
-In **Settings → Audio → MIDI**:
+In **Settings → MIDI**:
 
 - **Export…** saves all bindings to a JSON file;
 - **Import…** loads a file (asks before replacing existing bindings;
