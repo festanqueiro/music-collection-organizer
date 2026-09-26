@@ -11,6 +11,7 @@ import { UpdateBanner } from './components/UpdateBanner'
 import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
 import { Player, EmptyPlayer } from './components/Player'
+import { FiltersPanel } from './components/FiltersPanel'
 import { PlaylistView } from './components/PlaylistView'
 import { FxView } from './components/FxView'
 import { Visualizer } from './components/Visualizer'
@@ -25,12 +26,33 @@ import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
 
-type LeftView = 'folders' | 'tags' | 'subtags'
+type LeftView = 'folders' | 'tags' | 'subtags' | 'filters'
+type TreeView = Exclude<LeftView, 'filters'>
 const LEFT_VIEWS: { key: LeftView; label: string; icon: string }[] = [
   { key: 'folders', label: 'Folders', icon: 'folder' },
   { key: 'tags', label: 'Tags', icon: 'sell' },
   { key: 'subtags', label: 'Subtags', icon: 'label' },
+  { key: 'filters', label: 'Filters', icon: 'filter_list' },
 ]
+function FilterCountBadge({ count }: { count: number }) {
+  return (
+    <span
+      style={{
+        fontSize: '10px',
+        lineHeight: '14px',
+        minWidth: '14px',
+        padding: '0 3px',
+        borderRadius: '99px',
+        background: 'var(--color-accent)',
+        color: 'var(--color-on-accent)',
+        textAlign: 'center',
+      }}
+    >
+      {count}
+    </span>
+  )
+}
+
 const LEFT_COLLAPSED_KEY = 'leftSidebarCollapsed'
 const COLLAPSED_LEFT_WIDTH = 48
 
@@ -73,6 +95,13 @@ export default function App() {
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const lastRefreshRef = useRef(0)
   const [leftView, setLeftView] = useState<LeftView>('folders')
+  // The folder/tag view the Filters view was opened from: kept mounted
+  // (hidden) meanwhile, with its selection still applied — filters combine
+  // with it rather than replacing it.
+  const [treeView, setTreeView] = useState<TreeView>('folders')
+  const activeFilterCount = useCollectionStore(
+    (s) => Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter)
+  )
   const [leftCollapsed, setLeftCollapsedState] = useState(() => {
     try {
       return localStorage.getItem(LEFT_COLLAPSED_KEY) === 'true'
@@ -103,10 +132,14 @@ export default function App() {
   // shows nothing checked. Switching views now always resets the filter
   // to "show everything" first — the newly-shown view then narrows it
   // again the moment the user actually picks something in it.
+  // Going to or from Filters doesn't count as a switch: the folder/tag
+  // view underneath keeps its selection.
   function changeLeftView(view: LeftView) {
     setLeftCollapsed(false)
     if (view === leftView) return
     setLeftView(view)
+    if (view === 'filters' || view === treeView) return
+    setTreeView(view)
     setTagFilter(() => () => true)
   }
 
@@ -332,6 +365,7 @@ export default function App() {
                   <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
                     {view.icon}
                   </span>
+                  {view.key === 'filters' && activeFilterCount > 0 && <FilterCountBadge count={activeFilterCount} />}
                 </button>
               ))}
             </div>
@@ -348,6 +382,8 @@ export default function App() {
                     <button
                       key={view.key}
                       onClick={() => changeLeftView(view.key)}
+                      title={view.label}
+                      aria-label={view.label}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -362,7 +398,9 @@ export default function App() {
                       <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
                         {view.icon}
                       </span>
-                      {view.label}
+                      {/* Only the open view is labelled — four labels don't fit. */}
+                      {leftView === view.key && view.label}
+                      {view.key === 'filters' && activeFilterCount > 0 && <FilterCountBadge count={activeFilterCount} />}
                     </button>
                   ))}
                   <button
@@ -384,31 +422,38 @@ export default function App() {
                     </span>
                   </button>
                 </div>
-                {leftView === 'folders' && (
-                  <FolderTree
-                    rootPath={collectionFolder}
-                    selectedFolder={selectedFolder}
-                    onSelect={(folder) => {
-                      setSelectedFolder(folder)
-                      clearCheckedTracks()
-                    }}
-                  />
+                {leftView === 'filters' && <FiltersPanel />}
+                {treeView === 'folders' && (
+                  <div hidden={leftView !== 'folders'}>
+                    <FolderTree
+                      rootPath={collectionFolder}
+                      selectedFolder={selectedFolder}
+                      onSelect={(folder) => {
+                        setSelectedFolder(folder)
+                        clearCheckedTracks()
+                      }}
+                    />
+                  </div>
                 )}
-                {leftView === 'tags' && (
-                  <TagTree
-                    onFilterChange={(filter) => {
-                      setTagFilter(() => filter)
-                      clearCheckedTracks()
-                    }}
-                  />
+                {treeView === 'tags' && (
+                  <div hidden={leftView !== 'tags'}>
+                    <TagTree
+                      onFilterChange={(filter) => {
+                        setTagFilter(() => filter)
+                        clearCheckedTracks()
+                      }}
+                    />
+                  </div>
                 )}
-                {leftView === 'subtags' && (
-                  <SubtagTree
-                    onFilterChange={(filter) => {
-                      setTagFilter(() => filter)
-                      clearCheckedTracks()
-                    }}
-                  />
+                {treeView === 'subtags' && (
+                  <div hidden={leftView !== 'subtags'}>
+                    <SubtagTree
+                      onFilterChange={(filter) => {
+                        setTagFilter(() => filter)
+                        clearCheckedTracks()
+                      }}
+                    />
+                  </div>
                 )}
               </>
             )}

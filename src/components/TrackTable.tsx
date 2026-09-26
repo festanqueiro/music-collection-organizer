@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { findDuplicates } from '../state/duplicates'
 import { useCollectionStore } from '../state/store'
 import { BatchTagBar } from './BatchTagBar'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
@@ -50,6 +51,38 @@ function loadColumnWidths(): Record<TrackTableColumnKey, number> {
   }
 }
 
+function FilterChip({ icon, label, onClear }: { icon: string; label: string; onClear: () => void }) {
+  return (
+    <span
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '12px',
+        padding: '2px 4px 2px 8px',
+        borderRadius: '99px',
+        border: '1px solid var(--color-accent)',
+        color: 'var(--color-accent)',
+      }}
+    >
+      <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+        {icon}
+      </span>
+      {label}
+      <button
+        onClick={onClear}
+        title="Remove this filter"
+        aria-label={`Remove the ${label} filter`}
+        style={{ background: 'none', border: 'none', padding: 0, display: 'flex', color: 'inherit', cursor: 'pointer' }}
+      >
+        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+          close
+        </span>
+      </button>
+    </span>
+  )
+}
+
 export function TrackTable({
   onSelect,
   selectedFolder,
@@ -94,6 +127,12 @@ export function TrackTable({
   const previewTrack = useCollectionStore((s) => s.previewTrack)
   const compatibleFilter = useCollectionStore((s) => s.compatibleFilter)
   const setCompatibleFilter = useCollectionStore((s) => s.setCompatibleFilter)
+  const analysedFilter = useCollectionStore((s) => s.analysedFilter)
+  const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
+  const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
+  const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
+  // Over the whole collection, so a copy in another folder still counts.
+  const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
   const currentTrackId = playlist[0] ?? null
   const currentTrack = useMemo(
     () => (currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null),
@@ -216,12 +255,27 @@ export function TrackTable({
         return !t.bpm || !currentTrack.bpm || areBpmsCompatible(t.bpm, currentTrack.bpm)
       })
       .filter((t) =>
+        analysedFilter === 'all'
+          ? true
+          : analysedFilter === 'analysed'
+            ? t.analysisStatus === 'done'
+            : t.analysisStatus !== 'done'
+      )
+      .filter((t) => !duplicates || duplicates.has(t.id))
+      .filter((t) =>
         query
           ? [t.title, t.artist, t.album, t.filename].some((v) => v?.toLowerCase().includes(query)) ||
             tagNamesFor(t.id).some((tag) => tag.name.toLowerCase().includes(query))
           : true
       )
       .sort((a, b) => {
+        // Duplicates: copies of the same song sit together, each group in
+        // the chosen sort order.
+        if (duplicates) {
+          const ga = duplicates.get(a.id)!
+          const gb = duplicates.get(b.id)!
+          if (ga !== gb) return ga < gb ? -1 : 1
+        }
         const av = sortValueFor(a, sortKey)
         const bv = sortValueFor(b, sortKey)
         const cmp = av < bv ? -1 : av > bv ? 1 : 0
@@ -240,6 +294,8 @@ export function TrackTable({
     compatibleFilter,
     canFilterCompatible,
     currentTrack,
+    analysedFilter,
+    duplicates,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
@@ -565,28 +621,22 @@ export function TrackTable({
           </span>
           Add all to queue
         </button>
-        <button
-          onClick={() => setCompatibleFilter(!compatibleFilter)}
-          disabled={!canFilterCompatible && !compatibleFilter}
-          title={
-            canFilterCompatible
-              ? `Only tracks that mix with the playing track (${formatKey(currentTrack?.musicalKey, 'both')}): on the Camelot wheel, the same key, one step either way, or its relative major/minor — and a BPM within 6% (or half/double time)`
-              : 'Play an analysed track to find tracks that mix with it'
-          }
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            fontSize: '12px',
-            border: compatibleFilter ? '1px solid var(--color-accent)' : undefined,
-            color: compatibleFilter ? 'var(--color-accent)' : undefined,
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-            join
-          </span>
-          Compatible
-        </button>
+        {/* The Filters view's active filters, each with a quick way off. */}
+        {compatibleFilter && (
+          <FilterChip
+            icon="join"
+            label={canFilterCompatible ? `Compatible with ${formatKey(currentTrack?.musicalKey, 'both')}` : 'Compatible (nothing playing)'}
+            onClear={() => setCompatibleFilter(false)}
+          />
+        )}
+        {analysedFilter !== 'all' && (
+          <FilterChip
+            icon="graphic_eq"
+            label={analysedFilter === 'analysed' ? 'Analysed' : 'Not analysed'}
+            onClear={() => setAnalysedFilter('all')}
+          />
+        )}
+        {duplicatesFilter && <FilterChip icon="content_copy" label="Duplicates" onClear={() => setDuplicatesFilter(false)} />}
         <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>
       {/* This div (not the ambient .pane it sits in, which App.tsx makes a

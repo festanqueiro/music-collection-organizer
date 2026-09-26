@@ -22,6 +22,9 @@ import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
+
+// 'unanalysed' includes tracks whose analysis failed.
+export type AnalysedFilter = 'all' | 'analysed' | 'unanalysed'
 import type { VisualizerThemeId } from 'threejs-visualisers'
 import type { KeyNotation } from './harmonic'
 import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
@@ -254,6 +257,12 @@ export interface CollectionState {
   // tempo (BPM) with the playing track. Session-only, like the search box.
   compatibleFilter: boolean
   setCompatibleFilter: (on: boolean) => void
+  // The sidebar's Filters view — also session-only, and combined with the
+  // folder/tag selection and search.
+  analysedFilter: AnalysedFilter
+  setAnalysedFilter: (filter: AnalysedFilter) => void
+  duplicatesFilter: boolean
+  setDuplicatesFilter: (on: boolean) => void
   // Imperative escape hatch so a MIDI-bound player.playPause control (and
   // eventually the spacebar/other external triggers) can toggle playback
   // without lifting the actual playing/paused boolean — which the <audio>
@@ -548,6 +557,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   keyNotation: loadKeyNotation(),
   appTheme: loadAppTheme(),
   compatibleFilter: false,
+  analysedFilter: 'all',
+  duplicatesFilter: false,
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -1224,6 +1235,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),
+  setAnalysedFilter: (filter) => set({ analysedFilter: filter, checkedTrackIds: new Set() }),
+  setDuplicatesFilter: (on) => set({ duplicatesFilter: on, checkedTrackIds: new Set() }),
 
   setVisualizerThemeOption: (theme, optionId, valueId) => {
     const all = get().visualizerThemeOptions
