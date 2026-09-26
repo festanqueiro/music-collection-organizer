@@ -50,6 +50,7 @@ import {
   renameGenre,
   renameSubgenre,
   setGenreColor,
+  setSubgenreColor,
   countTracksWithGenre,
   countTracksWithSubgenre,
   setTrackGenres,
@@ -127,6 +128,7 @@ interface SubgenreRow {
   id: number
   name: string
   genre_id: number
+  color: string | null
 }
 
 function rowToTrack(row: TrackRow): Track {
@@ -532,6 +534,7 @@ export function registerIpcHandlers(
       id: r.id,
       name: r.name,
       genreId: r.genre_id,
+      color: r.color,
     }))
   )
 
@@ -545,6 +548,9 @@ export function registerIpcHandlers(
   )
   ipcMain.handle('tags:setGenreColor', (_e, genreId: number, color: string | null): void =>
     setGenreColor(db, genreId, color)
+  )
+  ipcMain.handle('tags:setSubgenreColor', (_e, subgenreId: number, color: string | null): void =>
+    setSubgenreColor(db, subgenreId, color)
   )
   ipcMain.handle('tags:countTracksWithGenre', (_e, genreId: number): number => countTracksWithGenre(db, genreId))
   ipcMain.handle('tags:countTracksWithSubgenre', (_e, subgenreId: number): number =>

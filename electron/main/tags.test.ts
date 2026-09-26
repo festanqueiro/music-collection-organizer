@@ -8,6 +8,7 @@ import {
   renameGenre,
   renameSubgenre,
   setGenreColor,
+  setSubgenreColor,
   countTracksWithGenre,
   countTracksWithSubgenre,
   setTrackGenres,
@@ -57,6 +58,25 @@ describe('tags', () => {
     setGenreColor(db, house, '#123456')
     expect(colorOf(createGenre(db, 'Techno'))).toBe(TAG_COLORS[0])
     expect(colorOf(createGenre(db, 'Plain', null))).toBeNull()
+  })
+
+  it('gives sub-genres their own colour, kept through delete and undo', () => {
+    const colorOf = (id: number) =>
+      (db.prepare('SELECT color FROM subgenres WHERE id = ?').get(id) as { color: string | null }).color
+    const dub = createGenre(db, 'Dub')
+    const steppers = createSubgenre(db, 'Steppers', dub)
+    expect(colorOf(steppers)).toBe(TAG_COLORS[0])
+    expect(colorOf(createSubgenre(db, 'Roots', dub))).toBe(TAG_COLORS[1])
+    setSubgenreColor(db, steppers, '#abcdef')
+    const snapshot = captureSubgenreDeletionSnapshot(db, steppers)
+    deleteSubgenre(db, steppers)
+    undoSubgenreDeletion(db, snapshot)
+    expect(db.prepare("SELECT color FROM subgenres WHERE name = 'Steppers'").get()).toEqual({ color: '#abcdef' })
+    // …and through the parent genre's delete and undo.
+    const genreSnapshot = captureGenreDeletionSnapshot(db, dub)
+    deleteGenre(db, dub)
+    undoGenreDeletion(db, genreSnapshot)
+    expect(db.prepare("SELECT color FROM subgenres WHERE name = 'Steppers'").get()).toEqual({ color: '#abcdef' })
   })
 
   it('keeps the colour when a genre deletion is undone', () => {
@@ -146,7 +166,7 @@ describe('tags', () => {
     const snapshot = captureGenreDeletionSnapshot(db, houseId)
 
     expect(snapshot.genreName).toBe('House')
-    expect(snapshot.subgenres).toEqual([{ name: 'Deep House' }])
+    expect(snapshot.subgenres).toEqual([{ name: 'Deep House', color: TAG_COLORS[0] }])
     expect(snapshot.trackGenreAssociations).toEqual([{ trackId }])
     expect(snapshot.trackSubgenreAssociationsByName).toEqual({ 'Deep House': [trackId] })
   })

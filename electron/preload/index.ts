@@ -82,6 +82,8 @@ const api = {
     ipcRenderer.invoke('tags:renameSubgenre', subgenreId, name),
   setGenreColor: (genreId: number, color: string | null): Promise<void> =>
     ipcRenderer.invoke('tags:setGenreColor', genreId, color),
+  setSubgenreColor: (subgenreId: number, color: string | null): Promise<void> =>
+    ipcRenderer.invoke('tags:setSubgenreColor', subgenreId, color),
   countTracksWithGenre: (genreId: number): Promise<number> =>
     ipcRenderer.invoke('tags:countTracksWithGenre', genreId),
   countTracksWithSubgenre: (subgenreId: number): Promise<number> =>

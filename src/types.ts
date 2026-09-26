@@ -82,6 +82,9 @@ export interface Subgenre {
   id: number
   name: string
   genreId: number
+  // Its own colour, shown as the outline of its badges (genres' badges are
+  // filled). New sub-genres get one automatically; null for none.
+  color: string | null
 }
 
 // Auto-updater state, pushed from main (electron/main/updater.ts).
@@ -121,13 +124,14 @@ export interface ImportResult {
 export interface GenreDeletionSnapshot {
   genreName: string
   genreColor: string | null
-  subgenres: { name: string }[]
+  subgenres: { name: string; color: string | null }[]
   trackGenreAssociations: { trackId: number }[]
   trackSubgenreAssociationsByName: Record<string, number[]>
 }
 
 export interface SubgenreDeletionSnapshot {
   subgenreName: string
+  subgenreColor: string | null
   genreId: number
   trackSubgenreAssociations: { trackId: number }[]
 }

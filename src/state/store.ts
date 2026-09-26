@@ -384,6 +384,7 @@ export interface CollectionState {
   renameGenre: (genreId: number, name: string) => Promise<void>
   renameSubgenre: (subgenreId: number, name: string) => Promise<void>
   setGenreColor: (genreId: number, color: string | null) => Promise<void>
+  setSubgenreColor: (subgenreId: number, color: string | null) => Promise<void>
   deleteGenre: (genreId: number) => Promise<void>
   undoGenreDeletion: () => Promise<void>
   dismissGenreDeletionUndo: () => void
@@ -1303,6 +1304,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setGenreColor: async (genreId, color) => {
     await window.api.setGenreColor(genreId, color)
+    await get().loadAll()
+  },
+
+  setSubgenreColor: async (subgenreId, color) => {
+    await window.api.setSubgenreColor(subgenreId, color)
     await get().loadAll()
   },
 

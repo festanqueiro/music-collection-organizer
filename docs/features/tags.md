@@ -20,10 +20,11 @@ In the **Tags** (genres) and **Subtags** tabs of the left panel,
 right-click a tag to:
 
 - **Rename** it (shows how many tracks are affected);
-- **Choose color…** (genres) — pick one of 12 colours, a **Custom…**
-  one, or **No colour**. The colour is used for the tag's badges. A new
-  genre gets a colour automatically: the palette colour fewest genres
-  use, so they come out different;
+- **Choose color…** — pick one of 12 colours, a **Custom…** one, or
+  **No colour**. In the table, a tag's badge is filled with its colour
+  and a subtag's is outlined in its own. New tags and subtags get a
+  colour automatically: the palette colour fewest of them use, so they
+  come out different;
 - **Delete** it — a toast offers **Undo** for 8 seconds, which recreates
   the tag (with its colour) and all its track assignments (for a genre,
   its sub-genres too).

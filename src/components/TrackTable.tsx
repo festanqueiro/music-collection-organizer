@@ -171,17 +171,17 @@ export function TrackTable({
   const subgenresById = useMemo(() => new Map(subgenres.map((sg) => [sg.id, sg])), [subgenres])
   const genresById = useMemo(() => new Map(genres.map((g) => [g.id, g])), [genres])
 
-  function tagNamesFor(trackId: number): { name: string; color: string | null }[] {
+  function tagNamesFor(trackId: number): { name: string; color: string | null; sub: boolean }[] {
     const tags = trackTags.get(trackId)
     if (!tags) return []
     const genreNames = tags.genreIds
       .map((id) => genresById.get(id))
       .filter((g): g is NonNullable<typeof g> => !!g)
-      .map((g) => ({ name: g.name, color: g.color }))
+      .map((g) => ({ name: g.name, color: g.color, sub: false }))
     const subgenreNames = tags.subgenreIds
       .map((id) => subgenresById.get(id))
       .filter((sg): sg is NonNullable<typeof sg> => !!sg)
-      .map((sg) => ({ name: sg.name, color: genresById.get(sg.genreId)?.color ?? null }))
+      .map((sg) => ({ name: sg.name, color: sg.color, sub: true }))
     return [...genreNames, ...subgenreNames].sort((a, b) => a.name.localeCompare(b.name))
   }
 
@@ -424,14 +424,27 @@ export function TrackTable({
             {names.map((t, i) => (
               <span
                 key={i}
-                style={{
-                  fontSize: '11px',
-                  padding: '1px 6px',
-                  borderRadius: '8px',
-                  background: t.color ?? 'var(--color-surface-raised)',
-                  border: '1px solid var(--color-border)',
-                  color: t.color ? '#fff' : 'var(--color-text)',
-                }}
+                // Genres are filled with their colour; sub-genres are
+                // outlined in theirs.
+                style={
+                  t.sub
+                    ? {
+                        fontSize: '11px',
+                        padding: '0 5px',
+                        borderRadius: '8px',
+                        background: 'var(--color-surface-raised)',
+                        border: `2px solid ${t.color ?? 'var(--color-border)'}`,
+                        color: 'var(--color-text)',
+                      }
+                    : {
+                        fontSize: '11px',
+                        padding: '1px 6px',
+                        borderRadius: '8px',
+                        background: t.color ?? 'var(--color-surface-raised)',
+                        border: '1px solid var(--color-border)',
+                        color: t.color ? '#fff' : 'var(--color-text)',
+                      }
+                }
               >
                 {t.name}
               </span>
