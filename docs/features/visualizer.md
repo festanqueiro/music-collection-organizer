@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: [0014]
+---
 # Visualizer
 
 A full-screen, audio-reactive visualizer built on `three.js`. Open it from
@@ -53,3 +58,7 @@ themes, the renderer and the spectrum/beat analysis are the
 [threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers)
 package; `src/audio/audioAnalysis.ts` only tracks which track's analyser
 is live.
+
+## Limits & open questions
+- On a Chromecast HD only **Paint** runs smoothly when casting
+  ([research](../research/cast-devices.md#chromecast-hd-gpu)); TV quality settings are on the roadmap.

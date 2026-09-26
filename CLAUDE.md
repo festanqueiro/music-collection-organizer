@@ -26,15 +26,28 @@ macOS only for now.
   batch of work rather than one PR per tiny change.
 - Always verify with `npx tsc -b --noEmit` (see gotcha below) and `npm test`
   before considering a change done.
-- Add every user-facing change to `CHANGELOG.md`'s **Unreleased** section
-  (Added / Changed / Fixed), in plain words; when cutting a release, rename
-  that section to the new version and date.
+- **Document as you go, in the vault (`docs/`, see `docs/README.md`)**:
+  - every user-facing change → `CHANGELOG.md`'s **Unreleased** section (Added /
+    Changed / Fixed), in plain words; label it with the upcoming version inside
+    the PR that will be released, before it's merged (ADR 0035);
+  - the feature's page in `docs/features/` (behaviour, how it works, tests,
+    limits; bump `updated:`);
+  - every architectural choice → a new ADR in `docs/adr/` (never renumber; a
+    changed decision gets a new ADR that supersedes the old one), and add it to
+    the ADR index in `docs/README.md`;
+  - measurements and probes → `docs/research/`; a session with notable
+    findings or bugs → a dated write-up in `docs/log/`; milestones →
+    `docs/product/roadmap.md`.
+  - Docs-only PRs get `[skip ci]` in the title (no version bump).
 - After finishing a change (feature, fix, tweak — whatever the user asked
   for), run `npm run dist:beta` so the BETA app on disk is rebuilt and
   reinstalled with the change, ready for the user to test immediately
   without asking.
 
 ## Key gotchas
+
+- **Don't run `prettier --write` on whole files** — the repo isn't
+  prettier-formatted, so it rewrites hundreds of unrelated lines.
 
 - **Type-check command**: use `npx tsc -b --noEmit`, not plain `tsc --noEmit`
   — this repo's solution-style `tsconfig.json` uses project references, and
@@ -77,7 +90,7 @@ macOS only for now.
   Users see macOS's "could not verify" warning once and use "Open
   Anyway". Keep `mac.hardenedRuntime` false while ad-hoc signing (hardened
   runtime + ad-hoc breaks Electron's library loading). See
-  `docs/releasing.md`.
+  `docs/features/releases-and-updates.md`.
 - **Auto-updater** (`electron/main/updater.ts`): a custom GitHub Releases
   updater, not `electron-updater` (Squirrel.Mac rejects ad-hoc signed
   updates). It installs the release's `MCO-<version>-arm64.zip`, so
