@@ -112,15 +112,24 @@ export class CastController {
       await session.media.start()
       this.watchClient(session)
       await session.client.connect()
-      try {
-        await session.client.launch(RECEIVER_APP_ID)
-      } catch (err) {
-        // The device won't run MCO's app (it can say NOT_FOUND for a while
-        // after the app is published, until it re-checks on a restart).
-        // Google's player does the same job, minus MCO's screens/effects.
-        console.warn('cast: MCO receiver unavailable, using Google\'s player:', err instanceof Error ? err.message : err)
+      if (device.audioOnly) {
+        // Speakers (e.g. a Nest Mini) don't answer a LAUNCH of MCO's app
+        // at all — not even with an error — so trying it first would sit
+        // on "connecting" until the request timed out. MCO's app is mostly
+        // screens anyway; Google's player is the one that works there.
         session.mode = 'direct'
         await session.client.launch()
+      } else {
+        try {
+          await session.client.launch(RECEIVER_APP_ID)
+        } catch (err) {
+          // The device won't run MCO's app (it can say NOT_FOUND for a while
+          // after the app is published, until it re-checks on a restart).
+          // Google's player does the same job, minus MCO's screens/effects.
+          console.warn('cast: MCO receiver unavailable, using Google\'s player:', err instanceof Error ? err.message : err)
+          session.mode = 'direct'
+          await session.client.launch()
+        }
       }
     } catch (err) {
       this.endSession(id, err instanceof Error ? err.message : String(err))

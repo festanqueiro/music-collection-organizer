@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { ConfirmDialog } from './ConfirmDialog'
 import logo from '../../resources/icon.png'
 
-// One row, everything the same height: brand and the collection folder on
-// the left, search in the middle, actions on the right.
+// One row, everything the same height: brand on the left, search in the
+// middle, then the collection folder, Update Collection and Settings.
 const CONTROL_HEIGHT = '32px'
 
 export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
@@ -14,6 +15,8 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const pickCollectionFolder = useCollectionStore((s) => s.pickCollectionFolder)
   const appVersion = useCollectionStore((s) => s.appVersion)
   const [scanning, setScanning] = useState(false)
+  const [confirmingScan, setConfirmingScan] = useState(false)
+  const [analyseNew, setAnalyseNew] = useState(true)
   const folderName = collectionFolder?.split('/').filter(Boolean).pop() ?? collectionFolder
 
   return (
@@ -45,34 +48,6 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         )}
       </div>
 
-      {collectionFolder && (
-        <button
-          onClick={() => pickCollectionFolder()}
-          title={`${collectionFolder}\nClick to change the collection folder`}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            height: CONTROL_HEIGHT,
-            padding: '0 10px',
-            maxWidth: '240px',
-            minWidth: 0,
-            flexShrink: 1,
-            background: 'none',
-            color: 'var(--color-text-dim)',
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-            folder
-          </span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text)' }}>
-            {folderName}
-          </span>
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-            expand_more
-          </span>
-        </button>
-      )}
 
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center', minWidth: '160px' }}>
         <div style={{ position: 'relative', display: 'flex', width: '100%', maxWidth: '560px' }}>
@@ -135,23 +110,47 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        {collectionFolder && (
+          <button
+            onClick={() => pickCollectionFolder()}
+            title={`${collectionFolder}\nClick to change the collection folder`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              height: CONTROL_HEIGHT,
+              padding: '0 10px',
+              maxWidth: '240px',
+              minWidth: 0,
+              flexShrink: 1,
+              background: 'none',
+              color: 'var(--color-text-dim)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              folder
+            </span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text)' }}>
+              {folderName}
+            </span>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              expand_more
+            </span>
+          </button>
+        )}
         <button
-          onClick={async () => {
-            setScanning(true)
-            try {
-              await runScan()
-            } finally {
-              setScanning(false)
-            }
+          onClick={() => {
+            setAnalyseNew(true)
+            setConfirmingScan(true)
           }}
           disabled={scanning}
-          title="Rescan the collection folder for new, changed and removed files"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', height: CONTROL_HEIGHT, padding: '0 12px' }}
+          title={scanning ? 'Scanning…' : 'Update Collection — scan the collection folder for new, changed and removed files'}
+          aria-label="Update Collection"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: CONTROL_HEIGHT, height: CONTROL_HEIGHT, padding: 0 }}
         >
           <span className={`material-symbols-outlined${scanning ? ' spin' : ''}`} style={{ fontSize: '18px' }}>
             {scanning ? 'progress_activity' : 'refresh'}
           </span>
-          {scanning ? 'Scanning…' : 'Update Collection'}
         </button>
         <button
           onClick={onOpenSettings}
@@ -164,6 +163,32 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
           </span>
         </button>
       </div>
+
+      {confirmingScan && (
+        <ConfirmDialog
+          title="Update Collection"
+          icon="refresh"
+          confirmLabel="Scan"
+          onCancel={() => setConfirmingScan(false)}
+          onConfirm={async () => {
+            setConfirmingScan(false)
+            setScanning(true)
+            try {
+              await runScan({ analyseNew })
+            } finally {
+              setScanning(false)
+            }
+          }}
+        >
+          <p style={{ margin: '0 0 12px' }}>
+            We're going to scan for new files in <strong style={{ color: 'var(--color-text)' }}>{collectionFolder}</strong>.
+          </p>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text)' }}>
+            <input type="checkbox" checked={analyseNew} onChange={(e) => setAnalyseNew(e.target.checked)} />
+            Analyse all new files added to the collection
+          </label>
+        </ConfirmDialog>
+      )}
     </div>
   )
 }

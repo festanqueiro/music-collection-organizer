@@ -34,6 +34,7 @@ import {
   movePlaylistItem as movePlaylistItemPure,
   advanceToNext as advanceToNextPure,
   shufflePlaylist as shufflePlaylistPure,
+  clearUpcoming as clearUpcomingPure,
   playQueueItemNow as playQueueItemNowPure,
   playQueueItemNext as playQueueItemNextPure,
 } from './playlist'
@@ -379,7 +380,8 @@ export interface CollectionState {
   setTrackGenres: (trackId: number, genreIds: number[]) => Promise<void>
   setTrackSubgenres: (trackId: number, subgenreIds: number[]) => Promise<void>
   setSearchText: (text: string) => void
-  runScan: () => Promise<void>
+  // analyseNew: also analyse the tracks this scan added.
+  runScan: (opts?: { analyseNew?: boolean }) => Promise<void>
   runAnalysis: (trackIds?: number[]) => Promise<void>
   // One play of a track (see Player.tsx): bumps its play count.
   recordPlay: (trackId: number) => Promise<void>
@@ -1151,7 +1153,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   removeFromPlaylist: (index) => set({ playlist: removeFromPlaylistPure(get().playlist, index) }),
 
-  clearPlaylist: () => set({ playlist: [] }),
+  clearPlaylist: () => set({ playlist: clearUpcomingPure(get().playlist) }),
 
   movePlaylistItem: (fromIndex, toIndex) =>
     set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),
@@ -1262,9 +1264,21 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setSearchText: (text) => set({ searchText: text, checkedTrackIds: new Set() }),
 
-  runScan: async () => {
+  runScan: async (opts) => {
+    const before = new Set(get().tracks.map((t) => t.id))
     await window.api.scanCollection()
     await get().loadAll()
+    if (!opts?.analyseNew) return
+    const added = get()
+      .tracks.filter((t) => !before.has(t.id) && t.analysisStatus !== 'done')
+      .map((t) => t.id)
+    // Not awaited: analysis:run resolves only once every track is done, and
+    // the scan is finished — progress shows up via scan:progress as usual.
+    if (added.length > 0) {
+      get()
+        .runAnalysis(added)
+        .catch((err) => console.error('analysing new tracks failed', err))
+    }
   },
 
   // Progress is picked up via the existing scan:progress listener/

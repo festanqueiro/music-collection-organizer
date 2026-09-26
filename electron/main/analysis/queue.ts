@@ -108,6 +108,7 @@ export async function runAnalysisQueue(
   options: {
     concurrency: number
     cacheDir: string
+    // done may be fractional: it includes how far the in-flight tracks are.
     onProgress?: (progress: { done: number; total: number }) => void
     signal?: AbortSignal
   }
@@ -127,6 +128,15 @@ export async function runAnalysisQueue(
   // large bulk analysis.
   const tracksById = new Map(tracks.map((t) => [t.id, t]))
   const { cacheDir } = options
+  // How far through each in-flight track is (0..1), so `done` can count
+  // partly analysed tracks too — otherwise, with several tracks running in
+  // parallel, the bar sits still and then jumps.
+  const partial = new Map<number, number>()
+  const reportProgress = () => {
+    let inFlight = 0
+    for (const fraction of partial.values()) inFlight += fraction
+    options.onProgress?.({ done: done + inFlight, total })
+  }
 
   await new Promise<void>((resolve, reject) => {
     const workers: Worker[] = []
@@ -188,6 +198,13 @@ export async function runAnalysisQueue(
         // calling postMessage() on an already-terminated worker.
         if (settled) return
 
+        if (msg.status === 'progress') {
+          partial.set(msg.id, msg.fraction)
+          reportProgress()
+          return
+        }
+        partial.delete(msg.id)
+
         const track = tracksById.get(msg.id)!
         try {
           if (msg.status === 'done') {
@@ -209,7 +226,7 @@ export async function runAnalysisQueue(
         }
 
         done++
-        options.onProgress?.({ done, total })
+        reportProgress()
 
         if (nextIndex < tracks.length) {
           assignNext(worker)

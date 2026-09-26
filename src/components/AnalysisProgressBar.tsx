@@ -7,7 +7,8 @@ export function AnalysisProgressBar({ progress }: { progress: { done: number; to
   // {done: 0, total: 1} — technically correct, but "Analyzing 0 of 1"
   // reads like nothing is happening. The label shows which track is
   // currently being worked on (1-indexed), not how many have finished.
-  const current = Math.min(progress.done + 1, progress.total)
+  // done can be fractional (tracks part-way through count partly).
+  const current = Math.min(Math.floor(progress.done) + 1, progress.total)
 
   return (
     <div

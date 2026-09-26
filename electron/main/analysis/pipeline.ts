@@ -28,10 +28,20 @@ export interface AnalysisPipelineResult {
 // metadataPath: where to read tags/bitrate from, when it differs from the
 // audio being decoded — an AIFF is decoded from its cached FLAC transcode
 // (see audioTranscode.ts), but its tags and bitrate belong to the original.
-export async function runAnalysisPipeline(path: string, metadataPath = path): Promise<AnalysisPipelineResult> {
+// onStep: how far through this track the analysis is (0..1), after each
+// step — so the progress bar moves during a track, not only between them.
+// The fractions are rough shares of the time each step takes.
+export async function runAnalysisPipeline(
+  path: string,
+  metadataPath = path,
+  onStep?: (fraction: number) => void
+): Promise<AnalysisPipelineResult> {
   const [metadata, pcm] = await Promise.all([extractMetadata(metadataPath), decodeToPcm(path)])
+  onStep?.(0.4)
   const { bpm, key, scale } = detectBpmAndKey(pcm)
+  onStep?.(0.8)
   const peaks = computeWaveformPeaks(pcm)
+  onStep?.(0.9)
   const { loudness, energy } = detectEnergy(pcm)
 
   return {

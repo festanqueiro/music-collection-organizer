@@ -1,7 +1,6 @@
-// The right end of the player bar, in this order: Queue, FX and
-// Visualizer — the full-screen views, most used first; the visualizer
-// last of them since it shows the sound after FX — then, set apart, Cast,
-// which changes where the sound goes rather than opening a view.
+// The right end of the player bar, in this order: Cast — set apart, since
+// it changes where the sound goes rather than opening a view — then the
+// full-screen views: Visualizer, FX and Queue.
 import { useCollectionStore, type PlayerScreen } from '../state/store'
 import { activeEffects } from '../cast/fxIndicators'
 import { CastButton } from './CastButton'
@@ -46,8 +45,8 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-      <ScreenButton screen="queue" icon="queue_music" label="Queue" badge={queued > 0 ? String(queued) : undefined} />
-      <ScreenButton screen="fx" icon="tune" label="FX" lit={fxActive} />
+      <CastButton />
+      <span style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 4px' }} />
       <button
         onClick={(e) => {
           setVisualizerOpen(true)
@@ -65,8 +64,8 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
         </span>
         Visualizer
       </button>
-      <span style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 4px' }} />
-      <CastButton />
+      <ScreenButton screen="fx" icon="tune" label="FX" lit={fxActive} />
+      <ScreenButton screen="queue" icon="queue_music" label="Queue" badge={queued > 0 ? String(queued) : undefined} />
     </div>
   )
 }

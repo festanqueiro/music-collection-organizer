@@ -16,6 +16,8 @@ export interface WorkerTask {
 export type WorkerResult =
   | { id: number; status: 'done'; result: Awaited<ReturnType<typeof runAnalysisPipeline>> }
   | { id: number; status: 'error' }
+  // Part-way through a track (see runAnalysisPipeline's onStep).
+  | { id: number; status: 'progress'; fraction: number }
 
 if (!parentPort) {
   throw new Error('analysis worker must be run inside a worker_threads Worker')
@@ -24,7 +26,9 @@ if (!parentPort) {
 parentPort.on('message', async (task: WorkerTask) => {
   try {
     const playablePath = await getPlayableFilePath(task.path, task.cacheDir)
-    const result = await runAnalysisPipeline(playablePath, task.path)
+    const result = await runAnalysisPipeline(playablePath, task.path, (fraction) =>
+      parentPort!.postMessage({ id: task.id, status: 'progress', fraction } satisfies WorkerResult)
+    )
     parentPort!.postMessage({ id: task.id, status: 'done', result } satisfies WorkerResult)
   } catch {
     parentPort!.postMessage({ id: task.id, status: 'error' } satisfies WorkerResult)
