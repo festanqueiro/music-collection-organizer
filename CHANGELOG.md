@@ -35,6 +35,9 @@ installed copies update themselves.
   when you switch theme.
 
 ### Fixed
+- The headphones (pre-listen) bar couldn't be closed, and its buttons did
+  nothing, while a track was loaded in the player; reopening it stacked a
+  second bar.
 - The TV's now-playing screen no longer pushes the progress bar and times
   off the bottom of the screen; the song title is a little smaller.
 - Casting ended by itself after a few minutes: Google TV's screensaver hid

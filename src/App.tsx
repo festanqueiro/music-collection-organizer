@@ -551,7 +551,10 @@ export default function App() {
         </div>
 
         <div style={{ gridArea: 'footer', borderTop: '1px solid var(--color-border)', position: 'relative' }}>
-          {cueTrack && <CuePlayer key={cueTrack.id} track={cueTrack} />}
+          {/* Always present, so the pre-listen bar comes and goes inside it
+              rather than being inserted next to the keyed Player below —
+              with the Player there, React left a closed bar on screen. */}
+          <div>{cueTrack && <CuePlayer key={cueTrack.id} track={cueTrack} />}</div>
           {(() => {
             // Driven by the playlist queue's head, not row selection — the
             // player is independent, so browsing/checking details on other
