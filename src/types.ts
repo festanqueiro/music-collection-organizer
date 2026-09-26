@@ -297,13 +297,11 @@ export interface CastDevice {
   audioOnly: boolean
 }
 
-// How a cast session plays (see electron/main/cast/castSession.ts):
-// 'stream' records MCO's live output (effects, siren, visualizer) and
-// streams it, a few seconds behind; 'direct' has the device play each
-// track file itself in Google's media player, with near-instant controls
-// but no effects; 'receiver' is the same but in MCO's own receiver app
-// (cast-receiver/) — beta.
-export type CastMode = 'stream' | 'direct' | 'receiver'
+// Which app a cast session plays in (see electron/main/cast/castSession.ts):
+// 'receiver' is MCO's own Cast app (cast-receiver/) — effects, siren and
+// visualizer run on the device; 'direct' is Google's media player, the
+// fallback where a device won't run MCO's app (tracks only).
+export type CastMode = 'receiver' | 'direct'
 
 // Direct mode: MCO's player → the device.
 export type CastDirectCommand =
@@ -321,12 +319,11 @@ export interface CastMediaEvent {
 }
 
 // Cast session state, pushed from main (electron/main/cast/castSession.ts).
-//   connecting — reaching the device / starting the stream encoder
-//   buffering  — encoding the first segments before the TV is told to play
-//   casting    — the TV is playing the stream
+//   connecting — reaching the device and starting its player
+//   casting    — the device's player is up (mode says which app)
 //   error      — the session ended because of `error`; otherwise idle
 export interface CastStatus {
-  state: 'idle' | 'connecting' | 'buffering' | 'casting' | 'error'
+  state: 'idle' | 'connecting' | 'casting' | 'error'
   deviceName?: string
   // The device has no screen (gets audio only).
   audioOnly?: boolean

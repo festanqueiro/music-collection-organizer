@@ -38,7 +38,8 @@ declare const cast:
     }
   | undefined
 
-const STATUS_INTERVAL_MS = 1000
+// MCO's seekbar follows these reports (see src/cast/directCast.ts).
+const STATUS_INTERVAL_MS = 500
 
 const $ = (id: string) => document.getElementById(id)!
 ;($('logo') as HTMLImageElement).src = logoUrl
@@ -139,7 +140,9 @@ function sendStatus(): void {
     trackId,
     playerState: playerState(),
     idleReason,
-    currentTime: audio.currentTime || 0,
+    // Where playback is *audibly* — the element runs ahead of the speakers
+    // by the audio graph's and the TV's output latency.
+    currentTime: Math.max(0, (audio.currentTime || 0) - (chain?.outputLatencySeconds() ?? 0)),
   }
   if (context) context.sendCustomMessage(RECEIVER_NAMESPACE, undefined, status)
   else console.log('[receiver] status', JSON.stringify(status))

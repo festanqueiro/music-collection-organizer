@@ -23,7 +23,6 @@ import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import type { VisualizerThemeId } from 'threejs-visualisers'
 import type { KeyNotation } from './harmonic'
-import type { FrameStats } from '../cast/framePacer'
 import { describeLibraryChange } from './libraryChange'
 import {
   playTrackNow as playTrackNowPure,
@@ -253,21 +252,10 @@ export interface CollectionState {
   setCastStatus: (status: CastStatus) => void
   castDevices: CastDevice[]
   setCastDevices: (devices: CastDevice[]) => void
-  // What the TV shows: the visualizer (true) or a now-playing card.
-  castShowVisualizer: boolean
-  setCastShowVisualizer: (show: boolean) => void
   // Silences this Mac's speakers while the TV plays — the TV runs a few
   // seconds behind, so hearing both at once is an echo.
   castMuteLocal: boolean
   setCastMuteLocal: (mute: boolean) => void
-  // Beta: TVs without the visualizer use MCO's own receiver app instead of
-  // Google's media player (see CastMode).
-  castUseReceiver: boolean
-  setCastUseReceiver: (use: boolean) => void
-  // The TV picture's measured frame rate/draw time, updated once a
-  // second while casting to a screen (see src/cast/framePacer.ts).
-  castFrameStats: FrameStats | null
-  setCastFrameStats: (stats: FrameStats | null) => void
   setPlaybackControls: (controls: PlaybackControls | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
@@ -451,9 +439,7 @@ function loadVisualizerHideTrackInfo(): boolean {
   }
 }
 
-const CAST_SHOW_VISUALIZER_KEY = 'castShowVisualizer'
 const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
-const CAST_USE_RECEIVER_KEY = 'castUseReceiver'
 function loadBooleanPreference(key: string, fallback: boolean): boolean {
   try {
     const value = localStorage.getItem(key)
@@ -538,10 +524,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playerPlaying: false,
   castStatus: { state: 'idle' },
   castDevices: [],
-  castShowVisualizer: loadBooleanPreference(CAST_SHOW_VISUALIZER_KEY, true),
   castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
-  castUseReceiver: loadBooleanPreference(CAST_USE_RECEIVER_KEY, false),
-  castFrameStats: null,
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
@@ -605,19 +588,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setPlayerPlaying: (playing) => set({ playerPlaying: playing }),
   setCastStatus: (status) => set({ castStatus: status }),
   setCastDevices: (devices) => set({ castDevices: devices }),
-  setCastShowVisualizer: (show) => {
-    set({ castShowVisualizer: show })
-    saveBooleanPreference(CAST_SHOW_VISUALIZER_KEY, show)
-  },
   setCastMuteLocal: (mute) => {
     set({ castMuteLocal: mute })
     saveBooleanPreference(CAST_MUTE_LOCAL_KEY, mute)
   },
-  setCastUseReceiver: (use) => {
-    set({ castUseReceiver: use })
-    saveBooleanPreference(CAST_USE_RECEIVER_KEY, use)
-  },
-  setCastFrameStats: (stats) => set({ castFrameStats: stats }),
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
   loadMidiMappings: async () => {

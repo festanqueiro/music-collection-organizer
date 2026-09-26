@@ -29,12 +29,9 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   const castStatus = useCollectionStore((s) => s.castStatus)
-  // The visualizer is on the TV: streamed (stream mode), or rendered by
-  // MCO's own receiver app when it's set to show it.
-  const castShowVisualizer = useCollectionStore((s) => s.castShowVisualizer)
-  const castingToScreen =
-    isCastActive(castStatus) &&
-    (castStatus.mode === 'stream' || (castStatus.mode === 'receiver' && castShowVisualizer && !castStatus.audioOnly))
+  // Casting to a screen in MCO's own app: opening the visualizer shows it
+  // on the TV (see receiverSync.ts), rendered there.
+  const castingToScreen = isCastActive(castStatus) && castStatus.mode === 'receiver' && !castStatus.audioOnly
   const showUi = uiVisible || castingToScreen
 
   const activeThemeId = getVisualizerTheme(themeId).id

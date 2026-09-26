@@ -1,7 +1,8 @@
-// Receiver cast mode: keeps MCO's own receiver app on the TV in step with
-// MCO — what it displays (visualizer theme/options, or the now-playing
-// screen), the FX chain and volume, and the Dub Siren trigger. Sends
-// everything once when a receiver session starts, then just what changes.
+// Keeps MCO's own Cast app on the device in step with MCO — what it
+// displays (the visualizer while it's open in MCO, with its theme and
+// options; the now-playing screen otherwise), the FX chain and volume,
+// and the Dub Siren trigger. Sends everything once when a session starts
+// in MCO's app, then just what changes.
 import { useCollectionStore, type CollectionState } from '../state/store'
 import type { ReceiverSettingsMessage } from './receiverProtocol'
 
@@ -16,8 +17,9 @@ function receiverActive(state: CollectionState): boolean {
 function displayMessage(state: CollectionState): ReceiverSettingsMessage {
   return {
     type: 'display',
-    // Speakers have nothing to show it on.
-    showVisualizer: state.castShowVisualizer && !state.castStatus.audioOnly,
+    // Opening the visualizer in MCO puts it on the TV (MCO then shows just
+    // its controls). Speakers have nothing to show it on.
+    showVisualizer: state.visualizerOpen && !state.castStatus.audioOnly,
     theme: state.visualizerTheme,
     options: state.visualizerThemeOptions[state.visualizerTheme] ?? {},
     hideTrackInfo: state.visualizerHideTrackInfo,
@@ -50,7 +52,7 @@ export function initReceiverSync(): () => void {
       return
     }
     if (
-      state.castShowVisualizer !== previous.castShowVisualizer ||
+      state.visualizerOpen !== previous.visualizerOpen ||
       state.visualizerTheme !== previous.visualizerTheme ||
       state.visualizerThemeOptions !== previous.visualizerThemeOptions ||
       state.visualizerHideTrackInfo !== previous.visualizerHideTrackInfo

@@ -84,7 +84,6 @@ import type {
   TrackTableSortState,
   UpdateState,
   CastStatus,
-  CastMode,
   CastDirectCommand,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
@@ -747,9 +746,7 @@ export function registerIpcHandlers(
   ipcMain.handle('cast:startDiscovery', (): void => cast.startDiscovery())
   ipcMain.handle('cast:stopDiscovery', (): void => cast.stopDiscovery())
   ipcMain.handle('cast:getStatus', (): CastStatus => cast.getStatus())
-  ipcMain.handle('cast:start', (_e, deviceId: string, mode: CastMode): Promise<void> =>
-    cast.start(String(deviceId), mode === 'direct' || mode === 'receiver' ? mode : 'stream'),
-  )
+  ipcMain.handle('cast:start', (_e, deviceId: string): Promise<void> => cast.start(String(deviceId)))
   ipcMain.on('cast:receiver', (_e, message: unknown) => {
     if (isReceiverSettingsMessage(message)) cast.sendReceiverSettings(message)
   })
@@ -757,8 +754,4 @@ export function registerIpcHandlers(
     if (command && typeof command === 'object' && typeof command.type === 'string') cast.runDirect(command)
   })
   ipcMain.handle('cast:stop', (): void => cast.stop())
-  ipcMain.on('cast:chunk', (_e, chunk: unknown) => {
-    if (chunk instanceof Uint8Array) cast.writeChunk(chunk)
-    else if (chunk instanceof ArrayBuffer) cast.writeChunk(new Uint8Array(chunk))
-  })
 }

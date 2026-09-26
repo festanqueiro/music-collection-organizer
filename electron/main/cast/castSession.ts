@@ -1,31 +1,24 @@
 // Main-process side of casting: owns device discovery and the one active
-// session, and reports status to the renderer. Two modes:
+// session, and reports status to the renderer. The device plays each
+// track file itself, fetched from CastMediaServer, and MCO's player drives
+// it with load/play/pause/seek commands (runDirect) — in one of two apps:
 //
-//   stream — the renderer records MCO's live output (effects, siren, the
-//            visualizer picture) and feeds it in via writeChunk(); ffmpeg
-//            turns it into a live stream the device plays a few seconds
-//            behind. Used for TVs with "Show visualizer" on.
-//   direct — the device plays each track file itself, fetched from
-//            CastMediaServer, and MCO sends it play/pause/seek
-//            commands (runDirect). Controls are near-instant (volume is
-//            left to the TV remote / Google Home app), and the device
-//            shows its own player, but MCO's effects aren't heard.
-//            Used for speakers, and TVs with "Show visualizer" off.
-//   receiver — direct mode, but in MCO's own receiver app on the TV
-//            (cast-receiver/) instead of Google's player, talking over
-//            MCO's own message channel. Beta.
+//   receiver — MCO's own Cast app (cast-receiver/), which also runs MCO's
+//            effects and siren and renders the visualizer on the device,
+//            talking over MCO's own message channel (receiverProtocol.ts).
+//   direct   — the fallback, where a device won't run MCO's app: Google's
+//            Default Media Receiver. Plays the tracks only (no effects or
+//            visualizer; volume is left to the TV remote / Google Home).
 //
-// The renderer owns the other half of each (src/cast/castSession.ts,
-// src/cast/directCast.ts).
+// The renderer owns the other half (src/cast/castSession.ts,
+// src/cast/directCast.ts, src/cast/receiverSync.ts).
 import { CastClient, type CastMediaStatus } from './castClient'
 import { CastDiscovery } from './castDiscovery'
-import { CastStream, pickLocalAddress } from './castStream'
+import { pickLocalAddress } from './castNetwork'
 import { CastMediaServer, type MediaResolvers } from './castMediaServer'
 import type { CastDevice, CastDirectCommand, CastMediaEvent, CastMode, CastStatus } from '../../../src/types'
 import { RECEIVER_APP_ID, isReceiverStatus, type ReceiverSettingsMessage, type ToReceiver } from '../../../src/cast/receiverProtocol'
 
-const STREAM_READY_TIMEOUT_MS = 20000
-const READY_POLL_MS = 250
 // Direct mode: how often the device's position is fetched, so MCO's
 // (silent) player can stay in step with it.
 const DIRECT_POSITION_POLL_MS = 2000
@@ -51,9 +44,6 @@ interface ActiveSession {
   device: CastDevice
   client: CastClient
   localAddress: string | null
-  // stream mode
-  stream: CastStream | null
-  // direct mode
   media: CastMediaServer | null
   mediaSessionId: number | null
   trackId: number | null
@@ -66,8 +56,8 @@ export class CastController {
   private session: ActiveSession | null = null
   private nextSessionId = 1
   private status: CastStatus = { state: 'idle' }
-  // The device of the latest session: a restart (e.g. switching mode) can
-  // come just as a fresh scan has emptied the discovered list.
+  // The device of the latest session: a restart can come just as a fresh
+  // scan has emptied the discovered list.
   private lastDevice: CastDevice | null = null
 
   constructor(
@@ -91,28 +81,22 @@ export class CastController {
     return this.status
   }
 
-  // Resolves once MCO is ready: in stream mode, when the encoder and
-  // server can take chunks (connecting to the device and loading the
-  // stream carries on in the background, reported through status
-  // updates); in direct mode, when the device's player is up and ready
-  // for a track.
-  async start(deviceId: string, mode: CastMode): Promise<void> {
+  // Resolves once the device's player is up and ready for a track: MCO's
+  // own app where the device runs it, Google's player otherwise.
+  async start(deviceId: string): Promise<void> {
     const device = this.discovery.get(deviceId) ?? (this.lastDevice?.id === deviceId ? this.lastDevice : undefined)
     if (!device) throw new Error('That device is no longer available')
     this.lastDevice = device
-    // Replacing a running session (e.g. switching mode): no 'idle' in
-    // between, or the renderer would tear down what it has just started
-    // for the new one.
+    // Replacing a running session: no 'idle' in between.
     this.stop(false)
 
     const id = this.nextSessionId++
     const session: ActiveSession = {
       id,
-      mode,
+      mode: 'receiver',
       device,
       client: new CastClient(device.host, device.port),
       localAddress: pickLocalAddress(device.host),
-      stream: null,
       media: null,
       mediaSessionId: null,
       trackId: null,
@@ -122,36 +106,20 @@ export class CastController {
     this.session = session
     this.setStatus(this.statusFor(session, 'connecting'))
 
-    if (mode === 'stream') {
-      session.stream = new CastStream((message) => this.endSession(id, message))
-      try {
-        await session.stream.start()
-      } catch (err) {
-        this.endSession(id, err instanceof Error ? err.message : String(err))
-        throw err
-      }
-      void this.connectAndLoadStream(session)
-      return
-    }
-
     try {
       if (!session.localAddress) throw new Error("This Mac doesn't seem to be on a network")
       session.media = new CastMediaServer(this.sources)
       await session.media.start()
       this.watchClient(session)
       await session.client.connect()
-      if (mode === 'receiver') {
-        try {
-          await session.client.launch(RECEIVER_APP_ID)
-        } catch (err) {
-          // The device doesn't (yet) accept MCO's app — e.g. it's not
-          // registered for testing, or a new publish hasn't reached it.
-          // Google's player does the same job, minus MCO's screens/effects.
-          console.warn('cast: MCO receiver unavailable, using Google\'s player:', err instanceof Error ? err.message : err)
-          session.mode = 'direct'
-          await session.client.launch()
-        }
-      } else {
+      try {
+        await session.client.launch(RECEIVER_APP_ID)
+      } catch (err) {
+        // The device won't run MCO's app (it can say NOT_FOUND for a while
+        // after the app is published, until it re-checks on a restart).
+        // Google's player does the same job, minus MCO's screens/effects.
+        console.warn('cast: MCO receiver unavailable, using Google\'s player:', err instanceof Error ? err.message : err)
+        session.mode = 'direct'
         await session.client.launch()
       }
     } catch (err) {
@@ -165,16 +133,12 @@ export class CastController {
     this.setStatus(this.statusFor(session, 'casting'))
   }
 
-  writeChunk(chunk: Uint8Array): void {
-    this.session?.stream?.write(chunk)
-  }
-
-  // Direct mode: a command from MCO's player. Commands run one at a time,
+  // A command from MCO's player. Commands run one at a time,
   // in order, so a play or seek sent right after a load waits for it.
   runDirect(command: CastDirectCommand): void {
     const session = this.session
     debug('command', JSON.stringify(command), 'session mode:', session?.mode ?? 'none')
-    if (!session || session.mode === 'stream') return
+    if (!session) return
     session.commands = session.commands
       .then(() => this.execute(session, command))
       .catch((err) => console.error('cast command failed', command.type, err))
@@ -213,7 +177,7 @@ export class CastController {
 
   // For quitting: stops the session and waits (up to `timeoutMs`) for the
   // TV to be told, so it goes back to its home screen instead of being
-  // left on a stream that's about to vanish.
+  // left on a player whose files are about to vanish.
   async shutdown(timeoutMs: number): Promise<void> {
     const session = this.session
     this.discovery.stop()
@@ -348,48 +312,19 @@ export class CastController {
         // Stopped from the TV or the Google Home app.
         this.endSession(id, null)
       } else if (status.idleReason === 'FINISHED') {
-        // A live stream only finishes when it's gone; a track finishing
-        // is MCO's cue to move on.
-        if (session.mode === 'stream') this.endSession(id, null)
-        else this.forwardMedia(session, status)
+        // A track finishing is MCO's cue to move on.
+        this.forwardMedia(session, status)
       }
       // INTERRUPTED: replaced by the next LOAD — nothing to do.
     })
   }
 
-  private async connectAndLoadStream(session: ActiveSession): Promise<void> {
-    const { id, client } = session
-    const stream = session.stream!
-    this.watchClient(session)
-    try {
-      await client.connect()
-      if (this.session !== session) return
-      this.setStatus(this.statusFor(session, 'buffering'))
-
-      const startedAt = Date.now()
-      while (!stream.isReady()) {
-        if (this.session !== session) return
-        if (Date.now() - startedAt > STREAM_READY_TIMEOUT_MS) throw new Error('MCO did not produce any stream data')
-        await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS))
-      }
-
-      const localAddress = session.localAddress
-      if (!localAddress) throw new Error("This Mac doesn't seem to be on a network")
-      await client.load({ url: stream.url(localAddress), contentType: stream.contentType, title: 'MCO' })
-      if (this.session !== session) return
-      this.setStatus(this.statusFor(session, 'casting'))
-    } catch (err) {
-      this.endSession(id, err instanceof Error ? err.message : String(err))
-    }
-  }
-
-  private statusFor(session: ActiveSession, state: 'connecting' | 'buffering' | 'casting'): CastStatus {
+  private statusFor(session: ActiveSession, state: 'connecting' | 'casting'): CastStatus {
     return { state, deviceName: session.device.name, audioOnly: session.device.audioOnly, mode: session.mode }
   }
 
   private release(session: ActiveSession): void {
     if (session.positionTimer) clearInterval(session.positionTimer)
-    session.stream?.stop()
     session.media?.stop()
   }
 

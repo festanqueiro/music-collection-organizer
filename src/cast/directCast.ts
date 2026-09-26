@@ -10,8 +10,9 @@
 // loading or buffering), so its reports are ignored for this long.
 const COMMAND_GRACE_MS = 3000
 // Position differences smaller than this are left alone — nudging the
-// local element for less would just stutter the seekbar.
-const DRIFT_TOLERANCE_SECONDS = 1
+// local element for less would just jitter the seekbar with the reports'
+// own timing noise.
+const DRIFT_TOLERANCE_SECONDS = 0.35
 
 export interface DeviceReport {
   playerState: 'IDLE' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'LOADING'

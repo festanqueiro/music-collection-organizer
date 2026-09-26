@@ -172,10 +172,7 @@ function createWindow(onShown?: () => void): void {
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
-      // Casting renders and records the TV picture on a timer (src/cast/)
-      // that has to keep running while the window is hidden or minimised.
-      backgroundThrottling: false
+      sandbox: false
     }
   })
 

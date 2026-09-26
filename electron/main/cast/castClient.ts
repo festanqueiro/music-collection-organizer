@@ -1,9 +1,8 @@
 // Minimal Google Cast v2 sender: TLS to the device's port 8009, launch
 // Google's Default Media Receiver (a built-in receiver app every Cast
-// device ships with — no developer registration needed), then LOAD a URL
-// on it. Only what casting a live stream needs is implemented: no queue,
-// seek or track-level control, since the stream itself carries MCO's
-// output live.
+// device ships with — no developer registration needed) or MCO's own
+// app, then load tracks on it and drive them (play/pause/seek), or talk to
+// MCO's app over its own channel. No queue: MCO sends one track at a time.
 import { EventEmitter } from 'node:events'
 import { connect as tlsConnect, type TLSSocket } from 'node:tls'
 import { CastFrameReader, encodeCastMessage } from './castMessage'
@@ -21,12 +20,6 @@ const RECEIVER_ID = 'receiver-0'
 const HEARTBEAT_INTERVAL_MS = 5000
 const REQUEST_TIMEOUT_MS = 15000
 const CONNECT_TIMEOUT_MS = 8000
-
-export interface CastLoadRequest {
-  url: string
-  contentType: string
-  title: string
-}
 
 // A whole track for the device to play itself (direct mode).
 export interface CastTrackRequest {
@@ -146,25 +139,6 @@ export class CastClient extends EventEmitter {
     this.send(NS_CONNECTION, app.transportId, { type: 'CONNECT' })
   }
 
-  // Launches the receiver and loads `request` on it as a live stream.
-  async load(request: CastLoadRequest): Promise<void> {
-    await this.launch()
-    const app = this.app!
-    const result = await this.request(NS_MEDIA, app.transportId, {
-      type: 'LOAD',
-      sessionId: app.sessionId,
-      autoplay: true,
-      media: {
-        contentId: request.url,
-        contentUrl: request.url,
-        contentType: request.contentType,
-        streamType: 'LIVE',
-        metadata: { metadataType: 0, title: request.title },
-      },
-    })
-    if (result.type !== 'MEDIA_STATUS') throw new Error(`The TV couldn't play the stream (${result.type ?? 'unknown error'})`)
-  }
-
   // Loads a whole track (direct mode); the device buffers and plays it
   // itself. Resolves with the new media session's status.
   async loadTrack(request: CastTrackRequest): Promise<CastMediaStatus> {
@@ -273,8 +247,7 @@ export class CastClient extends EventEmitter {
       this.emit('receiver', message)
       return
     }
-    // What an IDLE means depends on the mode (a finished live stream ends
-    // the session; a finished track just means "next"), so it's up to the
+    // What an IDLE means (finished, cancelled, failed) is up to the
     // listener.
     if (namespace === NS_MEDIA && message.type === 'MEDIA_STATUS') {
       const status = parseMediaStatus(message as { status?: unknown })
