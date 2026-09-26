@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { CONTEXT_MENU_Z_INDEX } from './contextMenuStyles'
 import { useCollectionStore } from '../state/store'
 import { matchesTagFilter, type TagFilterMode, type TagFilterState } from '../state/tagFilter'
 import type { Track } from '../types'
@@ -280,7 +281,7 @@ export function TagTree({
             border: '1px solid var(--color-border)',
             borderRadius: '6px',
             padding: '4px',
-            zIndex: 20,
+            zIndex: CONTEXT_MENU_Z_INDEX,
           }}
         >
           <button

@@ -10,6 +10,13 @@ export function isCastActive(status: CastStatus): boolean {
   return status.state === 'connecting' || status.state === 'casting'
 }
 
+// Casting to a device with a screen, in MCO's own app: the TV shows what's
+// picked in the Cast menu (now playing or a TV visualizer), and MCO's own
+// visualizer is off.
+export function castingToAScreen(status: CastStatus): boolean {
+  return isCastActive(status) && status.mode === 'receiver' && !status.audioOnly
+}
+
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err)
 }

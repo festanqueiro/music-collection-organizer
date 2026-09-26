@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-27
+adrs: [0014]
+---
 # Visualizer
 
 A full-screen, audio-reactive visualizer built on `three.js`. Open it from
@@ -5,7 +10,7 @@ the player bar's **Visualizer** button; close it with **Esc** or its close
 button. It stays open across track changes and reacts to the post-FX
 output (after FX and master volume), so EQ/filter moves show up in it.
 
-Options (saved per theme):
+Options, as dropdowns in the bar along the top right (the theme's own options saved per theme):
 
 - **Theme** — Nebula, Warp, Horizon, Sound System, Smoke, Kaleidoscope,
   Paint, or Liquid 3D (keys **1–8** switch while it's open);
@@ -40,6 +45,10 @@ Options (saved per theme):
   **Style**: *3D* or *Lo-Res* (big dithered pixels in a few colours);
   **Palette**: *Shifting*, *Mercury*, *Game Boy*, *Amber*, *CGA*.
 
+While casting to a TV, this visualizer is off: the button is dimmed and says to pick one in the
+Cast menu, where the TV's own visualizers are ([casting](casting.md),
+[ADR 0038](../adr/0038-pick-the-tv-screen-in-the-cast-menu.md)). With a speaker it works as usual.
+
 While casting to a TV, opening the visualizer shows it on the TV instead,
 rendered there, and this overlay shows just its controls (see
 [Casting](casting.md)).
@@ -53,3 +62,7 @@ themes, the renderer and the spectrum/beat analysis are the
 [threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers)
 package; `src/audio/audioAnalysis.ts` only tracks which track's analyser
 is live.
+
+## Limits & open questions
+- On a Chromecast HD only **Paint** runs smoothly when casting
+  ([research](../research/cast-devices.md#chromecast-hd-gpu)); TV quality settings are on the roadmap.

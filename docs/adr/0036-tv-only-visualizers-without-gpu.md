@@ -1,0 +1,37 @@
+---
+status: accepted
+date: 2026-09-27
+---
+# 0036. TV-only visualizers drawn without the GPU
+
+## Context
+On the Chromecast HD only the Paint theme runs smoothly; the other threejs-visualisers themes use
+full-screen shaders, bloom or many particles the TV's GPU can't keep up with
+([research](../research/cast-devices.md#chromecast-hd-gpu)). The user asked for visualizers made for
+casting that don't use the GPU.
+
+## Decision
+Themes that exist only for the Cast receiver: **Drift** (particles on a slowly turning flow field,
+thrown outward on kicks), **Ripples** (rings from the kicks rising from the middle of the bottom edge, whose outlines keep
+morphing — each ring has its own few drifting wobbles following spectrum bands, plus a breathing
+stretch), **Mandala** (a spectrum-shaped motif mirrored round 6/8/12-fold,
+rotating and pulsing) and **Scope**
+(oscilloscope with a phosphor trail). Every theme's colour option includes **Color Changing** (the hue
+goes round the wheel in ~45 s). Spectrum, VU Meters, Ridges (stacked spectrum lines in perspective, "Unknown Pleasures" style) and a TV Smoke (first soft puffs, then a CPU port of the three.js Smoke shader) existed briefly on 2026-09-27 and were removed.
+Defined in
+`src/cast/tvVisualizers.ts` and rendered by `cast-receiver/tvVisualizer.ts` on a 480×270 2D canvas
+created with `willReadFrequently` (Chromium rasterizes it in software, on the CPU), at 30 fps, scaled up
+to the screen. When one is chosen the three.js visualizer isn't created or run at all. They're picked
+in the Cast menu, with no options for now ([ADR 0038](0038-pick-the-tv-screen-in-the-cast-menu.md),
+which replaced the earlier TV-only picker in MCO's visualizer). Kicks are detected
+as a sharp rise in bass with at least 0.25 s between them (tested).
+
+## Alternatives considered
+- Lighter three.js settings per theme: still WebGL on the weak GPU; deferred, not replaced.
+- Putting them in threejs-visualisers: they're TV-specific and don't need three.js.
+
+## Consequences
+- Compositing one canvas layer is the only GPU work left (unavoidable for any page).
+- Only 2D fills, lines and arcs — cheap on the CPU. Checked in Electron with a test signal: all six
+  render and **no WebGL context is ever created**; smoothness on the Chromecast itself is still to be
+  confirmed.

@@ -3,6 +3,7 @@
 // full-screen views: Visualizer, FX and Queue.
 import { useCollectionStore, type PlayerScreen } from '../state/store'
 import { activeEffects } from '../cast/fxIndicators'
+import { castingToAScreen } from '../cast/castSession'
 import { CastButton } from './CastButton'
 import { barButtonStyle } from './playerBarStyles'
 
@@ -43,21 +44,32 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
   // Lit while any effect is audibly engaged, so it's visible from here.
   const fxActive = useCollectionStore((s) => activeEffects(s.effectsSettings, s.sirenTriggered).length > 0)
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
+  const showToast = useCollectionStore((s) => s.showToast)
+  // The TV's picture is picked in the Cast menu instead.
+  const castingToScreen = useCollectionStore((s) => castingToAScreen(s.castStatus))
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
       <CastButton />
       <span style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 4px' }} />
       <button
         onClick={(e) => {
-          setVisualizerOpen(true)
+          if (castingToScreen) showToast('Go to the Cast menu to pick a visualizer')
+          else setVisualizerOpen(true)
           // Otherwise focus stays on this button behind the overlay, and
           // the Space shortcut (which ignores focused buttons) stops
           // toggling play/pause while the visualizer is up.
           e.currentTarget.blur()
         }}
         disabled={!hasTrack}
-        title={hasTrack ? 'Open the visualizer (full screen, or on the TV while casting)' : 'Play a track to open the visualizer'}
-        style={barButtonStyle(false)}
+        title={
+          castingToScreen
+            ? 'While casting, pick a visualizer in the Cast menu'
+            : hasTrack
+              ? 'Open the visualizer (full screen)'
+              : 'Play a track to open the visualizer'
+        }
+        // Looks off while casting, but still clicks, to say where it went.
+        style={{ ...barButtonStyle(false), ...(castingToScreen ? { opacity: 0.45 } : {}) }}
       >
         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
           graphic_eq

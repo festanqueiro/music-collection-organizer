@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
 import { getActiveAnalyser } from '../audio/audioAnalysis'
 import { useCollectionStore } from '../state/store'
-import { isCastActive } from '../cast/castSession'
+import { castingToAScreen } from '../cast/castSession'
 import { decodeHtmlEntities } from '../format'
 import { ToggleSwitch } from './ToggleSwitch'
 import type { Track } from '../types'
@@ -15,9 +15,8 @@ const UI_HIDE_DELAY_MS = 2500
 // (renderer + audio analysis) come from the threejs-visualisers package
 // (github.com/festanqueiro/threejs-visualisers).
 //
-// While casting the visualizer to a TV, nothing is rendered here — the
-// TV's picture comes from its own off-screen renderer (src/cast/), so this
-// shows just the controls (theme, options, track info), which drive it.
+// Not used while casting to a screen: what the TV shows is picked in the
+// Cast menu instead (see CastButton), and this closes if casting starts.
 export function Visualizer({ track, onClose }: { track: Track | null; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasHostRef = useRef<HTMLDivElement>(null)
@@ -28,13 +27,13 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
-  const castStatus = useCollectionStore((s) => s.castStatus)
-  // Casting to a screen in MCO's own app: opening the visualizer shows it
-  // on the TV (see receiverSync.ts), rendered there.
-  const castingToScreen = isCastActive(castStatus) && castStatus.mode === 'receiver' && !castStatus.audioOnly
-  const showUi = uiVisible || castingToScreen
+  const castingToScreen = useCollectionStore((s) => castingToAScreen(s.castStatus))
+  const showUi = uiVisible
 
   const activeThemeId = getVisualizerTheme(themeId).id
+  const pickTheme = (id: string) => setThemeId(id as typeof themeId)
+  const pickThemeRef = useRef(pickTheme)
+  pickThemeRef.current = pickTheme
 
   // The active theme's options (e.g. Sound System's Colours/Background) —
   // a stored choice that's no longer valid falls back to the first value.
@@ -42,6 +41,9 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const storedOptions = useCollectionStore((s) => s.visualizerThemeOptions[activeThemeId])
   const setThemeOption = useCollectionStore((s) => s.setVisualizerThemeOption)
   const themeOptions = activeTheme.options ?? []
+  const optionSlots = Math.max(
+    ...VISUALIZER_THEMES.map((theme) => theme.options?.length ?? 0),
+  )
   const selectedOptions = useMemo(
     () =>
       Object.fromEntries(
@@ -77,23 +79,25 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       }
       // 1..N pick a theme directly.
       const index = Number(e.key) - 1
-      if (Number.isInteger(index) && index >= 0 && index < VISUALIZER_THEMES.length) {
-        useCollectionStore.getState().setVisualizerTheme(VISUALIZER_THEMES[index].id)
-      }
+      const themes = VISUALIZER_THEMES
+      if (Number.isInteger(index) && index >= 0 && index < themes.length) pickThemeRef.current(themes[index].id)
     }
     document.addEventListener('fullscreenchange', onFullscreenChange)
     window.addEventListener('keydown', onKeyDown)
-    // Just the controls while casting — no need to take over the screen.
-    if (!castingToScreen) {
-      container.requestFullscreen().catch(() => {
-        // Not fatal — the overlay still covers the whole window.
-      })
-    }
+    container.requestFullscreen().catch(() => {
+      // Not fatal — the overlay still covers the whole window.
+    })
     return () => {
       document.removeEventListener('fullscreenchange', onFullscreenChange)
       window.removeEventListener('keydown', onKeyDown)
       if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
     }
+  }, [])
+
+  // Casting to a screen started while open: the TV's picture is chosen in
+  // the Cast menu, so this steps aside.
+  useEffect(() => {
+    if (castingToScreen) onCloseRef.current()
   }, [castingToScreen])
 
   // The theme picker, hide switch and close button fade out (and the
@@ -114,10 +118,10 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   }, [])
 
   // Renderer, bloom and render loop — created once for the overlay's
-  // lifetime (or until casting starts); themes are swapped underneath it.
+  // lifetime; themes are swapped underneath it.
   useEffect(() => {
     const host = canvasHostRef.current
-    if (!host || castingToScreen) return
+    if (!host) return
 
     const engine = new VisualizerEngine({
       width: host.clientWidth,
@@ -157,11 +161,10 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       rendererRef.current = null
       engine.dispose()
     }
-  }, [castingToScreen])
+  }, [])
 
   // Declared after the renderer effect so it runs after it on mount.
   useEffect(() => {
-    if (castingToScreen) return
     const instance = getVisualizerTheme(activeThemeId).create()
     for (const [optionId, valueId] of Object.entries(selectedOptionsRef.current)) instance.setOption?.(optionId, valueId)
     rendererRef.current?.setTheme(instance)
@@ -170,7 +173,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       instanceRef.current = null
       instance.dispose()
     }
-  }, [activeThemeId, castingToScreen])
+  }, [activeThemeId])
 
   // Changing an option updates the live instance in place. Themes make
   // re-applying an unchanged value cheap, so this just re-sends them all.
@@ -185,36 +188,12 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
         position: 'fixed',
         inset: 0,
         zIndex: 1000,
-        background: castingToScreen ? 'rgba(0,0,0,0.85)' : '#000',
+        background: '#000',
         cursor: showUi ? 'default' : 'none',
       }}
     >
       <div ref={canvasHostRef} style={{ position: 'absolute', inset: 0 }} />
-      {castingToScreen && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px',
-            color: '#fff',
-            pointerEvents: 'none',
-            textAlign: 'center',
-          }}
-        >
-          <span className="material-symbols-outlined" style={{ fontSize: '48px', opacity: 0.8 }}>
-            cast_connected
-          </span>
-          <div style={{ fontSize: '20px', fontWeight: 500 }}>Visualizer showing on {castStatus.deviceName}</div>
-          <div style={{ fontSize: '13px', opacity: 0.6 }}>
-            Changes here show up on the TV after a few seconds.
-          </div>
-        </div>
-      )}
-      {track && !castingToScreen && (
+      {track && (
         <div
           style={{
             position: 'absolute',
@@ -244,7 +223,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           right: '28px',
           display: 'flex',
           alignItems: 'center',
-          gap: '16px',
+          gap: '10px',
           color: '#fff',
           opacity: showUi ? 1 : 0,
           transition: 'opacity 600ms ease',
@@ -252,7 +231,42 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           textShadow: '0 1px 8px rgba(0,0,0,0.8)',
         }}
       >
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+        <PickerSelect
+          label="Visualizer"
+          value={activeThemeId}
+          title="Keys 1–9 pick one directly"
+          options={VISUALIZER_THEMES.map((theme, i) => ({ id: theme.id, name: i < 9 ? `${i + 1}  ${theme.name}` : theme.name }))}
+          onChange={pickTheme}
+        />
+        {/* As many slots as the theme with the most options, unused ones kept
+            empty, so switching theme doesn't shift the bar. */}
+        {Array.from({ length: optionSlots }, (_, i) => {
+          const option = themeOptions[i]
+          return option ? (
+            <PickerSelect
+              key={option.id}
+              label={option.name}
+              value={selectedOptions[option.id]}
+              options={option.values}
+              onChange={(value) => setThemeOption(activeThemeId, option.id, value)}
+            />
+          ) : (
+            <div key={`empty-${i}`} style={{ width: PICKER_WIDTH, flexShrink: 0 }} />
+          )
+        })}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '13px',
+            cursor: 'pointer',
+            height: '40px',
+            padding: '0 12px',
+            borderRadius: '12px',
+            background: PICKER_BACKGROUND,
+          }}
+        >
           Hide track info
           <ToggleSwitch
             checked={hideTrackInfo}
@@ -264,39 +278,6 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             title="Hide track info"
           />
         </label>
-        <div
-          style={{
-            display: 'flex',
-            gap: '4px',
-            padding: '4px',
-            borderRadius: '20px',
-            // Dark, so the labels stay readable over bright (daylight) scenes.
-            background: 'rgba(0,0,0,0.35)',
-          }}
-        >
-          {VISUALIZER_THEMES.map((theme, i) => (
-            <button
-              key={theme.id}
-              onClick={(e) => {
-                setThemeId(theme.id)
-                // Otherwise the focused button swallows Space (play/pause).
-                e.currentTarget.blur()
-              }}
-              title={`${theme.name} (${i + 1})`}
-              style={{
-                border: 'none',
-                borderRadius: '16px',
-                padding: '6px 14px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                color: '#fff',
-                background: theme.id === activeThemeId ? 'rgba(255,255,255,0.25)' : 'transparent',
-              }}
-            >
-              {theme.name}
-            </button>
-          ))}
-        </div>
         <button
           onClick={onClose}
           title="Close visualizer (Esc)"
@@ -328,67 +309,84 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           color: '#fff',
           fontSize: '12px',
           fontVariantNumeric: 'tabular-nums',
-          opacity: showUi && !castingToScreen ? 1 : 0,
+          opacity: showUi ? 1 : 0,
           transition: 'opacity 600ms ease',
           pointerEvents: 'none',
         }}
       >
         — fps
       </span>
-      {themeOptions.length > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '24px',
-            right: '28px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: '8px',
-            color: '#fff',
-            opacity: showUi ? 1 : 0,
-            transition: 'opacity 600ms ease',
-            pointerEvents: showUi ? 'auto' : 'none',
-          }}
-        >
-          {themeOptions.map((option) => (
-            <div key={option.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '13px', textShadow: '0 1px 8px rgba(0,0,0,0.8)' }}>{option.name}</span>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '4px',
-                  padding: '4px',
-                  borderRadius: '20px',
-                  background: 'rgba(0,0,0,0.35)',
-                }}
-              >
-                {option.values.map((value) => (
-                  <button
-                    key={value.id}
-                    onClick={(e) => {
-                      setThemeOption(activeThemeId, option.id, value.id)
-                      // Otherwise the focused button swallows Space (play/pause).
-                      e.currentTarget.blur()
-                    }}
-                    style={{
-                      border: 'none',
-                      borderRadius: '16px',
-                      padding: '6px 14px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      color: '#fff',
-                      background: value.id === selectedOptions[option.id] ? 'rgba(255,255,255,0.3)' : 'transparent',
-                    }}
-                  >
-                    {value.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
+  )
+}
+
+// Dark, so the controls stay readable over bright (daylight) scenes.
+const PICKER_BACKGROUND = 'rgba(0,0,0,0.45)'
+const PICKER_WIDTH = '150px'
+
+// A labelled dropdown in the visualizer's control bar: the label small
+// above the chosen value, a native menu underneath.
+function PickerSelect({
+  label,
+  value,
+  options,
+  onChange,
+  title,
+}: {
+  label: string
+  value: string
+  options: { id: string; name: string }[]
+  onChange: (value: string) => void
+  title?: string
+}) {
+  return (
+    <label
+      title={title}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        height: '40px',
+        // Fixed, so a longer or shorter choice doesn't shift the bar.
+        width: PICKER_WIDTH,
+        flexShrink: 0,
+        boxSizing: 'border-box',
+        padding: '0 30px 0 12px',
+        borderRadius: '12px',
+        background: PICKER_BACKGROUND,
+        cursor: 'pointer',
+        textShadow: 'none',
+      }}
+    >
+      <span style={{ fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.6 }}>{label}</span>
+      <span style={{ fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {options.find((option) => option.id === value)?.name.replace(/^\d+\s+/, '') ?? ''}
+      </span>
+      <span
+        className="material-symbols-outlined"
+        style={{ position: 'absolute', right: '8px', top: '50%', marginTop: '-9px', fontSize: '18px', opacity: 0.7 }}
+      >
+        expand_more
+      </span>
+      {/* The native menu, invisible over the whole pill, so a click anywhere
+          opens it. */}
+      <select
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value)
+          // Otherwise the focused menu swallows Space (play/pause) and the
+          // number keys.
+          e.currentTarget.blur()
+        }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }

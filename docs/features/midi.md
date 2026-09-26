@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: []
+---
 # MIDI
 
 Any FX knob or toggle, the player volume, and playback can be driven from a
@@ -41,3 +46,6 @@ In **Settings → MIDI**:
 
 Code: `src/audio/midi.ts`, `src/components/MidiLearnBadge.tsx`,
 `src/state/store.ts` (MIDI section), `electron/main/midiExport.ts`.
+
+## Tests
+- `src/audio/midi.test.ts`, `src/state/store.midi.test.ts`, `electron/main/midiExport.test.ts`.

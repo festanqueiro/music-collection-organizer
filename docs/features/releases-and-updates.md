@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: [0013, 0018, 0035]
+---
 # Releasing
 
 Releases are built by GitHub Actions and published as a DMG installer on
@@ -76,3 +81,11 @@ To get rid of the warning, join the Apple Developer Program and:
    pass the secrets to the build step only. electron-builder then signs
    and notarizes automatically. Also notarize and staple the DMG with
    `xcrun notarytool submit … --wait` and `xcrun stapler staple`.
+
+## Changelog
+User-facing changes go into [`CHANGELOG.md`](../../CHANGELOG.md)'s **Unreleased**
+section as they're made; the section is labelled with the upcoming version inside
+the PR that will be released ([ADR 0035](../adr/0035-changelog-labelled-in-the-feature-pr.md)).
+Docs-only PRs carry `[skip ci]` in the title so merging doesn't bump the version.
+The in-app update banner and its behaviour are described in
+[Settings & data](settings-and-data.md#automatic-updates).

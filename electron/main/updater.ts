@@ -13,7 +13,7 @@ const execFileAsync = promisify(execFile)
 // electron-updater isn't usable here: on macOS it hands the update to
 // Squirrel.Mac, which rejects any update whose code signature doesn't
 // match the running app's designated requirement — and ad-hoc signatures
-// (see docs/releasing.md) have no stable identity, so every update would
+// (see docs/features/releases-and-updates.md) have no stable identity, so every update would
 // fail. Instead:
 //   1. check  — ask the GitHub API for the latest release, compare versions
 //   2. download — fetch the release's -<arch>.zip in the main process

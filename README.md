@@ -68,8 +68,10 @@ MCO's own database.
 - **Automatic updates** — MCO tells you when a new version is out and
   installs it with one click.
 
-The full guide to every feature is in
-[`docs/features/`](docs/features/README.md).
+The full guide to every feature, every design decision and what's next is in
+the [project vault, `docs/`](docs/README.md) — start with the
+[feature index](docs/README.md#feature-index), the [roadmap](docs/product/roadmap.md)
+and the [changelog](CHANGELOG.md).
 
 ## Install
 
@@ -112,7 +114,7 @@ npm run dist:install    # build it and copy it into ~/Applications
 
 These local builds are meant for the Mac that built them. The
 downloadable installer is made by the Release workflow; see
-[docs/releasing.md](docs/releasing.md).
+[docs/features/releases-and-updates.md](docs/features/releases-and-updates.md).
 
 There's also `npm run dist:beta`, which installs a separate "BETA" copy
 of the app with its own data, handy for testing changes without touching
@@ -157,8 +159,10 @@ for app state.
   visualizer (themes from the
   [threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers)
   package).
-- `docs/features/` — the feature guide.
-- `TODO.md` — known issues; `IDEAS.md` — prioritized ideas for what's next.
+- `docs/` — the project vault: `features/` (the feature guide), `adr/`
+  (decision records), `research/`, `product/` (vision, roadmap, glossary),
+  `log/` (session write-ups, history, original design docs).
+- `CHANGELOG.md` — what changed in each release.
 
 ## License
 

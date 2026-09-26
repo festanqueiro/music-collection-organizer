@@ -1,8 +1,15 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: [0008, 0030]
+---
 # Tags
 
 MCO has its own two-level tag system, independent of the files' ID3 genre
 tag: **genres** and, under each genre, **sub-genres**. Tags are stored in
-the database only — files on disk are never modified.
+the database only — files on disk are never modified by tagging. (The file's
+own tags are separate and editable: see [ID3 tags](id3-tags.md); its **Use
+tags** button copies your Tags and Subtags into the file's Genre.)
 
 ## Tagging a track
 
@@ -33,7 +40,13 @@ right-click a tag to:
 
 Check tags in the Tags or Subtags tab to filter the table. The **OR / AND**
 switch picks between "tracks with any selected tag" and "tracks with all
-selected tags". Switching left-panel tabs resets the filter.
+selected tags". The selection shows as a chip above the table ("Dub or
+House", "Deep in House"); its × unticks everything. Switching between
+Folders, Tags and Subtags resets the selection; opening Filters doesn't
+([ADR 0030](../adr/0030-filters-combine-with-sidebar-views.md)).
+
+The table has separate **Tags** and **Subtags** columns (Tags filled with
+their colour, Subtags outlined), each sortable.
 
 Code: `src/components/TagTree.tsx`, `SubtagTree.tsx`,
 `src/state/tagFilter.ts`.
@@ -55,3 +68,6 @@ creates missing tags and adds assignments to tracks whose **path** matches
 exactly; unmatched tracks are counted as skipped.
 
 Code: `electron/main/tagExport.ts`.
+
+## Tests
+- `src/state/tagFilter.test.ts`, `electron/main/tags.test.ts`, `tagExport.test.ts`.

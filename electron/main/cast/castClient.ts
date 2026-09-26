@@ -18,10 +18,14 @@ const NS_MEDIA = 'urn:x-cast:com.google.cast.media'
 const SENDER_ID = 'sender-0'
 const RECEIVER_ID = 'receiver-0'
 const HEARTBEAT_INTERVAL_MS = 5000
-// Nothing at all from the device (it answers every PING) for this long
-// means the connection is dead — e.g. after this Mac slept, or the device
-// lost power — rather than waiting on a socket that never errors.
-const SILENCE_TIMEOUT_MS = 20000
+// The device answers every PING. This many heartbeats in a row with
+// nothing at all heard back means the connection is dead (e.g. after this
+// Mac slept, or the device lost power) rather than waiting on a socket
+// that never errors. Counted in heartbeats, not wall-clock time: if this
+// process is busy for a while (a big scan), the timer and the device's
+// queued replies both run late — timing silence by the clock alone would
+// call that a dead connection and drop a TV that's fine.
+const MISSED_HEARTBEATS_LIMIT = 4
 const REQUEST_TIMEOUT_MS = 15000
 const CONNECT_TIMEOUT_MS = 8000
 
@@ -84,7 +88,7 @@ export class CastClient extends EventEmitter {
   private app: ReceiverApplication | null = null
   private appId = DEFAULT_MEDIA_RECEIVER_APP_ID
   private closed = false
-  private lastHeardAt = 0
+  private heardSinceLastBeat = false
 
   constructor(
     private readonly host: string,
@@ -108,9 +112,12 @@ export class CastClient extends EventEmitter {
       socket.once('secureConnect', () => {
         clearTimeout(timer)
         this.send(NS_CONNECTION, RECEIVER_ID, { type: 'CONNECT' })
-        this.lastHeardAt = Date.now()
+        this.heardSinceLastBeat = true
+        let missed = 0
         this.heartbeat = setInterval(() => {
-          if (Date.now() - this.lastHeardAt > SILENCE_TIMEOUT_MS) {
+          missed = this.heardSinceLastBeat ? 0 : missed + 1
+          this.heardSinceLastBeat = false
+          if (missed >= MISSED_HEARTBEATS_LIMIT) {
             this.fail(new Error('The TV stopped responding'))
             return
           }
@@ -119,7 +126,7 @@ export class CastClient extends EventEmitter {
         resolve()
       })
       socket.on('data', (chunk: Buffer) => {
-        this.lastHeardAt = Date.now()
+        this.heardSinceLastBeat = true
         let messages
         try {
           messages = reader.push(chunk)

@@ -10,7 +10,7 @@ name: Release
 # with a paid Apple Developer ID or notarized. That's free and enough for
 # macOS to run it, but the first launch on each Mac shows the "Apple could
 # not verify…" warning and needs one "Open Anyway" in System Settings (see
-# docs/releasing.md). An ad-hoc signature is what makes that button
+# docs/features/releases-and-updates.md). An ad-hoc signature is what makes that button
 # appear at all: a downloaded, completely unsigned Apple-silicon app is
 # reported as "damaged" instead.
 on:
@@ -23,7 +23,7 @@ on:
 
 jobs:
   release:
-    runs-on: macos-14 # Apple silicon — the build is arm64-only (see docs/releasing.md)
+    runs-on: macos-14 # Apple silicon — the build is arm64-only (see docs/features/releases-and-updates.md)
     permissions:
       contents: write
     steps:
@@ -61,6 +61,6 @@ jobs:
           gh release create "v${version}" release/*.dmg release/*.zip \
             --target "$GITHUB_SHA" \
             --title "MCO ${version}" \
-            --notes-file docs/release-notes-install.md \
+            --notes-file docs/product/release-notes-install.md \
             --generate-notes \
             "${draft[@]}"

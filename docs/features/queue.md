@@ -1,3 +1,8 @@
+---
+status: shipped
+updated: 2026-09-26
+adrs: [0012]
+---
 # Queue
 
 MCO has a play **queue**, not saved playlists. It's first-in, first-out:
@@ -33,7 +38,8 @@ to close it:
 - drag rows to reorder;
 - right-click a row: **Play track now**, **Add to top of the queue**,
   **Remove from queue**;
-- **Play next in queue**, **Shuffle**, and **Clear queue** in the header;
+- **Play next in queue**, **Shuffle**, and **Clear queue** in the header
+  (Clear queue removes everything after the track playing, which stays);
 - **Continuous play** — when on, the next track starts automatically; when
   off, playback stops after each track;
 - the total queue duration.
@@ -42,3 +48,9 @@ The effects have their own screen: see [FX](fx.md).
 
 Code: `src/components/PlaylistView.tsx`, `QueueDialog.tsx`,
 `src/state/playlist.ts` (pure queue operations), `src/state/store.ts`.
+
+With several tracks checked, right-clicking one of them offers **Add all to
+queue** and **Add all to top of the queue** (in table order).
+
+## Tests
+- `src/state/playlist.test.ts`, `store.queue.test.ts`.

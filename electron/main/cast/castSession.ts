@@ -17,7 +17,13 @@ import { CastDiscovery } from './castDiscovery'
 import { pickLocalAddress } from './castNetwork'
 import { CastMediaServer, type MediaResolvers } from './castMediaServer'
 import type { CastDevice, CastDirectCommand, CastMediaEvent, CastMode, CastStatus } from '../../../src/types'
-import { RECEIVER_APP_ID, isReceiverStatus, type ReceiverSettingsMessage, type ToReceiver } from '../../../src/cast/receiverProtocol'
+import {
+  RECEIVER_APP_ID,
+  isReceiverGoodbye,
+  isReceiverStatus,
+  type ReceiverSettingsMessage,
+  type ToReceiver,
+} from '../../../src/cast/receiverProtocol'
 
 // Direct mode: how often the device's position is fetched, so MCO's
 // (silent) player can stay in step with it.
@@ -49,6 +55,8 @@ interface ActiveSession {
   trackId: number | null
   commands: Promise<void>
   positionTimer: ReturnType<typeof setInterval> | null
+  // Why the device said it's ending the session, shown when it closes.
+  endReason: string | null
 }
 
 export class CastController {
@@ -102,6 +110,7 @@ export class CastController {
       trackId: null,
       commands: Promise.resolve(),
       positionTimer: null,
+      endReason: null,
     }
     this.session = session
     this.setStatus(this.statusFor(session, 'connecting'))
@@ -302,9 +311,14 @@ export class CastController {
     client.on('error', (err: Error) => this.endSession(id, err.message))
     // The TV ended the session (turned off, switched app, someone else
     // cast to it) — not an error, just over.
-    client.on('closed', () => this.endSession(id, null))
+    client.on('closed', () => this.endSession(id, session.endReason))
     client.on('receiver', (message: unknown) => {
-      if (this.session !== session || !isReceiverStatus(message)) return
+      if (this.session !== session) return
+      if (isReceiverGoodbye(message)) {
+        session.endReason = 'The TV went to another app or its screensaver'
+        return
+      }
+      if (!isReceiverStatus(message)) return
       if (message.idleReason === 'ERROR') {
         this.endSession(id, "The TV couldn't play this track")
         return
