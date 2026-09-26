@@ -67,7 +67,8 @@ AIFF to for its own playback.
 ## How it works
 
 MCO's Cast app is the page in `cast-receiver/`, published to GitHub Pages
-(`.github/workflows/cast-receiver.yml`) and registered in the Google Cast
+on every merge to `main` (`.github/workflows/cast-receiver.yml`) and
+registered in the Google Cast
 SDK Developer Console as application `E056A69A`. MCO starts it on the
 device, serves the track files (and artwork) from a small server on your
 local network, and exchanges the messages in `src/cast/receiverProtocol.ts`
