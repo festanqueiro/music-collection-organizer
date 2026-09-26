@@ -27,19 +27,24 @@ MCO's own database.
   missing are hidden, not forgotten, so their tags come back when the
   drive does.
 - **Your own tags** — organize tracks with your own genres and
-  sub-genres, colour-coded, filterable with AND/OR, taggable in bulk, with
-  undo and export/import.
+  sub-genres, filterable with AND/OR, taggable in bulk, with undo and
+  export/import. Every tag and subtag gets its own colour automatically
+  (change it any time): tag badges are filled with it, subtag badges
+  outlined in theirs.
 - **Play queue** — "play now", "add to queue", or "play next" from any
-  track, then reorder, shuffle, and play through the queue continuously.
-- **Player** — a waveform you can click to seek, volume and mute, macOS
-  media keys and AirPods controls, and a choice of audio output device.
+  track, then reorder, shuffle, and play through the queue continuously,
+  on its own full screen.
+- **Player** — a waveform you can click to seek, a CDJ-style cue button,
+  volume and mute, macOS media keys and AirPods controls, and a choice of
+  audio output device. Queue, FX, Visualizer and Cast sit together at the
+  right of the player bar.
 - **Effects** — EQ, low/high-pass filter, a tempo-synced delay, reverb,
-  and a dub siren, all as rotary knobs in their own panel.
+  and a dub siren, all as rotary knobs on their own full screen. The FX
+  button lights up while an effect is engaged.
 - **DJ tools** — keys in Camelot notation with a "Compatible" filter for
-  harmonic mixing (same key, one step round the
-  [Camelot wheel](https://mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp), or the relative major/minor, at a BPM that
-  matches), headphone pre-listen on a second output, and export of your
-  tags as Rekordbox playlists.
+  harmonic mixing (same key, one step round the [Camelot wheel](https://mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp), or
+  the relative major/minor, at a BPM that matches), headphone pre-listen
+  on a second output, and export of your tags as Rekordbox playlists.
 - **MIDI** — map any knob, toggle, or playback button to your controller
   in two clicks, with LED feedback where your controller supports it.
 - **Visualizer** — a full-screen, audio-reactive visualizer with eight
@@ -50,8 +55,10 @@ MCO's own database.
   runs the visualizer, and shows a now-playing screen: artwork, tags, BPM,
   key, energy, what's up next (and whether it mixes), and the effects
   you're using.
-- **Themes** — three dark and three light colour themes, in
-  **Settings → Appearance**.
+- **Themes** — three dark (MCO Dark, Midnight, Carbon) and three light
+  (MCO Light, Paper, Arctic) colour themes, in **Settings → Appearance**.
+- **Settings** — organised into pages: Library, Appearance, Audio, MIDI,
+  Import & export, Backups & data, and Updates.
 - **Google Drive for Desktop** — cloud-only placeholder files are shown
   with a cloud badge and downloaded when you play them.
 - **Drag and drop out** — drag tracks straight into Finder, a DAW, or any
