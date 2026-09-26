@@ -1,4 +1,4 @@
-import { app, ipcMain, dialog, shell, BrowserWindow, type IpcMainInvokeEvent, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
+import { app, ipcMain, dialog, shell, BrowserWindow, powerSaveBlocker, type IpcMainInvokeEvent, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
 import { join } from 'node:path'
 import { writeFileSync, readFileSync, statSync } from 'node:fs'
 import type { AppDatabase } from './db'
@@ -900,9 +900,27 @@ export function registerIpcHandlers(
       return row ? { title: row.title ?? row.filename, artist: row.artist, album: row.album } : null
     },
   }
+  // While casting, keep the Mac from going to sleep: the device streams
+  // each track from this Mac (CastMediaServer) and MCO drives it, so a
+  // sleeping Mac leaves the TV hanging. The display can still sleep. Ends
+  // with the session.
+  let castSleepBlocker: number | null = null
+  function keepAwakeWhileCasting(status: CastStatus): void {
+    const active = status.state === 'connecting' || status.state === 'casting'
+    if (active && castSleepBlocker === null) {
+      castSleepBlocker = powerSaveBlocker.start('prevent-app-suspension')
+    } else if (!active && castSleepBlocker !== null) {
+      powerSaveBlocker.stop(castSleepBlocker)
+      castSleepBlocker = null
+    }
+  }
+
   const cast = new CastController(
     (devices) => sendToRenderer('cast:devices', devices),
-    (status) => sendToRenderer('cast:status', status),
+    (status) => {
+      keepAwakeWhileCasting(status)
+      sendToRenderer('cast:status', status)
+    },
     (event) => sendToRenderer('cast:media', event),
     castSources,
   )
