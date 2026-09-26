@@ -29,6 +29,12 @@ const MIN_COLUMN_WIDTH = 50
 const CHECKBOX_COL_WIDTH = 36
 const STATUS_COL_WIDTH = 90
 const CLOUD_COL_WIDTH = 70
+// Every row is exactly this tall (the tallest a one-line row gets, with a
+// status/cloud icon), so the virtualized table can place rows by index.
+const ROW_HEIGHT = 36
+// Rows rendered beyond each edge of the viewport, so a fast scroll doesn't
+// flash empty space before React catches up.
+const OVERSCAN_ROWS = 15
 // Per-viewer sizing convenience, not collection data — plain localStorage
 // rather than the electron-store-backed column *order*, which is shared
 // config synced through the main process.
@@ -237,13 +243,37 @@ export function TrackTable({
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
+  // Only the rows in (and just around) the viewport are rendered — the
+  // rest are two spacer rows of the same total height. A whole collection
+  // as real rows is tens of thousands of DOM nodes, which slowed every
+  // frame of the app (FX knobs, the visualizer, scrolling).
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(800)
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const observer = new ResizeObserver(() => setViewportHeight(el.clientHeight))
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const firstRendered = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN_ROWS)
+  const lastRendered = Math.min(visibleTracks.length, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN_ROWS)
+  const renderedTracks = visibleTracks.slice(firstRendered, lastRendered)
+
   // Re-analysing a track changes its BPM/Key, which can shift its sort
   // position out of the visible scroll area — clicking the track's title
-  // in the detail panel scrolls it back into view.
+  // in the detail panel scrolls it back into view. By index, since the row
+  // may not be rendered.
   useEffect(() => {
     if (!scrollToTrack) return
-    const row = document.querySelector(`tr[data-track-id="${scrollToTrack.trackId}"]`)
-    row?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const index = visibleTracks.findIndex((t) => t.id === scrollToTrack.trackId)
+    const el = scrollRef.current
+    if (index < 0 || !el) return
+    el.scrollTo({ top: Math.max(0, index * ROW_HEIGHT - el.clientHeight / 2), behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToTrack])
 
   useEffect(() => {
@@ -577,7 +607,11 @@ export function TrackTable({
           set), the div's overflow-y gets silently promoted to 'auto' too
           (CSS spec) but never actually scrolls, so a sticky child inside it
           never visibly sticks — the ancestor .pane scrolls past it instead. */}
-      <div style={{ overflow: 'auto', flex: 1, minHeight: 0 }}>
+      <div
+        ref={scrollRef}
+        onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+        style={{ overflow: 'auto', flex: 1, minHeight: 0 }}
+      >
         <table
           style={{
             borderCollapse: 'collapse',
@@ -653,7 +687,12 @@ export function TrackTable({
                 </td>
               </tr>
             )}
-            {visibleTracks.map((track) => (
+            {firstRendered > 0 && (
+              <tr aria-hidden style={{ height: firstRendered * ROW_HEIGHT }}>
+                <td colSpan={orderedColumns.length + 3} style={{ padding: 0 }} />
+              </tr>
+            )}
+            {renderedTracks.map((track) => (
               <tr
                 key={track.id}
                 data-track-id={track.id}
@@ -679,7 +718,7 @@ export function TrackTable({
                       : [track.id]
                   window.api.startTrackDrag(ids)
                 }}
-                style={{ cursor: 'pointer' }}
+                style={{ cursor: 'pointer', height: ROW_HEIGHT }}
               >
                 <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                   <input
@@ -716,6 +755,11 @@ export function TrackTable({
                 </td>
               </tr>
             ))}
+            {lastRendered < visibleTracks.length && (
+              <tr aria-hidden style={{ height: (visibleTracks.length - lastRendered) * ROW_HEIGHT }}>
+                <td colSpan={orderedColumns.length + 3} style={{ padding: 0 }} />
+              </tr>
+            )}
           </tbody>
         </table>
         {contextMenu && (
