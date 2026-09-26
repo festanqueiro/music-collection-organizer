@@ -78,7 +78,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0019](adr/0019-no-airplay.md) | No AirPlay; Cast is the way to play on other devices | accepted |
 | [0020](adr/0020-speakers-use-default-media-receiver.md) | Audio-only Cast devices go straight to Google's Default Media Receiver | accepted |
 | [0021](adr/0021-advance-queue-on-device-finished.md) | While casting, the device finishing a track moves the queue on | accepted |
-| [0022](adr/0022-cast-session-lifetime.md) | A cast session keeps the Mac awake, ends when the TV moves on, and dies on missed heartbeats | accepted |
+| [0022](adr/0022-cast-session-lifetime.md) | A cast session keeps the Mac awake, ends when the TV moves on, and dies on missed heartbeats | accepted (the hidden-page rule amended by 0037) |
 | [0023](adr/0023-fx-settings-outside-react.md) | FX settings reach the audio engines through store subscriptions, not React state | accepted |
 | [0024](adr/0024-virtualised-track-table.md) | Render only the visible rows of the track table, at a fixed row height | accepted |
 | [0025](adr/0025-suspend-idle-audio-engines.md) | Suspend the audio engines when nothing is playing | accepted |
@@ -92,6 +92,8 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0033](adr/0033-external-backup-to-another-disk.md) | Back up the collection to a folder on another disk, incrementally, never deleting | accepted |
 | [0034](adr/0034-fx-screen-fits-the-window.md) | The FX screen scales to fill the window with CSS zoom | accepted |
 | [0035](adr/0035-changelog-labelled-in-the-feature-pr.md) | Keep a CHANGELOG, and label its section with the version inside the feature PR | accepted |
+| [0036](adr/0036-tv-only-visualizers-without-gpu.md) | TV-only visualizers drawn without the GPU | accepted |
+| [0037](adr/0037-keep-the-tv-awake.md) | Keep the TV's screen awake during a session; say why a session ends | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

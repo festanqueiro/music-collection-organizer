@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (the hidden-page rule amended by 0037)
 date: 2026-09-26
 ---
 # 0022. A cast session keeps the Mac awake, ends when the TV moves on, and dies on missed heartbeats

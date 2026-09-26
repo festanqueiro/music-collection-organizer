@@ -45,6 +45,9 @@ Options (saved per theme):
   **Style**: *3D* or *Lo-Res* (big dithered pixels in a few colours);
   **Palette**: *Shifting*, *Mercury*, *Game Boy*, *Amber*, *CGA*.
 
+While casting to a TV, the picker also offers three TV-only themes — **Spectrum**, **Scope** and
+**VU Meters** — drawn without the GPU ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)).
+
 While casting to a TV, opening the visualizer shows it on the TV instead,
 rendered there, and this overlay shows just its controls (see
 [Casting](casting.md)).

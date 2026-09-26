@@ -11,6 +11,8 @@
 // Open it in a normal browser with ?dev to try it without a Cast device:
 // window.mcoReceiver.receive(message) then stands in for MCO.
 import { Visualizer } from 'threejs-visualisers'
+import { TvVisualizer } from './tvVisualizer'
+import { isTvVisualizer } from '../src/cast/tvVisualizers'
 import { EffectsChain } from '../src/audio/effectsChain'
 import { DubSirenEngine } from '../src/audio/sirenEngine'
 import { DEFAULT_EFFECTS_SETTINGS, type EffectsSettings } from '../src/types'
@@ -42,11 +44,28 @@ declare const cast:
     }
   | undefined
 
+// Holds a screen wake lock (see where it's first called). Where the API is
+// missing or refused, nothing changes.
+let wakeLock: { released: boolean } | null = null
+function keepScreenAwake(): void {
+  const nav = navigator as Navigator & { wakeLock?: { request(type: 'screen'): Promise<{ released: boolean }> } }
+  if (!nav.wakeLock || (wakeLock && !wakeLock.released) || document.visibilityState !== 'visible') return
+  nav.wakeLock
+    .request('screen')
+    .then((lock) => {
+      wakeLock = lock
+    })
+    .catch((err) => console.warn('[receiver] wake lock refused', err))
+}
+
+// Rows in the Up next panel — fixed, so it never changes size.
+const UP_NEXT_ROWS = 3
+
 // MCO's seekbar follows these reports (see src/cast/directCast.ts).
 const STATUS_INTERVAL_MS = 500
 // How long the app can be out of view (another app opened on the TV)
 // before it ends the session.
-const HIDDEN_STOP_MS = 5000
+const HIDDEN_STOP_MS = 30000
 
 // MCO's accent (--accent in index.html), for the waveform canvas.
 const ACCENT = '#2dd4bf'
@@ -99,6 +118,10 @@ type QueueMessage = Extract<ToReceiver, { type: 'queue' }>
 let showVisualizer = false
 let hideTrackInfo = false
 let visualizer: Visualizer | null = null
+// The TV-only themes (no GPU); `tvTheme` says one of them is chosen, in
+// which case the three.js visualizer isn't used at all.
+let tvVisualizer: TvVisualizer | null = null
+let tvTheme = false
 let currentTrack: LoadMessage | null = null
 // MCO's latest queue message; its details only apply while its current
 // track is the one loaded here.
@@ -127,12 +150,16 @@ function render(): void {
   const loaded = currentTrack !== null
   $('waiting').hidden = loaded
   $('playing').hidden = !loaded || showVisualizer
-  $('stage').hidden = !loaded || !showVisualizer
-  $('overlay').hidden = !loaded || !showVisualizer || hideTrackInfo
-  $('topbar').hidden = loaded && showVisualizer
-  // The visualizer only runs while it's on screen — the TV's GPU is modest.
-  if (loaded && showVisualizer) visualizer?.start()
+  const visualizing = loaded && showVisualizer
+  $('stage').hidden = !visualizing || tvTheme
+  $('tvstage').hidden = !visualizing || !tvTheme
+  $('overlay').hidden = !visualizing || hideTrackInfo
+  $('topbar').hidden = visualizing
+  // A visualizer only runs while it's on screen — the TV's GPU is modest.
+  if (visualizing && !tvTheme) visualizer?.start()
   else visualizer?.stop()
+  if (visualizing && tvTheme) tvVisualizer?.start()
+  else tvVisualizer?.stop()
   // Drawn at the waveform's on-screen size, which is zero while hidden.
   if (loaded && !showVisualizer) drawWaveform(waveformShown)
 }
@@ -235,15 +262,18 @@ function renderTrack(): void {
 
   const stats = $('stats')
   stats.replaceChildren()
-  const stat = (label: string, value: string | Node, small = false) => {
+  // Always all eight, in the same places; "—" for what isn't known.
+  const stat = (label: string, value: string | Node | null, small = false) => {
     const cell = el('div')
-    const dd = el('dd', small ? 'small' : undefined)
-    dd.append(value)
+    const dd = el('dd', [small ? 'small' : '', value === null ? 'none' : ''].filter(Boolean).join(' ') || undefined)
+    dd.classList.add('ellipsis')
+    dd.append(value ?? '—')
     cell.append(el('dt', undefined, label), dd)
     stats.append(cell)
   }
-  if (info?.bpm) stat('BPM', String(Math.round(info.bpm)))
-  if (info?.key) {
+  stat('BPM', info?.bpm ? String(Math.round(info.bpm)) : null)
+  if (!info?.key) stat('Key', null)
+  else {
     const value = el('span')
     if (info.keyColor) {
       const dot = el('span', 'keydot')
@@ -253,21 +283,26 @@ function renderTrack(): void {
     value.append(info.key)
     stat('Key', value)
   }
-  if (info?.energy) {
+  if (!info?.energy) stat('Energy', null)
+  else {
     const value = el('span', undefined, String(info.energy))
     const meter = el('span', 'meter')
     for (let i = 1; i <= 10; i++) meter.append(el('i', i <= info.energy ? 'on' : undefined))
     value.append(meter)
     stat('Energy', value)
   }
-  if (info?.loudness !== null && info?.loudness !== undefined) stat('Loudness', `${info.loudness.toFixed(1).replace('-', '−')} LUFS`)
-  if (info) {
+  stat('Loudness', info?.loudness !== null && info?.loudness !== undefined ? `${info.loudness.toFixed(1).replace('-', '−')} LUFS` : null)
+  if (!info) stat('Format', null)
+  else {
     const quality = el('span', info.bitrate && info.bitrate < LOSSY_FLOOR_KBPS && isLossy(info.format) ? 'lossy' : undefined)
     quality.textContent = [info.format.toUpperCase(), info.bitrate ? `${info.bitrate}k` : ''].filter(Boolean).join(' · ')
     stat('Format', quality)
   }
-  if (info?.addedAt) stat('Added', formatDate(info.addedAt))
-  if (info) {
+  stat('Added', info?.addedAt ? formatDate(info.addedAt) : null)
+  if (!info) {
+    stat('Played', null, true)
+    stat('Folder', null, true)
+  } else {
     if (!playsBefore || playsBefore.seq !== loadSeq) {
       playsBefore = { seq: loadSeq, playCount: info.playCount, lastPlayedAt: info.lastPlayedAt }
     }
@@ -299,8 +334,9 @@ function renderQueue(): void {
   const list = $('upnext')
   list.replaceChildren()
   const earlier = played.filter((entry) => entry.seq !== loadSeq).slice(-2).reverse()
-  // Room for the history under the queue means one fewer upcoming track.
-  const upNext = (queue?.upNext ?? []).slice(0, earlier.length > 0 ? 3 : 4)
+  // A fixed three upcoming rows and two played ones, so the panel never
+  // changes size.
+  const upNext = (queue?.upNext ?? []).slice(0, UP_NEXT_ROWS)
   for (const track of upNext) {
     const item = el('li')
     const thumb = el('div', 'thumb')
@@ -313,7 +349,7 @@ function renderQueue(): void {
     const text = el('div', 'up-text')
     text.append(el('div', 'up-title ellipsis', decode(track.title)))
     const sub = [decode(track.artist), track.duration ? formatDuration(track.duration) : ''].filter(Boolean).join('  ·  ')
-    if (sub) text.append(el('div', 'up-sub ellipsis', sub))
+    text.append(el('div', 'up-sub ellipsis', sub))
     const meta = el('div', 'up-meta ellipsis')
     const parts: Node[] = []
     if (track.bpm) parts.push(mixMark(`${Math.round(track.bpm)} BPM${tempoMove(track.bpmChange)}`, track.bpmMixes))
@@ -326,9 +362,11 @@ function renderQueue(): void {
     item.append(thumb, text)
     list.append(item)
   }
-  $('played-section').hidden = earlier.length === 0
+  for (let i = upNext.length; i < UP_NEXT_ROWS; i++) list.append(el('li', 'empty'))
   $('played').replaceChildren(
-    ...earlier.map((entry) => {
+    ...[0, 1].map((i) => {
+      const entry = earlier[i]
+      if (!entry) return el('li', 'ellipsis', i === 0 ? 'Nothing yet this session' : '')
       const item = el('li', 'ellipsis', entry.title)
       if (entry.artist) item.append(el('span', undefined, ` — ${entry.artist}`))
       return item
@@ -337,8 +375,7 @@ function renderQueue(): void {
   const count = queue?.queuedCount ?? 0
   $('queue-count').textContent = count === 0 ? '' : `${count} track${count === 1 ? '' : 's'}`
   $('queue-empty').hidden = count > 0
-  $('queue-foot').hidden = count === 0
-  $('queue-duration').textContent = formatDuration(queue?.queuedDuration ?? 0)
+  $('queue-duration').textContent = count === 0 ? '—' : formatDuration(queue?.queuedDuration ?? 0)
   renderClock()
 }
 
@@ -480,6 +517,7 @@ function receive(message: ToReceiver): void {
   switch (message.type) {
     case 'load': {
       ensureChain()
+      keepScreenAwake()
       trackId = message.trackId
       idleReason = null
       audio.src = message.url
@@ -539,7 +577,11 @@ function receive(message: ToReceiver): void {
     case 'display': {
       showVisualizer = message.showVisualizer
       hideTrackInfo = message.hideTrackInfo
-      if (!visualizer) {
+      tvTheme = isTvVisualizer(message.theme)
+      if (isTvVisualizer(message.theme)) {
+        tvVisualizer ??= new TvVisualizer($('tvstage'), () => chain?.getAnalyser() ?? null)
+        tvVisualizer.setTheme(message.theme, message.options)
+      } else if (!visualizer) {
         visualizer = new Visualizer($('stage'), {
           analyser: () => chain?.getAnalyser() ?? null,
           theme: message.theme,
@@ -568,20 +610,31 @@ if (context) {
   options.skipPlayersLoad = true
   context.start(options)
 
+  // This page plays audio itself, not through the framework's media player,
+  // so Google TV doesn't know anything is playing and starts its
+  // screensaver after a few idle minutes — which hid this app and (with the
+  // rule below) ended the session mid-track. A screen wake lock keeps the
+  // screen, and this app, up for the whole session.
+  keepScreenAwake()
+
   // Opening another app on the TV (Plex, YouTube…) only sends this one to
   // the background — the Cast session would stay up, and MCO would keep
-  // showing "casting" to a TV that's moved on. Out of view for a few
-  // seconds (not just a blip) ends the session, which MCO sees.
+  // showing "casting" to a TV that's moved on. Out of view for a while
+  // (not just a blip) ends the session, after telling MCO why.
   let hiddenTimer: ReturnType<typeof setTimeout> | null = null
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') {
       hiddenTimer ??= setTimeout(() => {
         audio.pause()
-        context.stop()
+        context.sendCustomMessage(RECEIVER_NAMESPACE, undefined, { type: 'goodbye', reason: 'hidden' })
+        // Let the goodbye go out before the session closes.
+        setTimeout(() => context.stop(), 500)
       }, HIDDEN_STOP_MS)
-    } else if (hiddenTimer) {
-      clearTimeout(hiddenTimer)
+    } else {
+      if (hiddenTimer) clearTimeout(hiddenTimer)
       hiddenTimer = null
+      // A wake lock is dropped whenever the page is hidden; take it again.
+      keepScreenAwake()
     }
   })
 } else {

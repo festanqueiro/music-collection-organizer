@@ -1,7 +1,7 @@
 ---
 status: shipped
-updated: 2026-09-26
-adrs: [0015, 0016, 0017, 0019, 0020, 0021, 0022]
+updated: 2026-09-27
+adrs: [0015, 0016, 0017, 0019, 0020, 0021, 0022, 0036, 0037]
 ---
 # Casting
 
@@ -44,7 +44,11 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
     right now (Filter, EQ, Delay, Reverb, Siren), lit as they're used.
 
   With the visualizer's track info on, it also shows BPM, key and the next track. With nothing
-  loaded, it shows **Load a song to continue**.
+  loaded, it shows **Load a song to continue**. Every part of this screen has a fixed size, so nothing
+  moves when a track with more or less information loads (unknown stats show "—").
+- **TV-only visualizers**: while casting, the picker also offers **Spectrum**, **Scope** and **VU
+  Meters** (each with a colour option), drawn without the GPU for TVs that can't run the 3D themes
+  smoothly ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)). They exist only on the TV.
 
 ### Speakers
 Speakers (no screen) use Google's built-in player directly — a Nest Mini never answers a request to
@@ -64,7 +68,9 @@ after the app was changed in the Cast console, until it's restarted.
 
 ### When a session ends ([ADR 0022](../adr/0022-cast-session-lifetime.md))
 - Stop, quitting MCO or closing its window.
-- Opening another app on the TV (Plex, YouTube…): MCO's app ends the session after 5 s out of view.
+- Opening another app on the TV (Plex, YouTube…): MCO's app ends the session after 30 s out of view,
+  and MCO says "The TV went to another app or its screensaver". MCO's app keeps the TV's screen
+  awake during a session so the screensaver doesn't do this mid-track ([ADR 0037](../adr/0037-keep-the-tv-awake.md)).
 - The device stops answering: 4 heartbeats in a row (~20 s) with nothing heard → "The TV stopped
   responding".
 - While casting, the Mac doesn't idle-sleep (the display can); closing a MacBook's lid still sleeps it.

@@ -6,7 +6,7 @@ installed copies update themselves.
 
 ## Unreleased
 
-## 1.0.43 — 2026-09-26
+## 1.0.43 — 2026-09-27
 
 ### Added
 - **Selecting several tracks**: checked rows are highlighted like the
@@ -14,10 +14,22 @@ installed copies update themselves.
   right-clicking one of the checked tracks acts on all of them — **Add all to
   queue**, **Add all to top of the queue**, **Analyse all**, **Clear
   selection**.
+- **TV-only visualizers** while casting: **Spectrum**, **Scope** and **VU
+  Meters**, drawn without the GPU so they run smoothly on a Chromecast.
 - A **project vault** in `docs/`: the feature guide, every design decision
   (ADRs), research notes, the roadmap and session write-ups.
 
+### Changed
+- The TV's now-playing screen keeps every part in a fixed place — nothing
+  moves when a track with more or less information loads — and its stats
+  are easier to read.
+
 ### Fixed
+- Casting ended by itself after a few minutes: Google TV's screensaver hid
+  MCO's app, which then ended the session. The TV's screen is now kept awake
+  during a session; if the TV does move on, MCO says why.
+- The analysis progress bar covered right-click menus (and could cover
+  Settings).
 - Casting could drop with "The TV stopped responding" while the TV was
   fine and still playing, when MCO was busy for a while (e.g. scanning the
   collection).

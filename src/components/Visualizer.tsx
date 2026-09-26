@@ -1,6 +1,7 @@
 // src/components/Visualizer.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
+import { TV_VISUALIZERS, getTvVisualizer, isTvVisualizer } from '../cast/tvVisualizers'
 import { getActiveAnalyser } from '../audio/audioAnalysis'
 import { useCollectionStore } from '../state/store'
 import { isCastActive } from '../cast/castSession'
@@ -34,11 +35,16 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const castingToScreen = isCastActive(castStatus) && castStatus.mode === 'receiver' && !castStatus.audioOnly
   const showUi = uiVisible || castingToScreen
 
-  const activeThemeId = getVisualizerTheme(themeId).id
+  // The theme this Mac renders: a TV-only theme (chosen while casting)
+  // falls back to the default here.
+  const desktopThemeId = getVisualizerTheme(isTvVisualizer(themeId) ? 'nebula' : themeId).id
+  // The theme the picker shows as chosen: TV-only themes count only while
+  // casting to a screen.
+  const activeThemeId = castingToScreen && isTvVisualizer(themeId) ? themeId : desktopThemeId
 
   // The active theme's options (e.g. Sound System's Colours/Background) —
   // a stored choice that's no longer valid falls back to the first value.
-  const activeTheme = getVisualizerTheme(activeThemeId)
+  const activeTheme = isTvVisualizer(activeThemeId) ? getTvVisualizer(activeThemeId) : getVisualizerTheme(activeThemeId)
   const storedOptions = useCollectionStore((s) => s.visualizerThemeOptions[activeThemeId])
   const setThemeOption = useCollectionStore((s) => s.setVisualizerThemeOption)
   const themeOptions = activeTheme.options ?? []
@@ -162,7 +168,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   // Declared after the renderer effect so it runs after it on mount.
   useEffect(() => {
     if (castingToScreen) return
-    const instance = getVisualizerTheme(activeThemeId).create()
+    const instance = getVisualizerTheme(desktopThemeId).create()
     for (const [optionId, valueId] of Object.entries(selectedOptionsRef.current)) instance.setOption?.(optionId, valueId)
     rendererRef.current?.setTheme(instance)
     instanceRef.current = instance
@@ -170,7 +176,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       instanceRef.current = null
       instance.dispose()
     }
-  }, [activeThemeId, castingToScreen])
+  }, [desktopThemeId, castingToScreen])
 
   // Changing an option updates the live instance in place. Themes make
   // re-applying an unchanged value cheap, so this just re-sends them all.
@@ -296,6 +302,37 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
               {theme.name}
             </button>
           ))}
+          {castingToScreen && (
+            <>
+              <span
+                title="Drawn without the GPU, for TVs that can't run the 3D themes smoothly"
+                style={{ alignSelf: 'center', fontSize: '11px', opacity: 0.7, padding: '0 4px 0 10px' }}
+              >
+                TV
+              </span>
+              {TV_VISUALIZERS.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={(e) => {
+                    setThemeId(theme.id)
+                    e.currentTarget.blur()
+                  }}
+                  title={`${theme.name} — for the TV, drawn without the GPU`}
+                  style={{
+                    border: 'none',
+                    borderRadius: '16px',
+                    padding: '6px 14px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    color: '#fff',
+                    background: theme.id === activeThemeId ? 'rgba(255,255,255,0.25)' : 'transparent',
+                  }}
+                >
+                  {theme.name}
+                </button>
+              ))}
+            </>
+          )}
         </div>
         <button
           onClick={onClose}

@@ -34,6 +34,18 @@ SRV → A (`castDiscovery.ts`).
   That `visibilitychange` fires when a native app is opened is **[UNVERIFIED]** on the device until the
   deployed receiver is tried.
 
+## Sessions ending after a few minutes (2026-09-27)
+A monitor sampled every ~16 s for 11 minutes while the user cast from the BETA build: BETA's socket
+to the TV, the TV's app list (`GET_STATUS` on a separate connection), ping, BETA's CPU and its
+keep-awake assertion.
+- Wi-Fi to the TV is jumpy: ping 5–150 ms, one sample with 100 % loss.
+- BETA's main process ran at ~98 % CPU for ~30 s once (it also serves the track files to the TV).
+- At **00:13:02** the TV listed `MCO(E056A69A)` with the same session; at **00:13:18** BETA's socket
+  was gone and the TV listed **no app** (`standby=false`, `active=true`). The TV ended the session —
+  a Mac-side heartbeat failure would have left MCO listed. ~7 min into the session, consistent with
+  Google TV's screensaver hiding the receiver and the receiver's hidden-page rule ending it
+  → [ADR 0037](../adr/0037-keep-the-tv-awake.md).
+
 ## Heartbeats
 - A fresh connection sending `PING` to `receiver-0` every 5 s got a `PONG` for every one (5 of 5, at
   +5.5 s … +25.3 s) while the TV was playing — the device answers sender pings, so silence means a dead

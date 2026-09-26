@@ -25,7 +25,7 @@ import type { TrackTagIds } from './tagFilter'
 
 // 'unanalysed' includes tracks whose analysis failed.
 export type AnalysedFilter = 'all' | 'analysed' | 'unanalysed'
-import type { VisualizerThemeId } from 'threejs-visualisers'
+import { isTvVisualizer, type AnyVisualizerThemeId } from '../cast/tvVisualizers'
 import type { KeyNotation } from './harmonic'
 import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
 import { describeLibraryChange } from './libraryChange'
@@ -232,12 +232,13 @@ export interface CollectionState {
   // pushing it through the store would re-render React ~60 times a second.
   visualizerOpen: boolean
   setVisualizerOpen: (open: boolean) => void
-  visualizerTheme: VisualizerThemeId
-  setVisualizerTheme: (theme: VisualizerThemeId) => void
+  // A threejs-visualisers theme, or a TV-only one (src/cast/tvVisualizers.ts).
+  visualizerTheme: AnyVisualizerThemeId
+  setVisualizerTheme: (theme: AnyVisualizerThemeId) => void
   // Chosen value per theme option (see VisualizerTheme.options); an option
   // with no entry uses its first value.
-  visualizerThemeOptions: Partial<Record<VisualizerThemeId, Record<string, string>>>
-  setVisualizerThemeOption: (theme: VisualizerThemeId, optionId: string, valueId: string) => void
+  visualizerThemeOptions: Partial<Record<AnyVisualizerThemeId, Record<string, string>>>
+  setVisualizerThemeOption: (theme: AnyVisualizerThemeId, optionId: string, valueId: string) => void
   // Track title/artist stays on screen in the Visualizer unless this
   // is switched on — unlike the theme picker/close controls, which fade
   // out whenever the mouse is idle.
@@ -433,11 +434,13 @@ export interface CollectionState {
 // (per-app userData, like everything else) rather than an electron-store
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
-const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
-function loadVisualizerTheme(): VisualizerThemeId {
+const VISUALIZER_THEME_IDS: AnyVisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
+function loadVisualizerTheme(): AnyVisualizerThemeId {
   try {
     const stored = localStorage.getItem(VISUALIZER_THEME_KEY)
-    if (stored && (VISUALIZER_THEME_IDS as string[]).includes(stored)) return stored as VisualizerThemeId
+    if (stored && ((VISUALIZER_THEME_IDS as string[]).includes(stored) || isTvVisualizer(stored))) {
+      return stored as AnyVisualizerThemeId
+    }
   } catch {
     // localStorage unavailable (e.g. under Vitest's node environment).
   }
@@ -448,7 +451,7 @@ const VISUALIZER_THEME_OPTIONS_KEY = 'visualizerThemeOptions'
 // Before options, a theme had a single "variant" — Sound System's colour
 // scheme — stored per theme under this key; read once as a fallback.
 const LEGACY_VISUALIZER_THEME_VARIANTS_KEY = 'visualizerThemeVariants'
-function loadVisualizerThemeOptions(): Partial<Record<VisualizerThemeId, Record<string, string>>> {
+function loadVisualizerThemeOptions(): Partial<Record<AnyVisualizerThemeId, Record<string, string>>> {
   const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value)
   try {
@@ -462,7 +465,7 @@ function loadVisualizerThemeOptions(): Partial<Record<VisualizerThemeId, Record<
         Object.entries(parsed)
           .filter((entry): entry is [string, Record<string, unknown>] => isRecord(entry[1]))
           .map(([theme, values]) => [theme, Object.fromEntries(Object.entries(values).filter(([, v]) => typeof v === 'string'))]),
-      ) as Partial<Record<VisualizerThemeId, Record<string, string>>>
+      ) as Partial<Record<AnyVisualizerThemeId, Record<string, string>>>
     }
     const legacy: unknown = JSON.parse(localStorage.getItem(LEGACY_VISUALIZER_THEME_VARIANTS_KEY) ?? '{}')
     if (!isRecord(legacy)) return {}
@@ -470,7 +473,7 @@ function loadVisualizerThemeOptions(): Partial<Record<VisualizerThemeId, Record<
       Object.entries(legacy)
         .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
         .map(([theme, variant]) => [theme, { colours: variant }]),
-    ) as Partial<Record<VisualizerThemeId, Record<string, string>>>
+    ) as Partial<Record<AnyVisualizerThemeId, Record<string, string>>>
   } catch {
     return {}
   }
