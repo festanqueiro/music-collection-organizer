@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0014]
 ---
 # Visualizer
@@ -10,7 +10,7 @@ the player bar's **Visualizer** button; close it with **Esc** or its close
 button. It stays open across track changes and reacts to the post-FX
 output (after FX and master volume), so EQ/filter moves show up in it.
 
-Options (saved per theme):
+Options, as dropdowns in the bar along the top right (the theme's own options saved per theme):
 
 - **Theme** — Nebula, Warp, Horizon, Sound System, Smoke, Kaleidoscope,
   Paint, or Liquid 3D (keys **1–8** switch while it's open);
@@ -46,7 +46,7 @@ Options (saved per theme):
   **Palette**: *Shifting*, *Mercury*, *Game Boy*, *Amber*, *CGA*.
 
 While casting to a TV, the picker offers only the TV's own themes — **Drift**, **Ripples**, **Ridges**,
-**Mandala**, **Smoke** and **Scope**, each with a **Color Changing** option — drawn without the GPU; the themes above aren't offered
+**Mandala** and **Scope**, each with a **Color Changing** option — drawn without the GPU; the themes above aren't offered
 then, and the TV visualizers never appear when not casting
 ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)).
 

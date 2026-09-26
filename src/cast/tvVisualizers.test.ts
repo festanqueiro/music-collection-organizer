@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { BeatDetector, fbm, isTvVisualizer, logBands } from './tvVisualizers'
+import { BeatDetector, isTvVisualizer, logBands } from './tvVisualizers'
 
 describe('logBands', () => {
   it('puts a tone in the band that covers its frequency', () => {
@@ -48,25 +48,5 @@ describe('isTvVisualizer', () => {
     expect(isTvVisualizer('tv-ripples')).toBe(true)
     expect(isTvVisualizer('tv-vu')).toBe(false)
     expect(isTvVisualizer('nebula')).toBe(false)
-  })
-})
-
-describe('fbm', () => {
-  it('stays within 0..1, repeats for the same point and changes smoothly', () => {
-    let min = 1
-    let max = 0
-    for (let i = 0; i < 2000; i++) {
-      const x = Math.sin(i) * 50
-      const y = Math.cos(i * 1.3) * 50
-      const v = fbm(x, y, 4)
-      min = Math.min(min, v)
-      max = Math.max(max, v)
-      expect(fbm(x, y, 4)).toBe(v)
-      expect(Math.abs(fbm(x + 0.001, y, 4) - v)).toBeLessThan(0.01)
-    }
-    expect(min).toBeGreaterThanOrEqual(0)
-    expect(max).toBeLessThan(1)
-    // Not flat: it uses much of its range.
-    expect(max - min).toBeGreaterThan(0.4)
   })
 })

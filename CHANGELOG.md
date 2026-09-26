@@ -16,7 +16,7 @@ installed copies update themselves.
   selection**.
 - **MCO tags filter**: show tracks with **No Tags** or **No Subtags** yet.
 - **TV visualizers** while casting: **Drift**, **Ripples**, **Ridges**,
-  **Mandala**, **Smoke** and **Scope**, drawn without the GPU so they run
+  **Mandala** and **Scope**, drawn without the GPU so they run
   smoothly on a Chromecast; each has a **Color Changing** option. While casting, the visualizer picker shows only
   these; when not casting, only the regular ones.
 - A **project vault** in `docs/`: the feature guide, every design decision
@@ -28,9 +28,8 @@ installed copies update themselves.
 - The TV's now-playing screen keeps every part in a fixed place — nothing
   moves when a track with more or less information loads — and its stats
   are easier to read.
-- TV visualizers: **Smoke** now looks like the regular Smoke visualizer
-  (swirling smoke, a lamp below, three beams), and **Ridges** flies over a
-  landscape in real perspective, faster when the music is loud.
+- The visualizer's theme and its options are picked from dropdowns in one
+  bar at the top right, instead of rows of buttons.
 
 ### Fixed
 - The TV's now-playing screen no longer pushes the progress bar and times

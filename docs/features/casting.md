@@ -47,11 +47,10 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
   loaded, it shows **Load a song to continue**. Every part of this screen has a fixed size, so nothing
   moves when a track with more or less information loads (unknown stats show "—").
 - **TV visualizers**: while casting, the picker offers only the TV's own themes — **Drift**,
-  **Ripples**, **Ridges**, **Mandala**, **Smoke** and **Scope** (each with a colour option, including
+  **Ripples**, **Ridges**, **Mandala** and **Scope** (each with a colour option, including
   **Color Changing**) — drawn
   without the GPU so they run on TVs that can't handle the 3D themes
-  ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)). **Smoke** is the regular Smoke
-  visualizer redone on the CPU; **Ridges** flies over a landscape in perspective, faster when it's loud. The TV's choice is remembered
+  ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)). The TV's choice is remembered
   separately from this Mac's.
 
 ### Speakers

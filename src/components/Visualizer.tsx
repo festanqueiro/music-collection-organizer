@@ -260,7 +260,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           right: '28px',
           display: 'flex',
           alignItems: 'center',
-          gap: '16px',
+          gap: '10px',
           color: '#fff',
           opacity: showUi ? 1 : 0,
           transition: 'opacity 600ms ease',
@@ -268,7 +268,35 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           textShadow: '0 1px 8px rgba(0,0,0,0.8)',
         }}
       >
-        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+        <PickerSelect
+          label="Visualizer"
+          value={activeThemeId}
+          title={castingToScreen ? 'Drawn without the GPU, for the TV (keys 1–9)' : 'Keys 1–9 pick one directly'}
+          options={pickerThemes.map((theme, i) => ({ id: theme.id, name: i < 9 ? `${i + 1}  ${theme.name}` : theme.name }))}
+          onChange={pickTheme}
+        />
+        {themeOptions.map((option) => (
+          <PickerSelect
+            key={option.id}
+            label={option.name}
+            value={selectedOptions[option.id]}
+            options={option.values}
+            onChange={(value) => setThemeOption(activeThemeId, option.id, value)}
+          />
+        ))}
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '13px',
+            cursor: 'pointer',
+            height: '40px',
+            padding: '0 12px',
+            borderRadius: '12px',
+            background: PICKER_BACKGROUND,
+          }}
+        >
           Hide track info
           <ToggleSwitch
             checked={hideTrackInfo}
@@ -280,39 +308,6 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             title="Hide track info"
           />
         </label>
-        <div
-          style={{
-            display: 'flex',
-            gap: '4px',
-            padding: '4px',
-            borderRadius: '20px',
-            // Dark, so the labels stay readable over bright (daylight) scenes.
-            background: 'rgba(0,0,0,0.35)',
-          }}
-        >
-          {pickerThemes.map((theme, i) => (
-            <button
-              key={theme.id}
-              onClick={(e) => {
-                pickTheme(theme.id)
-                // Otherwise the focused button swallows Space (play/pause).
-                e.currentTarget.blur()
-              }}
-              title={castingToScreen ? `${theme.name} (${i + 1}) — drawn without the GPU, for the TV` : `${theme.name} (${i + 1})`}
-              style={{
-                border: 'none',
-                borderRadius: '16px',
-                padding: '6px 14px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                color: '#fff',
-                background: theme.id === activeThemeId ? 'rgba(255,255,255,0.25)' : 'transparent',
-              }}
-            >
-              {theme.name}
-            </button>
-          ))}
-        </div>
         <button
           onClick={onClose}
           title="Close visualizer (Esc)"
@@ -351,60 +346,73 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       >
         — fps
       </span>
-      {themeOptions.length > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: '24px',
-            right: '28px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'flex-end',
-            gap: '8px',
-            color: '#fff',
-            opacity: showUi ? 1 : 0,
-            transition: 'opacity 600ms ease',
-            pointerEvents: showUi ? 'auto' : 'none',
-          }}
-        >
-          {themeOptions.map((option) => (
-            <div key={option.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '13px', textShadow: '0 1px 8px rgba(0,0,0,0.8)' }}>{option.name}</span>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '4px',
-                  padding: '4px',
-                  borderRadius: '20px',
-                  background: 'rgba(0,0,0,0.35)',
-                }}
-              >
-                {option.values.map((value) => (
-                  <button
-                    key={value.id}
-                    onClick={(e) => {
-                      setThemeOption(activeThemeId, option.id, value.id)
-                      // Otherwise the focused button swallows Space (play/pause).
-                      e.currentTarget.blur()
-                    }}
-                    style={{
-                      border: 'none',
-                      borderRadius: '16px',
-                      padding: '6px 14px',
-                      cursor: 'pointer',
-                      fontSize: '13px',
-                      color: '#fff',
-                      background: value.id === selectedOptions[option.id] ? 'rgba(255,255,255,0.3)' : 'transparent',
-                    }}
-                  >
-                    {value.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
+  )
+}
+
+// Dark, so the controls stay readable over bright (daylight) scenes.
+const PICKER_BACKGROUND = 'rgba(0,0,0,0.45)'
+
+// A labelled dropdown in the visualizer's control bar: the label small
+// above the chosen value, a native menu underneath.
+function PickerSelect({
+  label,
+  value,
+  options,
+  onChange,
+  title,
+}: {
+  label: string
+  value: string
+  options: { id: string; name: string }[]
+  onChange: (value: string) => void
+  title?: string
+}) {
+  return (
+    <label
+      title={title}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        height: '40px',
+        minWidth: '110px',
+        padding: '0 30px 0 12px',
+        borderRadius: '12px',
+        background: PICKER_BACKGROUND,
+        cursor: 'pointer',
+        textShadow: 'none',
+      }}
+    >
+      <span style={{ fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.6 }}>{label}</span>
+      <span style={{ fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap' }}>
+        {options.find((option) => option.id === value)?.name.replace(/^\d+\s+/, '') ?? ''}
+      </span>
+      <span
+        className="material-symbols-outlined"
+        style={{ position: 'absolute', right: '8px', top: '50%', marginTop: '-9px', fontSize: '18px', opacity: 0.7 }}
+      >
+        expand_more
+      </span>
+      {/* The native menu, invisible over the whole pill, so a click anywhere
+          opens it. */}
+      <select
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value)
+          // Otherwise the focused menu swallows Space (play/pause) and the
+          // number keys.
+          e.currentTarget.blur()
+        }}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+      >
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </select>
+    </label>
   )
 }

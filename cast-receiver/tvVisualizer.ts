@@ -2,7 +2,7 @@
 // GPU: a small 2D canvas with `willReadFrequently`, which makes Chromium
 // rasterize it in software, drawn at 30 fps and scaled up to the screen.
 // Only filled rectangles, lines and arcs — cheap on a Chromecast's CPU.
-import { BeatDetector, fbm, logBands, type TvVisualizerId } from '../src/cast/tvVisualizers'
+import { BeatDetector, logBands, type TvVisualizerId } from '../src/cast/tvVisualizers'
 
 const WIDTH = 480
 const HEIGHT = 270
@@ -22,33 +22,15 @@ const DRIFT_PALETTES: Record<string, [number, number]> = { aurora: [160, 110], e
 // Ripples: rings from the kicks, their outlines shaped by the spectrum.
 const RIPPLE_POINTS = 96
 const RIPPLE_PALETTES: Record<string, [number, number]> = { neon: [280, 120], ice: [185, 40], sunset: [340, 60] }
-// Ridges: the spectrum's recent history as lines across a landscape, seen
-// in perspective by a camera flying over it.
-const RIDGE_LINES = 40
-const RIDGE_POINTS = 90
-const RIDGE_BANDS = 32
-// Seconds between new lines (shorter when it's loud).
+// Ridges: the spectrum's recent history as stacked lines.
+const RIDGE_LINES = 30
+const RIDGE_POINTS = 72
+// Seconds between new lines.
 const RIDGE_STEP = 0.07
-// World units: the nearest line's distance, the gap between lines, how far
-// out from the middle the music reaches; and the camera's focal length (px).
-const RIDGE_NEAR = 1.4
-const RIDGE_SPACING = 0.32
-const RIDGE_SPECTRUM_HALF = 1.6
-const RIDGE_FOCAL = 200
 // Mandala: a motif drawn in one wedge, mirrored and repeated round.
 const MANDALA_BANDS = 16
 // Hue start/span and lightness per palette.
 const MANDALA_PALETTES: Record<string, [number, number, number]> = { jewel: [190, 170, 58], pastel: [300, 140, 76] }
-// Smoke: worked out on a small grid, scaled up.
-const SMOKE_W = 96
-const SMOKE_H = 54
-// Dark smoke, lit smoke and beam colours (sRGB), as threejs-visualisers' Smoke.
-const SMOKE_COLOURS: Record<string, number[]> = {
-  amber: [0x8a4b12, 0xd9a441, 0xffe1a8],
-  violet: [0x3b1a6e, 0x9a4fd6, 0x7fe3ff],
-  ghost: [0x6f7680, 0xc9d1dc, 0xffffff],
-}
-
 interface Ripple {
   r: number
   speed: number
@@ -98,13 +80,8 @@ export class TvVisualizer {
   private t = 0
   private drift: { x: number; y: number; age: number }[] = []
   private ripples: Ripple[] = []
-  private ridges: { bands: number[]; row: number }[] = []
+  private ridges: number[][] = []
   private ridgeClock = 0
-  private ridgeRow = 0
-  private smokeCanvas: HTMLCanvasElement | null = null
-  private smokeImage: ImageData | null = null
-  private smokeRise = 0
-  private smokeSwirl = 0
 
   constructor(
     host: HTMLElement,
@@ -173,8 +150,7 @@ export class TvVisualizer {
     else if (this.theme === 'tv-drift') this.drawDrift(dt, sampleRate, bass, beat)
     else if (this.theme === 'tv-ripples') this.drawRipples(dt, sampleRate, bass, beat)
     else if (this.theme === 'tv-mandala') this.drawMandala(sampleRate, bass)
-    else if (this.theme === 'tv-smoke') this.drawSmoke(dt, sampleRate, bass)
-    else this.drawRidges(dt, sampleRate, bass)
+    else this.drawRidges(dt, sampleRate)
   }
 
   private drawScope(): void {
@@ -317,93 +293,62 @@ export class TvVisualizer {
     this.ripples = this.ripples.filter((ring) => ring.life > 0 && ring.r < WIDTH)
   }
 
-  private drawRidges(dt: number, sampleRate: number, bass: number): void {
+  private drawRidges(dt: number, sampleRate: number): void {
     const ctx = this.ctx
     const paper = this.options.ink === 'paper'
     const changing = this.options.ink === CHANGING
-    const bands3 = logBands(this.freq, sampleRate, 3)
-    const energy = (bands3[0] + bands3[1] + bands3[2]) / 3
-    // A new line joins at the front — more often when it's loud, so the
-    // landscape rushes away faster — and the rest glide back between them.
-    const step = RIDGE_STEP * (1.3 - energy * 0.7)
+    // A new line joins at the front every ~70 ms and the stack glides back
+    // into the distance between them (not in steps).
     this.ridgeClock += dt
-    if (this.ridgeClock > step || this.ridges.length === 0) {
+    if (this.ridgeClock > RIDGE_STEP || this.ridges.length === 0) {
       this.ridgeClock = 0
-      this.ridgeRow++
-      this.ridges.unshift({ bands: logBands(this.freq, sampleRate, RIDGE_BANDS, 40, 12000), row: this.ridgeRow })
+      const bands = logBands(this.freq, sampleRate, RIDGE_POINTS / 2, 40, 12000)
+      // Mirrored, loudest in the middle, under a bell-shaped envelope.
+      const line = [...bands.slice().reverse(), ...bands].map((v, i) => {
+        const x = i / (RIDGE_POINTS - 1) - 0.5
+        return v * Math.exp(-(x * x) / 0.045) + Math.random() * 0.015
+      })
+      this.ridges.unshift(line)
       if (this.ridges.length > RIDGE_LINES) this.ridges.pop()
     }
-    const glide = Math.min(1, this.ridgeClock / step)
-    const background = paper ? '#efe9dc' : '#000'
-    ctx.fillStyle = background
+    const glide = Math.min(1, this.ridgeClock / RIDGE_STEP)
+    ctx.fillStyle = paper ? '#efe9dc' : '#000'
     ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    const horizon = HEIGHT * 0.2
+    const front = HEIGHT * 0.95
     const hue = this.shiftingHue()
-    // A camera flying low over the lines: drifting side to side, bobbing,
-    // rolling a little, jolted up by the kicks.
-    const camX = Math.sin(this.t * 0.21) * 0.7 + Math.sin(this.t * 0.53) * 0.15
-    const camY = 1.15 + Math.sin(this.t * 0.29) * 0.18 + this.flash * 0.12
-    const roll = Math.sin(this.t * 0.17) * 0.06
-    const horizon = HEIGHT * 0.3 + Math.sin(this.t * 0.23) * 8
-    ctx.save()
-    ctx.translate(WIDTH / 2, HEIGHT / 2)
-    ctx.rotate(roll)
-    ctx.translate(-WIDTH / 2, -HEIGHT / 2)
-    // A glow on the horizon that swells with the bass.
-    if (!paper) {
-      const glow = ctx.createLinearGradient(0, horizon - 40, 0, horizon + 30)
-      const glowHue = changing ? hue : 230
-      const glowSat = changing ? 80 : 20
-      glow.addColorStop(0, 'rgba(0, 0, 0, 0)')
-      glow.addColorStop(0.6, `hsla(${glowHue}, ${glowSat}%, 60%, ${0.08 + bass * 0.22})`)
-      glow.addColorStop(1, 'rgba(0, 0, 0, 0)')
-      ctx.fillStyle = glow
-      ctx.fillRect(-WIDTH, horizon - 40, WIDTH * 3, 70)
-    }
     // Back to front, so each line hides the ones behind it.
     for (let i = this.ridges.length - 1; i >= 0; i--) {
-      const { bands, row } = this.ridges[i]
-      const z = RIDGE_NEAR + (i + glide) * RIDGE_SPACING
+      // 0 at the front, 1 at the far end.
       const depth = Math.min(1, (i + glide) / RIDGE_LINES)
       const near = 1 - depth
-      // Each line spans the screen (and a bit, for the roll), so far lines
-      // cover more ground and their hills look smaller.
-      const halfSpan = ((WIDTH * 0.75) / RIDGE_FOCAL) * z
+      const scale = 0.4 + 0.6 * near
+      // Perspective: the far lines bunch up towards the horizon.
+      const base = horizon + (front - horizon) * near ** 1.6
+      const width = WIDTH * 0.8 * scale
+      // A slow sway, stronger up close — parallax.
+      const sway = Math.sin(this.t * 0.35) * 22 * near
+      const left = (WIDTH - width) / 2 + sway
+      const height = HEIGHT * 0.34 * scale * (1 + this.flash * 0.35)
+      const alpha = 0.25 + 0.75 * near
+      const line = this.ridges[i]
       ctx.beginPath()
-      for (let p = 0; p <= RIDGE_POINTS; p++) {
-        const x = camX + (p / RIDGE_POINTS - 0.5) * 2 * halfSpan
-        // Rolling hills, deeper away from the middle, fixed to the ground so
-        // they travel with their line…
-        const side = Math.min(1, Math.abs(x) / 2.5)
-        let h = (fbm(x * 0.55, row * RIDGE_SPACING * 0.55, 3) - 0.35) * (0.25 + side * 0.9)
-        // …and the music rising out of the middle, bass in the centre.
-        const u = Math.abs(x) / RIDGE_SPECTRUM_HALF
-        if (u < 1) {
-          const f = u * (RIDGE_BANDS - 1)
-          const k = Math.floor(f)
-          const level = bands[k] + (bands[Math.min(RIDGE_BANDS - 1, k + 1)] - bands[k]) * (f - k)
-          h += level * Math.exp(-(u * u) / 0.35) * 0.95 * (1 + this.flash * 0.4)
-        }
-        const sx = WIDTH / 2 + ((x - camX) * RIDGE_FOCAL) / z
-        const sy = horizon + ((camY - h) * RIDGE_FOCAL) / z
-        if (p === 0) ctx.moveTo(sx, sy)
-        else ctx.lineTo(sx, sy)
+      ctx.moveTo(left, base)
+      for (let p = 0; p < line.length; p++) {
+        ctx.lineTo(left + (p / (line.length - 1)) * width, base - line[p] * height)
       }
-      ctx.lineTo(WIDTH * 2, HEIGHT * 2)
-      ctx.lineTo(-WIDTH, HEIGHT * 2)
+      ctx.lineTo(left + width, base)
       ctx.closePath()
-      ctx.fillStyle = background
+      ctx.fillStyle = paper ? '#efe9dc' : '#000'
       ctx.fill()
-      // Fading into the distance.
-      const alpha = Math.min(1, 0.12 + 0.95 * near * near)
-      ctx.lineWidth = 0.6 + 1.4 * near
+      ctx.lineWidth = 0.7 + 1.1 * near
       ctx.strokeStyle = changing
-        ? `hsla(${(hue + depth * 80) % 360}, 80%, ${55 + near * 15}%, ${alpha})`
+        ? `hsla(${(hue + depth * 60) % 360}, 80%, 65%, ${alpha})`
         : paper
           ? `rgba(17, 17, 17, ${alpha})`
           : `rgba(244, 244, 245, ${alpha})`
       ctx.stroke()
     }
-    ctx.restore()
   }
 
   private drawMandala(sampleRate: number, bass: number): void {
@@ -474,114 +419,4 @@ export class TvVisualizer {
     ctx.fill()
     ctx.restore()
   }
-
-  // A port of threejs-visualisers' Smoke shader to the CPU: the same warped
-  // noise lit by a lamp below and three beams from above, worked out per
-  // pixel on a small grid and scaled up (smoke is soft, so it holds up).
-  private drawSmoke(dt: number, sampleRate: number, bass: number): void {
-    if (!this.smokeCanvas) {
-      this.smokeCanvas = document.createElement('canvas')
-      this.smokeCanvas.width = SMOKE_W
-      this.smokeCanvas.height = SMOKE_H
-      this.smokeImage = new ImageData(SMOKE_W, SMOKE_H)
-    }
-    const image = this.smokeImage!
-    const bands = logBands(this.freq, sampleRate, 3)
-    const mid = bands[1]
-    const high = bands[2]
-    const energy = (bands[0] + mid + high) / 3
-    const flash = this.flash
-    this.smokeRise += dt * (0.05 + energy * 0.25 + flash * 0.2)
-    this.smokeSwirl += dt * (0.03 + mid * 0.2)
-    const rise = this.smokeRise
-    const swirl = this.smokeSwirl
-    const t = this.t % 1000
-    // Colours in linear light, as the shader works.
-    let smokeA: number[]
-    let smokeB: number[]
-    let beamColour: number[]
-    const preset = SMOKE_COLOURS[this.options.colour]
-    if (this.options.colour === CHANGING || !preset) {
-      const hue = this.shiftingHue() / 360
-      smokeA = hslLinear(hue, 0.55, 0.3)
-      smokeB = hslLinear((hue + 0.1) % 1, 0.6, 0.6)
-      beamColour = hslLinear((hue + 0.5) % 1, 0.7, 0.75)
-    } else {
-      ;[smokeA, smokeB, beamColour] = preset.map(hexLinear)
-    }
-    const aspect = WIDTH / HEIGHT
-    // Three beams from above, swaying: origin and direction each.
-    const beams = [0, 1, 2].map((i) => {
-      const angle = -Math.PI / 2 + Math.sin(t * (0.21 + i * 0.07) + i * 2.1) * 0.55
-      return [(i - 1) * 0.9 * aspect, 1.35, Math.cos(angle), Math.sin(angle)]
-    })
-    const beamGain = 0.4 + high * 0.9 + flash * 0.6
-    const lampFalloff = 1.9 - bass * 0.5
-    const lampGain = 0.5 + bass * 0.6 + flash * 0.5
-    const crestGain = 0.15 + mid * 0.35
-    const data = image.data
-    let o = 0
-    for (let row = 0; row < SMOKE_H; row++) {
-      const v = 1 - (row + 0.5) / SMOKE_H
-      const py = (v - 0.5) * 2.2
-      for (let col = 0; col < SMOKE_W; col++) {
-        const u = (col + 0.5) / SMOKE_W
-        const px = (u - 0.5) * aspect * 2.2
-        const qx = fbm(px * 1.1 + swirl, py * 1.1 - rise + t * 0.03, 3)
-        const qy = fbm(px * 1.1 + 5.2 - t * 0.02 - swirl, py * 1.1 + 1.3 - rise - t * 0.02, 3)
-        const d = fbm(px * 1.6 + 3.2 * qx + 1.7, py * 1.6 + 3.2 * qy + 9.2 - rise * 1.6, 4)
-        // Thicker low down where it pours out, thinning towards the top; a
-        // kick puffs it out.
-        const thickness = d + 0.3 - v * 0.35 + bass * 0.12 + flash * 0.1
-        const s = Math.min(1, Math.max(0, (thickness - 0.45) / 0.6))
-        const density = s * s * (3 - 2 * s)
-        // The lamp, below the frame, pumping with the bass.
-        const lamp = Math.exp(-Math.hypot(px * 0.6, py + 1.54) * lampFalloff)
-        const mix = Math.min(1, Math.hypot(qx, qy) * 0.9)
-        const body = density * (0.06 + lamp * lampGain) + density * density * density * lamp * crestGain
-        let shafts = 0
-        for (const [ox, oy, dx, dy] of beams) {
-          const ax = px - ox
-          const ay = py - oy
-          const along = ax * dx + ay * dy
-          if (along <= 0) continue
-          const cx = ax - dx * along
-          const cy = ay - dy * along
-          const w = 0.18 * (0.25 + along * 0.35)
-          const ramp = Math.min(1, along / 0.25)
-          shafts += (ramp * ramp * (3 - 2 * ramp) * Math.exp(-(cx * cx + cy * cy) / (w * w))) / (1 + along * 0.6)
-        }
-        // Brighter smoke and softer beams than the shader: with one warp
-        // fewer, this smoke is thinner, and the beams would swamp it.
-        const lit = shafts * (0.06 + density * 1.1) * beamGain * 0.6
-        const vx = u - 0.5
-        const vy = v - 0.5
-        const vignette = 1 - (vx * vx + vy * vy) * 1.3
-        for (let c = 0; c < 3; c++) {
-          let x = ((smokeA[c] + (smokeB[c] - smokeA[c]) * mix) * body * 1.8 + beamColour[c] * lit) * vignette
-          // Soft shoulder, then back to the screen's gamma.
-          x = x / (1 + x)
-          data[o + c] = Math.sqrt(x) * 255
-        }
-        data[o + 3] = 255
-        o += 4
-      }
-    }
-    const small = this.smokeCanvas.getContext('2d', { willReadFrequently: true })!
-    small.putImageData(image, 0, 0)
-    this.ctx.imageSmoothingEnabled = true
-    this.ctx.drawImage(this.smokeCanvas, 0, 0, WIDTH, HEIGHT)
-  }
-}
-
-function hexLinear(hex: number): number[] {
-  return [hex >> 16, (hex >> 8) & 255, hex & 255].map((c) => (c / 255) ** 2.2)
-}
-
-function hslLinear(h: number, s: number, l: number): number[] {
-  const a = s * Math.min(l, 1 - l)
-  return [0, 8, 4].map((n) => {
-    const k = (n + h * 12) % 12
-    return (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))) ** 2.2
-  })
 }
