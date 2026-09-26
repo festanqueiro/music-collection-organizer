@@ -53,6 +53,34 @@ function FilterCountBadge({ count }: { count: number }) {
   )
 }
 
+const SIDEBAR_STATE_KEY = 'sidebarState'
+type SidebarState = { view: LeftView; treeView: TreeView; folder: string | null }
+
+function loadSidebarState(): SidebarState {
+  const fallback: SidebarState = { view: 'folders', treeView: 'folders', folder: null }
+  try {
+    const stored = JSON.parse(localStorage.getItem(SIDEBAR_STATE_KEY) ?? 'null')
+    if (!stored || typeof stored !== 'object') return fallback
+    const isTree = (v: unknown): v is TreeView => v === 'folders' || v === 'tags' || v === 'subtags'
+    const treeView = isTree(stored.treeView) ? stored.treeView : 'folders'
+    return {
+      view: isTree(stored.view) || stored.view === 'filters' ? stored.view : treeView,
+      treeView,
+      folder: typeof stored.folder === 'string' ? stored.folder : null,
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function saveSidebarState(state: SidebarState): void {
+  try {
+    localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(state))
+  } catch {
+    // Non-essential — fine to lose.
+  }
+}
+
 const LEFT_COLLAPSED_KEY = 'leftSidebarCollapsed'
 const COLLAPSED_LEFT_WIDTH = 48
 
@@ -94,11 +122,11 @@ export default function App() {
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const lastRefreshRef = useRef(0)
-  const [leftView, setLeftView] = useState<LeftView>('folders')
+  const [leftView, setLeftView] = useState<LeftView>(() => loadSidebarState().view)
   // The folder/tag view the Filters view was opened from: kept mounted
   // (hidden) meanwhile, with its selection still applied — filters combine
   // with it rather than replacing it.
-  const [treeView, setTreeView] = useState<TreeView>('folders')
+  const [treeView, setTreeView] = useState<TreeView>(() => loadSidebarState().treeView)
   const activeFilterCount = useCollectionStore(
     (s) =>
       Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter) + Number(s.untaggedFilter)
@@ -118,7 +146,20 @@ export default function App() {
       // Non-essential preference — fine to lose.
     }
   }
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(() => loadSidebarState().folder)
+  // The sidebar reopens where it was left: same view, same folder.
+  useEffect(() => {
+    saveSidebarState({ view: leftView, treeView, folder: selectedFolder })
+  }, [leftView, treeView, selectedFolder])
+  // A remembered folder that's gone (moved, renamed, another collection)
+  // falls back to All Tracks once the collection has loaded.
+  const tracksLoaded = useCollectionStore((s) => s.tracks.length > 0)
+  useEffect(() => {
+    if (!tracksLoaded || !selectedFolder) return
+    const { tracks } = useCollectionStore.getState()
+    if (!tracks.some((t) => t.folder === selectedFolder || t.folder.startsWith(selectedFolder + '/'))) setSelectedFolder(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracksLoaded])
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)
   const [tagFilter, setTagFilter] = useState<(track: Track) => boolean>(() => () => true)
   const [settingsOpen, setSettingsOpen] = useState(false)
