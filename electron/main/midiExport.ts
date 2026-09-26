@@ -6,7 +6,7 @@ import {
   type MidiMappings,
 } from '../../src/types'
 
-// On-disk format for Settings → Audio → MIDI → Export/Import. Versioned
+// On-disk format for Settings → MIDI → Export/Import. Versioned
 // so a future format change can still read (or clearly reject) old files.
 export interface MidiExportData {
   type: 'mco-midi-mappings'

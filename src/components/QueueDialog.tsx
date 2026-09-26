@@ -29,7 +29,7 @@ export function QueueDialog() {
   const tracksLabel = `${total} track${total === 1 ? '' : 's'}`
   const primaryStyle = {
     background: 'var(--color-accent)',
-    color: 'var(--color-bg)',
+    color: 'var(--color-on-accent)',
     border: '1px solid var(--color-accent)',
     fontWeight: 500,
   }

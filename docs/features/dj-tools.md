@@ -1,18 +1,17 @@
 # DJ tools
 
 Helpers for preparing sets: finding tracks that mix, hearing the next one
-in your headphones, cleaning up duplicates, and taking your tags to
-Rekordbox.
+in your headphones, and taking your tags to Rekordbox.
 
 ## Harmonic mixing
 
-Keys are shown in **Camelot** notation (the wheel most DJ software
-uses): numbers 1–12 go round the circle of fifths, **A** is minor and
+Keys are shown in **Camelot** notation ([the wheel](https://mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp) most DJ
+software uses): numbers 1–12 go round the circle of fifths, **A** is minor and
 **B** is major, so A minor is **8A** and C major is **8B**. The Key
 column shows a colour-coded badge, and neighbouring (compatible) keys get
 neighbouring colours. Sorting by Key goes round the wheel.
 
-**Settings → General → Key notation** chooses Camelot (8A), musical (Am),
+**Settings → Appearance → Key notation** chooses Camelot (8A), musical (Am),
 or both (8A · Am). The detail panel and queue follow the same setting.
 
 ### Compatible filter
@@ -28,7 +27,9 @@ that mix with it:
 It combines with search, the folder tree, and tag filters. Click it
 again to switch it off.
 
-Code: `src/state/harmonic.ts`, `src/components/TrackTable.tsx`.
+Code: `src/state/harmonic.ts`, `src/components/TrackTable.tsx`. The
+tests in `src/state/harmonic.test.ts` check every key's position and
+compatible neighbours against Mixed In Key's official wheel.
 
 ## Headphone pre-listen (cue)
 
@@ -49,32 +50,9 @@ back to the default output.
 
 Code: `src/components/CuePlayer.tsx`.
 
-## Duplicate finder
-
-The **Duplicates** tab in the left panel lists groups of likely
-duplicates: the same recording saved twice, for example as WAV and MP3,
-or as two downloads. Tracks count as duplicates when their durations are
-within a second of each other and either:
-
-- their title and artist match (ignoring case, accents, and
-  punctuation), or
-- their filenames match (ignoring track-number prefixes and the
-  extension).
-
-Different mixes stay separate, e.g. "(Dub Mix)" vs "(Vocal Mix)".
-
-The table shows all duplicates, or one group when you click it. For each
-copy you see its format, size, duration, and tag count, plus a **Show in
-Finder** button. **Merge tags** gives every copy in the group all the
-group's tags, so nothing is lost whichever copy you keep. MCO never
-deletes files: remove the copy you don't want in Finder, then click
-**Update Collection**.
-
-Code: `src/state/duplicates.ts`, `src/components/DuplicatesPanel.tsx`.
-
 ## Export to Rekordbox
 
-**Settings → Backups → Rekordbox → Export to Rekordbox…** writes an XML
+**Settings → Import & export → Rekordbox → Export to Rekordbox…** writes an XML
 file Rekordbox can read:
 
 - every track (title, artist, album, genre tag, BPM, key, duration, date

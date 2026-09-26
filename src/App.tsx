@@ -5,7 +5,6 @@ import { ScanPrompt } from './components/ScanPrompt'
 import { FolderTree } from './components/FolderTree'
 import { TagTree } from './components/TagTree'
 import { SubtagTree } from './components/SubtagTree'
-import { DuplicatesPanel } from './components/DuplicatesPanel'
 import { CuePlayer } from './components/CuePlayer'
 import { hideBootSplash } from './bootSplash'
 import { UpdateBanner } from './components/UpdateBanner'
@@ -13,6 +12,8 @@ import { TrackTable } from './components/TrackTable'
 import { DetailPanel } from './components/DetailPanel'
 import { Player } from './components/Player'
 import { PlaylistView } from './components/PlaylistView'
+import { FxView } from './components/FxView'
+import { PlayerScreenButtons } from './components/PlayerScreenButtons'
 import { Visualizer } from './components/Visualizer'
 import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
@@ -25,7 +26,7 @@ import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
 
-type LeftView = 'folders' | 'tags' | 'subtags' | 'duplicates'
+type LeftView = 'folders' | 'tags' | 'subtags'
 
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
@@ -59,8 +60,7 @@ export default function App() {
   const clearCheckedTracks = useCollectionStore((s) => s.clearCheckedTracks)
   const setModalOpen = useCollectionStore((s) => s.setModalOpen)
   const playlist = useCollectionStore((s) => s.playlist)
-  const playerExpanded = useCollectionStore((s) => s.playerExpanded)
-  const setPlayerExpanded = useCollectionStore((s) => s.setPlayerExpanded)
+  const playerScreen = useCollectionStore((s) => s.playerScreen)
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const visualizerOpen = useCollectionStore((s) => s.visualizerOpen)
@@ -259,9 +259,9 @@ export default function App() {
           gridTemplateColumns: selectedTrack ? undefined : '260px 1fr 0px',
         }}
       >
-        {playerExpanded && (
+        {playerScreen && (
           <div style={{ gridRow: '1 / span 2', gridColumn: '1 / span 3', position: 'relative', zIndex: 10 }}>
-            <PlaylistView />
+            {playerScreen === 'queue' ? <PlaylistView /> : <FxView />}
           </div>
         )}
 
@@ -305,15 +305,6 @@ export default function App() {
                 >
                   Subtags
                 </button>
-                <button
-                  onClick={() => changeLeftView('duplicates')}
-                  title="Find likely duplicate tracks"
-                  style={{
-                    border: leftView === 'duplicates' ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
-                  }}
-                >
-                  Duplicates
-                </button>
               </div>
               {leftView === 'folders' && (
                 <FolderTree
@@ -327,14 +318,6 @@ export default function App() {
               )}
               {leftView === 'tags' && (
                 <TagTree
-                  onFilterChange={(filter) => {
-                    setTagFilter(() => filter)
-                    clearCheckedTracks()
-                  }}
-                />
-              )}
-              {leftView === 'duplicates' && (
-                <DuplicatesPanel
                   onFilterChange={(filter) => {
                     setTagFilter(() => filter)
                     clearCheckedTracks()
@@ -409,15 +392,9 @@ export default function App() {
                 }}
               >
                 Nothing queued
-                <button
-                  onClick={() => setPlayerExpanded(!playerExpanded)}
-                  title={playerExpanded ? 'Collapse queue' : 'Expand queue'}
-                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}
-                >
-                  <span className="material-symbols-outlined">
-                    {playerExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_up'}
-                  </span>
-                </button>
+                <div style={{ marginLeft: 'auto' }}>
+                  <PlayerScreenButtons hasTrack={false} />
+                </div>
               </div>
             )
           })()}

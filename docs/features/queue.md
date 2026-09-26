@@ -26,7 +26,9 @@ queued.
 
 ## Queue view
 
-Expand the player (chevron in the footer) for the full-screen queue:
+The **Queue** button on the right of the player bar (it shows how many
+tracks are queued) opens the full-screen queue; click it again, or the ✕,
+to close it:
 
 - drag rows to reorder;
 - right-click a row: **Play track now**, **Add to top of the queue**,
@@ -36,7 +38,7 @@ Expand the player (chevron in the footer) for the full-screen queue:
   off, playback stops after each track;
 - the total queue duration.
 
-The [FX panel](fx.md) sits alongside the queue in this view.
+The effects have their own screen: see [FX](fx.md).
 
 Code: `src/components/PlaylistView.tsx`, `QueueDialog.tsx`,
 `src/state/playlist.ts` (pure queue operations), `src/state/store.ts`.

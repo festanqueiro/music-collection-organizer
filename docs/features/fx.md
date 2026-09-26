@@ -1,7 +1,8 @@
 # FX
 
-The FX panel (in the expanded player view) processes playback through a
-Web Audio graph. Every control is a rotary knob that shows its live value;
+The **FX** screen (the **FX** button on the right of the player bar; it
+lights up while an effect is engaged) processes playback through a Web
+Audio graph. Each effect is a card, laid out in as many columns as fit. Every control is a rotary knob that shows its live value;
 **double-click** a knob to reset it. Each module has its own on/off toggle
 in its header. All settings are saved and restored on the next launch, and
 every knob and toggle can be [MIDI-mapped](midi.md).

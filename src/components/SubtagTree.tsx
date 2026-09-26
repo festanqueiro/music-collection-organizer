@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
+import { SubtagRing } from './TagTree'
 
 // Groups by actual track co-tagging, not the schema's own subgenre->genre
 // parent link — a subtag like "5 Stars" is typically its own genre's
@@ -88,6 +89,7 @@ export function SubtagTree({ onFilterChange }: { onFilterChange: (filter: (track
               </button>
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, cursor: 'pointer' }}>
                 <input type="checkbox" checked={isSelected} onChange={() => toggleSubgenreFilter(sg.id)} />
+                {sg.color && <SubtagRing color={sg.color} />}
                 {sg.name}
                 {genreNameById.get(sg.genreId) && (
                   <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>

@@ -23,6 +23,7 @@ import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import type { VisualizerThemeId } from 'threejs-visualisers'
 import type { KeyNotation } from './harmonic'
+import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
 import { describeLibraryChange } from './libraryChange'
 import {
   playTrackNow as playTrackNowPure,
@@ -180,6 +181,8 @@ export interface PlaybackControls {
   cueUp: () => void
 }
 
+export type PlayerScreen = 'queue' | 'fx'
+
 export interface CollectionState {
   tracks: Track[]
   genres: Genre[]
@@ -190,7 +193,8 @@ export interface CollectionState {
   pendingSubgenreDeletion: { snapshot: SubgenreDeletionSnapshot; timeoutId: ReturnType<typeof setTimeout> } | null
   playlist: number[]
   continuousPlay: boolean
-  playerExpanded: boolean
+  // The full-screen view opened from the player bar's icons, if any.
+  playerScreen: PlayerScreen | null
   playTrackNow: (trackId: number) => Promise<void>
   addToPlaylist: (trackId: number) => void
   // `analyse` (default true) also starts analysing any not-yet-analysed
@@ -214,7 +218,9 @@ export interface CollectionState {
   playQueueItemNext: (index: number) => void
   advanceToNext: () => Promise<void>
   setContinuousPlay: (value: boolean) => void
-  setPlayerExpanded: (value: boolean) => void
+  // Opens that screen, or closes it if it's already the one open.
+  togglePlayerScreen: (screen: PlayerScreen) => void
+  setPlayerScreen: (screen: PlayerScreen | null) => void
   // Full-screen Visualizer overlay. Only the open/closed flag lives here —
   // the per-frame audio data is read straight from the AnalyserNode inside
   // the Visualizer's render loop (see audio/audioAnalysis.ts), since
@@ -233,12 +239,15 @@ export interface CollectionState {
   visualizerHideTrackInfo: boolean
   setVisualizerHideTrackInfo: (hide: boolean) => void
   // Whether MIDI-learn badges are shown next to mappable controls
-  // (Settings → Audio). Purely visual — bindings keep working when hidden.
+  // (Settings → MIDI). Purely visual — bindings keep working when hidden.
   showMidiControls: boolean
   setShowMidiControls: (show: boolean) => void
-  // How the Key column/detail panel/queue show keys (Settings → General).
+  // How the Key column/detail panel/queue show keys (Settings → Appearance).
   keyNotation: KeyNotation
   setKeyNotation: (notation: KeyNotation) => void
+  // The app's colour theme (Settings → Appearance); see src/appThemes.ts.
+  appTheme: AppThemeId
+  setAppTheme: (theme: AppThemeId) => void
   // Track-table filter: only tracks that mix harmonically (key) and in
   // tempo (BPM) with the playing track. Session-only, like the search box.
   compatibleFilter: boolean
@@ -354,10 +363,10 @@ export interface CollectionState {
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
-  // Removes every binding at once (Settings → Audio → MIDI, behind a
+  // Removes every binding at once (Settings → MIDI, behind a
   // confirmation) and cancels any in-progress learn.
   resetMidiMappings: () => void
-  // Replaces every binding with an imported set (Settings → Audio → MIDI →
+  // Replaces every binding with an imported set (Settings → MIDI →
   // Import, after the file's been read and validated in main).
   replaceMidiMappings: (mappings: MidiMappings) => void
   handleMidiControlChange: (channel: number, controller: number, value: number, kind: 'cc' | 'note') => void
@@ -380,6 +389,7 @@ export interface CollectionState {
   renameGenre: (genreId: number, name: string) => Promise<void>
   renameSubgenre: (subgenreId: number, name: string) => Promise<void>
   setGenreColor: (genreId: number, color: string | null) => Promise<void>
+  setSubgenreColor: (subgenreId: number, color: string | null) => Promise<void>
   deleteGenre: (genreId: number) => Promise<void>
   undoGenreDeletion: () => Promise<void>
   dismissGenreDeletionUndo: () => void
@@ -390,9 +400,6 @@ export interface CollectionState {
   setTracksChecked: (trackIds: number[], checked: boolean) => void
   clearCheckedTracks: () => void
   addTagsToCheckedTracks: (tagIds: { genreIds: number[]; subgenreIds: number[] }) => Promise<void>
-  // Duplicate finder: gives every listed track the union of all their
-  // tags, so whichever copy is kept has them all. Additive only.
-  mergeTagsAcross: (trackIds: number[]) => Promise<void>
   exportTagData: () => Promise<{ path: string } | null>
   importTagData: () => Promise<ImportResult | null>
 }
@@ -489,6 +496,17 @@ function loadCueVolume(): number {
   }
 }
 
+// The saved theme comes from main via the preload (already applied to
+// <html> by it); undefined under Vitest, which has no preload.
+function loadAppTheme(): AppThemeId {
+  const initial = typeof window !== 'undefined' ? window.api?.initialAppTheme : undefined
+  return isAppThemeId(initial) ? initial : DEFAULT_APP_THEME
+}
+
+function applyAppTheme(theme: AppThemeId): void {
+  if (typeof document !== 'undefined') document.documentElement.dataset.theme = theme
+}
+
 const KEY_NOTATION_KEY = 'keyNotation'
 function loadKeyNotation(): KeyNotation {
   try {
@@ -515,7 +533,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   pendingSubgenreDeletion: null,
   playlist: [],
   continuousPlay: true,
-  playerExpanded: false,
+  playerScreen: null,
   queueRequest: null,
   visualizerOpen: false,
   visualizerTheme: loadVisualizerTheme(),
@@ -523,6 +541,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
   keyNotation: loadKeyNotation(),
+  appTheme: loadAppTheme(),
   compatibleFilter: false,
   searchText: '',
   collectionFolder: null,
@@ -1159,7 +1178,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setContinuousPlay: (value) => set({ continuousPlay: value }),
 
-  setPlayerExpanded: (value) => set({ playerExpanded: value }),
+  togglePlayerScreen: (screen) => set({ playerScreen: get().playerScreen === screen ? null : screen }),
+  setPlayerScreen: (screen) => set({ playerScreen: screen }),
 
   setVisualizerOpen: (open) => set({ visualizerOpen: open }),
 
@@ -1190,6 +1210,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     } catch {
       // Non-essential preference — fine to lose.
     }
+  },
+
+  setAppTheme: (theme) => {
+    set({ appTheme: theme })
+    applyAppTheme(theme)
+    window.api.setAppTheme(theme).catch((err) => console.error('saving the theme failed', err))
   },
 
   setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),
@@ -1287,6 +1313,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     await get().loadAll()
   },
 
+  setSubgenreColor: async (subgenreId, color) => {
+    await window.api.setSubgenreColor(subgenreId, color)
+    await get().loadAll()
+  },
+
   deleteGenre: async (genreId) => {
     const snapshot = await window.api.deleteGenre(genreId)
     await get().loadAll()
@@ -1367,25 +1398,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const trackIds = Array.from(get().checkedTrackIds)
     if (trackIds.length === 0) return
     const updated = await window.api.batchAddTags(trackIds, tagIds)
-    const trackTags = new Map(get().trackTags)
-    for (const u of updated) trackTags.set(u.trackId, u)
-    set({ trackTags })
-  },
-
-  mergeTagsAcross: async (trackIds) => {
-    if (trackIds.length < 2) return
-    const genreIds = new Set<number>()
-    const subgenreIds = new Set<number>()
-    for (const id of trackIds) {
-      const tags = get().trackTags.get(id)
-      tags?.genreIds.forEach((g) => genreIds.add(g))
-      tags?.subgenreIds.forEach((sg) => subgenreIds.add(sg))
-    }
-    if (genreIds.size === 0 && subgenreIds.size === 0) return
-    const updated = await window.api.batchAddTags(trackIds, {
-      genreIds: [...genreIds],
-      subgenreIds: [...subgenreIds],
-    })
     const trackTags = new Map(get().trackTags)
     for (const u of updated) trackTags.set(u.trackId, u)
     set({ trackTags })

@@ -1,14 +1,31 @@
 import { runInTransaction, type AppDatabase } from './db'
 import type { SubgenreDeletionSnapshot } from '../../src/types'
+import { nextTagColor } from '../../src/tagColors'
 
-export function createGenre(db: AppDatabase, name: string): number {
-  return db.prepare('INSERT INTO genres (name) VALUES (?)').run(name).lastInsertRowid as number
+// A new genre gets the palette colour fewest genres use, unless a colour
+// (or null, for none) is given — e.g. when undoing a delete.
+export function createGenre(db: AppDatabase, name: string, color?: string | null): number {
+  const assigned =
+    color !== undefined
+      ? color
+      : nextTagColor((db.prepare('SELECT color FROM genres').all() as { color: string | null }[]).map((r) => r.color))
+  return db.prepare('INSERT INTO genres (name, color) VALUES (?, ?)').run(name, assigned).lastInsertRowid as number
 }
 
-export function createSubgenre(db: AppDatabase, name: string, genreId: number): number {
+// Like createGenre: the palette colour fewest sub-genres use, unless one
+// (or null) is given.
+export function createSubgenre(db: AppDatabase, name: string, genreId: number, color?: string | null): number {
+  const assigned =
+    color !== undefined
+      ? color
+      : nextTagColor((db.prepare('SELECT color FROM subgenres').all() as { color: string | null }[]).map((r) => r.color))
   return db
-    .prepare('INSERT INTO subgenres (name, genre_id) VALUES (?, ?)')
-    .run(name, genreId).lastInsertRowid as number
+    .prepare('INSERT INTO subgenres (name, genre_id, color) VALUES (?, ?, ?)')
+    .run(name, genreId, assigned).lastInsertRowid as number
+}
+
+export function setSubgenreColor(db: AppDatabase, subgenreId: number, color: string | null): void {
+  db.prepare('UPDATE subgenres SET color = ? WHERE id = ?').run(color, subgenreId)
 }
 
 export function deleteGenre(db: AppDatabase, genreId: number): void {
@@ -50,8 +67,8 @@ export function countTracksWithSubgenre(db: AppDatabase, subgenreId: number): nu
 }
 
 export function captureSubgenreDeletionSnapshot(db: AppDatabase, subgenreId: number): SubgenreDeletionSnapshot {
-  const subgenre = db.prepare('SELECT name, genre_id FROM subgenres WHERE id = ?').get(subgenreId) as
-    | { name: string; genre_id: number }
+  const subgenre = db.prepare('SELECT name, genre_id, color FROM subgenres WHERE id = ?').get(subgenreId) as
+    | { name: string; genre_id: number; color: string | null }
     | undefined
   if (!subgenre) throw new Error(`No subgenre with id ${subgenreId}`)
 
@@ -61,6 +78,7 @@ export function captureSubgenreDeletionSnapshot(db: AppDatabase, subgenreId: num
 
   return {
     subgenreName: subgenre.name,
+    subgenreColor: subgenre.color,
     genreId: subgenre.genre_id,
     trackSubgenreAssociations: trackRows.map((r) => ({ trackId: r.track_id })),
   }
@@ -68,7 +86,7 @@ export function captureSubgenreDeletionSnapshot(db: AppDatabase, subgenreId: num
 
 export function undoSubgenreDeletion(db: AppDatabase, snapshot: SubgenreDeletionSnapshot): void {
   runInTransaction(db, () => {
-    const newSubgenreId = createSubgenre(db, snapshot.subgenreName, snapshot.genreId)
+    const newSubgenreId = createSubgenre(db, snapshot.subgenreName, snapshot.genreId, snapshot.subgenreColor)
     for (const { trackId } of snapshot.trackSubgenreAssociations) {
       db.prepare('INSERT INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(trackId, newSubgenreId)
     }
@@ -77,7 +95,8 @@ export function undoSubgenreDeletion(db: AppDatabase, snapshot: SubgenreDeletion
 
 export interface GenreDeletionSnapshot {
   genreName: string
-  subgenres: { name: string }[]
+  genreColor: string | null
+  subgenres: { name: string; color: string | null }[]
   trackGenreAssociations: { trackId: number }[]
   trackSubgenreAssociationsByName: Record<string, number[]>
 }
@@ -85,12 +104,15 @@ export interface GenreDeletionSnapshot {
 // Reads everything deleteGenre's cascade delete is about to destroy —
 // called before deleteGenre, not after.
 export function captureGenreDeletionSnapshot(db: AppDatabase, genreId: number): GenreDeletionSnapshot {
-  const genre = db.prepare('SELECT name FROM genres WHERE id = ?').get(genreId) as { name: string } | undefined
+  const genre = db.prepare('SELECT name, color FROM genres WHERE id = ?').get(genreId) as
+    | { name: string; color: string | null }
+    | undefined
   if (!genre) throw new Error(`No genre with id ${genreId}`)
 
-  const subgenreRows = db.prepare('SELECT id, name FROM subgenres WHERE genre_id = ?').all(genreId) as {
+  const subgenreRows = db.prepare('SELECT id, name, color FROM subgenres WHERE genre_id = ?').all(genreId) as {
     id: number
     name: string
+    color: string | null
   }[]
 
   const trackGenreRows = db.prepare('SELECT track_id FROM track_genres WHERE genre_id = ?').all(genreId) as {
@@ -107,7 +129,8 @@ export function captureGenreDeletionSnapshot(db: AppDatabase, genreId: number): 
 
   return {
     genreName: genre.name,
-    subgenres: subgenreRows.map((s) => ({ name: s.name })),
+    genreColor: genre.color,
+    subgenres: subgenreRows.map((s) => ({ name: s.name, color: s.color })),
     trackGenreAssociations: trackGenreRows.map((r) => ({ trackId: r.track_id })),
     trackSubgenreAssociationsByName,
   }
@@ -118,12 +141,12 @@ export function captureGenreDeletionSnapshot(db: AppDatabase, genreId: number): 
 // associations against those new ids.
 export function undoGenreDeletion(db: AppDatabase, snapshot: GenreDeletionSnapshot): void {
   runInTransaction(db, () => {
-    const newGenreId = createGenre(db, snapshot.genreName)
+    const newGenreId = createGenre(db, snapshot.genreName, snapshot.genreColor)
     for (const { trackId } of snapshot.trackGenreAssociations) {
       db.prepare('INSERT INTO track_genres (track_id, genre_id) VALUES (?, ?)').run(trackId, newGenreId)
     }
     for (const sg of snapshot.subgenres) {
-      const newSubgenreId = createSubgenre(db, sg.name, newGenreId)
+      const newSubgenreId = createSubgenre(db, sg.name, newGenreId, sg.color)
       const trackIds = snapshot.trackSubgenreAssociationsByName[sg.name] ?? []
       for (const trackId of trackIds) {
         db.prepare('INSERT INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(trackId, newSubgenreId)

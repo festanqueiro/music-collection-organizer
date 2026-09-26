@@ -1,0 +1,123 @@
+/* src/themes.css — the app's colour themes (see src/appThemes.ts), keyed
+   by <html data-theme="…"> (set by the preload script before first paint,
+   then by the store). Linked directly from index.html so the startup
+   loader (splash.css) is themed too. With no data-theme, MCO Dark. */
+
+:root,
+[data-theme='mco-dark'] {
+  --color-bg: #12151a;
+  --color-surface: #1b1f26;
+  --color-surface-raised: #232833;
+  --color-border: #2b3140;
+  --color-text: #e6e9ef;
+  --color-text-dim: #9aa3b2;
+  --color-accent: #2dd4bf;
+  --color-accent-strong: #14b8a6;
+  /* Text and icons on an accent (or secondary/MIDI) background. */
+  --color-on-accent: #0b1215;
+  --color-secondary: #a78bfa;
+  /* Cue point marker and CUE button — CDJ-style amber. */
+  --color-error: #f87171;
+  --color-cue: #f59e0b;
+  /* MIDI-learn badges — a lighter variant of the accent, so they read as
+     part of the palette but stand apart from regular controls. */
+  --color-midi: #5eead4;
+  /* Tells Chromium to render browser-native chrome — scrollbars, and
+     (the actual reason this matters) a <select>'s dropdown option list,
+     which CSS otherwise can't style at all — in the theme's mode instead
+     of a jarring popup in the other one. */
+  color-scheme: dark;
+}
+
+[data-theme='midnight'] {
+  --color-bg: #0e1220;
+  --color-surface: #151a2c;
+  --color-surface-raised: #1c2238;
+  --color-border: #2a3252;
+  --color-text: #e4e8f5;
+  --color-text-dim: #97a0bd;
+  --color-accent: #818cf8;
+  --color-accent-strong: #6366f1;
+  --color-on-accent: #0e1220;
+  --color-secondary: #f472b6;
+  --color-error: #fb7185;
+  --color-cue: #fbbf24;
+  --color-midi: #a5b4fc;
+  color-scheme: dark;
+}
+
+[data-theme='carbon'] {
+  --color-bg: #0c0c0c;
+  --color-surface: #161616;
+  --color-surface-raised: #202020;
+  --color-border: #303030;
+  --color-text: #ededed;
+  --color-text-dim: #a0a0a0;
+  --color-accent: #fb923c;
+  --color-accent-strong: #f97316;
+  --color-on-accent: #160b02;
+  --color-secondary: #38bdf8;
+  --color-error: #f87171;
+  --color-cue: #facc15;
+  --color-midi: #fdba74;
+  color-scheme: dark;
+}
+
+[data-theme='mco-light'] {
+  --color-bg: #f4f6f8;
+  --color-surface: #ffffff;
+  --color-surface-raised: #e9edf2;
+  --color-border: #d3d9e2;
+  --color-text: #1a1f27;
+  --color-text-dim: #5b6573;
+  --color-accent: #0f766e;
+  --color-accent-strong: #115e59;
+  --color-on-accent: #ffffff;
+  --color-secondary: #7c3aed;
+  --color-error: #dc2626;
+  --color-cue: #d97706;
+  --color-midi: #0d9488;
+  color-scheme: light;
+}
+
+[data-theme='paper'] {
+  --color-bg: #f6f1e7;
+  --color-surface: #fffaf0;
+  --color-surface-raised: #eee5d4;
+  --color-border: #dccfb8;
+  --color-text: #2b2419;
+  --color-text-dim: #6f6352;
+  --color-accent: #c2410c;
+  --color-accent-strong: #9a3412;
+  --color-on-accent: #ffffff;
+  --color-secondary: #4d7c0f;
+  --color-error: #b91c1c;
+  --color-cue: #b45309;
+  --color-midi: #ea580c;
+  color-scheme: light;
+}
+
+[data-theme='arctic'] {
+  --color-bg: #eef3f9;
+  --color-surface: #ffffff;
+  --color-surface-raised: #e2e9f3;
+  --color-border: #c9d4e3;
+  --color-text: #16202e;
+  --color-text-dim: #56657a;
+  --color-accent: #2563eb;
+  --color-accent-strong: #1d4ed8;
+  --color-on-accent: #ffffff;
+  --color-secondary: #db2777;
+  --color-error: #dc2626;
+  --color-cue: #d97706;
+  --color-midi: #3b82f6;
+  color-scheme: light;
+}
+
+/* Derived from each theme's own colours. */
+:root {
+  --color-midi-bg: color-mix(in srgb, var(--color-midi) 12%, transparent);
+  --color-midi-border: color-mix(in srgb, var(--color-midi) 45%, transparent);
+  --color-selected: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  --color-selected-hover: color-mix(in srgb, var(--color-accent) 22%, transparent);
+}

@@ -15,9 +15,13 @@ interrupts playback.
   level.
 - **Track info** — click the title for the track's details; click the
   artist to search the collection for that artist.
-- **Expand queue** (chevron) opens the full-screen queue and FX panel.
-- **Open visualizer** — see [Visualizer](visualizer.md).
-- **Cast** — play on a TV or speaker; see [Casting](casting.md).
+- On the right, in this order:
+  - **Queue** (with the number queued) and **FX** (lit while an effect is
+    engaged) open the full-screen [queue](queue.md) and [effects](fx.md)
+    screens; click again to close;
+  - **Visualizer** — see [Visualizer](visualizer.md);
+  - then, after a divider, **Cast** — play on a TV or speaker; see
+    [Casting](casting.md).
 
 A track starts playing as soon as it's loaded. Loading a track that hasn't
 been analysed yet starts its analysis in the background; a cloud-only
@@ -51,7 +55,7 @@ Hold **C** on the keyboard, or map the button to a MIDI pad (see
 
 ## Audio output device
 
-**Settings → Audio → Audio Output** sends playback (and the Dub Siren) to a
+**Settings → Audio → Main output** sends playback (and the Dub Siren) to a
 specific output — an audio interface, say — instead of the system default.
 The choice is saved.
 

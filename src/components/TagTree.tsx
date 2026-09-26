@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { matchesTagFilter, type TagFilterMode, type TagFilterState } from '../state/tagFilter'
 import type { Track } from '../types'
+import { TagColorPopover } from './TagColorPopover'
 
 // Drops any id from `ids` that no longer exists in `existing` — e.g. after
 // deleteGenre removes a genre out from under a still-checked checkbox, so
@@ -10,6 +11,24 @@ import type { Track } from '../types'
 function intersectWithExisting(ids: Set<number>, existing: { id: number }[]): Set<number> {
   const existingIds = new Set(existing.map((x) => x.id))
   return new Set([...ids].filter((id) => existingIds.has(id)))
+}
+
+// A sub-genre's colour, as an outline — like its badges in the table.
+export function SubtagRing({ color }: { color: string }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: '8px',
+        height: '8px',
+        borderRadius: '50%',
+        border: `2px solid ${color}`,
+        marginRight: '4px',
+        verticalAlign: 'middle',
+        boxSizing: 'border-box',
+      }}
+    />
+  )
 }
 
 type ContextMenuTarget = { kind: 'genre'; id: number; name: string } | { kind: 'subgenre'; id: number; name: string }
@@ -23,16 +42,14 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
   const renameGenre = useCollectionStore((s) => s.renameGenre)
   const renameSubgenre = useCollectionStore((s) => s.renameSubgenre)
   const setGenreColor = useCollectionStore((s) => s.setGenreColor)
+  const setSubgenreColor = useCollectionStore((s) => s.setSubgenreColor)
 
   const [genreIds, setGenreIds] = useState<Set<number>>(new Set())
   const [subgenreIds, setSubgenreIds] = useState<Set<number>>(new Set())
   const [filterMode, setFilterMode] = useState<TagFilterMode>('OR')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
-  const colorInputRef = useRef<HTMLInputElement>(null)
-  // Set when "Choose color…" is clicked, not read off contextMenu at
-  // change-time — the menu is already closed (and contextMenu nulled) by
-  // the time the native color picker's onChange actually fires.
-  const colorTargetGenreId = useRef<number | null>(null)
+  // "Choose color…" opens this where the menu was.
+  const [colorPicker, setColorPicker] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
 
   const subgenreIdsByGenreId = useMemo(() => {
     const map = new Map<number, number[]>()
@@ -149,14 +166,6 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
 
   return (
     <div>
-      <input
-        ref={colorInputRef}
-        type="color"
-        style={{ position: 'fixed', top: -9999, left: -9999, width: 0, height: 0, opacity: 0 }}
-        onChange={(e) => {
-          if (colorTargetGenreId.current != null) setGenreColor(colorTargetGenreId.current, e.target.value)
-        }}
-      />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '8px 0' }}>
         <span style={{ fontWeight: 600 }}>Tag</span>
         {genreIds.size + subgenreIds.size > 1 && (
@@ -180,7 +189,7 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
                   fontSize: '11px',
                   cursor: 'pointer',
                   background: filterMode === mode ? 'var(--color-accent)' : 'none',
-                  color: filterMode === mode ? 'var(--color-bg)' : 'var(--color-text-dim)',
+                  color: filterMode === mode ? 'var(--color-on-accent)' : 'var(--color-text-dim)',
                 }}
               >
                 {mode}
@@ -226,6 +235,7 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
                   checked={subgenreIds.has(sg.id)}
                   onChange={() => toggle(subgenreIds, sg.id, setSubgenreIds, 'subgenre')}
                 />{' '}
+                {sg.color && <SubtagRing color={sg.color} />}
                 {sg.name}
               </label>
             ))}
@@ -258,21 +268,18 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
             </span>
             Rename
           </button>
-          {contextMenu.target.kind === 'genre' && (
-            <button
-              onClick={() => {
-                colorTargetGenreId.current = contextMenu.target.id
-                colorInputRef.current?.click()
-                setContextMenu(null)
-              }}
-              style={menuItemStyle}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                palette
-              </span>
-              Choose color…
-            </button>
-          )}
+          <button
+            onClick={() => {
+              setColorPicker({ x: contextMenu.x, y: contextMenu.y, target: contextMenu.target })
+              setContextMenu(null)
+            }}
+            style={menuItemStyle}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              palette
+            </span>
+            Choose color…
+          </button>
           <button
             onClick={() => {
               handleDelete(contextMenu.target)
@@ -286,6 +293,22 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
             Delete
           </button>
         </div>
+      )}
+
+      {colorPicker && (
+        <TagColorPopover
+          x={colorPicker.x}
+          y={colorPicker.y}
+          current={
+            (colorPicker.target.kind === 'genre' ? genres : subgenres).find((t) => t.id === colorPicker.target.id)?.color ?? null
+          }
+          onPick={(color) => {
+            if (colorPicker.target.kind === 'genre') setGenreColor(colorPicker.target.id, color)
+            else setSubgenreColor(colorPicker.target.id, color)
+            setColorPicker(null)
+          }}
+          onClose={() => setColorPicker(null)}
+        />
       )}
     </div>
   )

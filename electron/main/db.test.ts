@@ -69,6 +69,26 @@ describe('openDatabase', () => {
       expect(row.bitrate).toBeNull()
       db.close()
     })
+
+    it("gives existing sub-genres their genre's colour when sub-genre colours are added", () => {
+      dir = mkdtempSync(join(tmpdir(), 'db-migrate-test-'))
+      const dbPath = join(dir, 'old.db')
+      const oldDb = new DatabaseSync(dbPath)
+      oldDb.exec(`
+        CREATE TABLE genres (id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, color TEXT);
+        CREATE TABLE subgenres (id INTEGER PRIMARY KEY, name TEXT NOT NULL, genre_id INTEGER NOT NULL);
+        INSERT INTO genres (id, name, color) VALUES (1, 'Dub', '#16a34a'), (2, 'Plain', NULL);
+        INSERT INTO subgenres (name, genre_id) VALUES ('Steppers', 1), ('Other', 2);
+      `)
+      oldDb.close()
+
+      const db = openDatabase(dbPath)
+      expect(db.prepare('SELECT name, color FROM subgenres ORDER BY name').all()).toEqual([
+        { name: 'Other', color: null },
+        { name: 'Steppers', color: '#16a34a' },
+      ])
+      db.close()
+    })
   })
 })
 

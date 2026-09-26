@@ -1,7 +1,7 @@
 # Visualizer
 
 A full-screen, audio-reactive visualizer built on `three.js`. Open it from
-the player bar's visualizer button; close it with **Esc** or its close
+the player bar's **Visualizer** button; close it with **Esc** or its close
 button. It stays open across track changes and reacts to the post-FX
 output (after FX and master volume), so EQ/filter moves show up in it.
 

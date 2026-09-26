@@ -52,7 +52,7 @@ describe('buildReceiverQueue', () => {
       tracks,
       playlist: [1],
       genres: [{ id: 5, name: 'Dub', color: '#ff0000' }],
-      subgenres: [{ id: 9, name: 'Steppers', genreId: 5 }],
+      subgenres: [{ id: 9, name: 'Steppers', genreId: 5, color: null }],
       trackTags: new Map([[1, { trackId: 1, genreIds: [5], subgenreIds: [9] }]]),
     })
     if (message.type !== 'queue') throw new Error('not a queue message')

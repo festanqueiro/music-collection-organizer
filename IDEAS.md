@@ -59,9 +59,9 @@ cue points.
 
 - **Auto-updater** — a custom GitHub Releases updater (see
   `docs/features/settings-and-data.md#automatic-updates`).
-- **Export to Rekordbox**, **harmonic mixing helpers**, **headphone
-  pre-listen**, and the **duplicate finder** — see
-  `docs/features/dj-tools.md`.
+- **Export to Rekordbox**, **harmonic mixing helpers**, and **headphone
+  pre-listen** — see `docs/features/dj-tools.md`. (A duplicate finder was
+  added and later removed.)
 - **MP3, M4A/AAC, and OGG/Opus support**, with a Bitrate column.
 - **Watch folder / auto-import** — see
   `docs/features/library.md#watching-the-folder`.

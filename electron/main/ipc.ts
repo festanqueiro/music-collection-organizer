@@ -27,7 +27,9 @@ import {
   setWatchCollectionFolder,
   getAutoAnalyseNewTracks,
   setAutoAnalyseNewTracks,
+  setAppThemeId,
 } from './config'
+import { getAppTheme, isAppThemeId } from '../../src/appThemes'
 import { FolderWatcher } from './folderWatcher'
 import { isTrustedReleaseUrl, type Updater } from './updater'
 import { getDataFolder, setDataFolder } from './bootstrap'
@@ -48,6 +50,7 @@ import {
   renameGenre,
   renameSubgenre,
   setGenreColor,
+  setSubgenreColor,
   countTracksWithGenre,
   countTracksWithSubgenre,
   setTrackGenres,
@@ -125,6 +128,7 @@ interface SubgenreRow {
   id: number
   name: string
   genre_id: number
+  color: string | null
 }
 
 function rowToTrack(row: TrackRow): Track {
@@ -405,6 +409,12 @@ export function registerIpcHandlers(
   }
   syncFolderWatcher()
 
+  ipcMain.handle('config:setAppTheme', (_e, id: unknown): void => {
+    if (!isAppThemeId(id)) return
+    setAppThemeId(id)
+    for (const win of BrowserWindow.getAllWindows()) win.setBackgroundColor(getAppTheme(id).background)
+  })
+
   ipcMain.handle('config:getLibrarySettings', (): { watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean } => ({
     watchCollectionFolder: getWatchCollectionFolder(),
     autoAnalyseNewTracks: getAutoAnalyseNewTracks(),
@@ -524,6 +534,7 @@ export function registerIpcHandlers(
       id: r.id,
       name: r.name,
       genreId: r.genre_id,
+      color: r.color,
     }))
   )
 
@@ -537,6 +548,9 @@ export function registerIpcHandlers(
   )
   ipcMain.handle('tags:setGenreColor', (_e, genreId: number, color: string | null): void =>
     setGenreColor(db, genreId, color)
+  )
+  ipcMain.handle('tags:setSubgenreColor', (_e, subgenreId: number, color: string | null): void =>
+    setSubgenreColor(db, subgenreId, color)
   )
   ipcMain.handle('tags:countTracksWithGenre', (_e, genreId: number): number => countTracksWithGenre(db, genreId))
   ipcMain.handle('tags:countTracksWithSubgenre', (_e, subgenreId: number): number =>

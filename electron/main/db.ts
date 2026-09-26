@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS genres (
 CREATE TABLE IF NOT EXISTS subgenres (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
-  genre_id INTEGER NOT NULL REFERENCES genres(id) ON DELETE CASCADE
+  genre_id INTEGER NOT NULL REFERENCES genres(id) ON DELETE CASCADE,
+  color TEXT
 );
 
 CREATE TABLE IF NOT EXISTS moods (
@@ -134,6 +135,13 @@ function migrate(db: AppDatabase): void {
 
   if (!genreColumnNames.has('color')) {
     db.exec('ALTER TABLE genres ADD COLUMN color TEXT')
+  }
+
+  // Sub-genres used to show their genre's colour; they start with it.
+  const subgenreColumns = db.prepare('PRAGMA table_info(subgenres)').all() as { name: string }[]
+  if (!subgenreColumns.some((c) => c.name === 'color')) {
+    db.exec('ALTER TABLE subgenres ADD COLUMN color TEXT')
+    db.exec('UPDATE subgenres SET color = (SELECT color FROM genres WHERE genres.id = subgenres.genre_id)')
   }
 }
 

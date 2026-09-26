@@ -35,7 +35,7 @@ replaced, it rescans in the background and a toast says what changed
 (e.g. "3 new tracks, 1 missing"). Copying in a whole album triggers
 one rescan, not one per file.
 
-Both switches are in **Settings → General → Collection folder**:
+Both switches are in **Settings → Library**:
 
 - **Watch for new and removed files** (on by default);
 - **Analyse new tracks automatically** (off by default). When it's on,
