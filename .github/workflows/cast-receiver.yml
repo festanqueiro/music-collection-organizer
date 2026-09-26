@@ -5,9 +5,7 @@ name: Deploy Cast receiver
 
 on:
   push:
-    # feat/cast-receiver: temporary, so it can be tested on the TV before
-    # merging — remove before merge.
-    branches: [main, feat/cast-receiver]
+    branches: [main]
     paths:
       - cast-receiver/**
       - src/cast/receiverProtocol.ts
