@@ -120,6 +120,7 @@ export interface ImportResult {
 
 export interface GenreDeletionSnapshot {
   genreName: string
+  genreColor: string | null
   subgenres: { name: string }[]
   trackGenreAssociations: { trackId: number }[]
   trackSubgenreAssociationsByName: Record<string, number[]>
