@@ -9,7 +9,8 @@ installed copies update themselves.
 ## 1.0.43 — 2026-09-26
 
 ### Added
-- **Selecting several tracks**: the details panel steps aside, and
+- **Selecting several tracks**: checked rows are highlighted like the
+  selected one, the details panel steps aside, and
   right-clicking one of the checked tracks acts on all of them — **Add all to
   queue**, **Add all to top of the queue**, **Analyse all**, **Clear
   selection**.

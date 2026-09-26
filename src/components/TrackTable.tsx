@@ -783,7 +783,9 @@ export function TrackTable({
               <tr
                 key={track.id}
                 data-track-id={track.id}
-                className={`track-row${track.id === selectedTrackId ? ' selected' : ''}`}
+                // Checked rows share the selected row's highlight, so a
+                // multi-selection reads as one group.
+                className={`track-row${track.id === selectedTrackId || checkedTrackIds.has(track.id) ? ' selected' : ''}`}
                 onClick={(e) => handleRowClick(track, e.shiftKey)}
                 onContextMenu={(e) => {
                   e.preventDefault()
