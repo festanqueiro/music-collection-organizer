@@ -18,7 +18,7 @@ Three ways a session went wrong (2026-09-26):
 3. The device answers every heartbeat PING (verified); the connection fails after **4 heartbeats in
    a row** (~20 s) with nothing heard. Counting beats, not wall-clock silence, matters: 1.0.42 timed
    20 s of silence, and when MCO's main process was busy (a synchronous scan) the timer and the queued
-   replies both ran late, so a healthy TV was dropped while it kept playing — fixed in PR #69.
+   replies both ran late, so a healthy TV was dropped while it kept playing — fixed in 1.0.43.
 
 ## Consequences
 - A MacBook still sleeps when its lid is closed (unless an external display is attached).

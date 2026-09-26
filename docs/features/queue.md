@@ -50,8 +50,7 @@ Code: `src/components/PlaylistView.tsx`, `QueueDialog.tsx`,
 `src/state/playlist.ts` (pure queue operations), `src/state/store.ts`.
 
 With several tracks checked, right-clicking one of them offers **Add all to
-queue** and **Add all to top of the queue** (in table order) — *in review,
-PR #70*.
+queue** and **Add all to top of the queue** (in table order).
 
 ## Tests
 - `src/state/playlist.test.ts`, `store.queue.test.ts`.

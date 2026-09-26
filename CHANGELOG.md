@@ -8,6 +8,14 @@ installed copies update themselves.
 
 ## 1.0.43 — 2026-09-26
 
+### Added
+- **Selecting several tracks**: the details panel steps aside, and
+  right-clicking one of the checked tracks acts on all of them — **Add all to
+  queue**, **Add all to top of the queue**, **Analyse all**, **Clear
+  selection**.
+- A **project vault** in `docs/`: the feature guide, every design decision
+  (ADRs), research notes, the roadmap and session write-ups.
+
 ### Fixed
 - Casting could drop with "The TV stopped responding" while the TV was
   fine and still playing, when MCO was busy for a while (e.g. scanning the

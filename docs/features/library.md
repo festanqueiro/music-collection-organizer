@@ -87,7 +87,7 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 
 ### Selecting several tracks
 Check rows (shift-click checks a range) for the selection toolbar: add tags, analyse, queue
-([Tags](tags.md#batch-tagging)). *In review (PR #70):* with more than one checked, the details panel
+([Tags](tags.md#batch-tagging)). With more than one checked, the details panel
 steps aside, and right-clicking a checked row acts on the whole selection in table order — **Add all
 to queue**, **Add all to top of the queue**, **Analyse all**, **Clear selection**.
 
