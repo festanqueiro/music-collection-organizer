@@ -13,6 +13,10 @@ import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { PlayerScreenButtons } from './PlayerScreenButtons'
 
+// How close (in px) to the waveform's left edge a click counts as "seek to
+// the start".
+const SEEK_START_SNAP_PX = 6
+
 // Renders as the app's footer player bar: track name + BPM, play/pause,
 // waveform (doubles as the seek bar), and volume. The FX controls live in
 // FxPanel instead, on their own full screen (FxView, the FX button) —
@@ -340,7 +344,10 @@ export function Player({
     const audio = audioRef.current
     if (!audio || !audio.duration || !isFinite(audio.duration)) return
     const rect = target.getBoundingClientRect()
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+    // Clicks within a few pixels of the left edge snap to the very start —
+    // otherwise 0:00 is a single pixel and practically unclickable.
+    const x = clientX - rect.left
+    const ratio = x <= SEEK_START_SNAP_PX ? 0 : Math.min(1, x / rect.width)
     audio.currentTime = ratio * audio.duration
     // Seeking while paused is how the cue point gets placed.
     if (audio.paused) {
