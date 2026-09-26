@@ -21,6 +21,13 @@ export interface Track {
   bpm: number | null
   musicalKey: string | null
   waveformPeaks: number[] | null
+  // Integrated loudness (LUFS) and a 1–10 energy rating, from analysis;
+  // null until (re)analysed. See electron/main/analysis/energy.ts.
+  loudness: number | null
+  energy: number | null
+  // Counted once a track has played for a while (see Player.tsx).
+  playCount: number
+  lastPlayedAt: number | null
   cloudStatus: 'local' | 'cloud_only'
   analysisStatus: 'pending' | 'analyzing' | 'done' | 'error'
 }

@@ -93,6 +93,8 @@ const api = {
   // response is awaited.
   startTrackDrag: (trackIds: number[]): void => ipcRenderer.send('tracks:startDrag', trackIds),
   showTrackInFolder: (trackId: number): void => ipcRenderer.send('tracks:showInFolder', trackId),
+  recordPlay: (trackId: number): Promise<{ playCount: number; lastPlayedAt: number } | null> =>
+    ipcRenderer.invoke('tracks:recordPlay', trackId),
   getTrackArtwork: (trackId: number): Promise<string | null> => ipcRenderer.invoke('tracks:getArtwork', trackId),
   getBackupInfo: (): Promise<BackupInfo> => ipcRenderer.invoke('backup:getInfo'),
   listBackups: (): Promise<BackupEntry[]> => ipcRenderer.invoke('backup:list'),

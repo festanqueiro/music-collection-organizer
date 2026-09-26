@@ -15,6 +15,7 @@ function writeAnalysisResult(
     `UPDATE tracks SET
       title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate,
       bpm = @bpm, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
+      loudness = @loudness, energy = @energy,
       analysis_status = 'done', analyzed_at = @analyzed_at
     WHERE id = @id`
   ).run({
@@ -29,6 +30,8 @@ function writeAnalysisResult(
     bpm: result.bpm,
     musical_key: result.musicalKey,
     waveform_peaks: JSON.stringify(result.waveformPeaks),
+    loudness: result.loudness,
+    energy: result.energy,
     analyzed_at: Date.now(),
   })
 }

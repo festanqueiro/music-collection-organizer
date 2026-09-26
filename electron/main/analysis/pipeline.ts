@@ -2,6 +2,7 @@ import { decodeToPcm } from './decode'
 import { extractMetadata } from './metadata'
 import { detectBpmAndKey } from './bpmKey'
 import { computeWaveformPeaks } from './waveform'
+import { detectEnergy } from './energy'
 
 export interface AnalysisPipelineResult {
   title: string | null
@@ -14,6 +15,8 @@ export interface AnalysisPipelineResult {
   bpm: number
   musicalKey: string
   waveformPeaks: number[]
+  loudness: number
+  energy: number
 }
 
 // The CPU-bound part of this (detectBpmAndKey) is synchronous, WASM-backed
@@ -29,6 +32,7 @@ export async function runAnalysisPipeline(path: string, metadataPath = path): Pr
   const [metadata, pcm] = await Promise.all([extractMetadata(metadataPath), decodeToPcm(path)])
   const { bpm, key, scale } = detectBpmAndKey(pcm)
   const peaks = computeWaveformPeaks(pcm)
+  const { loudness, energy } = detectEnergy(pcm)
 
   return {
     title: metadata.title,
@@ -41,5 +45,7 @@ export async function runAnalysisPipeline(path: string, metadataPath = path): Pr
     bpm,
     musicalKey: `${key} ${scale}`,
     waveformPeaks: peaks,
+    loudness,
+    energy,
   }
 }

@@ -57,8 +57,11 @@ Code: `electron/main/cloudDetect.ts`, `cloudDownload.ts`.
 ## Analysis
 
 Analysis reads each file's tags (title, artist, album, genre, year, cover
-art) and computes duration, BPM, musical key, and waveform peaks. It runs
-in a pool of 4 worker threads so the UI stays responsive.
+art) and computes duration, BPM, musical key, waveform peaks, loudness
+(EBU R128, in LUFS) and a 1–10 energy rating (loudness plus how busy the
+track is). It runs in a pool of 4 worker threads so the UI stays
+responsive. Tracks analysed before loudness/energy existed get them when
+they're next played or queued.
 
 Ways to start it:
 
@@ -68,13 +71,18 @@ Ways to start it:
   **Re-analyse track** from a row's menu (always re-runs);
 - automatically, in the background, for a track you play or queue.
 
+A track's **play count** and **last played** go up once it has played for
+30 seconds (or half of a track shorter than a minute); seeking doesn't
+count. They're shown on the TV while casting (see [Casting](casting.md)).
+
 A progress bar shows while any analysis is running (combined across
 concurrent runs) and can be stopped. Stopped tracks go back to *pending*;
 failed tracks show a red icon and are retried by the next collection-wide
 run.
 
 Code: `electron/main/analysis/` (`queue.ts`, `worker.ts`, `pipeline.ts`,
-`bpmKey.ts`, `waveform.ts`, `metadata.ts`).
+`bpmKey.ts`, `energy.ts`, `waveform.ts`, `metadata.ts`); play counts:
+`src/state/playCount.ts`.
 
 ## Track table
 

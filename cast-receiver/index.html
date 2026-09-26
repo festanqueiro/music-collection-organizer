@@ -9,72 +9,217 @@
     <style>
       /* MCO's palette (src/theme.css). */
       :root {
-        --bg: #12151a;
-        --surface: #1b1f26;
-        --border: #2b3140;
-        --text: #e6e9ef;
-        --dim: #9aa3b2;
+        --bg: #0b0d11;
+        --surface: rgba(255, 255, 255, 0.06);
+        --border: rgba(255, 255, 255, 0.12);
+        --text: #eef1f6;
+        --dim: #a3acba;
+        --faint: #6b7483;
         --accent: #2dd4bf;
+        --warn: #f59e0b;
       }
+      /* Everything is sized in rem, a 60th of the screen height, so the
+         layout is the same at 720p (most Cast devices) and 1080p. */
+      html { font-size: calc(100vh / 60); }
       html, body {
-        margin: 0; height: 100%; overflow: hidden; color: var(--text);
-        font-family: Roboto, system-ui, sans-serif;
-        background: radial-gradient(circle at 30% 40%, var(--surface), var(--bg) 70%);
+        margin: 0; height: 100%; overflow: hidden; color: var(--text); background: var(--bg);
+        font-family: Roboto, system-ui, sans-serif; -webkit-font-smoothing: antialiased;
       }
       [hidden] { display: none !important; }
-      #brand { position: fixed; top: 40px; right: 56px; display: flex; align-items: center; gap: 12px; color: var(--dim); font-size: 20px; }
-      #brand img { width: 40px; height: 40px; border-radius: 50%; }
-      #playing { position: fixed; inset: 0; display: flex; align-items: center; gap: 64px; padding: 0 120px; }
-      .cover { width: 380px; height: 380px; flex-shrink: 0; border-radius: 12px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
-      #artwork { object-fit: cover; }
-      #placeholder { background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 120px; color: var(--border); }
+      .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+      /* The artwork, shrunk to a few pixels and stretched back up: a soft
+         colour wash that costs the TV's GPU nothing to keep on screen. */
+      #backdrop { position: fixed; inset: 0; width: 100%; height: 100%; opacity: 0; transition: opacity 1.2s ease; }
+      #backdrop.shown { opacity: 0.55; }
+      #scrim {
+        position: fixed; inset: 0;
+        background:
+          radial-gradient(ellipse at 25% 35%, rgba(11, 13, 17, 0.2), rgba(11, 13, 17, 0.85) 75%),
+          linear-gradient(to bottom, rgba(11, 13, 17, 0) 55%, rgba(11, 13, 17, 0.9));
+      }
+
+      /* Top bar: brand, playback state, clock. */
+      #topbar {
+        position: fixed; top: 0; left: 0; right: 0; height: 7rem; padding: 0 5rem;
+        display: flex; align-items: center; justify-content: space-between; font-size: 1.6rem; color: var(--dim);
+      }
+      .brand { display: flex; align-items: center; gap: 1rem; letter-spacing: 0.2em; font-weight: 500; }
+      .brand img { width: 2.6rem; height: 2.6rem; border-radius: 50%; }
+      .topleft { display: flex; align-items: center; gap: 2.4rem; }
+      #session { font-size: 1.4rem; color: var(--faint); font-variant-numeric: tabular-nums; }
+      /* The effects engaged in MCO right now, lit like hardware buttons. */
+      #fx { position: fixed; top: 2.2rem; left: 50%; transform: translateX(-50%); display: flex; gap: 0.8rem; z-index: 2; }
+      #fx span {
+        font-size: 1.2rem; letter-spacing: 0.16em; text-transform: uppercase; font-weight: 500; padding: 0.5rem 1.1rem;
+        border-radius: 0.5rem; color: #0b0d11; background: var(--accent); box-shadow: 0 0 1.6rem rgba(45, 212, 191, 0.55);
+      }
+      #fx span.siren { background: #f43f5e; box-shadow: 0 0 1.6rem rgba(244, 63, 94, 0.6); }
+      .topright { display: flex; align-items: center; gap: 2rem; }
+      #state {
+        font-size: 1.2rem; letter-spacing: 0.15em; text-transform: uppercase; padding: 0.4rem 1rem;
+        border-radius: 99rem; border: 1px solid var(--border); background: var(--surface);
+      }
+      #state.playing { color: var(--accent); border-color: rgba(45, 212, 191, 0.4); }
+      #clock { font-size: 2rem; color: var(--text); font-variant-numeric: tabular-nums; }
+
+      /* Now playing: artwork and details on the left, the queue on the right,
+         the waveform along the bottom. */
+      #playing {
+        position: fixed; inset: 7rem 5rem 4rem; display: grid;
+        grid-template-columns: 1fr 32rem; grid-template-rows: 1fr auto; column-gap: 4rem; row-gap: 3rem;
+      }
+      .hero { display: flex; align-items: center; gap: 3.6rem; min-width: 0; }
+      .art {
+        position: relative; width: 28rem; height: 28rem; flex-shrink: 0; border-radius: 1.2rem; overflow: hidden;
+        background: var(--surface); box-shadow: 0 2rem 5rem rgba(0, 0, 0, 0.6);
+      }
+      .art img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .placeholder {
+        position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+        color: var(--faint); font-size: 12rem; border: 1px solid var(--border); border-radius: inherit;
+      }
       .details { min-width: 0; flex: 1; }
-      #title { font-size: 48px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      #artist { font-size: 30px; color: var(--dim); margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      .track { height: 6px; background: var(--border); border-radius: 3px; margin-top: 48px; overflow: hidden; }
-      #bar { height: 100%; width: 0; background: var(--accent); transition: width 250ms linear; }
-      .meta { display: flex; justify-content: space-between; margin-top: 14px; font-size: 20px; color: var(--dim); font-variant-numeric: tabular-nums; }
+      #album { font-size: 1.5rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+      #title {
+        font-size: 4rem; font-weight: 700; line-height: 1.08; margin: 1rem 0 0; letter-spacing: -0.01em;
+        display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+      }
+      #artist { font-size: 2.4rem; color: var(--dim); margin-top: 1rem; }
+      #tags { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 2rem; max-height: 6.6rem; overflow: hidden; }
+      .chip {
+        font-size: 1.4rem; padding: 0.5rem 1.2rem; border-radius: 99rem; border: 1px solid var(--border);
+        background: var(--surface); color: var(--text); white-space: nowrap;
+      }
+      .chip.genre { font-weight: 500; }
+      .chip.sub { color: var(--dim); background: transparent; }
+      #stats { display: flex; flex-wrap: wrap; column-gap: 2.8rem; row-gap: 1.6rem; margin: 2.4rem 0 0; }
+      #stats > div { max-width: 20rem; }
+      #stats dd { overflow: hidden; text-overflow: ellipsis; }
+      #stats dd.small { font-size: 1.6rem; padding-top: 0.3rem; }
+      .meter { display: inline-flex; gap: 0.25rem; margin-left: 0.8rem; vertical-align: 0.2em; }
+      .meter i { width: 0.5rem; height: 1.4rem; border-radius: 0.1rem; background: var(--border); }
+      .meter i.on { background: var(--accent); }
+      #stats dt { font-size: 1.1rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); }
+      #stats dd { margin: 0.5rem 0 0; font-size: 1.8rem; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .keydot { display: inline-block; width: 1.2rem; height: 1.2rem; border-radius: 50%; margin-right: 0.7rem; vertical-align: 0.15em; }
+      .lossy { color: var(--warn); }
+
+      /* The queue. */
+      #queue {
+        align-self: center; min-width: 0; border-radius: 1.6rem; padding: 2.4rem;
+        background: rgba(11, 13, 17, 0.55); border: 1px solid var(--border);
+      }
+      .queue-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+      .queue-head h2 { margin: 0; font-size: 1.3rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); font-weight: 500; }
+      #queue-count { font-size: 1.4rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+      #upnext { list-style: none; margin: 1.8rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 1.6rem; }
+      #upnext li { display: flex; align-items: center; gap: 1.2rem; min-width: 0; }
+            #upnext li:first-child .up-title { color: var(--accent); }
+      .thumb { position: relative; width: 6rem; height: 6rem; flex-shrink: 0; border-radius: 0.6rem; overflow: hidden; background: var(--surface); }
+      .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .thumb .placeholder { font-size: 2.2rem; border-radius: 0.6rem; }
+      .up-text { min-width: 0; flex: 1; }
+      .up-title { font-size: 1.6rem; font-weight: 500; }
+      .up-sub { font-size: 1.3rem; color: var(--dim); margin-top: 0.3rem; }
+      .up-meta { font-size: 1.3rem; color: var(--faint); margin-top: 0.3rem; font-variant-numeric: tabular-nums; }
+      .mix { color: var(--accent); }
+      #queue-empty { margin-top: 1.8rem; font-size: 1.6rem; color: var(--dim); }
+      #played-section { margin-top: 2rem; }
+      #played { list-style: none; margin: 1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+      #played li { font-size: 1.4rem; color: var(--dim); }
+      #played li span { color: var(--faint); }
+      #queue-foot {
+        display: flex; justify-content: space-between; margin-top: 2rem; padding-top: 1.6rem;
+        border-top: 1px solid var(--border); font-size: 1.4rem; color: var(--dim); font-variant-numeric: tabular-nums;
+      }
+      #queue-foot strong { color: var(--text); font-weight: 500; }
+
+      /* Progress: the track's waveform, lit up to the playhead. */
+      .progress { grid-column: 1 / -1; }
+      .wave { position: relative; height: 6rem; }
+      .wave canvas { position: absolute; left: 0; top: 0; height: 100%; }
+      #wave-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; overflow: hidden; }
+      #bar { display: none; position: absolute; left: 0; right: 0; top: 50%; height: 0.5rem; margin-top: -0.25rem; border-radius: 1rem; background: var(--border); overflow: hidden; }
+      #bar div { height: 100%; width: 0; background: var(--accent); }
+      .wave.flat canvas, .wave.flat #wave-fill { display: none; }
+      .wave.flat #bar { display: block; }
+      .times { display: flex; justify-content: space-between; margin-top: 1rem; font-size: 1.6rem; color: var(--dim); font-variant-numeric: tabular-nums; }
+
       /* Visualizer screen: full-bleed canvas, track info over it. */
       #stage { position: fixed; inset: 0; background: #000; }
       #overlay {
-        position: fixed; top: 40px; left: 56px; right: 200px; color: #fff; pointer-events: none;
-        text-shadow: 0 1px 10px rgba(0, 0, 0, 0.85);
+        position: fixed; top: 4rem; left: 5rem; right: 16rem; color: #fff; pointer-events: none;
+        text-shadow: 0 0.1rem 1rem rgba(0, 0, 0, 0.85);
       }
-      #overlay-title { font-size: 34px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      #overlay-artist { font-size: 22px; opacity: 0.7; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      #waiting { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
-      #waiting .logo { position: relative; width: 150px; height: 150px; }
+      #overlay-title { font-size: 3.2rem; font-weight: 700; }
+      #overlay-artist { font-size: 2rem; opacity: 0.75; margin-top: 0.5rem; }
+      #overlay-meta { font-size: 1.5rem; opacity: 0.6; margin-top: 1rem; font-variant-numeric: tabular-nums; }
+
+      /* Nothing loaded yet. */
+      #waiting { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.6rem; }
+      #waiting .logo { position: relative; width: 13rem; height: 13rem; }
       #waiting .logo img { width: 100%; height: 100%; border-radius: 50%; }
       #waiting .logo::after {
-        content: ''; position: absolute; inset: -8px; border: 3px solid var(--accent); border-radius: 50%;
+        content: ''; position: absolute; inset: -0.7rem; border: 0.25rem solid var(--accent); border-radius: 50%;
         animation: pulse 2.4s ease-out infinite;
       }
       @keyframes pulse { from { transform: scale(1); opacity: 0.6; } to { transform: scale(1.35); opacity: 0; } }
-      #waiting .headline { font-size: 40px; font-weight: 500; margin-top: 24px; }
-      #waiting .sub { font-size: 22px; color: var(--dim); }
-      #waiting .rule { width: 80px; height: 3px; background: var(--accent); margin-top: 8px; }
+      #waiting .headline { font-size: 3.6rem; font-weight: 500; margin-top: 2.4rem; }
+      #waiting .sub { font-size: 1.9rem; color: var(--dim); }
+      #waiting .rule { width: 7rem; height: 0.3rem; background: var(--accent); margin-top: 0.8rem; }
     </style>
   </head>
   <body>
+    <canvas id="backdrop" width="16" height="9"></canvas>
+    <div id="scrim"></div>
     <div id="stage" hidden></div>
-    <div id="overlay" hidden><div id="overlay-title"></div><div id="overlay-artist"></div></div>
-    <div id="brand"><img id="logo" alt="" />MCO</div>
+    <div id="overlay" hidden>
+      <div id="overlay-title" class="ellipsis"></div>
+      <div id="overlay-artist" class="ellipsis"></div>
+      <div id="overlay-meta" class="ellipsis"></div>
+    </div>
+    <header id="topbar">
+      <div class="topleft"><div class="brand"><img id="logo" alt="" />MCO</div><span id="session"></span></div>
+      <div class="topright"><span id="state" hidden></span><span id="clock"></span></div>
+    </header>
+    <div id="fx"></div>
     <div id="waiting">
       <div class="logo"><img id="waiting-logo" alt="MCO" /></div>
       <div class="headline">Load a song to continue</div>
       <div class="sub">MCO is connected — play a track and it will show up here.</div>
       <div class="rule"></div>
     </div>
-    <div id="playing" hidden>
-      <img id="artwork" class="cover" alt="" hidden />
-      <div id="placeholder" class="cover">♪</div>
-      <div class="details">
-        <div id="title"></div>
-        <div id="artist"></div>
-        <div class="track"><div id="bar"></div></div>
-        <div class="meta"><span id="time"></span><span id="state"></span></div>
-      </div>
-    </div>
+    <main id="playing" hidden>
+      <section class="hero">
+        <div class="art">
+          <img id="artwork" alt="" hidden />
+          <div id="placeholder" class="placeholder">♪</div>
+        </div>
+        <div class="details">
+          <div id="album" class="ellipsis"></div>
+          <h1 id="title"></h1>
+          <div id="artist" class="ellipsis"></div>
+          <div id="tags"></div>
+          <dl id="stats"></dl>
+        </div>
+      </section>
+      <aside id="queue">
+        <div class="queue-head"><h2>Up next</h2><span id="queue-count"></span></div>
+        <ol id="upnext"></ol>
+        <div id="queue-empty">Nothing queued after this track.</div>
+        <div id="played-section" hidden><div class="queue-head"><h2>Just played</h2></div><ol id="played"></ol></div>
+        <div id="queue-foot"><span>Queue <strong id="queue-duration"></strong></span><span>Ends ≈ <strong id="queue-ends"></strong></span></div>
+      </aside>
+      <footer class="progress">
+        <div id="wave" class="wave flat">
+          <canvas id="wave-base"></canvas>
+          <div id="wave-fill"><canvas id="wave-top"></canvas></div>
+          <div id="bar"><div></div></div>
+        </div>
+        <div class="times"><span id="elapsed"></span><span id="remaining"></span></div>
+      </footer>
+    </main>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

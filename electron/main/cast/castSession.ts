@@ -148,6 +148,14 @@ export class CastController {
   sendReceiverSettings(message: ReceiverSettingsMessage): void {
     const session = this.session
     if (!session || session.mode !== 'receiver') return
+    if (message.type === 'queue') {
+      const { media, localAddress } = session
+      const withArt = <T extends { trackId: number }>(track: T): T => ({
+        ...track,
+        artworkUrl: media && localAddress ? media.url(localAddress, 'art', track.trackId) : null,
+      })
+      message = { ...message, current: message.current && withArt(message.current), upNext: message.upNext.map(withArt) }
+    }
     try {
       session.client.sendToReceiver(message)
     } catch {

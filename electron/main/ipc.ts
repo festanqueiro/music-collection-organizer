@@ -107,6 +107,10 @@ interface TrackRow {
   bpm: number | null
   musical_key: string | null
   waveform_peaks: string | null
+  loudness: number | null
+  energy: number | null
+  play_count: number
+  last_played_at: number | null
   cloud_status: 'local' | 'cloud_only'
   analysis_status: 'pending' | 'analyzing' | 'done' | 'error'
 }
@@ -143,6 +147,10 @@ function rowToTrack(row: TrackRow): Track {
     bpm: row.bpm,
     musicalKey: row.musical_key,
     waveformPeaks: row.waveform_peaks ? JSON.parse(row.waveform_peaks) : null,
+    loudness: row.loudness,
+    energy: row.energy,
+    playCount: row.play_count,
+    lastPlayedAt: row.last_played_at,
     cloudStatus: row.cloud_status,
     analysisStatus: row.analysis_status,
   }
@@ -604,6 +612,15 @@ export function registerIpcHandlers(
 
   // On-demand cover art for the detail panel — see extractArtwork's own
   // comment for why this isn't bulk-loaded with the rest of getTracks().
+  // One play of a track: bumps its count and returns the new totals, for
+  // the renderer to patch into its copy of the track.
+  ipcMain.handle('tracks:recordPlay', (_e, trackId: number): { playCount: number; lastPlayedAt: number } | null => {
+    const now = Date.now()
+    db.prepare('UPDATE tracks SET play_count = play_count + 1, last_played_at = ? WHERE id = ?').run(now, trackId)
+    const row = db.prepare('SELECT play_count FROM tracks WHERE id = ?').get(trackId) as { play_count: number } | undefined
+    return row ? { playCount: row.play_count, lastPlayedAt: now } : null
+  })
+
   ipcMain.handle('tracks:getArtwork', async (_e, trackId: number): Promise<string | null> => {
     const row = db.prepare('SELECT path, cloud_status FROM tracks WHERE id = ?').get(trackId) as
       | { path: string; cloud_status: string }
