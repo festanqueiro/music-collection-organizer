@@ -1,18 +1,17 @@
 # Publishes MCO's Cast receiver page (cast-receiver/) to GitHub Pages, at
 # the receiver URL registered for MCO's Cast application (see
 # src/cast/receiverProtocol.ts).
+#
+# Runs on every push to main, not just changes under cast-receiver/: the
+# page bundles code from all over the app (the effects chain and siren,
+# default settings, the play-count rule, the threejs-visualisers package…),
+# and a paths list kept missing some of it, leaving the TV on stale code.
+# The version-bump commits are [skip ci], so they don't deploy again.
 name: Deploy Cast receiver
 
 on:
   push:
     branches: [main]
-    paths:
-      - cast-receiver/**
-      - src/cast/receiverProtocol.ts
-      - src/format.ts
-      - resources/icon.png
-      - vite.receiver.config.ts
-      - .github/workflows/cast-receiver.yml
   workflow_dispatch:
 
 permissions:
