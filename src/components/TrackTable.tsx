@@ -429,16 +429,6 @@ export function TrackTable({
                 progress_activity
               </span>
             )}
-            {(trackTags.get(track.id)?.genreIds.length ?? 0) + (trackTags.get(track.id)?.subgenreIds.length ?? 0) >
-              0 && (
-              <span
-                className="material-symbols-outlined"
-                style={{ fontSize: '14px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
-                title="This track has tags"
-              >
-                label
-              </span>
-            )}
             {decodeHtmlEntities(track.title ?? track.filename)}
           </>
         )
