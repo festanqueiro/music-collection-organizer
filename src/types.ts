@@ -359,3 +359,34 @@ export interface EditableTags {
 }
 
 export type WriteTagsResult = { ok: true; track: Track } | { ok: false; error: string }
+
+// Backup to an external disk (Settings → Backups & data; see
+// electron/main/externalBackup.ts).
+export interface ExternalBackupProgress {
+  phase: 'scanning' | 'copying' | 'done' | 'cancelled' | 'error'
+  filesDone: number
+  filesTotal: number
+  bytesDone: number
+  bytesTotal: number
+  error?: string
+}
+
+export interface ExternalBackupResult {
+  at: string
+  copied: number
+  unchanged: number
+  // Only in the cloud (a Google Drive placeholder, etc.): not on this Mac
+  // to copy, and copying would download it.
+  skippedCloudOnly: number
+  failed: number
+  bytesCopied: number
+}
+
+export interface ExternalBackupInfo {
+  folder: string | null
+  // Why the chosen folder can't be used right now (e.g. the disk isn't
+  // connected), or null.
+  problem: string | null
+  last: ExternalBackupResult | null
+  running: boolean
+}

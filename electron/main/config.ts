@@ -8,6 +8,7 @@ import {
   type MidiMappings,
   type TrackTableColumnKey,
   type TrackTableSortState,
+  type ExternalBackupResult,
 } from '../../src/types'
 import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
 
@@ -25,6 +26,8 @@ interface ConfigSchema {
   watchCollectionFolder?: boolean
   autoAnalyseNewTracks?: boolean
   appTheme?: string
+  externalBackupFolder?: string
+  lastExternalBackup?: ExternalBackupResult
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -196,6 +199,22 @@ export function getAppThemeId(): AppThemeId {
 
 export function setAppThemeId(id: AppThemeId): void {
   getStore().set('appTheme', id)
+}
+
+export function getExternalBackupFolder(): string | null {
+  return getStore().get('externalBackupFolder') ?? null
+}
+
+export function setExternalBackupFolder(folder: string): void {
+  getStore().set('externalBackupFolder', folder)
+}
+
+export function getLastExternalBackup(): ExternalBackupResult | null {
+  return getStore().get('lastExternalBackup') ?? null
+}
+
+export function setLastExternalBackup(result: ExternalBackupResult): void {
+  getStore().set('lastExternalBackup', result)
 }
 
 export function getAutoAnalyseNewTracks(): boolean {

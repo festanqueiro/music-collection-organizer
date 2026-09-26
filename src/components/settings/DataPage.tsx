@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { BackupEntry, BackupInfo } from '../../types'
+import type { BackupEntry, BackupInfo, ExternalBackupInfo, ExternalBackupProgress } from '../../types'
 import { Hint, Message, Page, PathText, Section } from './ui'
 
 // Backup filenames use `now.toISOString().replace(/[:.]/g, '-')` (see
@@ -78,6 +78,8 @@ export function DataPage() {
         </div>
       </Section>
 
+      <ExternalBackupSection />
+
       <Section title="Restore" description="Replaces the current collection and settings with a backup, then relaunches MCO.">
         {backups.length === 0 ? (
           <Hint>No backups yet.</Hint>
@@ -105,5 +107,99 @@ export function DataPage() {
         )}
       </Section>
     </Page>
+  )
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`
+  if (bytes >= 1e6) return `${Math.round(bytes / 1e6)} MB`
+  return `${Math.round(bytes / 1e3)} KB`
+}
+
+// Backup to an external disk: the database and settings plus every file in
+// the collection folder, copied incrementally (see
+// electron/main/externalBackup.ts).
+function ExternalBackupSection() {
+  const [info, setInfo] = useState<ExternalBackupInfo | null>(null)
+  const [progress, setProgress] = useState<ExternalBackupProgress | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = () => window.api.getExternalBackupInfo().then(setInfo)
+  useEffect(() => {
+    refresh()
+    return window.api.onExternalBackupProgress((p) => {
+      setProgress(p)
+      if (p.phase === 'error' && p.error) setError(p.error)
+    })
+  }, [])
+
+  const running = info?.running || (progress !== null && (progress.phase === 'scanning' || progress.phase === 'copying'))
+  const last = info?.last
+
+  return (
+    <Section
+      title="Backup to an external disk"
+      description="Copies the database, settings and every file in your collection folder to a folder on another disk, under “MCO Backup”. After the first run only new and changed files are copied, and nothing is ever deleted from the backup."
+    >
+      <PathText>{info?.folder ?? 'No disk chosen yet'}</PathText>
+      {info?.problem && <Message error>⚠ {info.problem}</Message>}
+      {error && <Message error>⚠ {error}</Message>}
+      {last && !running && (
+        <Hint>
+          Last backup: {new Date(last.at).toLocaleString()} — {last.copied} copied ({formatBytes(last.bytesCopied)}), {last.unchanged}{' '}
+          already up to date
+          {last.skippedCloudOnly > 0 && `, ${last.skippedCloudOnly} skipped (only in the cloud — download them to back them up)`}
+          {last.failed > 0 && `, ${last.failed} failed`}.
+        </Hint>
+      )}
+      {running && progress && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <Hint>
+            {progress.phase === 'scanning'
+              ? 'Looking for new and changed files…'
+              : `Copying ${progress.filesDone} of ${progress.filesTotal} files — ${formatBytes(progress.bytesDone)} of ${formatBytes(progress.bytesTotal)}`}
+          </Hint>
+          <div style={{ height: '4px', background: 'var(--color-border)', borderRadius: '2px', overflow: 'hidden' }}>
+            <div
+              style={{
+                height: '100%',
+                width: `${progress.bytesTotal ? (progress.bytesDone / progress.bytesTotal) * 100 : 0}%`,
+                background: 'var(--color-accent)',
+              }}
+            />
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          disabled={running}
+          onClick={async () => {
+            setError(null)
+            const result = await window.api.chooseExternalBackupFolder()
+            if (result && !result.ok) setError(result.error)
+            refresh()
+          }}
+        >
+          {info?.folder ? 'Change disk…' : 'Choose disk…'}
+        </button>
+        {running ? (
+          <button onClick={() => window.api.cancelExternalBackup()}>Stop</button>
+        ) : (
+          <button
+            disabled={!info?.folder || !!info.problem}
+            onClick={async () => {
+              setError(null)
+              setProgress({ phase: 'scanning', filesDone: 0, filesTotal: 0, bytesDone: 0, bytesTotal: 0 })
+              const result = await window.api.runExternalBackup()
+              if (result && 'error' in result) setError(result.error)
+              setProgress(null)
+              refresh()
+            }}
+          >
+            Back up now
+          </button>
+        )}
+      </div>
+    </Section>
   )
 }
