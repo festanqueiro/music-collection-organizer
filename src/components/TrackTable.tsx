@@ -116,6 +116,7 @@ export function TrackTable({
   const subgenres = useCollectionStore((s) => s.subgenres)
   const trackTags = useCollectionStore((s) => s.trackTags)
   const searchText = useCollectionStore((s) => s.searchText)
+  const setSearchText = useCollectionStore((s) => s.setSearchText)
   const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
   const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
   const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
@@ -643,6 +644,9 @@ export function TrackTable({
           </span>
           Add all to queue
         </button>
+        {searchText.trim() && (
+          <FilterChip icon="search" label={`“${searchText.trim()}”`} onClear={() => setSearchText('')} />
+        )}
         {selectedFolder && (
           <FilterChip
             icon="folder"
