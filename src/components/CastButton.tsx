@@ -179,7 +179,7 @@ export function CastButton() {
             </label>
             <label
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}
-              title="On TVs without the visualizer, play in MCO's own app on the TV instead of Google's player."
+              title="Play in MCO's own app on the TV or speaker: visualizer, effects and siren run on the device, with instant controls. Falls back to Google's player where the device won't run it."
             >
               MCO app on the TV (beta)
               <ToggleSwitch

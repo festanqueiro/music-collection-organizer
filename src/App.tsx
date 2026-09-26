@@ -23,6 +23,7 @@ import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
 import { registerCastSource } from './cast/castMixer'
 import { initCast } from './cast/castSession'
+import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
 
 type LeftView = 'folders' | 'tags' | 'subtags' | 'duplicates'
@@ -115,6 +116,7 @@ export default function App() {
   // Casting: main-process status/device events, and the siren's share of
   // the cast mix (the track's share is registered by Player per track).
   useEffect(() => initCast(), [])
+  useEffect(() => initReceiverSync(), [])
   useEffect(() => registerCastSource(getDubSirenEngine().getCastStream()), [])
   const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
   const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)

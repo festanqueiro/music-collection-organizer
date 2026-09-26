@@ -34,6 +34,14 @@
       .track { height: 6px; background: var(--border); border-radius: 3px; margin-top: 48px; overflow: hidden; }
       #bar { height: 100%; width: 0; background: var(--accent); transition: width 250ms linear; }
       .meta { display: flex; justify-content: space-between; margin-top: 14px; font-size: 20px; color: var(--dim); font-variant-numeric: tabular-nums; }
+      /* Visualizer screen: full-bleed canvas, track info over it. */
+      #stage { position: fixed; inset: 0; background: #000; }
+      #overlay {
+        position: fixed; top: 40px; left: 56px; right: 200px; color: #fff; pointer-events: none;
+        text-shadow: 0 1px 10px rgba(0, 0, 0, 0.85);
+      }
+      #overlay-title { font-size: 34px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #overlay-artist { font-size: 22px; opacity: 0.7; margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       #waiting { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
       #waiting .logo { position: relative; width: 150px; height: 150px; }
       #waiting .logo img { width: 100%; height: 100%; border-radius: 50%; }
@@ -48,6 +56,8 @@
     </style>
   </head>
   <body>
+    <div id="stage" hidden></div>
+    <div id="overlay" hidden><div id="overlay-title"></div><div id="overlay-artist"></div></div>
     <div id="brand"><img id="logo" alt="" />MCO</div>
     <div id="waiting">
       <div class="logo"><img id="waiting-logo" alt="MCO" /></div>

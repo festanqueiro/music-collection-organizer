@@ -5,8 +5,9 @@ speaker. No account or setup is needed; the Mac and the device only have to
 be on the same Wi-Fi.
 
 Click the **cast** button in the player bar (next to the visualizer
-button), then pick a device. Devices are only searched for while this
-popover is open. The first time, macOS asks whether MCO may find devices on
+button), then pick a device. Devices are searched for afresh each time the
+popover opens (so a device that moved to a new address shows up at its
+new one), and only while it's open. The first time, macOS asks whether MCO may find devices on
 your local network, and it may ask to allow incoming connections. Allow
 both.
 
@@ -45,6 +46,21 @@ tracks itself.**
   Formats the device can't play (e.g. ALAC in .m4a) stop the cast with an
   error.
 
+**MCO app on the TV (beta).** With this switch on, the TV or speaker runs
+**MCO's own Cast app** instead of Google's player. It does everything on
+the device itself:
+
+- It plays the track file from your Mac through **MCO's effects and Dub
+  Siren**. Knob moves (on screen or MIDI), siren presses and volume are
+  sent to it as they happen.
+- It shows the **visualizer**, rendered on the TV from the audio it plays,
+  so picture and sound are in sync. With **Show visualizer** off, it shows
+  MCO's now-playing screen (artwork, title, artist, progress). Theme,
+  options and *Hide track info* follow MCO.
+- **Controls respond right away**, and MCO's seekbar follows the device.
+- If a device won't run MCO's app (e.g. before it's registered or
+  published for it), MCO uses Google's player instead, as above.
+
 ## Popover options
 
 - **Mute this Mac while casting** (on by default) silences the Mac's own
@@ -70,6 +86,11 @@ and controls over your local network.
   to the device, and MCO sends it load, play, pause and seek commands. MCO
   keeps playing the track silently as the remote, and follows the device's
   reported position and play state.
+
+MCO's own Cast app is the page in `cast-receiver/`, published to GitHub Pages
+(`.github/workflows/cast-receiver.yml`) and registered in the Google Cast
+SDK Developer Console as application `E056A69A`. MCO and the app exchange
+the messages in `src/cast/receiverProtocol.ts`.
 
 Code: `src/cast/` (mixer, TV picture, frame pacing, recording, direct
 mode), `src/components/CastButton.tsx`, `electron/main/cast/` (device

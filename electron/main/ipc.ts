@@ -64,6 +64,7 @@ import { exportTagData, importTagData, type TagExportData } from './tagExport'
 import { buildMidiExport, parseMidiExportText } from './midiExport'
 import { buildRekordboxXml } from './rekordboxExport'
 import { CastController, type DirectMediaSources } from './cast/castSession'
+import { isReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
 import { getPlayableFilePath } from './audioTranscode'
 import { mimeTypeFor } from './mediaTypes'
@@ -745,6 +746,9 @@ export function registerIpcHandlers(
   ipcMain.handle('cast:start', (_e, deviceId: string, mode: CastMode): Promise<void> =>
     cast.start(String(deviceId), mode === 'direct' || mode === 'receiver' ? mode : 'stream'),
   )
+  ipcMain.on('cast:receiver', (_e, message: unknown) => {
+    if (isReceiverSettingsMessage(message)) cast.sendReceiverSettings(message)
+  })
   ipcMain.on('cast:direct', (_e, command: CastDirectCommand) => {
     if (command && typeof command === 'object' && typeof command.type === 'string') cast.runDirect(command)
   })

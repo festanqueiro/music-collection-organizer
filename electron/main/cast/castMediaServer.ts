@@ -46,6 +46,9 @@ export class CastMediaServer {
         res.writeHead(404).end()
         return
       }
+      res.on('finish', () => {
+        if (res.statusCode >= 400) console.error('cast media server:', req.method, route.kind, route.trackId, req.headers.range ?? '', '→', res.statusCode)
+      })
       const handler = route.kind === 'track' ? this.serveTrack(route.trackId, req.headers.range, req.method, res) : this.serveArt(route.trackId, req.method, res)
       handler.catch((err) => {
         console.error('cast media server', err)

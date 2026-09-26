@@ -22,7 +22,7 @@ import { CastDiscovery } from './castDiscovery'
 import { CastStream, pickLocalAddress } from './castStream'
 import { CastMediaServer, type MediaResolvers } from './castMediaServer'
 import type { CastDevice, CastDirectCommand, CastMediaEvent, CastMode, CastStatus } from '../../../src/types'
-import { RECEIVER_APP_ID, isReceiverStatus, type ToReceiver } from '../../../src/cast/receiverProtocol'
+import { RECEIVER_APP_ID, isReceiverStatus, type ReceiverSettingsMessage, type ToReceiver } from '../../../src/cast/receiverProtocol'
 
 const STREAM_READY_TIMEOUT_MS = 20000
 const READY_POLL_MS = 250
@@ -61,6 +61,9 @@ export class CastController {
   private session: ActiveSession | null = null
   private nextSessionId = 1
   private status: CastStatus = { state: 'idle' }
+  // The device of the latest session: a restart (e.g. switching mode) can
+  // come just as a fresh scan has emptied the discovered list.
+  private lastDevice: CastDevice | null = null
 
   constructor(
     sendDevices: (devices: CastDevice[]) => void,
@@ -89,8 +92,9 @@ export class CastController {
   // updates); in direct mode, when the device's player is up and ready
   // for a track.
   async start(deviceId: string, mode: CastMode): Promise<void> {
-    const device = this.discovery.get(deviceId)
+    const device = this.discovery.get(deviceId) ?? (this.lastDevice?.id === deviceId ? this.lastDevice : undefined)
     if (!device) throw new Error('That device is no longer available')
+    this.lastDevice = device
     // Replacing a running session (e.g. switching mode): no 'idle' in
     // between, or the renderer would tear down what it has just started
     // for the new one.
@@ -131,7 +135,20 @@ export class CastController {
       await session.media.start()
       this.watchClient(session)
       await session.client.connect()
-      await session.client.launch(mode === 'receiver' ? RECEIVER_APP_ID : undefined)
+      if (mode === 'receiver') {
+        try {
+          await session.client.launch(RECEIVER_APP_ID)
+        } catch (err) {
+          // The device doesn't (yet) accept MCO's app — e.g. it's not
+          // registered for testing, or a new publish hasn't reached it.
+          // Google's player does the same job, minus MCO's screens/effects.
+          console.warn('cast: MCO receiver unavailable, using Google\'s player:', err instanceof Error ? err.message : err)
+          session.mode = 'direct'
+          await session.client.launch()
+        }
+      } else {
+        await session.client.launch()
+      }
     } catch (err) {
       this.endSession(id, err instanceof Error ? err.message : String(err))
       throw err
@@ -139,7 +156,7 @@ export class CastController {
     if (this.session !== session) return
     // MCO's receiver reports its position itself; Google's player has to
     // be asked.
-    if (mode === 'direct') session.positionTimer = setInterval(() => this.pollPosition(session), DIRECT_POSITION_POLL_MS)
+    if (session.mode === 'direct') session.positionTimer = setInterval(() => this.pollPosition(session), DIRECT_POSITION_POLL_MS)
     this.setStatus(this.statusFor(session, 'casting'))
   }
 
@@ -155,6 +172,17 @@ export class CastController {
     session.commands = session.commands
       .then(() => this.execute(session, command))
       .catch((err) => console.error('cast command failed', command.type, err))
+  }
+
+  // Receiver mode: display, effects and siren updates from MCO's renderer.
+  sendReceiverSettings(message: ReceiverSettingsMessage): void {
+    const session = this.session
+    if (!session || session.mode !== 'receiver') return
+    try {
+      session.client.sendToReceiver(message)
+    } catch {
+      // Not connected (yet) — the renderer resends everything once casting.
+    }
   }
 
   stop(reportIdle = true): void {
@@ -300,6 +328,7 @@ export class CastController {
         return
       }
       if (status.idleReason === 'ERROR') {
+        console.error('cast: device playback error', status.errorDetail)
         this.endSession(id, session.mode === 'direct' ? "The TV couldn't play this track" : 'The TV hit a playback error')
       } else if (status.idleReason === 'CANCELLED') {
         // Stopped from the TV or the Google Home app.

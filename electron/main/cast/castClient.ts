@@ -46,6 +46,8 @@ export interface CastMediaStatus {
   playerState: 'IDLE' | 'PLAYING' | 'PAUSED' | 'BUFFERING' | 'LOADING'
   idleReason: string | null
   currentTime: number
+  // Why the device's player failed, when it says (for logging).
+  errorDetail: string | null
 }
 
 export function parseMediaStatus(message: { status?: unknown }): CastMediaStatus | null {
@@ -57,6 +59,10 @@ export function parseMediaStatus(message: { status?: unknown }): CastMediaStatus
     playerState: s.playerState as CastMediaStatus['playerState'],
     idleReason: typeof s.idleReason === 'string' ? s.idleReason : null,
     currentTime: typeof s.currentTime === 'number' ? s.currentTime : 0,
+    errorDetail:
+      s.idleReason === 'ERROR'
+        ? JSON.stringify({ detailedErrorCode: s.detailedErrorCode, extendedStatus: s.extendedStatus, media: (s.media as { contentId?: unknown } | undefined)?.contentId })
+        : null,
   }
 }
 

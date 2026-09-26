@@ -21,6 +21,7 @@ import type {
   CastMediaEvent,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
+import type { ReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import type { ScanResult } from '../main/scan'
 
 const api = {
@@ -143,6 +144,7 @@ const api = {
   getCastStatus: (): Promise<CastStatus> => ipcRenderer.invoke('cast:getStatus'),
   startCast: (deviceId: string, mode: CastMode): Promise<void> => ipcRenderer.invoke('cast:start', deviceId, mode),
   sendCastCommand: (command: CastDirectCommand): void => ipcRenderer.send('cast:direct', command),
+  sendReceiverSettings: (message: ReceiverSettingsMessage): void => ipcRenderer.send('cast:receiver', message),
   onCastMedia: (cb: (event: CastMediaEvent) => void): (() => void) => {
     const listener = (_e: unknown, event: CastMediaEvent) => cb(event)
     ipcRenderer.on('cast:media', listener)

@@ -44,9 +44,12 @@ export function isCastActive(status: CastStatus): boolean {
 // better (instant controls, full quality) — except MCO's effects. On a
 // TV, "the device plays it" can be MCO's own receiver app (beta).
 export function castModeFor(device: CastDevice, showVisualizer: boolean, useReceiver: boolean): CastMode {
+  // MCO's own app does everything itself — visualizer, effects, speakers
+  // included — and falls back to Google's player (direct) where the
+  // device won't run it.
+  if (useReceiver) return 'receiver'
   if (device.audioOnly) return 'direct'
-  if (showVisualizer) return 'stream'
-  return useReceiver ? 'receiver' : 'direct'
+  return showVisualizer ? 'stream' : 'direct'
 }
 
 function modeForCurrentSettings(device: CastDevice): CastMode {

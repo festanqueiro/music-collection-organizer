@@ -169,7 +169,7 @@ export interface PlaybackControls {
   cueUp: () => void
 }
 
-interface CollectionState {
+export interface CollectionState {
   tracks: Track[]
   genres: Genre[]
   subgenres: Subgenre[]
