@@ -4,29 +4,7 @@
 @import '@fontsource/roboto/700.css';
 @import 'material-symbols/outlined.css';
 
-:root {
-  --color-bg: #12151a;
-  --color-surface: #1b1f26;
-  --color-surface-raised: #232833;
-  --color-border: #2b3140;
-  --color-text: #e6e9ef;
-  --color-text-dim: #9aa3b2;
-  --color-accent: #2dd4bf;
-  --color-accent-strong: #14b8a6;
-  --color-secondary: #a78bfa;
-  /* Cue point marker and CUE button — CDJ-style amber. */
-  --color-cue: #f59e0b;
-  /* MIDI-learn badges — a lighter variant of the teal accent, so they
-     read as part of the palette but stand apart from regular controls. */
-  --color-midi: #5eead4;
-  --color-midi-bg: rgba(94, 234, 212, 0.12);
-  --color-midi-border: rgba(94, 234, 212, 0.45);
-  /* Tells Chromium to render browser-native chrome — scrollbars, and
-     (the actual reason this matters) a <select>'s dropdown option list,
-     which CSS otherwise can't style at all — in dark mode instead of a
-     jarring white popup mid app. */
-  color-scheme: dark;
-}
+/* Colours: see themes.css (linked from index.html). */
 
 * {
   box-sizing: border-box;
@@ -141,11 +119,11 @@ h6 {
 }
 
 .track-row.selected {
-  background: rgba(45, 212, 191, 0.14);
+  background: var(--color-selected);
 }
 
 .track-row.selected:hover {
-  background: rgba(45, 212, 191, 0.22);
+  background: var(--color-selected-hover);
 }
 
 .spin {
@@ -178,7 +156,7 @@ h6 {
 }
 
 .midi-badge[data-state='bound'] {
-  color: var(--color-bg);
+  color: var(--color-on-accent);
   background: var(--color-midi);
   border-color: var(--color-midi);
   font-weight: 500;
@@ -191,6 +169,6 @@ h6 {
 
 @keyframes midi-badge-pulse {
   50% {
-    background: rgba(94, 234, 212, 0.35);
+    background: color-mix(in srgb, var(--color-midi) 35%, transparent);
   }
 }

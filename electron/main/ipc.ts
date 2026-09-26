@@ -27,7 +27,9 @@ import {
   setWatchCollectionFolder,
   getAutoAnalyseNewTracks,
   setAutoAnalyseNewTracks,
+  setAppThemeId,
 } from './config'
+import { getAppTheme, isAppThemeId } from '../../src/appThemes'
 import { FolderWatcher } from './folderWatcher'
 import { isTrustedReleaseUrl, type Updater } from './updater'
 import { getDataFolder, setDataFolder } from './bootstrap'
@@ -404,6 +406,12 @@ export function registerIpcHandlers(
     else folderWatcher.stop()
   }
   syncFolderWatcher()
+
+  ipcMain.handle('config:setAppTheme', (_e, id: unknown): void => {
+    if (!isAppThemeId(id)) return
+    setAppThemeId(id)
+    for (const win of BrowserWindow.getAllWindows()) win.setBackgroundColor(getAppTheme(id).background)
+  })
 
   ipcMain.handle('config:getLibrarySettings', (): { watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean } => ({
     watchCollectionFolder: getWatchCollectionFolder(),

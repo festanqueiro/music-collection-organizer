@@ -9,6 +9,7 @@ import {
   type TrackTableColumnKey,
   type TrackTableSortState,
 } from '../../src/types'
+import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
 
 interface ConfigSchema {
   collectionFolder?: string
@@ -23,6 +24,7 @@ interface ConfigSchema {
   autoCheckUpdates?: boolean
   watchCollectionFolder?: boolean
   autoAnalyseNewTracks?: boolean
+  appTheme?: string
 }
 
 let store: Store<ConfigSchema> | null = null
@@ -175,6 +177,18 @@ export function getWatchCollectionFolder(): boolean {
 
 export function setWatchCollectionFolder(enabled: boolean): void {
   getStore().set('watchCollectionFolder', enabled)
+}
+
+// In config (not the renderer's localStorage) because main needs it
+// before the window exists: its background colour and the preload's
+// first-paint theme (see index.ts's createWindow).
+export function getAppThemeId(): AppThemeId {
+  const stored = getStore().get('appTheme')
+  return isAppThemeId(stored) ? stored : DEFAULT_APP_THEME
+}
+
+export function setAppThemeId(id: AppThemeId): void {
+  getStore().set('appTheme', id)
 }
 
 export function getAutoAnalyseNewTracks(): boolean {

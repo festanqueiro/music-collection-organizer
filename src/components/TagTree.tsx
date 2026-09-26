@@ -180,7 +180,7 @@ export function TagTree({ onFilterChange }: { onFilterChange: (filter: (track: T
                   fontSize: '11px',
                   cursor: 'pointer',
                   background: filterMode === mode ? 'var(--color-accent)' : 'none',
-                  color: filterMode === mode ? 'var(--color-bg)' : 'var(--color-text-dim)',
+                  color: filterMode === mode ? 'var(--color-on-accent)' : 'var(--color-text-dim)',
                 }}
               >
                 {mode}

@@ -23,6 +23,7 @@ import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 import type { VisualizerThemeId } from 'threejs-visualisers'
 import type { KeyNotation } from './harmonic'
+import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
 import { describeLibraryChange } from './libraryChange'
 import {
   playTrackNow as playTrackNowPure,
@@ -239,6 +240,9 @@ export interface CollectionState {
   // How the Key column/detail panel/queue show keys (Settings → General).
   keyNotation: KeyNotation
   setKeyNotation: (notation: KeyNotation) => void
+  // The app's colour theme (Settings → General); see src/appThemes.ts.
+  appTheme: AppThemeId
+  setAppTheme: (theme: AppThemeId) => void
   // Track-table filter: only tracks that mix harmonically (key) and in
   // tempo (BPM) with the playing track. Session-only, like the search box.
   compatibleFilter: boolean
@@ -489,6 +493,17 @@ function loadCueVolume(): number {
   }
 }
 
+// The saved theme comes from main via the preload (already applied to
+// <html> by it); undefined under Vitest, which has no preload.
+function loadAppTheme(): AppThemeId {
+  const initial = typeof window !== 'undefined' ? window.api?.initialAppTheme : undefined
+  return isAppThemeId(initial) ? initial : DEFAULT_APP_THEME
+}
+
+function applyAppTheme(theme: AppThemeId): void {
+  if (typeof document !== 'undefined') document.documentElement.dataset.theme = theme
+}
+
 const KEY_NOTATION_KEY = 'keyNotation'
 function loadKeyNotation(): KeyNotation {
   try {
@@ -523,6 +538,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
   keyNotation: loadKeyNotation(),
+  appTheme: loadAppTheme(),
   compatibleFilter: false,
   searchText: '',
   collectionFolder: null,
@@ -1190,6 +1206,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     } catch {
       // Non-essential preference — fine to lose.
     }
+  },
+
+  setAppTheme: (theme) => {
+    set({ appTheme: theme })
+    applyAppTheme(theme)
+    window.api.setAppTheme(theme).catch((err) => console.error('saving the theme failed', err))
   },
 
   setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),

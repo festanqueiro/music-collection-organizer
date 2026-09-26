@@ -532,7 +532,7 @@ export function FxPanel({ track }: { track: Track | null }) {
               }
               style={
                 sirenTriggered
-                  ? { background: 'var(--color-accent)', color: 'var(--color-bg)', borderColor: 'var(--color-accent)' }
+                  ? { background: 'var(--color-accent)', color: 'var(--color-on-accent)', borderColor: 'var(--color-accent)' }
                   : undefined
               }
               // Pointer capture so the pointerup always lands on this button

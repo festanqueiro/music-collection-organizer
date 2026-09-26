@@ -40,7 +40,7 @@ export function ToggleSwitch({
           width: '14px',
           height: '14px',
           borderRadius: '50%',
-          background: checked ? 'var(--color-bg)' : 'var(--color-text-dim)',
+          background: checked ? 'var(--color-on-accent)' : 'var(--color-text-dim)',
           transition: 'left 100ms ease',
         }}
       />

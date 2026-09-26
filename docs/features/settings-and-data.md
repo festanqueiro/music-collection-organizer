@@ -4,9 +4,21 @@ Open **Settings** from the toolbar. It has three tabs.
 
 | Tab | Sections |
 | --- | --- |
-| **General** | Collection folder (Change…, watch for new files, analyse them automatically), Updates, Key notation, Database & settings location (Change…) |
+| **General** | Collection folder (Change…, watch for new files, analyse them automatically), Updates, Theme, Key notation, Database & settings location (Change…) |
 | **Audio** | Audio Output device, Cue output (headphones), MIDI (mapping buttons, export/import/reset) |
 | **Backups** | Backup status and **Back up now**, Restore, Tag data (export/import), Export to Rekordbox |
+
+## Themes
+
+**Settings → General → Theme** picks the app's colours: three dark themes
+(**MCO Dark**, the default; **Midnight**, indigo; **Carbon**, black and
+orange) and three light (**MCO Light**, teal; **Paper**, warm cream and
+rust; **Arctic**, cool white and blue). It applies straight away and is
+remembered with the rest of the settings. The visualizer stays dark in
+every theme, and the TV's Cast screen keeps its own design.
+
+Palettes: `src/themes.css` (one block of `--color-*` variables per
+theme); the list: `src/appThemes.ts`.
 
 ## Where data lives
 
@@ -14,7 +26,7 @@ MCO stores:
 
 - `collection.db` — the SQLite database (tracks, analysis results, tags);
 - `config.json` — collection folder, FX and MIDI settings, table column
-  order and sort, audio output device.
+  order and sort, audio output device, theme.
 
 Both start in the app's userData folder
 (`~/Library/Application Support/<app name>/`). The first time you pick a

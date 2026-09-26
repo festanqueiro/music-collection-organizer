@@ -20,6 +20,22 @@ import type {
   CastMediaEvent,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
+import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
+
+// The saved colour theme, handed over by main (see createWindow) and put on
+// <html> now — before the page's first paint — so a light theme doesn't
+// start out dark. The renderer's store takes over from here.
+const initialAppTheme: AppThemeId = (() => {
+  const id = process.argv.find((arg) => arg.startsWith(APP_THEME_ARG))?.slice(APP_THEME_ARG.length)
+  return isAppThemeId(id) ? id : DEFAULT_APP_THEME
+})()
+function applyInitialAppTheme(): void {
+  if (document.documentElement && !document.documentElement.dataset.theme) {
+    document.documentElement.dataset.theme = initialAppTheme
+  }
+}
+applyInitialAppTheme()
+document.addEventListener('readystatechange', applyInitialAppTheme, { once: true })
 import type { ReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import type { ScanResult } from '../main/scan'
 
@@ -119,6 +135,8 @@ const api = {
       ipcRenderer.removeListener('updates:state', listener)
     }
   },
+  initialAppTheme,
+  setAppTheme: (id: AppThemeId): Promise<void> => ipcRenderer.invoke('config:setAppTheme', id),
   getLibrarySettings: (): Promise<{ watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean }> =>
     ipcRenderer.invoke('config:getLibrarySettings'),
   setWatchCollectionFolder: (enabled: boolean): Promise<void> =>

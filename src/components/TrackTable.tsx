@@ -691,7 +691,7 @@ export function TrackTable({
                   ) : track.analysisStatus === 'error' ? (
                     <span
                       className="material-symbols-outlined"
-                      style={{ fontSize: '16px', color: '#f87171' }}
+                      style={{ fontSize: '16px', color: 'var(--color-error)' }}
                       title="Analysis failed"
                     >
                       error

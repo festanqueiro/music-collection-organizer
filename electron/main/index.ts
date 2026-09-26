@@ -11,7 +11,9 @@ import {
   setLastBackupError,
   clearLastBackupError,
   getAutoCheckUpdates,
+  getAppThemeId,
 } from './config'
+import { APP_THEME_ARG, getAppTheme } from '../../src/appThemes'
 import { Updater, appBundlePathFromExecPath } from './updater'
 import { getDbFilePath } from './dbPath'
 import { mediaUrlToFilePath } from './mediaProtocol'
@@ -161,14 +163,17 @@ let currentWindow: BrowserWindow | null = null
 // (roughly daily) VACUUM INTO in performBackupCheck doesn't sit on the
 // main thread ahead of first paint.
 function createWindow(onShown?: () => void): void {
+  const theme = getAppTheme(getAppThemeId())
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     show: false,
-    // Matches the startup loader's background (src/splash.css), so there's
-    // no white flash before the first paint.
-    backgroundColor: '#12151a',
+    // Matches the theme's background (the startup loader's too), so
+    // there's no flash of another colour before the first paint.
+    backgroundColor: theme.background,
     webPreferences: {
+      // The preload puts the theme on <html> before the page paints.
+      additionalArguments: [`${APP_THEME_ARG}${theme.id}`],
       preload: join(__dirname, '../preload/index.mjs'),
       contextIsolation: true,
       nodeIntegration: false,

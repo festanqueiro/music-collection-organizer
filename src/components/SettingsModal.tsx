@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ToggleSwitch } from './ToggleSwitch'
 import { ConfirmDialog } from './ConfirmDialog'
+import { ThemePicker } from './ThemePicker'
 import type { BackupInfo, BackupEntry, MidiMappings, UpdateState } from '../types'
 import type { KeyNotation } from '../state/harmonic'
 
@@ -269,6 +270,11 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
                   </button>
                 </>
               )}
+            </section>
+
+            <section style={{ marginBottom: '20px' }}>
+              <h3 style={{ color: 'var(--color-text-dim)', margin: '0 0 8px' }}>Theme</h3>
+              <ThemePicker />
             </section>
 
             <section style={{ marginBottom: '20px' }}>
