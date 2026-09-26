@@ -596,6 +596,17 @@ export function TrackTable({
     }
   }
 
+  // The tracks a right-click acts on: every checked track when the row is
+  // one of several checked ones, otherwise just that row.
+  const menuTrackIds = useMemo(() => {
+    if (!contextMenu || !checkedTrackIds.has(contextMenu.trackId) || checkedTrackIds.size < 2) {
+      return contextMenu ? [contextMenu.trackId] : []
+    }
+    const inTable = visibleTracks.filter((t) => checkedTrackIds.has(t.id)).map((t) => t.id)
+    const elsewhere = [...checkedTrackIds].filter((id) => !inTable.includes(id))
+    return [...inTable, ...elsewhere]
+  }, [contextMenu, checkedTrackIds, visibleTracks])
+
   function cellStyleFor(key: TrackTableColumnKey) {
     const width = columnWidths[key]
     return { ...cellStyle, width, maxWidth: width, overflow: 'hidden' as const, textOverflow: 'ellipsis' as const }
@@ -843,6 +854,68 @@ export function TrackTable({
             onClick={(e) => e.stopPropagation()}
             style={{ ...contextMenuStyle, top: contextMenu.y, left: contextMenu.x }}
           >
+            {menuTrackIds.length > 1 ? (
+              // Right-click on one of several checked tracks: act on all of
+              // them, in table order.
+              <>
+                <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
+                  {menuTrackIds.length} tracks selected
+                </div>
+                <button
+                  onClick={() => {
+                    requestAddManyToQueue(menuTrackIds)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    playlist_add
+                  </span>
+                  Add all to queue
+                </button>
+                <button
+                  onClick={() => {
+                    // Each goes in right after the playing track, so adding
+                    // them last-first keeps their order.
+                    for (const id of [...menuTrackIds].reverse()) playNext(id)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    skip_next
+                  </span>
+                  Add all to top of the queue
+                </button>
+                <button
+                  onClick={() => {
+                    runAnalysis(menuTrackIds)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    graphic_eq
+                  </span>
+                  {menuTrackIds.every((id) => tracks.find((t) => t.id === id)?.analysisStatus === 'done')
+                    ? 'Re-analyse all'
+                    : 'Analyse all'}
+                </button>
+                <button
+                  onClick={() => {
+                    setTracksChecked(menuTrackIds, false)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    deselect
+                  </span>
+                  Clear selection
+                </button>
+              </>
+            ) : (
+              <>
             <button
               onClick={() => {
                 playTrackNow(contextMenu.trackId)
@@ -930,6 +1003,8 @@ export function TrackTable({
               </span>
               Show in Folder Tree View
             </button>
+              </>
+            )}
           </div>
         )}
       </div>
