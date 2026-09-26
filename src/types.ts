@@ -30,6 +30,9 @@ export interface Track {
   lastPlayedAt: number | null
   cloudStatus: 'local' | 'cloud_only'
   analysisStatus: 'pending' | 'analyzing' | 'done' | 'error'
+  // Whether the file's own tags have been read (title/artist… are then
+  // what the file says, not just unknown).
+  tagsRead: boolean
 }
 
 // The sortable columns in TrackTable, in their default order. User

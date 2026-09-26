@@ -41,6 +41,7 @@ function track(id: number): Track {
     lastPlayedAt: null,
     cloudStatus: 'local',
     analysisStatus: 'done',
+    tagsRead: true,
   }
 }
 

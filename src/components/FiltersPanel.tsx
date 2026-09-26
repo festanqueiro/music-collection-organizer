@@ -41,11 +41,15 @@ export function FiltersPanel() {
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
+  const untaggedFilter = useCollectionStore((s) => s.untaggedFilter)
+  const setUntaggedFilter = useCollectionStore((s) => s.setUntaggedFilter)
+  const tagReadRemaining = useCollectionStore((s) => s.tagReadRemaining)
 
   const current = playlist[0] != null ? tracks.find((t) => t.id === playlist[0]) : undefined
   const canFilterCompatible = !!current && toCamelot(current.musicalKey) !== null
   const duplicateCount = useMemo(() => findDuplicates(tracks).size, [tracks])
   const unanalysedCount = useMemo(() => tracks.filter((t) => t.analysisStatus !== 'done').length, [tracks])
+  const untaggedCount = useMemo(() => tracks.filter((t) => t.tagsRead && !t.artist?.trim()).length, [tracks])
 
   return (
     <div>
@@ -90,6 +94,13 @@ export function FiltersPanel() {
         hint={`The same song more than once — matching artist and title, or filename — in any folder or format. ${duplicateCount} tracks have a copy.`}
       >
         <Toggle on={duplicatesFilter} onChange={setDuplicatesFilter} label="Only tracks with a duplicate" />
+      </Section>
+
+      <Section
+        title="Untagged"
+        hint={`Tracks whose file has no artist tag — only the filename to go by. Select one to see tags suggested from its filename. ${untaggedCount} tracks${tagReadRemaining > 0 ? ` so far (still reading tags from ${tagReadRemaining} files)` : ''}.`}
+      >
+        <Toggle on={untaggedFilter} onChange={setUntaggedFilter} label="Only tracks with no artist tag" />
       </Section>
     </div>
   )

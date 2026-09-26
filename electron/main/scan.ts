@@ -30,7 +30,7 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
     VALUES (@path, @filename, @folder, @format, @size, @mtime, @birthtime, @cloud_status, 'pending')
   `)
   const updateStmt = db.prepare(`
-    UPDATE tracks SET size = @size, mtime = @mtime, birthtime = @birthtime, cloud_status = @cloud_status, analysis_status = 'pending', present = 1
+    UPDATE tracks SET size = @size, mtime = @mtime, birthtime = @birthtime, cloud_status = @cloud_status, analysis_status = 'pending', tags_read_at = NULL, present = 1
     WHERE path = @path
   `)
   const markMissingStmt = db.prepare('UPDATE tracks SET present = 0 WHERE path = ?')

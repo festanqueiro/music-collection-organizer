@@ -263,6 +263,14 @@ export interface CollectionState {
   setAnalysedFilter: (filter: AnalysedFilter) => void
   duplicatesFilter: boolean
   setDuplicatesFilter: (on: boolean) => void
+  // Tracks whose file has no artist tag — only the filename to go by.
+  untaggedFilter: boolean
+  setUntaggedFilter: (on: boolean) => void
+  // Files whose tags the background read hasn't reached yet (0 when done).
+  tagReadRemaining: number
+  setTagReadRemaining: (remaining: number) => void
+  // Re-reads one track's tags from its file (the detail panel, on select).
+  refreshTrackFileTags: (trackId: number) => Promise<void>
   // Imperative escape hatch so a MIDI-bound player.playPause control (and
   // eventually the spacebar/other external triggers) can toggle playback
   // without lifting the actual playing/paused boolean — which the <audio>
@@ -559,6 +567,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   compatibleFilter: false,
   analysedFilter: 'all',
   duplicatesFilter: false,
+  untaggedFilter: false,
+  tagReadRemaining: 0,
   searchText: '',
   collectionFolder: null,
   analysisProgress: null,
@@ -1237,6 +1247,25 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),
   setAnalysedFilter: (filter) => set({ analysedFilter: filter, checkedTrackIds: new Set() }),
   setDuplicatesFilter: (on) => set({ duplicatesFilter: on, checkedTrackIds: new Set() }),
+  setUntaggedFilter: (on) => set({ untaggedFilter: on, checkedTrackIds: new Set() }),
+  setTagReadRemaining: (remaining) => set({ tagReadRemaining: remaining }),
+  refreshTrackFileTags: async (trackId) => {
+    const track = await window.api.readFileTags(trackId)
+    if (!track) return
+    const current = get().tracks.find((t) => t.id === trackId)
+    if (
+      current &&
+      current.tagsRead &&
+      current.title === track.title &&
+      current.artist === track.artist &&
+      current.album === track.album &&
+      current.genreTag === track.genreTag &&
+      current.year === track.year
+    ) {
+      return
+    }
+    set({ tracks: get().tracks.map((t) => (t.id === trackId ? track : t)) })
+  },
 
   setVisualizerThemeOption: (theme, optionId, valueId) => {
     const all = get().visualizerThemeOptions

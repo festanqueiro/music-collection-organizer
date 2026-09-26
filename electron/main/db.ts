@@ -129,6 +129,11 @@ function migrate(db: AppDatabase): void {
   if (!trackColumnNames.has('last_played_at')) {
     db.exec('ALTER TABLE tracks ADD COLUMN last_played_at INTEGER')
   }
+  // When the file's own tags (title, artist…) were last read into the row
+  // — NULL until then, and again after the file changes. See tagReader.ts.
+  if (!trackColumnNames.has('tags_read_at')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN tags_read_at INTEGER')
+  }
 
   const genreColumns = db.prepare('PRAGMA table_info(genres)').all() as { name: string }[]
   const genreColumnNames = new Set(genreColumns.map((c) => c.name))

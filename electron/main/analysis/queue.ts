@@ -16,7 +16,7 @@ function writeAnalysisResult(
       title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate,
       bpm = @bpm, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
       loudness = @loudness, energy = @energy,
-      analysis_status = 'done', analyzed_at = @analyzed_at
+      analysis_status = 'done', analyzed_at = @analyzed_at, tags_read_at = @analyzed_at
     WHERE id = @id`
   ).run({
     id: track.id,

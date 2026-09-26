@@ -4,6 +4,7 @@ import { useCollectionStore } from '../state/store'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { formatKey } from '../state/harmonic'
+import { guessTagsFromFilename } from '../state/filenameTags'
 
 // Formats whose tags MCO can write (see electron/main/tagWriter.ts).
 const TAG_EDITABLE_FORMATS = ['mp3', 'aiff', 'aif', 'aifc', 'wav']
@@ -44,6 +45,8 @@ function FullId3Section({ track }: { track: Track }) {
   const subgenres = useCollectionStore((s) => s.subgenres)
   const trackTags = useCollectionStore((s) => s.trackTags.get(track.id))
   const writeTrackTags = useCollectionStore((s) => s.writeTrackTags)
+  const refreshTrackFileTags = useCollectionStore((s) => s.refreshTrackFileTags)
+  const [opening, setOpening] = useState(false)
 
   // Another track selected: drop an unsaved edit of the previous one.
   useEffect(() => {
@@ -65,6 +68,29 @@ function FullId3Section({ track }: { track: Track }) {
   ].filter((name): name is string => !!name)
 
   const yearValid = !draft || /^\d{0,4}$/.test(draft.year.trim())
+
+  // Suggestions from the filename, for fields the file leaves empty. Only
+  // ever filled into the editor for review — never saved on their own.
+  const guess = guessTagsFromFilename(track.filename)
+  const suggested = (['artist', 'title', 'album'] as const).filter(
+    (key) => guess[key] && !(key === 'title' ? track.title : key === 'artist' ? track.artist : track.album)?.trim()
+  )
+
+  // Opens the editor from the file's tags as they are right now (the row
+  // may predate a read), optionally with suggestions filled into empty
+  // fields.
+  async function startEditing(withSuggestions: boolean) {
+    setOpening(true)
+    setError(null)
+    await refreshTrackFileTags(track.id).catch(() => {})
+    const latest = useCollectionStore.getState().tracks.find((t) => t.id === track.id) ?? track
+    const next = draftFor(latest)
+    if (withSuggestions) {
+      for (const key of ['artist', 'title', 'album'] as const) if (!next[key].trim() && guess[key]) next[key] = guess[key]!
+    }
+    setDraft(next)
+    setOpening(false)
+  }
 
   async function save() {
     if (!draft || !yearValid) return
@@ -128,11 +154,8 @@ function FullId3Section({ track }: { track: Track }) {
         </button>
         {open && !draft && (
           <button
-            onClick={() => {
-              setDraft(draftFor(track))
-              setError(null)
-            }}
-            disabled={!!editBlocked}
+            onClick={() => startEditing(false)}
+            disabled={!!editBlocked || opening}
             title={editBlocked ?? 'Edit these tags (writes them into the file)'}
             style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
           >
@@ -158,6 +181,25 @@ function FullId3Section({ track }: { track: Track }) {
           }}
           style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}
         >
+          <button
+            type="button"
+            onClick={() =>
+              setDraft({
+                ...draft,
+                artist: guess.artist ?? draft.artist,
+                title: guess.title ?? draft.title,
+                album: guess.album ?? draft.album,
+              })
+            }
+            disabled={saving || (!guess.artist && !guess.title && !guess.album)}
+            title="Fill Artist, Title and Album from the filename (review before saving)"
+            style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+              auto_fix_high
+            </span>
+            Fill from filename
+          </button>
           {EDIT_FIELDS.map(({ key, label }) => (
             <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
               <span style={{ color: 'var(--color-text-dim)' }}>{label}</span>
@@ -167,6 +209,9 @@ function FullId3Section({ track }: { track: Track }) {
                   onChange={(e) => setDraft({ ...draft, [key]: e.target.value })}
                   disabled={saving}
                   autoFocus={key === 'title'}
+                  placeholder={
+                    key === 'artist' || key === 'title' || key === 'album' ? (guess[key] ?? undefined) : undefined
+                  }
                   inputMode={key === 'year' ? 'numeric' : undefined}
                   style={{
                     ...inputStyle,
@@ -222,6 +267,41 @@ function FullId3Section({ track }: { track: Track }) {
             </button>
           </div>
         </form>
+      )}
+      {open && !draft && track.tagsRead && suggested.length > 0 && !editBlocked && (
+        <div
+          style={{
+            marginTop: '8px',
+            padding: '8px',
+            borderRadius: '6px',
+            border: '1px dashed var(--color-accent)',
+            fontSize: '12px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-accent)' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+              auto_fix_high
+            </span>
+            Suggested from the filename
+          </span>
+          {suggested.map((key) => (
+            <span key={key}>
+              <span style={{ color: 'var(--color-text-dim)' }}>{key === 'title' ? 'Title' : key === 'artist' ? 'Artist' : 'Album'}: </span>
+              {guess[key]}
+            </span>
+          ))}
+          <button
+            onClick={() => startEditing(true)}
+            disabled={opening}
+            title="Opens the editor with these filled in — nothing is saved until you press Save to file"
+            style={{ alignSelf: 'flex-start', fontSize: '12px', marginTop: '2px' }}
+          >
+            Review…
+          </button>
+        </div>
       )}
       {open && !draft && (
         <table style={{ marginTop: '8px', fontSize: '12px', borderCollapse: 'collapse' }}>
@@ -389,6 +469,14 @@ export function DetailPanel({
   // for why. Re-fetches whenever the selected track changes; a stale
   // result from a track the user has since navigated away from is
   // discarded rather than applied.
+  // What the file's tags really say — the row may never have had them read.
+  const refreshTrackFileTags = useCollectionStore((s) => s.refreshTrackFileTags)
+  useEffect(() => {
+    if (!selectedTrack || selectedTrack.cloudStatus === 'cloud_only') return
+    refreshTrackFileTags(selectedTrack.id).catch((err) => console.error('reading tags failed', err))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTrack?.id])
+
   useEffect(() => {
     if (!selectedTrack) return
     let cancelled = false
