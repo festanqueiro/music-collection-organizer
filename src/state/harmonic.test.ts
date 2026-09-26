@@ -107,3 +107,51 @@ describe('areBpmsCompatible', () => {
     expect(areBpmsCompatible(null, 120)).toBe(false)
   })
 })
+
+// Mixed In Key's official Camelot wheel
+// (mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp),
+// position by position, in the names the analysis stores.
+const CAMELOT_WHEEL: Record<string, string> = {
+  '1A': 'G# minor', '1B': 'B major',
+  '2A': 'Eb minor', '2B': 'F# major',
+  '3A': 'Bb minor', '3B': 'C# major',
+  '4A': 'F minor', '4B': 'Ab major',
+  '5A': 'C minor', '5B': 'Eb major',
+  '6A': 'G minor', '6B': 'Bb major',
+  '7A': 'D minor', '7B': 'F major',
+  '8A': 'A minor', '8B': 'C major',
+  '9A': 'E minor', '9B': 'G major',
+  '10A': 'B minor', '10B': 'D major',
+  '11A': 'F# minor', '11B': 'A major',
+  '12A': 'C# minor', '12B': 'E major',
+}
+
+describe('the official Camelot wheel', () => {
+  it('puts every key where Mixed In Key does', () => {
+    for (const [code, key] of Object.entries(CAMELOT_WHEEL)) expect(toCamelot(key)?.code, key).toBe(code)
+  })
+
+  it('also places the flat/sharp spellings on the wheel (Db minor is 12A, Gb major is 2B)', () => {
+    expect(toCamelot('Db minor')?.code).toBe('12A')
+    expect(toCamelot('Ab minor')?.code).toBe('1A')
+    expect(toCamelot('Gb major')?.code).toBe('2B')
+    expect(toCamelot('Db major')?.code).toBe('3B')
+  })
+
+  it('treats exactly the wheel neighbours as compatible: same, ±1 round the wheel, or the inner/outer ring', () => {
+    const codes = Object.keys(CAMELOT_WHEEL)
+    for (const from of codes) {
+      const number = Number(from.slice(0, -1))
+      const letter = from.slice(-1)
+      const around = (n: number) => ((n + 11) % 12) + 1 // 1..12, wrapping
+      const expected = new Set([
+        from,
+        `${around(number - 1)}${letter}`,
+        `${around(number + 1)}${letter}`,
+        `${number}${letter === 'A' ? 'B' : 'A'}`,
+      ])
+      const compatible = codes.filter((to) => areKeysCompatible(CAMELOT_WHEEL[from], CAMELOT_WHEEL[to]))
+      expect(new Set(compatible), from).toEqual(expected)
+    }
+  })
+})

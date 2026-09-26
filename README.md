@@ -6,9 +6,10 @@
 
 MCO is a desktop app for DJs who keep their music as files on disk. Point
 it at your collection folder and it finds every track, works out its BPM,
-musical key, and waveform, and lets you browse, search, tag, and play the
-whole collection in one place. It also has a play queue, DJ-style effects,
-MIDI controller support, and a full-screen music visualizer.
+musical key, energy, and waveform, and lets you browse, search, tag, and
+play the whole collection in one place. It also has a play queue, DJ-style
+effects, MIDI controller support, a full-screen music visualizer, and
+casting to your TV.
 
 Everything stays on your machine. MCO never uploads your music, and it
 never changes your audio files: tags and analysis results are kept in
@@ -19,8 +20,10 @@ MCO's own database.
 ## Features
 
 - **Your collection, organized** — scans a folder of WAV, AIFF, FLAC, MP3,
-  M4A/AAC, and OGG/Opus files, picks up new downloads on its own, reads their tags and cover art, and measures BPM, key, and
-  waveform. Sort, search, and filter by folder or tag. Files that go
+  M4A/AAC, and OGG/Opus files, picks up new downloads on its own, reads
+  their tags and cover art, and measures BPM, key, loudness, a 1–10
+  energy rating, and waveform. Keeps a play count and when each track was
+  last played. Sort, search, and filter by folder or tag. Files that go
   missing are hidden, not forgotten, so their tags come back when the
   drive does.
 - **Your own tags** — organize tracks with your own genres and
@@ -33,13 +36,22 @@ MCO's own database.
 - **Effects** — EQ, low/high-pass filter, a tempo-synced delay, reverb,
   and a dub siren, all as rotary knobs in their own panel.
 - **DJ tools** — keys in Camelot notation with a "Compatible" filter for
-  harmonic mixing, headphone pre-listen on a second output, a duplicate
-  finder, and export of your tags as Rekordbox playlists.
+  harmonic mixing (same key, one step round the
+  [Camelot wheel](https://mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp), or the relative major/minor, at a BPM that
+  matches), headphone pre-listen on a second output, a duplicate finder,
+  and export of your tags as Rekordbox playlists.
 - **MIDI** — map any knob, toggle, or playback button to your controller
   in two clicks, with LED feedback where your controller supports it.
-- **Visualizer** — a full-screen, audio-reactive visualizer with four
-  themes: Horizon, Nebula, Warp, and Sound System (a speaker stack that
-  thumps along with the music).
+- **Visualizer** — a full-screen, audio-reactive visualizer with eight
+  themes: Nebula, Warp, Horizon, Sound System (a speaker stack that thumps
+  along with the music), Smoke, Kaleidoscope, Paint, and Liquid 3D.
+- **Casting** — play to a Chromecast, Google TV, or Nest speaker. On a
+  TV, MCO's own Cast app plays the music with your effects and dub siren,
+  runs the visualizer, and shows a now-playing screen: artwork, tags, BPM,
+  key, energy, what's up next (and whether it mixes), and the effects
+  you're using.
+- **Themes** — three dark and three light colour themes, in
+  **Settings → Appearance**.
 - **Google Drive for Desktop** — cloud-only placeholder files are shown
   with a cloud badge and downloaded when you play them.
 - **Drag and drop out** — drag tracks straight into Finder, a DAW, or any
@@ -111,7 +123,7 @@ npx tsc -b --noEmit     # type-check
 MCO keeps a database (`collection.db`) and a settings file
 (`config.json`). When you first choose your music folder, both move into a
 hidden `.mco` folder inside it, so your music and its tags stay together.
-You can move them somewhere else in **Settings → General**.
+You can move them somewhere else in **Settings → Backups & data**.
 
 Tracks are remembered by their full path, so if you move the collection
 to a different location, a rescan treats the files as new. Keep the same

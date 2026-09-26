@@ -6,8 +6,8 @@ Rekordbox.
 
 ## Harmonic mixing
 
-Keys are shown in **Camelot** notation (the wheel most DJ software
-uses): numbers 1–12 go round the circle of fifths, **A** is minor and
+Keys are shown in **Camelot** notation ([the wheel](https://mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp) most DJ
+software uses): numbers 1–12 go round the circle of fifths, **A** is minor and
 **B** is major, so A minor is **8A** and C major is **8B**. The Key
 column shows a colour-coded badge, and neighbouring (compatible) keys get
 neighbouring colours. Sorting by Key goes round the wheel.
@@ -28,7 +28,9 @@ that mix with it:
 It combines with search, the folder tree, and tag filters. Click it
 again to switch it off.
 
-Code: `src/state/harmonic.ts`, `src/components/TrackTable.tsx`.
+Code: `src/state/harmonic.ts`, `src/components/TrackTable.tsx`. The
+tests in `src/state/harmonic.test.ts` check every key's position and
+compatible neighbours against Mixed In Key's official wheel.
 
 ## Headphone pre-listen (cue)
 

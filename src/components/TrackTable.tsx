@@ -537,7 +537,7 @@ export function TrackTable({
           disabled={!canFilterCompatible && !compatibleFilter}
           title={
             canFilterCompatible
-              ? `Only tracks that mix with the playing track: key ${formatKey(currentTrack?.musicalKey, 'both')} (same, ±1 or relative) and BPM within 6% (or half/double time)`
+              ? `Only tracks that mix with the playing track (${formatKey(currentTrack?.musicalKey, 'both')}): on the Camelot wheel, the same key, one step either way, or its relative major/minor — and a BPM within 6% (or half/double time)`
               : 'Play an analysed track to find tracks that mix with it'
           }
           style={{
