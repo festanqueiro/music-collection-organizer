@@ -45,8 +45,8 @@ Options (saved per theme):
   **Style**: *3D* or *Lo-Res* (big dithered pixels in a few colours);
   **Palette**: *Shifting*, *Mercury*, *Game Boy*, *Amber*, *CGA*.
 
-While casting to a TV, the picker offers only the TV's own themes — **Spectrum**, **Scope**, **VU
-Meters**, **Drift**, **Ripples** and **Ridges** — drawn without the GPU; the themes above aren't offered
+While casting to a TV, the picker offers only the TV's own themes — **Drift**, **Ripples**, **Ridges**,
+**Mandala**, **Smoke** and **Scope**, each with a **Color Changing** option — drawn without the GPU; the themes above aren't offered
 then, and the TV visualizers never appear when not casting
 ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)).
 

@@ -46,8 +46,9 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
   With the visualizer's track info on, it also shows BPM, key and the next track. With nothing
   loaded, it shows **Load a song to continue**. Every part of this screen has a fixed size, so nothing
   moves when a track with more or less information loads (unknown stats show "—").
-- **TV visualizers**: while casting, the picker offers only the TV's own themes — **Spectrum**,
-  **Scope**, **VU Meters**, **Drift**, **Ripples** and **Ridges** (each with a colour option) — drawn
+- **TV visualizers**: while casting, the picker offers only the TV's own themes — **Drift**,
+  **Ripples**, **Ridges**, **Mandala**, **Smoke** and **Scope** (each with a colour option, including
+  **Color Changing**) — drawn
   without the GPU so they run on TVs that can't handle the 3D themes
   ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)). The TV's choice is remembered
   separately from this Mac's.
