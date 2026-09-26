@@ -122,9 +122,16 @@ export function setMidiMappings(mappings: MidiMappings): void {
 export function getColumnOrder(): TrackTableColumnKey[] {
   const stored = getStore().get('columnOrder') ?? []
   const known = new Set(DEFAULT_TRACK_TABLE_COLUMN_ORDER)
-  const kept = stored.filter((key): key is TrackTableColumnKey => known.has(key as TrackTableColumnKey))
-  const missing = DEFAULT_TRACK_TABLE_COLUMN_ORDER.filter((key) => !kept.includes(key))
-  return [...kept, ...missing]
+  const order = stored.filter((key): key is TrackTableColumnKey => known.has(key as TrackTableColumnKey))
+  // A column the stored order doesn't have (added in a later version) goes
+  // right after the column it follows by default — e.g. Subtags after
+  // Tags — or first if that one isn't there either.
+  DEFAULT_TRACK_TABLE_COLUMN_ORDER.forEach((key, i) => {
+    if (order.includes(key)) return
+    const after = DEFAULT_TRACK_TABLE_COLUMN_ORDER.slice(0, i).reverse().find((k) => order.includes(k))
+    order.splice(after ? order.indexOf(after) + 1 : 0, 0, key)
+  })
+  return order
 }
 
 export function setColumnOrder(order: TrackTableColumnKey[]): void {

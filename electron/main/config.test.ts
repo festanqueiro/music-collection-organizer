@@ -190,6 +190,7 @@ describe('config store', () => {
       'duration',
       'filename',
       'tags',
+      'subtags',
       'dateAdded',
       'dateModified',
     ] as const
@@ -197,16 +198,27 @@ describe('config store', () => {
     expect(getColumnOrder()).toEqual(order)
   })
 
-  it('appends a column missing from a stored order (added in a later app version)', () => {
+  it('adds a column missing from a stored order (added in a later app version)', () => {
     const store = new Store({ name: `test-missing-col-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
       typeof Store
     >[0])
     store.set('columnOrder', ['artist', 'title'])
     __setStoreForTests(store)
     const result = getColumnOrder()
-    expect(result.slice(0, 2)).toEqual(['artist', 'title'])
+    expect(result.indexOf('artist')).toBeLessThan(result.indexOf('title'))
     expect(result).toHaveLength(DEFAULT_TRACK_TABLE_COLUMN_ORDER.length)
     expect(new Set(result)).toEqual(new Set(DEFAULT_TRACK_TABLE_COLUMN_ORDER))
+  })
+
+  it('puts a new column right after the one it follows by default', () => {
+    const store = new Store({ name: `test-new-col-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    const withoutSubtags = DEFAULT_TRACK_TABLE_COLUMN_ORDER.filter((k) => k !== 'subtags').reverse()
+    store.set('columnOrder', withoutSubtags)
+    __setStoreForTests(store)
+    const result = getColumnOrder()
+    expect(result[result.indexOf('tags') + 1]).toBe('subtags')
   })
 
   it('drops an unknown column from a stored order (removed in a later app version)', () => {

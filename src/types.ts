@@ -45,6 +45,7 @@ export type TrackTableColumnKey =
   | 'filename'
   | 'artist'
   | 'tags'
+  | 'subtags'
   | 'bpm'
   | 'musicalKey'
   | 'format'
@@ -57,6 +58,7 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
   'filename',
   'artist',
   'tags',
+  'subtags',
   'bpm',
   'musicalKey',
   'format',
