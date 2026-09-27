@@ -1,7 +1,7 @@
 ---
 status: shipped
 updated: 2026-09-27
-adrs: [0015, 0016, 0017, 0019, 0020, 0021, 0022, 0036, 0037]
+adrs: [0015, 0016, 0017, 0019, 0020, 0021, 0022, 0036, 0037, 0043]
 ---
 # Casting
 
@@ -63,6 +63,10 @@ MCO falls back to Google's built-in player ("Default Media Receiver"): tracks wi
 and the TV remote and the Google Home app can pause and seek too. MCO's effects, siren and visualizer
 aren't available there, and volume is set on the device. A device can refuse MCO's app for a while
 after the app was changed in the Cast console, until it's restarted.
+
+### Not while recording
+Casting and recording never run together: while recording, **Cast** is dimmed and says to stop recording
+first ([ADR 0043](../adr/0043-no-casting-while-recording.md)).
 
 ### Popover options
 - **Mute this Mac while casting** (on by default) silences the Mac's own output, so you don't hear

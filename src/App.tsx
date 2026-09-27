@@ -23,6 +23,7 @@ import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
 import { getAudioEngine } from './audio/audioEngine'
+import { initRecording } from './audio/recordingSession'
 import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
@@ -231,6 +232,7 @@ export default function App() {
   // Casting: main-process status/device events, and keeping MCO's app on
   // the device in step with the effects, siren and visualizer.
   useEffect(() => initCast(), [])
+  useEffect(() => initRecording(), [])
   useEffect(() => initReceiverSync(), [])
   const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
   const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)

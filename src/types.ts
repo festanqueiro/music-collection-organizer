@@ -389,3 +389,12 @@ export interface ExternalBackupInfo {
   last: ExternalBackupResult | null
   running: boolean
 }
+
+// Record mode (docs/features/recording.md): the file format a recording is
+// saved in, and what stopping one produced.
+export type RecordingFormat = 'wav' | 'flac' | 'mp3'
+export interface RecordingResult {
+  // The saved file, or null if nothing was recorded.
+  path: string | null
+  error: string | null
+}

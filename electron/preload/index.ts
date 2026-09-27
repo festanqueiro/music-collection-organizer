@@ -23,6 +23,8 @@ import type {
   ExternalBackupInfo,
   ExternalBackupProgress,
   ExternalBackupResult,
+  RecordingFormat,
+  RecordingResult,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -208,6 +210,19 @@ const api = {
   },
   stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),
   setKeepDisplayAwake: (awake: boolean): Promise<void> => ipcRenderer.invoke('power:keepDisplayAwake', awake),
+  getRecordingFolder: (): Promise<string> => ipcRenderer.invoke('recording:getFolder'),
+  chooseRecordingFolder: (): Promise<string | null> => ipcRenderer.invoke('recording:chooseFolder'),
+  startRecording: (sampleRate: number): Promise<string> => ipcRenderer.invoke('recording:start', sampleRate),
+  sendRecordingChunk: (pcm: Uint8Array): void => ipcRenderer.send('recording:chunk', pcm),
+  stopRecording: (format: RecordingFormat): Promise<RecordingResult> => ipcRenderer.invoke('recording:stop', format),
+  revealRecording: (path: string): Promise<void> => ipcRenderer.invoke('recording:reveal', path),
+  onRecordingFull: (cb: () => void): (() => void) => {
+    const listener = () => cb()
+    ipcRenderer.on('recording:full', listener)
+    return () => {
+      ipcRenderer.removeListener('recording:full', listener)
+    }
+  },
   onCastDevices: (cb: (devices: CastDevice[]) => void): (() => void) => {
     const listener = (_e: unknown, devices: CastDevice[]) => cb(devices)
     ipcRenderer.on('cast:devices', listener)

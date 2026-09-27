@@ -6,6 +6,14 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Added
+- **Record**: a **Rec** button in the player bar records what MCO plays — the
+  track with its effects and the dub siren — to a WAV, FLAC or MP3 file
+  (in `Music/MCO Recordings` unless you pick another folder). It keeps
+  recording through pauses and track changes until you stop, and what's
+  recorded is kept even if MCO quits. You can't cast while recording, or
+  record while casting.
+
 ## 1.0.46 — 2026-09-27
 
 ### Added

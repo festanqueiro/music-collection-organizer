@@ -2,6 +2,7 @@
 import { create, type StoreApi } from 'zustand'
 import type {
   Track,
+  RecordingFormat,
   EditableTags,
   Genre,
   Subgenre,
@@ -25,6 +26,8 @@ import type { TrackTagIds } from './tagFilter'
 
 // 'unanalysed' includes tracks whose analysis failed.
 export type AnalysedFilter = 'all' | 'analysed' | 'unanalysed'
+
+export type RecordingState = 'idle' | 'starting' | 'recording' | 'stopping'
 // MCO's own tags: 'no-tags' = no Tags at all (so no Subtags either);
 // 'no-subtags' = no Subtag, whether or not it has Tags.
 export type McoTagsFilter = 'all' | 'no-tags' | 'no-subtags'
@@ -334,6 +337,15 @@ export interface CollectionState {
   // seconds behind, so hearing both at once is an echo.
   castMuteLocal: boolean
   setCastMuteLocal: (mute: boolean) => void
+  // Record mode (see audio/recordingSession.ts). Recording and casting
+  // never run together.
+  recordingState: RecordingState
+  setRecordingState: (state: RecordingState) => void
+  recordingFormat: RecordingFormat
+  setRecordingFormat: (format: RecordingFormat) => void
+  // The last recording's file, for "Show in Finder" after stopping.
+  lastRecordingPath: string | null
+  setLastRecordingPath: (path: string | null) => void
   setPlaybackControls: (controls: PlaybackControls | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
@@ -542,6 +554,15 @@ function loadVisualizerHideTrackInfo(): boolean {
 }
 
 const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
+const RECORDING_FORMAT_KEY = 'recordingFormat'
+function loadRecordingFormat(): RecordingFormat {
+  try {
+    const value = localStorage.getItem(RECORDING_FORMAT_KEY)
+    return value === 'flac' || value === 'mp3' ? value : 'wav'
+  } catch {
+    return 'wav'
+  }
+}
 function loadBooleanPreference(key: string, fallback: boolean): boolean {
   try {
     const value = localStorage.getItem(key)
@@ -648,6 +669,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castStatus: { state: 'idle' },
   castDevices: [],
   castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
+  recordingState: 'idle',
+  recordingFormat: loadRecordingFormat(),
+  lastRecordingPath: null,
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
@@ -715,6 +739,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ castMuteLocal: mute })
     saveBooleanPreference(CAST_MUTE_LOCAL_KEY, mute)
   },
+  setRecordingState: (state) => set({ recordingState: state }),
+  setRecordingFormat: (format) => {
+    set({ recordingFormat: format })
+    try {
+      localStorage.setItem(RECORDING_FORMAT_KEY, format)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+  setLastRecordingPath: (path) => set({ lastRecordingPath: path }),
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
   loadMidiMappings: async () => {

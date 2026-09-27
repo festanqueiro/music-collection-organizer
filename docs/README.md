@@ -51,7 +51,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [DJ tools](features/dj-tools.md) (Camelot, Compatible, pre-listen, Rekordbox export) ·
 [Visualizer](features/visualizer.md) ·
 [Casting](features/casting.md) ·
-[Recording](features/recording.md) (in progress) ·
+[Recording](features/recording.md) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
@@ -99,6 +99,8 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0039](adr/0039-download-cloud-tracks-before-playing.md) | Download cloud-only tracks before playing them, without blocking the main process | accepted |
 | [0040](adr/0040-update-collection-removes-missing-tracks.md) | Update Collection removes missing tracks; background scans only hide them | accepted |
 | [0041](adr/0041-one-audio-engine.md) | Play everything through one audio engine (one `AudioContext`, one mix bus) | accepted |
+| [0042](adr/0042-record-pcm-to-wav-on-disk.md) | Record the mix bus as PCM streamed to a WAV on disk | accepted |
+| [0043](adr/0043-no-casting-while-recording.md) | No casting while recording | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

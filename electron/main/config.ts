@@ -29,6 +29,7 @@ interface ConfigSchema {
   autoAnalyseNewTracks?: boolean
   appTheme?: string
   externalBackupFolder?: string
+  recordingFolder?: string
   lastExternalBackup?: ExternalBackupResult
 }
 
@@ -232,6 +233,14 @@ export function getExternalBackupFolder(): string | null {
 
 export function setExternalBackupFolder(folder: string): void {
   getStore().set('externalBackupFolder', folder)
+}
+
+export function getRecordingFolder(): string | null {
+  return getStore().get('recordingFolder') ?? null
+}
+
+export function setRecordingFolder(folder: string): void {
+  getStore().set('recordingFolder', folder)
 }
 
 export function getLastExternalBackup(): ExternalBackupResult | null {

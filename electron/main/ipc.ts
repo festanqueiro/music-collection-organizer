@@ -79,6 +79,7 @@ import { CastController, type DirectMediaSources } from './cast/castSession'
 import { isReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
 import { getCastableFilePath } from './audioTranscode'
+import { registerRecordingIpc } from './recording'
 import { mimeTypeFor } from './mediaTypes'
 import type {
   Track,
@@ -984,6 +985,8 @@ export function registerIpcHandlers(
     if (command && typeof command === 'object' && typeof command.type === 'string') cast.runDirect(command)
   })
   ipcMain.handle('cast:stop', (): void => cast.stop())
+
+  registerRecordingIpc(sendToRenderer)
 
   // While the full-screen visualiser is open, keep the Mac and its display
   // awake — it's something to watch, not to interact with, so the idle
