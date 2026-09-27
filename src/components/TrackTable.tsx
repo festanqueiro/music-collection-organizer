@@ -149,6 +149,8 @@ export function TrackTable({
   const setMissingMetadataFilter = useCollectionStore((s) => s.setMissingMetadataFilter)
   const missingTracks = useCollectionStore((s) => s.missingTracks)
   const missingTracksFilter = useCollectionStore((s) => s.missingTracksFilter)
+  const cloudOnlyFilter = useCollectionStore((s) => s.cloudOnlyFilter)
+  const setCloudOnlyFilter = useCollectionStore((s) => s.setCloudOnlyFilter)
   const setMissingTracksFilter = useCollectionStore((s) => s.setMissingTracksFilter)
   // Over the whole collection, so a copy in another folder still counts.
   const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
@@ -287,6 +289,7 @@ export function TrackTable({
       )
       .filter((t) => !duplicates || duplicates.has(t.id))
       .filter((t) => !missingMetadataFilter || isMissingId3Metadata(t))
+      .filter((t) => !cloudOnlyFilter || t.cloudStatus === 'cloud_only')
       .filter((t) => matchesMcoTagsFilter(trackTags.get(t.id), mcoTagsFilter))
       .filter((t) =>
         query
@@ -326,6 +329,7 @@ export function TrackTable({
     mcoTagsFilter,
     missingTracksFilter,
     missingTracks,
+    cloudOnlyFilter,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
@@ -703,6 +707,7 @@ export function TrackTable({
           />
         )}
         {missingMetadataFilter && <FilterChip icon="person_off" label="Missing ID3 metadata" onClear={() => setMissingMetadataFilter(false)} />}
+        {cloudOnlyFilter && <FilterChip icon="cloud" label="Not locally available" onClear={() => setCloudOnlyFilter(false)} />}
         {missingTracksFilter && <FilterChip icon="link_off" label="Missing tracks" onClear={() => setMissingTracksFilter(false)} />}
         <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>

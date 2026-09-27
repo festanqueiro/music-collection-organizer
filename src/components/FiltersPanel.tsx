@@ -86,6 +86,9 @@ export function FiltersPanel() {
   const setMissingMetadataFilter = useCollectionStore((s) => s.setMissingMetadataFilter)
   const tagReadRemaining = useCollectionStore((s) => s.tagReadRemaining)
   const missingTracks = useCollectionStore((s) => s.missingTracks)
+  const cloudOnlyFilter = useCollectionStore((s) => s.cloudOnlyFilter)
+  const setCloudOnlyFilter = useCollectionStore((s) => s.setCloudOnlyFilter)
+  const cloudOnlyCount = useMemo(() => tracks.filter((t) => t.cloudStatus === 'cloud_only').length, [tracks])
   const missingTracksFilter = useCollectionStore((s) => s.missingTracksFilter)
   const setMissingTracksFilter = useCollectionStore((s) => s.setMissingTracksFilter)
 
@@ -144,6 +147,13 @@ export function FiltersPanel() {
         hint={`Tracks whose file has no artist or no title in its tags — only the filename to go by. Select one to see tags suggested from its filename. ${missingMetadataCount} tracks${tagReadRemaining > 0 ? ` so far (still reading tags from ${tagReadRemaining} files)` : ''}.`}
       >
         <Toggle on={missingMetadataFilter} onChange={setMissingMetadataFilter} label="Only tracks missing an artist or title" />
+      </Section>
+
+      <Section
+        title="Not Locally Available"
+        hint={`Tracks that are only in the cloud (e.g. Google Drive), not downloaded to this Mac yet — they're downloaded when you play or analyse them. ${cloudOnlyCount} tracks.`}
+      >
+        <Toggle on={cloudOnlyFilter} onChange={setCloudOnlyFilter} label="Only tracks not downloaded yet" />
       </Section>
 
       <Section

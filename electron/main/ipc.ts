@@ -530,6 +530,21 @@ export function registerIpcHandlers(
   // Either way, only 'local' tracks — a cloud-only placeholder has no
   // real audio to analyze yet.
   ipcMain.handle('analysis:run', async (_e, trackIds?: number[]): Promise<void> => {
+    // Tracks picked to analyse are downloaded first if they're only in the
+    // cloud, one at a time (a failed one is skipped). The whole-collection
+    // run below doesn't, so it never pulls down a whole cloud library.
+    if (trackIds && trackIds.length > 0) {
+      const cloudOnly = db
+        .prepare(`SELECT id FROM tracks WHERE cloud_status = 'cloud_only' AND id IN (${trackIds.map(() => '?').join(',')})`)
+        .all(...trackIds) as { id: number }[]
+      for (const { id } of cloudOnly) {
+        try {
+          await downloadTrack(db, id)
+        } catch (err) {
+          console.error('download before analysis failed', id, err)
+        }
+      }
+    }
     const tracks =
       trackIds && trackIds.length > 0
         ? (db
@@ -688,7 +703,7 @@ export function registerIpcHandlers(
   )
 
   ipcMain.handle('tracks:download', async (_e, trackId: number): Promise<void> => {
-    await downloadTrack(db, trackId, getMediaCacheDir())
+    await downloadTrack(db, trackId)
   })
 
   // Native OS file drag (e.g. dragging rows out to Finder, a DAW, or any

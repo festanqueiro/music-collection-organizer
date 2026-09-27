@@ -26,6 +26,8 @@ with the folder or tag selection and the search.
   filename to go by; selecting one shows tags [suggested from its filename](id3-tags.md#suggestions-from-the-filename).
   Counts only tracks whose tags have been read; while the background read is running it says how many
   files are left. (Called *Untagged* and artist-only until 2026-09-27.)
+- **Not Locally Available** — tracks whose file is only in the cloud (a Drive placeholder), not
+  downloaded to this Mac yet.
 - **Missing Tracks** — shows, instead of the collection, the tracks whose file the last scan couldn't
   find (deleted, moved, renamed or not synced), dimmed with a *File missing* icon in the status
   column. Their rows and tags are kept (`present = 0`, fetched by `tracks:getMissing`); they can be

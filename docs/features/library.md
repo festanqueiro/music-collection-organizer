@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0004, 0005, 0006, 0009, 0024, 0027, 0030, 0031]
 ---
 # Library
@@ -41,9 +41,18 @@ and after scans, and again when you select a track — not only when it's analys
 title is known.
 
 ### Cloud-only files (Google Drive for Desktop)
-Placeholders that haven't been downloaded show a cloud badge and are skipped by analysis, tag reading
-and backups. **Download** in the details (or playing the track) fetches it, marks it local and
-analyses it ([ADR 0005](../adr/0005-cloud-only-detection.md)).
+Placeholders that haven't been downloaded show a cloud badge and are skipped by the whole-collection
+analysis, tag reading and backups ([ADR 0005](../adr/0005-cloud-only-detection.md)). They're fetched:
+- when **played** — downloaded *before* going into the player (a "Downloading…" notice shows), then
+  analysed in the background;
+- when **queued** — the next three tracks in the queue are fetched ahead of time;
+- when **analysed** from a track's or a selection's menu — downloaded, then analysed (the folder and
+  whole-collection runs still skip them, so they never pull down a whole cloud library);
+- with **Download** in the details panel.
+
+Downloading streams the file through (so Drive materialises it) without blocking the app; it used to
+analyse in the main process as well, which froze MCO for tens of seconds on a long AIFF. The
+**Not Locally Available** filter lists what's still only in the cloud.
 
 ### Analysis
 Computes duration, bitrate, BPM, musical key, waveform peaks, loudness (EBU R128, LUFS) and a 1–10

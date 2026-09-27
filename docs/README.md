@@ -95,6 +95,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0036](adr/0036-tv-only-visualizers-without-gpu.md) | TV-only visualizers drawn without the GPU | accepted |
 | [0037](adr/0037-keep-the-tv-awake.md) | Keep the TV's screen awake during a session; say why a session ends | accepted |
 | [0038](adr/0038-pick-the-tv-screen-in-the-cast-menu.md) | Pick what the TV shows in the Cast menu; MCO's visualizer off while casting | accepted |
+| [0039](adr/0039-download-cloud-tracks-before-playing.md) | Download cloud-only tracks before playing them, without blocking the main process | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |
