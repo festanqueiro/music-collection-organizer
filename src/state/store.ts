@@ -218,7 +218,7 @@ export interface PlaybackControls {
   cueUp: () => void
 }
 
-export type PlayerScreen = 'queue' | 'fx'
+export type PlayerScreen = 'queue' | 'fx' | 'live'
 
 export interface CollectionState {
   tracks: Track[]

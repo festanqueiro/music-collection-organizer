@@ -14,6 +14,7 @@ import { Player, EmptyPlayer } from './components/Player'
 import { FiltersPanel } from './components/FiltersPanel'
 import { PlaylistView } from './components/PlaylistView'
 import { FxView } from './components/FxView'
+import { LiveView } from './components/LiveView'
 import { Visualizer } from './components/Visualizer'
 import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
@@ -401,7 +402,7 @@ export default function App() {
       >
         {playerScreen && (
           <div style={{ gridRow: '1 / span 2', gridColumn: '1 / span 3', position: 'relative', zIndex: 10 }}>
-            {playerScreen === 'queue' ? <PlaylistView /> : <FxView />}
+            {playerScreen === 'queue' ? <PlaylistView /> : playerScreen === 'live' ? <LiveView /> : <FxView />}
           </div>
         )}
 

@@ -21,6 +21,9 @@ installed copies update themselves.
   talk. Everything can be MIDI-mapped. You don't hear yourself through the
   speakers unless you turn on Hear myself. The mic is always off when MCO
   starts.
+- **Live** screen (the Live button in the player bar): the queue, the
+  effects and the Mic on one screen, for running a show. The button is lit
+  while the mic is on.
 
 ## 1.0.46 — 2026-09-27
 

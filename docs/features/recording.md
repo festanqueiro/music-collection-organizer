@@ -53,6 +53,7 @@ The **Mic** section at the bottom of the FX screen ([ADR 0044](../adr/0044-mic-r
   shortly after you stop. Not while muted.
 - Every knob, toggle, Talk and Throw can be MIDI-mapped; Talk's LED is lit while live. Settings are
   saved (except on/off).
+- The **Live** screen (player bar) puts the queue, the track's effects and the Mic on one screen.
 - Picking a Bluetooth headset's own mic switches it to hands-free (lower) quality; pick another input to
   avoid that.
 

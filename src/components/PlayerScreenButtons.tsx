@@ -1,6 +1,7 @@
 // The right end of the player bar, in this order: Rec and Cast — set
 // apart, since they record or move the sound rather than open a view —
-// then the full-screen views: Visualizer, FX and Queue.
+// then the full-screen views: Visualizer, FX, Queue, and Live (queue, FX
+// and mic together).
 import { useCollectionStore, type PlayerScreen } from '../state/store'
 import { activeEffects } from '../cast/fxIndicators'
 import { castingToAScreen } from '../cast/castSession'
@@ -46,6 +47,8 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
   const fxActive = useCollectionStore((s) => activeEffects(s.effectsSettings, s.sirenTriggered).length > 0)
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const showToast = useCollectionStore((s) => s.showToast)
+  // Lit while the mic is on, like FX while an effect is engaged.
+  const micOn = useCollectionStore((s) => s.micSettings.enabled)
   // The TV's picture is picked in the Cast menu instead.
   const castingToScreen = useCollectionStore((s) => castingToAScreen(s.castStatus))
   return (
@@ -80,6 +83,7 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
       </button>
       <ScreenButton screen="fx" icon="tune" label="FX" lit={fxActive} />
       <ScreenButton screen="queue" icon="queue_music" label="Queue" badge={queued > 0 ? String(queued) : undefined} />
+      <ScreenButton screen="live" icon="dashboard" label="Live" lit={micOn} />
     </div>
   )
 }

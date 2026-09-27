@@ -56,6 +56,9 @@ Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/audioEngine.ts`, `eff
 - Delay and reverb are reusable send modules (`src/audio/fxModules.ts`), also used by the mic.
 - Below the track's effects is the **Mic** section, with the mic's own effects — see
   [Recording](recording.md#mic).
+- The **Live** screen (player bar's **Live** button, lit while the mic is on) shows the queue on the left
+  and these effects with the Mic on the right, for running a show from one screen
+  (`src/components/LiveView.tsx`, with `PlaylistView embedded`).
 - While casting to a TV, the same effects run on the TV ([Casting](casting.md)).
 
 ## Tests
