@@ -6,6 +6,12 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.46 — 2026-09-27
+
+### Added
+- **Album** column in the track list (after Artist), sortable like the
+  others.
+
 ### Changed
 - The track list's play and headphones column now comes right after the
   checkbox, instead of before it.

@@ -182,6 +182,7 @@ describe('config store', () => {
   it('persists a set column order', () => {
     const order = [
       'artist',
+      'album',
       'title',
       'bpm',
       'musicalKey',

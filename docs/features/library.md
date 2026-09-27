@@ -84,7 +84,7 @@ Every active narrowing shows as a chip with an × to clear it: the **search** ("
 and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sidebar-views.md)).
 
 ### Track table
-- Columns: Title, Filename, Artist, **Tags**, **Subtags**, BPM, Key, Format, Bitrate, Duration, Date
+- Columns: Title, Filename, Artist, Album, **Tags**, **Subtags**, BPM, Key, Format, Bitrate, Duration, Date
   added, Date modified. Drag headers to reorder, drag edges to resize, click to sort (again to
   reverse); order, widths and sort are saved. A column added in a newer version slots in after the
   column it belongs with.

@@ -14,6 +14,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   title: 260,
   filename: 220,
   artist: 160,
+  album: 180,
   tags: 160,
   subtags: 160,
   bpm: 70,
@@ -406,6 +407,7 @@ export function TrackTable({
     title: 'Title',
     filename: 'Filename',
     artist: 'Artist',
+    album: 'Album',
     tags: 'Tags',
     subtags: 'Subtags',
     bpm: 'BPM',
@@ -539,6 +541,8 @@ export function TrackTable({
         return decodeHtmlEntities(track.filename)
       case 'artist':
         return track.artist ? decodeHtmlEntities(track.artist) : '—'
+      case 'album':
+        return track.album ? decodeHtmlEntities(track.album) : '—'
       case 'tags':
       case 'subtags': {
         const names = tagNamesFor(track.id, key)
