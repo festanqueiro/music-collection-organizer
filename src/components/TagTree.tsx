@@ -35,12 +35,12 @@ export function SubtagRing({ color, inRow = false }: { color: string; inRow?: bo
 }
 
 // One nesting level, as in the folder tree.
-const TREE_INDENT_PX = 16
+export const TREE_INDENT_PX = 16
 // A folder row's height, so both lists have the same rhythm.
-const TREE_ROW_PX = 20
+export const TREE_ROW_PX = 20
 // No margin before the box (lining it up with a folder's icon); a little
 // after it, before the colour mark.
-const TREE_CHECKBOX_STYLE = { margin: '0 4px 0 0', flexShrink: 0 }
+export const TREE_CHECKBOX_STYLE = { margin: '0 4px 0 0', flexShrink: 0 }
 
 // Which tags have their subtags open, remembered across launches like the
 // folder tree's. Starts all collapsed.

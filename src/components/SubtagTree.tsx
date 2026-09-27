@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
-import { SubtagRing } from './TagTree'
+import { SubtagRing, TREE_CHECKBOX_STYLE, TREE_INDENT_PX, TREE_ROW_PX } from './TagTree'
 
 // Groups by actual track co-tagging, not the schema's own subgenre->genre
 // parent link — a subtag like "5 Stars" is typically its own genre's
@@ -81,7 +81,7 @@ export function SubtagTree({
     <div>
       <div style={{ fontWeight: 600, margin: '8px 0' }}>Subtag</div>
       {subgenres.length === 0 && (
-        <div style={{ color: 'var(--color-text-dim)', fontSize: '12px', paddingLeft: '8px' }}>No subtags yet.</div>
+        <div style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>No subtags yet.</div>
       )}
       {subgenres.map((sg) => {
         const genreIds = [...(genreIdsBySubgenreId.get(sg.id) ?? [])].sort((a, b) =>
@@ -91,23 +91,27 @@ export function SubtagTree({
         const isSelected = selection?.subgenreId === sg.id && selection.genreId == null
         return (
           <div key={sg.id}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '8px' }}>
-              <button
-                onClick={() => toggleExpand(sg.id)}
-                disabled={genreIds.length === 0}
-                style={{ background: 'none', border: 'none', padding: 0, cursor: genreIds.length ? 'pointer' : 'default' }}
-                title={genreIds.length ? 'Show genres tagged with this subtag' : 'No genres tagged with this subtag yet'}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', opacity: genreIds.length ? 1 : 0.3 }}>
+            {/* Rows laid out like the Tags and Folders views' (same margin,
+                spacing and height). */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', minHeight: `${TREE_ROW_PX}px` }}>
+              {genreIds.length > 0 ? (
+                <span
+                  className="material-symbols-outlined"
+                  onClick={() => toggleExpand(sg.id)}
+                  title="Show the tags used with this subtag"
+                  style={{ fontSize: '14px', width: '14px', flexShrink: 0, cursor: 'pointer' }}
+                >
                   {isExpanded ? 'expand_more' : 'chevron_right'}
                 </span>
-              </button>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, cursor: 'pointer' }}>
-                <input type="checkbox" checked={isSelected} onChange={() => toggleSubgenreFilter(sg.id)} />
-                {sg.color && <SubtagRing color={sg.color} />}
-                {sg.name}
+              ) : (
+                <span style={{ display: 'inline-block', width: '14px', flexShrink: 0 }} />
+              )}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                <input type="checkbox" style={TREE_CHECKBOX_STYLE} checked={isSelected} onChange={() => toggleSubgenreFilter(sg.id)} />
+                {sg.color && <SubtagRing color={sg.color} inRow />}
+                <span>{sg.name}</span>
                 {genreNameById.get(sg.genreId) && (
-                  <span style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>
+                  <span style={{ color: 'var(--color-text-dim)', fontSize: '12px', marginLeft: '4px' }}>
                     ({genreNameById.get(sg.genreId)})
                   </span>
                 )}
@@ -117,10 +121,12 @@ export function SubtagTree({
               genreIds.map((genreId) => (
                 <label
                   key={genreId}
-                  style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '32px' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '2px', minHeight: `${TREE_ROW_PX}px`, paddingLeft: `${TREE_INDENT_PX}px` }}
                 >
+                  <span style={{ display: 'inline-block', width: '14px', flexShrink: 0 }} />
                   <input
                     type="checkbox"
+                    style={TREE_CHECKBOX_STYLE}
                     checked={selection?.subgenreId === sg.id && selection.genreId === genreId}
                     onChange={() => toggleGenreFilter(sg.id, genreId)}
                   />
