@@ -29,6 +29,12 @@ textarea {
   font-size: inherit;
 }
 
+/* Native sliders/checkboxes otherwise take macOS's system accent colour
+   (blue by default), not the theme's. */
+input {
+  accent-color: var(--color-accent);
+}
+
 /* Chromium's UA stylesheet gives <button> its own light "ButtonFace"
    background and dark "buttontext" color, regardless of theme. Text-only
    color: inherit isn't enough on its own — it leaves the light background,
