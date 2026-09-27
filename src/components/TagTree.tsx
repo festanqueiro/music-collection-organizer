@@ -32,6 +32,25 @@ export function SubtagRing({ color }: { color: string }) {
   )
 }
 
+// Which tags have their subtags open, remembered across launches like the
+// folder tree's. Starts all collapsed.
+const EXPANDED_TAGS_KEY = 'tagTreeExpanded'
+function loadExpandedTags(): Set<number> {
+  try {
+    const stored = JSON.parse(localStorage.getItem(EXPANDED_TAGS_KEY) ?? '[]')
+    return new Set(Array.isArray(stored) ? stored.filter((id): id is number => typeof id === 'number') : [])
+  } catch {
+    return new Set()
+  }
+}
+function saveExpandedTags(expanded: Set<number>): void {
+  try {
+    localStorage.setItem(EXPANDED_TAGS_KEY, JSON.stringify([...expanded]))
+  } catch {
+    // Non-essential preference — fine to lose.
+  }
+}
+
 type ContextMenuTarget = { kind: 'genre'; id: number; name: string } | { kind: 'subgenre'; id: number; name: string }
 
 // A short description of the ticked tags, for the chip above the table.
@@ -66,6 +85,17 @@ export function TagTree({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
   // "Choose color…" opens this where the menu was.
   const [colorPicker, setColorPicker] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
+  const [expanded, setExpanded] = useState(loadExpandedTags)
+  function updateExpanded(next: Set<number>) {
+    setExpanded(next)
+    saveExpandedTags(next)
+  }
+  function toggleExpanded(genreId: number) {
+    const next = new Set(expanded)
+    if (next.has(genreId)) next.delete(genreId)
+    else next.add(genreId)
+    updateExpanded(next)
+  }
 
   const subgenreIdsByGenreId = useMemo(() => {
     const map = new Map<number, number[]>()
@@ -195,7 +225,19 @@ export function TagTree({
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '8px 0' }}>
-        <span style={{ fontWeight: 600 }}>Tag</span>
+        <span style={{ fontWeight: 600, flex: 1 }}>Tag</span>
+        {expanded.size > 0 && (
+          <button
+            onClick={() => updateExpanded(new Set())}
+            title="Collapse all tags"
+            aria-label="Collapse all tags"
+            style={{ background: 'none', border: 'none', padding: '2px', display: 'flex', color: 'var(--color-text-dim)' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+              unfold_less
+            </span>
+          </button>
+        )}
         {genreIds.size + subgenreIds.size > 1 && (
           <div
             title={filterMode === 'AND' ? 'Match tracks with all selected tags' : 'Match tracks with any selected tag'}
@@ -226,12 +268,34 @@ export function TagTree({
           </div>
         )}
       </div>
-      {genres.map((genre) => (
+      {genres.map((genre) => {
+        const children = subgenres.filter((sg) => sg.genreId === genre.id)
+        const open = expanded.has(genre.id)
+        // Shown on a collapsed tag, so ticked subtags don't vanish from view.
+        const tickedInside = open ? 0 : children.filter((sg) => subgenreIds.has(sg.id)).length
+        return (
         <div key={genre.id}>
           <label
             onContextMenu={(e) => openContextMenu(e, { kind: 'genre', id: genre.id, name: genre.name })}
-            style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingLeft: '8px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
           >
+            {children.length > 0 ? (
+              <span
+                className="material-symbols-outlined"
+                title={open ? 'Hide subtags' : 'Show subtags'}
+                style={{ fontSize: '14px', cursor: 'pointer', flexShrink: 0, width: '14px' }}
+                onClick={(e) => {
+                  // Not the label's checkbox.
+                  e.preventDefault()
+                  e.stopPropagation()
+                  toggleExpanded(genre.id)
+                }}
+              >
+                {open ? 'expand_more' : 'chevron_right'}
+              </span>
+            ) : (
+              <span style={{ display: 'inline-block', width: '14px', flexShrink: 0 }} />
+            )}
             <input
               type="checkbox"
               checked={genreIds.has(genre.id)}
@@ -249,14 +313,21 @@ export function TagTree({
               />
             )}
             <span style={{ flex: 1 }}>{genre.name}</span>
+            {tickedInside > 0 && (
+              <span
+                title={`${tickedInside} subtag${tickedInside === 1 ? '' : 's'} ticked`}
+                style={{ fontSize: '10px', padding: '0 5px', borderRadius: '8px', background: 'var(--color-accent)', color: 'var(--color-on-accent)' }}
+              >
+                {tickedInside}
+              </span>
+            )}
           </label>
-          {subgenres
-            .filter((sg) => sg.genreId === genre.id)
-            .map((sg) => (
+          {open &&
+            children.map((sg) => (
               <label
                 key={sg.id}
                 onContextMenu={(e) => openContextMenu(e, { kind: 'subgenre', id: sg.id, name: sg.name })}
-                style={{ display: 'block', paddingLeft: '24px' }}
+                style={{ display: 'block', paddingLeft: '34px' }}
               >
                 <input
                   type="checkbox"
@@ -268,7 +339,8 @@ export function TagTree({
               </label>
             ))}
         </div>
-      ))}
+        )
+      })}
 
       {contextMenu && (
         <div

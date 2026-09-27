@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-09-28
 adrs: [0008, 0030]
 ---
 # Tags
@@ -37,6 +37,10 @@ right-click a tag to:
   its sub-genres too).
 
 ## Filtering by tag
+
+In the Tags tab, each tag with subtags has a chevron to show or hide them, like the folder tree;
+the open ones are remembered, they start collapsed, and **Collapse all** (in the header) closes them
+all. A collapsed tag shows how many of its subtags are ticked.
 
 Check tags in the Tags or Subtags tab to filter the table. The **OR / AND**
 switch picks between "tracks with any selected tag" and "tracks with all

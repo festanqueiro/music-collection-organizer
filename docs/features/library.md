@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-27
+updated: 2026-09-28
 adrs: [0004, 0005, 0006, 0009, 0024, 0027, 0030, 0031]
 ---
 # Library
@@ -77,6 +77,15 @@ it**: the same view, open folders and selected folder (a folder that's gone fall
 Tracks). The folder tree has **Collapse all** next to All Tracks while anything is open; its
 right-click menu has **Analyse this folder** and **Add all to queue**. Each folder name stays on
 one line, cut with "…" when it's too long for the sidebar; hover it for the full name.
+
+**Moving tracks to another folder:** drag rows from the table onto a folder in the Folders view (it
+highlights). If any of them are in another folder, MCO asks *"Do you want to move this song to this
+folder?"* (or *these N songs*); on **Move**, the files move on disk and their rows keep everything
+(same track: tags, play count, queue position). Tracks already in that folder are left alone; a file
+whose name is already taken there isn't moved (said in the message and a toast); the playing and
+pre-listened tracks aren't moved. Only folders inside the collection accept drops. The database is
+updated before each file is renamed (and put back if the rename fails), so the folder watcher's rescan
+finds nothing new or missing (`electron/main/moveTracks.ts`, `tracks:moveToFolder`).
 
 ### Chips above the table
 Every active narrowing shows as a chip with an × to clear it: the **search** ("dub"), the
