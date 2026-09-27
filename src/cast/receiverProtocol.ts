@@ -119,20 +119,6 @@ export interface ReceiverGoodbye {
   reason: 'hidden'
 }
 
-// Receiver → MCO: a button pressed on the TV (its remote) that MCO has to
-// act on. Play/pause needs no message: the TV pauses its own player and MCO
-// follows its status.
-export interface ReceiverRemote {
-  type: 'remote'
-  command: 'next'
-}
-
-export function isReceiverRemote(value: unknown): value is ReceiverRemote {
-  if (!value || typeof value !== 'object') return false
-  const v = value as Record<string, unknown>
-  return v.type === 'remote' && v.command === 'next'
-}
-
 export function isReceiverGoodbye(value: unknown): value is ReceiverGoodbye {
   return !!value && typeof value === 'object' && (value as { type?: unknown }).type === 'goodbye'
 }

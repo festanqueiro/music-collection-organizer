@@ -159,20 +159,7 @@
       #bar div { height: 100%; width: 0; background: var(--accent); }
       .wave.flat canvas, .wave.flat #wave-fill { display: none; }
       .wave.flat #bar { display: block; }
-      .times { position: relative; display: flex; justify-content: space-between; margin-top: 1rem; height: 2.2rem; line-height: 2.2rem; font-size: 1.6rem; color: var(--dim); font-variant-numeric: tabular-nums; }
-      /* Play/pause and Next, for the TV's remote: left/right picks one, OK
-         presses it. Centred on the times row, overlapping it, so the
-         layout doesn't move. */
-      #controls { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; gap: 1.6rem; }
-      #controls button {
-        width: 4.8rem; height: 4.8rem; border-radius: 50%; border: 0.2rem solid var(--border); background: rgba(255, 255, 255, 0.06);
-        color: var(--text); display: flex; align-items: center; justify-content: center; padding: 0; outline: none;
-        transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
-      }
-      #controls button svg { width: 2.4rem; height: 2.4rem; fill: currentColor; }
-      #controls button.focused { border-color: var(--accent); background: rgba(45, 212, 191, 0.18); transform: scale(1.12); }
-      #controls button:disabled { opacity: 0.3; }
-      #controls button.pressed { transform: scale(0.94); }
+      .times { display: flex; justify-content: space-between; margin-top: 1rem; height: 2.2rem; line-height: 2.2rem; font-size: 1.6rem; color: var(--dim); font-variant-numeric: tabular-nums; }
 
       /* Visualizer screen: full-bleed canvas, track info over it. */
       #stage, #tvstage { position: fixed; inset: 0; background: #000; }
@@ -248,19 +235,7 @@
           <div id="wave-fill"><canvas id="wave-top"></canvas></div>
           <div id="bar"><div></div></div>
         </div>
-        <div class="times">
-          <span id="elapsed"></span>
-          <div id="controls">
-            <button id="play-pause" tabindex="-1" aria-label="Play or pause">
-              <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
-              <svg id="icon-pause" viewBox="0 0 24 24" hidden><path d="M6 5h4v14H6zm8 0h4v14h-4z" /></svg>
-            </button>
-            <button id="next" tabindex="-1" aria-label="Next track">
-              <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z" /></svg>
-            </button>
-          </div>
-          <span id="remaining"></span>
-        </div>
+        <div class="times"><span id="elapsed"></span><span id="remaining"></span></div>
       </footer>
     </main>
     <script type="module" src="./main.ts"></script>

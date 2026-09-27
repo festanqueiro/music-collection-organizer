@@ -22,7 +22,6 @@ import { activeEffects } from '../src/cast/fxIndicators'
 import {
   RECEIVER_NAMESPACE,
   type ReceiverPlayerState,
-  type ReceiverRemote,
   type ReceiverStatus,
   type ReceiverTrackInfo,
   type ToReceiver,
@@ -514,87 +513,6 @@ setInterval(() => {
   if (!audio.paused) sendStatus()
 }, STATUS_INTERVAL_MS)
 
-// --- The TV's remote -------------------------------------------------------
-// Play/pause and Next on the now-playing screen: left/right picks one, OK
-// presses it. A remote's own media keys (where it has them) act directly,
-// and so does OK while a visualizer is showing (no buttons on it).
-// Play/pause acts on this page's player, which MCO follows through the
-// status; Next asks MCO to move its queue on, and the next track arrives
-// as a normal load.
-
-const CONTROLS = ['play-pause', 'next'] as const
-type Control = (typeof CONTROLS)[number]
-let focusedControl: Control = 'play-pause'
-
-function hasNext(): boolean {
-  return (queue?.queuedCount ?? 0) > 0
-}
-
-function renderControls(): void {
-  const playing = !audio.paused
-  $('icon-play').toggleAttribute('hidden', playing)
-  $('icon-pause').toggleAttribute('hidden', !playing)
-  ;($('next') as HTMLButtonElement).disabled = !hasNext()
-  if (focusedControl === 'next' && !hasNext()) focusedControl = 'play-pause'
-  for (const id of CONTROLS) $(id).classList.toggle('focused', id === focusedControl)
-}
-
-function press(control: Control): void {
-  if (!currentTrack) return
-  const button = $(control)
-  button.classList.add('pressed')
-  setTimeout(() => button.classList.remove('pressed'), 150)
-  if (control === 'play-pause') {
-    // At the end of a track MCO is about to load the next one.
-    if (idleReason) return
-    if (audio.paused) {
-      ensureChain()
-      audio.play().catch(() => {})
-    } else audio.pause()
-  } else if (hasNext()) {
-    const message: ReceiverRemote = { type: 'remote', command: 'next' }
-    if (context) context.sendCustomMessage(RECEIVER_NAMESPACE, undefined, message)
-    else console.log('[receiver] remote', JSON.stringify(message))
-  }
-}
-
-document.addEventListener('keydown', (e) => {
-  if (!currentTrack) return
-  const buttonsShown = !$('playing').hidden
-  let handled = true
-  switch (e.key) {
-    case 'MediaPlayPause':
-      press('play-pause')
-      break
-    case 'MediaPlay':
-      if (audio.paused) press('play-pause')
-      break
-    case 'MediaPause':
-      if (!audio.paused) press('play-pause')
-      break
-    case 'MediaTrackNext':
-      press('next')
-      break
-    case 'Enter':
-    case ' ':
-      press(buttonsShown ? focusedControl : 'play-pause')
-      break
-    case 'ArrowLeft':
-    case 'ArrowRight':
-      if (!buttonsShown) {
-        handled = false
-        break
-      }
-      focusedControl = e.key === 'ArrowRight' && hasNext() ? 'next' : 'play-pause'
-      renderControls()
-      break
-    default:
-      handled = false
-  }
-  if (handled) e.preventDefault()
-})
-for (const event of ['play', 'pause']) audio.addEventListener(event, renderControls)
-
 function receive(message: ToReceiver): void {
   switch (message.type) {
     case 'load': {
@@ -653,7 +571,6 @@ function receive(message: ToReceiver): void {
       break
     case 'queue':
       queue = message
-      renderControls()
       // MCO's queue is empty: nothing is loaded there any more, so the TV
       // goes back to its "Load a song" screen rather than keeping the last
       // track's title, year and seek bar up.
