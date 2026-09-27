@@ -1,6 +1,8 @@
 // src/components/RecordButton.tsx
 import { useEffect, useRef, useState } from 'react'
-import { useCollectionStore } from '../state/store'
+import { RECORDING_LEVEL_MAX_DB, RECORDING_LEVEL_MIN_DB, useCollectionStore } from '../state/store'
+import { getAudioEngine } from '../audio/audioEngine'
+import { Knob } from './Knob'
 import { isCastActive } from '../cast/castSession'
 import { getActiveRecorder, startRecording, stopRecording } from '../audio/recordingSession'
 import { formatDuration } from '../format'
@@ -44,6 +46,96 @@ function useRecordingStats(active: boolean, format: RecordingFormat): { seconds:
   return stats
 }
 
+const METER_FLOOR_DB = -48
+// Full scale: the file clips here (the recorder clamps at ±1).
+const CLIP_LEVEL = 0.999
+const CLIP_HOLD_MS = 2000
+const PEAK_HOLD_MS = 1200
+const METER_TICKS_DB = [-36, -24, -12, -6, 0]
+
+function dbFraction(db: number): number {
+  return Math.min(1, Math.max(0, (db - METER_FLOOR_DB) / -METER_FLOOR_DB))
+}
+
+// The recording's level, left and right, after the Level knob — what goes
+// into the file. Drawn straight into the DOM every frame while the popover
+// is open (no re-render): a bar, a peak-hold line, and a clip light that
+// stays lit for a moment when the file would clip.
+function RecordMeter() {
+  const barRefs = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)]
+  const holdRefs = [useRef<HTMLDivElement>(null), useRef<HTMLDivElement>(null)]
+  const clipRef = useRef<HTMLDivElement>(null)
+  const readoutRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    const engine = getAudioEngine()
+    const holds = [{ db: -Infinity, at: 0 }, { db: -Infinity, at: 0 }]
+    let clipUntil = 0
+    let raf = 0
+    const draw = () => {
+      raf = requestAnimationFrame(draw)
+      const now = performance.now()
+      const peaks = engine.readRecordPeaks()
+      peaks.forEach((peak, side) => {
+        const db = peak > 0 ? 20 * Math.log10(peak) : -Infinity
+        const hold = holds[side]
+        if (db >= hold.db || now - hold.at > PEAK_HOLD_MS) {
+          hold.db = db
+          hold.at = now
+        }
+        const bar = barRefs[side].current
+        if (bar) bar.style.clipPath = `inset(0 ${100 - dbFraction(db) * 100}% 0 0)`
+        const line = holdRefs[side].current
+        if (line) {
+          line.style.left = `${dbFraction(hold.db) * 100}%`
+          line.style.opacity = hold.db > METER_FLOOR_DB ? '1' : '0'
+        }
+        if (peak >= CLIP_LEVEL) clipUntil = now + CLIP_HOLD_MS
+      })
+      if (clipRef.current) clipRef.current.style.opacity = now < clipUntil ? '1' : '0.15'
+      const loudest = Math.max(holds[0].db, holds[1].db)
+      if (readoutRef.current) readoutRef.current.textContent = loudest > METER_FLOOR_DB ? `${loudest.toFixed(1)} dB` : '— dB'
+    }
+    draw()
+    return () => cancelAnimationFrame(raf)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const track = { position: 'relative' as const, height: '7px', borderRadius: '3px', background: 'var(--color-surface)', overflow: 'hidden', border: '1px solid var(--color-border)' }
+  return (
+    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '3px' }} title="Recording level (after Level): keep the peaks below 0 dB">
+      {[0, 1].map((side) => (
+        <div key={side} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <span style={{ width: '8px', fontSize: '9px', color: 'var(--color-text-dim)' }}>{side === 0 ? 'L' : 'R'}</span>
+          <div style={{ ...track, flex: 1 }}>
+            <div
+              ref={barRefs[side]}
+              style={{
+                position: 'absolute', inset: 0, clipPath: 'inset(0 100% 0 0)',
+                // Green up to −12 dB, amber to −3, red above.
+                background: `linear-gradient(90deg, var(--color-accent) ${dbFraction(-12) * 100}%, var(--color-cue) ${dbFraction(-3) * 100}%, var(--color-error))`,
+              }}
+            />
+            <div ref={holdRefs[side]} style={{ position: 'absolute', top: 0, bottom: 0, width: '2px', background: 'var(--color-text)', opacity: 0 }} />
+          </div>
+          {side === 0 ? (
+            <div ref={clipRef} title="Clipping: turn the Level down" style={{ width: '9px', height: '9px', borderRadius: '50%', background: 'var(--color-error)', opacity: 0.15 }} />
+          ) : (
+            <div style={{ width: '9px' }} />
+          )}
+        </div>
+      ))}
+      <div style={{ position: 'relative', height: '10px', margin: '0 14px 0 13px', fontSize: '8px', color: 'var(--color-text-dim)' }}>
+        {METER_TICKS_DB.map((db) => (
+          <span key={db} style={{ position: 'absolute', left: `${dbFraction(db) * 100}%`, transform: 'translateX(-50%)' }}>
+            {db}
+          </span>
+        ))}
+      </div>
+      <span ref={readoutRef} style={{ fontSize: '10px', color: 'var(--color-text-dim)', fontVariantNumeric: 'tabular-nums' }} />
+    </div>
+  )
+}
+
 // Player-bar button + popover for record mode (docs/features/recording.md):
 // records what MCO plays to a file. Dimmed while casting — the two never
 // run together.
@@ -57,6 +149,8 @@ export function RecordButton() {
   const format = useCollectionStore((s) => s.recordingFormat)
   const setFormat = useCollectionStore((s) => s.setRecordingFormat)
   const lastPath = useCollectionStore((s) => s.lastRecordingPath)
+  const levelDb = useCollectionStore((s) => s.recordingLevelDb)
+  const setLevelDb = useCollectionStore((s) => s.setRecordingLevelDb)
   const casting = useCollectionStore((s) => isCastActive(s.castStatus))
   const recording = state === 'recording'
   const busy = state === 'starting' || state === 'stopping'
@@ -138,6 +232,22 @@ export function RecordButton() {
           }}
         >
           <div style={{ fontWeight: 500 }}>Record</div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <RecordMeter />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '52px' }} title="Recording level: only what's recorded changes, not what you hear. Double-click for 0 dB.">
+              <Knob
+                value={levelDb}
+                min={RECORDING_LEVEL_MIN_DB}
+                max={RECORDING_LEVEL_MAX_DB}
+                step={0.5}
+                onChange={setLevelDb}
+                defaultValue={0}
+                formatValue={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`}
+              />
+              <span style={{ fontSize: '9px', color: 'var(--color-text-dim)' }}>Level</span>
+            </div>
+          </div>
 
           {recording || state === 'stopping' ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

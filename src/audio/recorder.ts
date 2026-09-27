@@ -54,7 +54,7 @@ export class Recorder {
         if (e.data.done) resolve()
       }
     })
-    this.engine.recordBus.connect(node)
+    this.engine.recordOutput.connect(node)
     // A node only gets processed if it leads to the destination; it
     // outputs silence.
     node.connect(context.destination)
@@ -81,7 +81,7 @@ export class Recorder {
     if (node) {
       node.port.postMessage('stop')
       await this.finished
-      this.engine.recordBus.disconnect(node)
+      this.engine.recordOutput.disconnect(node)
       node.disconnect()
       node.port.onmessage = null
     }

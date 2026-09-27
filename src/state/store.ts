@@ -353,6 +353,10 @@ export interface CollectionState {
   setRecordingState: (state: RecordingState) => void
   recordingFormat: RecordingFormat
   setRecordingFormat: (format: RecordingFormat) => void
+  // The recording's level in dB (the Rec popover's Level knob; 0 = as
+  // heard). App.tsx applies it to the audio engine.
+  recordingLevelDb: number
+  setRecordingLevelDb: (db: number) => void
   // The mic (audio/micSession.ts applies these to its chain).
   micSettings: MicSettings
   loadMicSettings: () => Promise<void>
@@ -599,6 +603,17 @@ function loadRecordingFormat(): RecordingFormat {
     return 'wav'
   }
 }
+const RECORDING_LEVEL_KEY = 'recordingLevelDb'
+export const RECORDING_LEVEL_MIN_DB = -24
+export const RECORDING_LEVEL_MAX_DB = 6
+function loadRecordingLevelDb(): number {
+  try {
+    const value = Number(localStorage.getItem(RECORDING_LEVEL_KEY) ?? 0)
+    return Number.isFinite(value) ? Math.min(RECORDING_LEVEL_MAX_DB, Math.max(RECORDING_LEVEL_MIN_DB, value)) : 0
+  } catch {
+    return 0
+  }
+}
 function loadBooleanPreference(key: string, fallback: boolean): boolean {
   try {
     const value = localStorage.getItem(key)
@@ -708,6 +723,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
   recordingState: 'idle',
   recordingFormat: loadRecordingFormat(),
+  recordingLevelDb: loadRecordingLevelDb(),
   lastRecordingPath: null,
   micSettings: DEFAULT_MIC_SETTINGS,
   micLive: true,
@@ -784,6 +800,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ recordingFormat: format })
     try {
       localStorage.setItem(RECORDING_FORMAT_KEY, format)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+  setRecordingLevelDb: (db) => {
+    set({ recordingLevelDb: db })
+    try {
+      localStorage.setItem(RECORDING_LEVEL_KEY, String(db))
     } catch {
       // Non-essential preference — fine to lose.
     }

@@ -25,6 +25,15 @@ import { runBackupIfNeeded, getBackupFolder } from './backup'
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
+// The app menu (About/Hide/Quit …) shows app.name, which is package.json's
+// name — v1-library-organizer, or v1-library-organizer-beta for BETA. That
+// name is also the userData folder (database, config, backups), so it
+// can't just change: pin userData to where it is, then give the menus a
+// readable name.
+const userDataPath = app.getPath('userData')
+app.setName(/-beta$/i.test(userDataPath) ? 'MCO BETA' : 'MCO')
+app.setPath('userData', userDataPath)
+
 // Must run before app.whenReady() — Electron only honors privileged-scheme
 // registration at module load time.
 protocol.registerSchemesAsPrivileged([

@@ -8,9 +8,12 @@
 //
 //   track chain ─┐
 //   siren ───────┴─> input ─> duckGain ─┬─> localGain ─> destination
-//                                       └─> recordBus ─> (recorder)
+//                                       └─> recordBus ─> recordOutput ─> (recorder, meter)
 //   mic ─> micInput ─┬─> recordBus
 //                    └─> monitorGain ─> localGain   (off unless monitoring)
+//
+// recordOutput is the recording's level (the Rec popover's Level knob):
+// it changes what's written to the file, not what's heard.
 //
 // The mic isn't heard through the speakers unless monitoring is on — a
 // mic next to speakers feeds back. duckGain pulls the music down under
@@ -40,12 +43,16 @@ export class AudioEngine {
   readonly input: GainNode
   // The mic's bus: recorded, and heard only while monitoring.
   readonly micInput: GainNode
-  // Music (after ducking) plus the mic — what a recording captures.
+  // Music (after ducking) plus the mic.
   readonly recordBus: GainNode
+  // recordBus at the recording level — what a recording captures.
+  readonly recordOutput: GainNode
   // Pulled down by the mic's ducking.
   readonly duckGain: GainNode
   private monitorGain: GainNode
   private localGain: GainNode
+  private recordMeter: RecordMeter | null = null
+  private recordMeterFailed = false
   // Whoever is making sound right now (a playing track, a held siren, a
   // running beat). The context suspends once this has been empty for
   // IDLE_SUSPEND_MS, and never while anything is in it.
@@ -57,6 +64,7 @@ export class AudioEngine {
     this.input = this.context.createGain()
     this.duckGain = this.context.createGain()
     this.recordBus = this.context.createGain()
+    this.recordOutput = this.context.createGain()
     this.micInput = this.context.createGain()
     this.monitorGain = this.context.createGain()
     this.monitorGain.gain.value = 0
@@ -64,6 +72,7 @@ export class AudioEngine {
     this.input.connect(this.duckGain)
     this.duckGain.connect(this.localGain)
     this.duckGain.connect(this.recordBus)
+    this.recordBus.connect(this.recordOutput)
     this.micInput.connect(this.recordBus)
     this.micInput.connect(this.monitorGain)
     this.monitorGain.connect(this.localGain)
@@ -116,6 +125,28 @@ export class AudioEngine {
     this.monitorGain.gain.setTargetAtTime(on ? 1 : 0, this.context.currentTime, PARAM_SMOOTH_TAU)
   }
 
+  // The recording's level in dB (0 = as heard). Only what's recorded
+  // changes; the speakers don't.
+  setRecordLevel(db: number): void {
+    this.recordOutput.gain.setTargetAtTime(Math.pow(10, db / 20), this.context.currentTime, PARAM_SMOOTH_TAU)
+  }
+
+  // The recording's peak level, left and right (0–1, 1 = full scale, where
+  // the file clips), since the last read. Built on first use: two
+  // analysers that only cost anything while someone reads them.
+  readRecordPeaks(): [number, number] {
+    if (this.context.state !== 'running' || this.recordMeterFailed) return [0, 0]
+    try {
+      this.recordMeter ??= new RecordMeter(this.context, this.recordOutput)
+      return this.recordMeter.read()
+    } catch (err) {
+      // A meter is never worth breaking the app (or a recording) over.
+      console.error('record meter failed', err)
+      this.recordMeterFailed = true
+      return [0, 0]
+    }
+  }
+
   // Silences this Mac's speakers while casting, without touching the
   // buses (the visualizer's analyser and a recorder sit upstream of this).
   setLocalMuted(muted: boolean): void {
@@ -139,6 +170,42 @@ export class AudioEngine {
   private clearSuspendTimer(): void {
     if (this.suspendTimer) clearTimeout(this.suspendTimer)
     this.suspendTimer = null
+  }
+}
+
+// Left/right peaks of a node's output, from the analysers' latest window
+// (about 20 ms: enough for a meter read ~60 times a second).
+class RecordMeter {
+  private analysers: AnalyserNode[]
+  private buffer: Float32Array<ArrayBuffer>
+
+  constructor(context: AudioContext, source: AudioNode) {
+    // Mixed to exactly two channels first, so a mono source reads on both
+    // sides (a splitter's own channel settings can't be changed).
+    const stereo = context.createGain()
+    stereo.channelCount = 2
+    stereo.channelCountMode = 'explicit'
+    stereo.channelInterpretation = 'speakers'
+    source.connect(stereo)
+    const splitter = context.createChannelSplitter(2)
+    stereo.connect(splitter)
+    this.analysers = [0, 1].map((channel) => {
+      const analyser = context.createAnalyser()
+      analyser.fftSize = 1024
+      splitter.connect(analyser, channel)
+      return analyser
+    })
+    this.buffer = new Float32Array(1024)
+  }
+
+  read(): [number, number] {
+    const peaks = this.analysers.map((analyser) => {
+      analyser.getFloatTimeDomainData(this.buffer)
+      let peak = 0
+      for (let i = 0; i < this.buffer.length; i++) peak = Math.max(peak, Math.abs(this.buffer[i]))
+      return peak
+    })
+    return [peaks[0], peaks[1]]
   }
 }
 

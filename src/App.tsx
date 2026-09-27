@@ -231,6 +231,13 @@ export default function App() {
     getAudioEngine().setSinkId(audioOutputDeviceId)
   }, [audioOutputDeviceId])
 
+  // The recording's level (the Rec popover's Level knob), on the engine's
+  // record output.
+  const recordingLevelDb = useCollectionStore((s) => s.recordingLevelDb)
+  useEffect(() => {
+    getAudioEngine().setRecordLevel(recordingLevelDb)
+  }, [recordingLevelDb])
+
   // Casting: main-process status/device events, and keeping MCO's app on
   // the device in step with the effects, siren and visualizer.
   useEffect(() => initCast(), [])

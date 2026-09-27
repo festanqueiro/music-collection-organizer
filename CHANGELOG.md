@@ -6,7 +6,13 @@ installed copies update themselves.
 
 ## Unreleased
 
+- **Record**: a level meter (left/right, with a clip light) and a **Level**
+  knob in the Rec popover, to see how loud the recording is and turn it down
+  without changing what you hear.
+
 ### Changed
+- **App menu**: says **MCO** (or **MCO BETA**) instead of
+  `v1-library-organizer` in About, Hide and Quit.
 - **Visualizer**: a **Frame rate** picker in its top bar (15, 24, 30, 60 fps
   or Max). It now defaults to 30 fps instead of the display's full refresh
   rate, so the GPU runs cooler.

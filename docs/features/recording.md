@@ -16,6 +16,11 @@ more. Video of the visualizer is **not** in scope until decided otherwise.
     ~85 MB an hour). Remembered.
   - **Save to**: the folder, `~/Music/MCO Recordings` by default; **Change…** picks another. Remembered.
   - **Start recording**.
+  - Above those, always (recording or not): a **level meter** of what's being recorded, left and right
+    (−48…0 dB, green/amber/red, a peak-hold line, the loudest recent peak in dB, and a clip light that
+    stays lit for 2 s when the file would clip), and a **Level** knob (−24…+6 dB, default 0, remembered;
+    double-click for 0). Level only changes what's recorded, not what you hear; the meter reads after it,
+    so it shows exactly what goes into the file. The meter only runs while the popover is open.
 - While recording the button turns red with a pulsing dot and the elapsed time; the popover shows the time,
   the file size so far (an estimate for FLAC/MP3) and **Stop**.
 - It keeps recording through pauses, silences and track changes until you stop; silence is recorded as
@@ -66,8 +71,12 @@ The **Mic** section at the bottom of the FX screen ([ADR 0044](../adr/0044-mic-r
   talk → dry + echo/reverb sends, using `fxModules.ts`); `micSession.ts` opens/closes it from the store;
   `micControls.ts` maps MIDI and Talk; `src/components/MicPanel.tsx` is the UI. Settings are `micSettings`
   in the config.
+- **Level and meter**: the engine's `recordOutput` gain sits between the record bus and the recorder
+  (`setRecordLevel`, applied from the store's `recordingLevelDb` in `App.tsx`); `readRecordPeaks()` reads
+  two analysers after it (built on first use, behind a stereo gain so a mono source reads on both sides).
+  `RecordMeter` in `RecordButton.tsx` draws them every frame without re-rendering.
 - **Recorder** ([ADR 0042](../adr/0042-record-pcm-to-wav-on-disk.md)): `src/audio/recorderWorklet.ts`
-  (an `AudioWorklet` on the bus) makes 24-bit PCM chunks; `src/audio/recorder.ts` sends them over IPC;
+  (an `AudioWorklet` on the record output) makes 24-bit PCM chunks; `src/audio/recorder.ts` sends them over IPC;
   `electron/main/recording.ts` appends them with `wavWriter.ts` (header sizes rewritten after each chunk)
   and runs ffmpeg for FLAC/MP3 on stop. `src/audio/recordingSession.ts` starts/stops and enforces the cast
   rule; `src/components/RecordButton.tsx` is the UI. The folder is `recordingFolder` in the config; the
