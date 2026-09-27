@@ -6,6 +6,17 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.44 — 2026-09-27
+
+### Added
+- **Missing Tracks filter**: lists the tracks whose file is no longer in
+  the collection folder. Their tags are kept, and they come back if the
+  file returns.
+
+### Fixed
+- The "N missing" notice kept reappearing for the same files on every
+  background rescan; it now appears only when files actually go missing.
+
 ## 1.0.43 — 2026-09-27
 
 ### Added

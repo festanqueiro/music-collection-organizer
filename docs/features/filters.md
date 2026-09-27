@@ -26,6 +26,10 @@ with the folder or tag selection and the search.
   filename to go by; selecting one shows tags [suggested from its filename](id3-tags.md#suggestions-from-the-filename).
   Counts only tracks whose tags have been read; while the background read is running it says how many
   files are left. (Called *Untagged* and artist-only until 2026-09-27.)
+- **Missing Tracks** — shows, instead of the collection, the tracks whose file the last scan couldn't
+  find (deleted, moved, renamed or not synced), dimmed with a *File missing* icon in the status
+  column. Their rows and tags are kept (`present = 0`, fetched by `tracks:getMissing`); they can be
+  selected but not played, pre-listened, queued, dragged or right-clicked.
 - Active filters show as chips above the table (× clears one) and as a count on the Filters button,
   also in the collapsed sidebar.
 - Opening Filters keeps the folder/tag selection underneath applied (that view stays mounted), and
@@ -38,6 +42,8 @@ with the folder or tag selection and the search.
   `mcoTagsFilter`, `missingMetadataFilter` in `src/state/store.ts`; applied in `TrackTable.tsx`'s
   `visibleTracks`; rules in `src/state/trackFilters.ts` (`isMissingId3Metadata`, `matchesMcoTagsFilter`).
 - Duplicates: `src/state/duplicates.ts` (over the whole collection).
+- The folder watcher's "N missing" notice counts only tracks that went missing in that scan (it used
+  to count every already-missing track, so the same number came back on each rescan).
 - Missing ID3 Metadata relies on `tagsRead` (the `tags_read_at` column, [ADR 0027](../adr/0027-read-file-tags-in-background.md)).
 
 ## Tests

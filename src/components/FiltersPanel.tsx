@@ -85,6 +85,9 @@ export function FiltersPanel() {
   const missingMetadataFilter = useCollectionStore((s) => s.missingMetadataFilter)
   const setMissingMetadataFilter = useCollectionStore((s) => s.setMissingMetadataFilter)
   const tagReadRemaining = useCollectionStore((s) => s.tagReadRemaining)
+  const missingTracks = useCollectionStore((s) => s.missingTracks)
+  const missingTracksFilter = useCollectionStore((s) => s.missingTracksFilter)
+  const setMissingTracksFilter = useCollectionStore((s) => s.setMissingTracksFilter)
 
   const current = playlist[0] != null ? tracks.find((t) => t.id === playlist[0]) : undefined
   const canFilterCompatible = !!current && toCamelot(current.musicalKey) !== null
@@ -141,6 +144,13 @@ export function FiltersPanel() {
         hint={`Tracks whose file has no artist or no title in its tags — only the filename to go by. Select one to see tags suggested from its filename. ${missingMetadataCount} tracks${tagReadRemaining > 0 ? ` so far (still reading tags from ${tagReadRemaining} files)` : ''}.`}
       >
         <Toggle on={missingMetadataFilter} onChange={setMissingMetadataFilter} label="Only tracks missing an artist or title" />
+      </Section>
+
+      <Section
+        title="Missing Tracks"
+        hint={`Tracks whose file is no longer in the collection folder (deleted, moved, renamed or not synced). Their tags are kept, and they come back if the file returns to the same place. ${missingTracks.length} tracks.`}
+      >
+        <Toggle on={missingTracksFilter} onChange={setMissingTracksFilter} label="Show the missing tracks instead" />
       </Section>
     </div>
   )

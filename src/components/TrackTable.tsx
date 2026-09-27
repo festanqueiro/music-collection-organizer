@@ -147,6 +147,9 @@ export function TrackTable({
   const setMcoTagsFilter = useCollectionStore((s) => s.setMcoTagsFilter)
   const missingMetadataFilter = useCollectionStore((s) => s.missingMetadataFilter)
   const setMissingMetadataFilter = useCollectionStore((s) => s.setMissingMetadataFilter)
+  const missingTracks = useCollectionStore((s) => s.missingTracks)
+  const missingTracksFilter = useCollectionStore((s) => s.missingTracksFilter)
+  const setMissingTracksFilter = useCollectionStore((s) => s.setMissingTracksFilter)
   // Over the whole collection, so a copy in another folder still counts.
   const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
   const currentTrackId = playlist[0] ?? null
@@ -263,7 +266,8 @@ export function TrackTable({
 
   const visibleTracks = useMemo(() => {
     const query = searchText.trim().toLowerCase()
-    return tracks
+    // Missing Tracks lists the files that are gone instead of the collection.
+    return (missingTracksFilter ? missingTracks : tracks)
       .filter((t) => (selectedFolder ? t.folder === selectedFolder || t.folder.startsWith(selectedFolder + '/') : true))
       .filter(activeFilter)
       .filter((t) => {
@@ -320,6 +324,8 @@ export function TrackTable({
     duplicates,
     missingMetadataFilter,
     mcoTagsFilter,
+    missingTracksFilter,
+    missingTracks,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
@@ -451,6 +457,8 @@ export function TrackTable({
   function renderCell(track: Track, key: TrackTableColumnKey) {
     switch (key) {
       case 'title':
+        // A missing track's file is gone: nothing to play, pre-listen or drag.
+        if (track.missing) return decodeHtmlEntities(track.title ?? track.filename)
         return (
           <>
             <button
@@ -650,7 +658,8 @@ export function TrackTable({
         <button
           // Confirmation / analyse-now choice handled by QueueDialog.
           onClick={() => requestAddManyToQueue(visibleTrackIds)}
-          disabled={visibleTracks.length === 0}
+          // Missing tracks have no file to play.
+          disabled={visibleTracks.length === 0 || missingTracksFilter}
           style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
         >
           <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
@@ -694,6 +703,7 @@ export function TrackTable({
           />
         )}
         {missingMetadataFilter && <FilterChip icon="person_off" label="Missing ID3 metadata" onClear={() => setMissingMetadataFilter(false)} />}
+        {missingTracksFilter && <FilterChip icon="link_off" label="Missing tracks" onClear={() => setMissingTracksFilter(false)} />}
         <BatchTagBar visibleTrackIds={visibleTrackIds} />
       </div>
       {/* This div (not the ambient .pane it sits in, which App.tsx makes a
@@ -800,9 +810,10 @@ export function TrackTable({
                 onContextMenu={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
+                  if (track.missing) return
                   setContextMenu({ trackId: track.id, x: e.clientX, y: e.clientY })
                 }}
-                draggable
+                draggable={!track.missing}
                 onDragStart={(e) => {
                   // Native OS drag (to Finder, a DAW, etc.) hands off the
                   // tracks' existing file paths — it's a reference, not a
@@ -817,7 +828,7 @@ export function TrackTable({
                       : [track.id]
                   window.api.startTrackDrag(ids)
                 }}
-                style={{ cursor: 'pointer', height: ROW_HEIGHT }}
+                style={{ cursor: 'pointer', height: ROW_HEIGHT, ...(track.missing ? { opacity: 0.6 } : {}) }}
               >
                 <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                   <input
@@ -850,7 +861,13 @@ export function TrackTable({
                   ) : null}
                 </td>
                 <td style={cellStyle}>
-                  {track.cloudStatus === 'cloud_only' ? <span className="material-symbols-outlined">cloud</span> : null}
+                  {track.missing ? (
+                    <span className="material-symbols-outlined" style={{ color: 'var(--color-error)' }} title="File missing">
+                      link_off
+                    </span>
+                  ) : track.cloudStatus === 'cloud_only' ? (
+                    <span className="material-symbols-outlined">cloud</span>
+                  ) : null}
                 </td>
               </tr>
             ))}

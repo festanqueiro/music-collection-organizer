@@ -76,6 +76,7 @@ const api = {
   analyzeCollection: (trackIds?: number[]): Promise<void> => ipcRenderer.invoke('analysis:run', trackIds),
   stopAnalysis: (): Promise<void> => ipcRenderer.invoke('analysis:stop'),
   getTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getAll'),
+  getMissingTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getMissing'),
   getGenres: (): Promise<Genre[]> => ipcRenderer.invoke('tags:getGenres'),
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),

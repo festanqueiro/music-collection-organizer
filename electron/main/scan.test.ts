@@ -40,6 +40,8 @@ describe('runScan', () => {
     unlinkSync(filePath)
     const result = runScan(db, root)
     expect(result.missing).toBe(1)
+    // Already flagged: a later scan doesn't count it again.
+    expect(runScan(db, root).missing).toBe(0)
 
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as any
     expect(row).toBeDefined()

@@ -602,6 +602,15 @@ export function registerIpcHandlers(
     return (db.prepare('SELECT * FROM tracks WHERE present = 1').all() as unknown as TrackRow[]).map(rowToTrack)
   })
 
+  // The hidden ones, for the Missing Tracks filter: files the last scan
+  // couldn't find. Marked missing so the table can say so.
+  ipcMain.handle('tracks:getMissing', (): Track[] =>
+    (db.prepare('SELECT * FROM tracks WHERE present = 0').all() as unknown as TrackRow[]).map((row) => ({
+      ...rowToTrack(row),
+      missing: true,
+    }))
+  )
+
   // COLLATE NOCASE so the Tag Tree/pickers/selects (everything reads
   // through these two handlers) list tags A-Z regardless of case, rather
   // than in whatever order they happened to get created.

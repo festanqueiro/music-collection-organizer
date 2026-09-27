@@ -77,5 +77,8 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
     for (const file of toRevive) reviveStmt.run(file.path)
   })
 
-  return { inserted: diff.toInsert.length, updated: diff.toUpdate.length, missing: diff.toRemove.length }
+  // Only files that went missing in this scan — ones already flagged
+  // stay missing silently, or every watcher rescan would report them again.
+  const newlyMissing = diff.toRemove.filter((path) => presentByPath.get(path) === 1).length
+  return { inserted: diff.toInsert.length, updated: diff.toUpdate.length, missing: newlyMissing }
 }

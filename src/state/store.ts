@@ -277,6 +277,11 @@ export interface CollectionState {
   // Tracks whose file has no artist or title (see missingMetadata.ts).
   missingMetadataFilter: boolean
   setMissingMetadataFilter: (on: boolean) => void
+  // Tracks whose file the last scan couldn't find (hidden from `tracks`),
+  // and the filter that lists them instead of the collection.
+  missingTracks: Track[]
+  missingTracksFilter: boolean
+  setMissingTracksFilter: (on: boolean) => void
   // Files whose tags the background read hasn't reached yet (0 when done).
   tagReadRemaining: number
   setTagReadRemaining: (remaining: number) => void
@@ -595,6 +600,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   analysedFilter: 'all',
   duplicatesFilter: false,
   missingMetadataFilter: false,
+  missingTracks: [],
+  missingTracksFilter: false,
   mcoTagsFilter: 'all',
   tagReadRemaining: 0,
   searchText: '',
@@ -1136,11 +1143,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   loadAll: async () => {
-    const [tracks, genres, subgenres, tagIdRows] = await Promise.all([
+    const [tracks, genres, subgenres, tagIdRows, missingTracks] = await Promise.all([
       window.api.getTracks(),
       window.api.getGenres(),
       window.api.getSubgenres(),
       window.api.getAllTagIds(),
+      window.api.getMissingTracks(),
     ])
     const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
     // Keeps the batch selection across a reload (creating/renaming/
@@ -1149,7 +1157,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // that no longer exist, e.g. after a rescan marked them missing.
     const trackIds = new Set(tracks.map((t) => t.id))
     const checkedTrackIds = new Set([...get().checkedTrackIds].filter((id) => trackIds.has(id)))
-    set({ tracks, genres, subgenres, trackTags, checkedTrackIds })
+    set({ tracks, genres, subgenres, trackTags, checkedTrackIds, missingTracks })
   },
 
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
@@ -1277,6 +1285,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setDuplicatesFilter: (on) => set({ duplicatesFilter: on, checkedTrackIds: new Set() }),
   setMcoTagsFilter: (filter) => set({ mcoTagsFilter: filter, checkedTrackIds: new Set() }),
   setMissingMetadataFilter: (on) => set({ missingMetadataFilter: on, checkedTrackIds: new Set() }),
+  setMissingTracksFilter: (on) => set({ missingTracksFilter: on, checkedTrackIds: new Set() }),
   setTagReadRemaining: (remaining) => set({ tagReadRemaining: remaining }),
   refreshTrackFileTags: async (trackId) => {
     const track = await window.api.readFileTags(trackId)
