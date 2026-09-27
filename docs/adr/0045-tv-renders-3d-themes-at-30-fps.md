@@ -13,9 +13,11 @@ smoothly ([ADR 0036](0036-tv-only-visualizers-without-gpu.md)). Putting them bac
 tried and dropped again (2026-09-27): not worth it for the Chromecast HD.
 
 ## Decision
-The receiver drives the three.js `Visualizer` with its own loop, capped at 30 fps
-(`visualizer.engine.render()`), instead of `start()`/`stop()`. MCO's own full-screen visualizer is
-capped at 30 fps too, to keep the Mac's GPU cool. The Cast menu still offers only the TV visualizers.
+A frame-rate cap goes into threejs-visualisers itself (0.2.0: the `Visualizer`'s `fps` option,
+default 30, and `FrameLimiter`/`FPS_CHOICES` for apps with their own loop; the themes' motion and
+audio smoothing follow each frame's duration). The receiver creates its `Visualizer` with `fps: 30`.
+MCO's own full-screen visualizer uses `FrameLimiter`, with a **Frame rate** picker (15/24/30/60/Max,
+default 30) to keep the Mac's GPU cool. The Cast menu still offers only the TV visualizers.
 
 ## Consequences
 - If the 3D themes come back to the Cast menu (e.g. for more capable devices such as a Google TV

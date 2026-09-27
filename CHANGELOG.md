@@ -7,8 +7,9 @@ installed copies update themselves.
 ## Unreleased
 
 ### Changed
-- **Visualizer**: now renders at 30 fps instead of the display's full
-  refresh rate, so the GPU runs cooler.
+- **Visualizer**: a **Frame rate** picker in its top bar (15, 24, 30, 60 fps
+  or Max). It now defaults to 30 fps instead of the display's full refresh
+  rate, so the GPU runs cooler.
 
 ### Fixed
 - **Cast**: when MCO's queue empties, the TV goes back to its **Load a song

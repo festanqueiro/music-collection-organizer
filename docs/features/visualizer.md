@@ -11,14 +11,18 @@ button. It stays open across track changes and reacts to the post-FX
 output (after FX and master volume), so EQ/filter moves show up in it.
 While it's open the Mac and its display don't sleep (a `prevent-display-sleep`
 power blocker in the main process, `power:keepDisplayAwake`, released on close).
-It renders at a steady **30 fps** whatever the display's refresh rate (the
-render loop skips vsyncs until a frame is due), to keep the GPU cool; the
-fps readout in the top bar shows it.
+Its **Frame rate** (in the top bar) caps the render loop: 15, 24, **30**
+(the default, to keep the GPU cool), 60 fps or Max (the display's refresh
+rate). The choice is remembered; the fps readout bottom left shows the
+rate reached. The themes and audio smoothing follow each frame's real
+duration, so they move at the same speed at any rate (threejs-visualisers
+0.2.0: `FrameLimiter`, `FPS_CHOICES`).
 
 Options, as dropdowns in the bar along the top right (the theme's own options saved per theme):
 
 - **Theme** — Nebula, Warp, Horizon, Sound System, Smoke, Kaleidoscope,
   Paint, or Liquid 3D (keys **1–8** switch while it's open);
+- **Frame rate** — 15, 24, 30 (default), 60 fps or Max;
 - **Hide track info** — hides the title/artist overlay;
 - per-theme options (below).
 

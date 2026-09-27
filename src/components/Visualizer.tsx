@@ -1,6 +1,6 @@
 // src/components/Visualizer.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
+import { FPS_CHOICES, FrameLimiter, VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
 import { getActiveAnalyser } from '../audio/audioAnalysis'
 import { useCollectionStore } from '../state/store'
 import { castingToAScreen } from '../cast/castSession'
@@ -9,10 +9,6 @@ import { ToggleSwitch } from './ToggleSwitch'
 import type { Track } from '../types'
 
 const UI_HIDE_DELAY_MS = 2500
-// The render loop is capped at 30 fps: the themes look the same to the
-// eye and it roughly halves GPU load (and heat) on a 60/120 Hz display.
-const TARGET_FPS = 30
-const FRAME_MS = 1000 / TARGET_FPS
 
 // Full-screen audio-reactive overlay. This shell owns fullscreen, the
 // render loop and the theme picker; the themes and VisualizerEngine
@@ -29,6 +25,14 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const setThemeId = useCollectionStore((s) => s.setVisualizerTheme)
   const hideTrackInfo = useCollectionStore((s) => s.visualizerHideTrackInfo)
   const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
+  // The render loop's frame-rate cap (default 30: the themes look much the
+  // same, at about half the GPU load and heat of 60).
+  const fps = useCollectionStore((s) => s.visualizerFps)
+  const setFps = useCollectionStore((s) => s.setVisualizerFps)
+  const limiterRef = useRef(new FrameLimiter(fps))
+  useEffect(() => {
+    limiterRef.current.fps = fps
+  }, [fps])
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   const castingToScreen = useCollectionStore((s) => castingToAScreen(s.castStatus))
@@ -145,17 +149,11 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     // through React state, so it doesn't re-render the overlay.
     let fpsFrames = 0
     let fpsSince = performance.now()
-    let lastRenderMs = -Infinity
 
     function tick() {
       raf = requestAnimationFrame(tick)
       const nowMs = performance.now()
-      // Skip display refreshes until a frame is due. The small slack keeps
-      // a 60 Hz display at an even every-other-vsync despite rAF jitter;
-      // snapping to the frame grid (rather than to nowMs) avoids drift.
-      const sinceLast = nowMs - lastRenderMs
-      if (sinceLast < FRAME_MS - 2) return
-      lastRenderMs = sinceLast > FRAME_MS * 2 ? nowMs : lastRenderMs + FRAME_MS
+      if (!limiterRef.current.shouldRender(nowMs)) return
       fpsFrames++
       if (nowMs - fpsSince >= 1000) {
         if (fpsRef.current) fpsRef.current.textContent = `${Math.round((fpsFrames * 1000) / (nowMs - fpsSince))} fps`
@@ -265,6 +263,13 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             <div key={`empty-${i}`} style={{ width: PICKER_WIDTH, flexShrink: 0 }} />
           )
         })}
+        <PickerSelect
+          label="Frame rate"
+          value={String(fps)}
+          title="Lower rates keep the GPU cooler"
+          options={FPS_CHOICES.map((choice) => ({ id: String(choice.fps), name: choice.label }))}
+          onChange={(value) => setFps(Number(value))}
+        />
         <label
           style={{
             display: 'flex',

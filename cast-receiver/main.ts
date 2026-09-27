@@ -122,31 +122,6 @@ let visualizer: Visualizer | null = null
 // which case the three.js visualizer isn't used at all.
 let tvVisualizer: TvVisualizer | null = null
 let tvTheme = false
-
-// The three.js visualizer is driven by this loop rather than its own
-// start()/stop(), which render at the TV's full refresh rate: capped at
-// 30 fps, a theme the Chromecast can't hold at 60 runs evenly instead of
-// stuttering, and the GPU gets half the work.
-const VISUALIZER_FRAME_MS = 1000 / 30
-let visualizerFrame = 0
-let visualizerLastRender = -Infinity
-
-function startVisualizerLoop(): void {
-  if (visualizerFrame) return
-  const loop = (now: number) => {
-    visualizerFrame = requestAnimationFrame(loop)
-    const sinceLast = now - visualizerLastRender
-    if (sinceLast < VISUALIZER_FRAME_MS - 2) return
-    visualizerLastRender = sinceLast > VISUALIZER_FRAME_MS * 2 ? now : visualizerLastRender + VISUALIZER_FRAME_MS
-    visualizer?.engine.render(now)
-  }
-  visualizerFrame = requestAnimationFrame(loop)
-}
-
-function stopVisualizerLoop(): void {
-  cancelAnimationFrame(visualizerFrame)
-  visualizerFrame = 0
-}
 let currentTrack: LoadMessage | null = null
 // MCO's latest queue message; its details only apply while its current
 // track is the one loaded here.
@@ -181,8 +156,8 @@ function render(): void {
   $('overlay').hidden = !visualizing || hideTrackInfo
   $('topbar').hidden = visualizing
   // A visualizer only runs while it's on screen — the TV's GPU is modest.
-  if (visualizing && !tvTheme && visualizer) startVisualizerLoop()
-  else stopVisualizerLoop()
+  if (visualizing && !tvTheme) visualizer?.start()
+  else visualizer?.stop()
   if (visualizing && tvTheme) tvVisualizer?.start()
   else tvVisualizer?.stop()
   // Drawn at the waveform's on-screen size, which is zero while hidden.
@@ -626,6 +601,9 @@ function receive(message: ToReceiver): void {
           themeOptions: message.options,
           // Render at CSS resolution (720p on most TVs): the TV's GPU is modest.
           pixelRatio: 1,
+          // Capped: a theme the TV can't hold at 60 runs evenly instead of
+          // stuttering, and the GPU gets half the work.
+          fps: 30,
           autoStart: false,
         })
       } else if (message.theme !== visualizer.theme.id) {

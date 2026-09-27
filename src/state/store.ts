@@ -280,6 +280,10 @@ export interface CollectionState {
   // out whenever the mouse is idle.
   visualizerHideTrackInfo: boolean
   setVisualizerHideTrackInfo: (hide: boolean) => void
+  // The Visualizer's frame-rate cap (picked from threejs-visualisers'
+  // FPS_CHOICES); 0 is no cap, the display's refresh rate. Default 30.
+  visualizerFps: number
+  setVisualizerFps: (fps: number) => void
   // Whether MIDI-learn badges are shown next to mappable controls
   // (Settings → MIDI). Purely visual — bindings keep working when hidden.
   showMidiControls: boolean
@@ -573,6 +577,18 @@ function loadVisualizerHideTrackInfo(): boolean {
   }
 }
 
+const VISUALIZER_FPS_KEY = 'visualizerFps'
+const DEFAULT_VISUALIZER_FPS = 30
+function loadVisualizerFps(): number {
+  try {
+    const stored = localStorage.getItem(VISUALIZER_FPS_KEY)
+    const fps = stored === null ? NaN : Number(stored)
+    return Number.isInteger(fps) && fps >= 0 && fps <= 240 ? fps : DEFAULT_VISUALIZER_FPS
+  } catch {
+    return DEFAULT_VISUALIZER_FPS
+  }
+}
+
 const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
 const RECORDING_FORMAT_KEY = 'recordingFormat'
 function loadRecordingFormat(): RecordingFormat {
@@ -661,6 +677,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   visualizerTheme: loadVisualizerTheme(),
   castScreen: loadCastScreen(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
+  visualizerFps: loadVisualizerFps(),
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
   keyNotation: loadKeyNotation(),
@@ -1444,6 +1461,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ visualizerHideTrackInfo: hide })
     try {
       localStorage.setItem(VISUALIZER_HIDE_TRACK_INFO_KEY, String(hide))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setVisualizerFps: (fps) => {
+    set({ visualizerFps: fps })
+    try {
+      localStorage.setItem(VISUALIZER_FPS_KEY, String(fps))
     } catch {
       // Non-essential preference — fine to lose.
     }
