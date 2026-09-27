@@ -15,7 +15,8 @@ function intersectWithExisting(ids: Set<number>, existing: { id: number }[]): Se
 }
 
 // A sub-genre's colour, as an outline — like its badges in the table.
-export function SubtagRing({ color }: { color: string }) {
+// `inRow`: in a flex row that spaces its items itself (no own margin).
+export function SubtagRing({ color, inRow = false }: { color: string; inRow?: boolean }) {
   return (
     <span
       style={{
@@ -24,13 +25,22 @@ export function SubtagRing({ color }: { color: string }) {
         height: '8px',
         borderRadius: '50%',
         border: `2px solid ${color}`,
-        marginRight: '4px',
+        marginRight: inRow ? '2px' : '4px',
+        flexShrink: 0,
         verticalAlign: 'middle',
         boxSizing: 'border-box',
       }}
     />
   )
 }
+
+// One nesting level, as in the folder tree.
+const TREE_INDENT_PX = 16
+// A folder row's height, so both lists have the same rhythm.
+const TREE_ROW_PX = 20
+// No margin before the box (lining it up with a folder's icon); a little
+// after it, before the colour mark.
+const TREE_CHECKBOX_STYLE = { margin: '0 4px 0 0', flexShrink: 0 }
 
 // Which tags have their subtags open, remembered across launches like the
 // folder tree's. Starts all collapsed.
@@ -277,7 +287,8 @@ export function TagTree({
         <div key={genre.id}>
           <label
             onContextMenu={(e) => openContextMenu(e, { kind: 'genre', id: genre.id, name: genre.name })}
-            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+            // The folder tree's spacing: the checkbox sits where a folder's icon does.
+            style={{ display: 'flex', alignItems: 'center', gap: '2px', minHeight: `${TREE_ROW_PX}px` }}
           >
             {children.length > 0 ? (
               <span
@@ -298,6 +309,7 @@ export function TagTree({
             )}
             <input
               type="checkbox"
+              style={TREE_CHECKBOX_STYLE}
               checked={genreIds.has(genre.id)}
               onChange={() => toggle(genreIds, genre.id, setGenreIds, 'genre')}
             />{' '}
@@ -309,6 +321,7 @@ export function TagTree({
                   borderRadius: '50%',
                   background: genre.color,
                   flexShrink: 0,
+                  marginRight: '2px',
                 }}
               />
             )}
@@ -327,15 +340,19 @@ export function TagTree({
               <label
                 key={sg.id}
                 onContextMenu={(e) => openContextMenu(e, { kind: 'subgenre', id: sg.id, name: sg.name })}
-                style={{ display: 'block', paddingLeft: '34px' }}
+                // Laid out like a tag's row, one level in (as a subfolder is
+                // in the folder tree), with the chevron's space kept.
+                style={{ display: 'flex', alignItems: 'center', gap: '2px', minHeight: `${TREE_ROW_PX}px`, paddingLeft: `${TREE_INDENT_PX}px` }}
               >
+                <span style={{ display: 'inline-block', width: '14px', flexShrink: 0 }} />
                 <input
                   type="checkbox"
+                  style={TREE_CHECKBOX_STYLE}
                   checked={subgenreIds.has(sg.id)}
                   onChange={() => toggle(subgenreIds, sg.id, setSubgenreIds, 'subgenre')}
                 />{' '}
-                {sg.color && <SubtagRing color={sg.color} />}
-                {sg.name}
+                {sg.color && <SubtagRing color={sg.color} inRow />}
+                <span style={{ flex: 1 }}>{sg.name}</span>
               </label>
             ))}
         </div>
