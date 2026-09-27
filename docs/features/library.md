@@ -84,15 +84,19 @@ Every active narrowing shows as a chip with an × to clear it: the **search** ("
 and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sidebar-views.md)).
 
 ### Track table
-- Columns: Title, Filename, Artist, **Tags**, **Subtags**, BPM, Key, Format, Bitrate, Duration, Date
+- Columns: Title, Filename, Artist, Album, **Tags**, **Subtags**, BPM, Key, Format, Bitrate, Duration, Date
   added, Date modified. Drag headers to reorder, drag edges to resize, click to sort (again to
   reverse); order, widths and sort are saved. A column added in a newer version slots in after the
   column it belongs with.
+- **Choose columns**: the columns icon at the top of the play column, or right-click any column
+  header, opens a checklist to show or hide each column (Title always stays). Saved in the config
+  (`hiddenColumns`; `config:getHiddenColumns`/`setHiddenColumns`); hidden columns keep their place
+  in the order.
 - Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted in Bitrate.
 - The Key column shows colour-coded Camelot keys ([DJ tools](dj-tools.md#harmonic-mixing)).
 - Click a row for its details; the play icon starts it (pause/resume on the playing track); the
   headphones icon pre-listens ([DJ tools](dj-tools.md#headphone-pre-listen-cue)). Both sit in a
-  fixed first column of their own, before the checkbox, whatever the column order.
+  fixed column of their own, right after the checkbox, whatever the column order.
 - Only the rows on screen are drawn, at a fixed height, so it stays at ~120 fps with thousands of
   tracks ([ADR 0024](../adr/0024-virtualised-track-table.md)).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of the queue**, **Pre-listen

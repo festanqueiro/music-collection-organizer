@@ -14,6 +14,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   title: 260,
   filename: 220,
   artist: 160,
+  album: 180,
   tags: 160,
   subtags: 160,
   bpm: 70,
@@ -30,7 +31,8 @@ const LOSSY_FORMATS = new Set(['mp3', 'm4a', 'aac', 'ogg', 'opus'])
 const LOW_BITRATE_KBPS = 192
 const MIN_COLUMN_WIDTH = 50
 const CHECKBOX_COL_WIDTH = 36
-const PLAY_COL_WIDTH = 56
+// Just fits its two 16px icons: 4px padding, icon, 4px gap, icon, 4px padding.
+const PLAY_COL_WIDTH = 44
 const STATUS_COL_WIDTH = 90
 const CLOUD_COL_WIDTH = 70
 // Every row is exactly this tall (the tallest a one-line row gets, with a
@@ -130,6 +132,8 @@ export function TrackTable({
   const playNext = useCollectionStore((s) => s.playNext)
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const columnOrder = useCollectionStore((s) => s.columnOrder)
+  const hiddenColumns = useCollectionStore((s) => s.hiddenColumns)
+  const setColumnVisible = useCollectionStore((s) => s.setColumnVisible)
   const setColumnOrder = useCollectionStore((s) => s.setColumnOrder)
   const sortState = useCollectionStore((s) => s.sortState)
   const setSortState = useCollectionStore((s) => s.setSortState)
@@ -166,6 +170,8 @@ export function TrackTable({
   const sortKey = sortState.key
   const sortDir = sortState.direction
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
+  // Show/hide columns: from the columns button or a right-click on any header.
+  const [columnsMenu, setColumnsMenu] = useState<{ x: number; y: number } | null>(null)
   // Anchor for shift-click range checking — the last row whose checkbox
   // was explicitly clicked (not the one currently selected/detail-panel
   // focused, so shift-click ranges follow checkbox clicks specifically).
@@ -226,6 +232,28 @@ export function TrackTable({
       window.removeEventListener('keydown', close)
     }
   }, [contextMenu])
+
+  useEffect(() => {
+    if (!columnsMenu) return
+    // Ticking boxes keeps it open (its own clicks stop propagating);
+    // a click anywhere else or Esc closes it.
+    function close() {
+      setColumnsMenu(null)
+    }
+    window.addEventListener('click', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [columnsMenu])
+
+  function openColumnsMenu(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu(null)
+    setColumnsMenu({ x: e.clientX, y: e.clientY })
+  }
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -406,6 +434,7 @@ export function TrackTable({
     title: 'Title',
     filename: 'Filename',
     artist: 'Artist',
+    album: 'Album',
     tags: 'Tags',
     subtags: 'Subtags',
     bpm: 'BPM',
@@ -416,7 +445,9 @@ export function TrackTable({
     dateAdded: 'Date Added',
     dateModified: 'Date Modified',
   }
-  const orderedColumns = columnOrder.map((key) => ({ key, label: columnLabels[key] }))
+  const orderedColumns = columnOrder
+    .filter((key) => !hiddenColumns.includes(key))
+    .map((key) => ({ key, label: columnLabels[key] }))
 
   const cellStyle = { padding: '8px', whiteSpace: 'nowrap' as const }
   // Keeps the header row pinned to the top of the scroll container (the
@@ -459,7 +490,7 @@ export function TrackTable({
     onSelect(track)
   }
 
-  // Play and pre-listen: their own fixed first column, never reordered
+  // Play and pre-listen: their own fixed column after the checkbox, never reordered
   // with the others. A missing track's file is gone — nothing to play.
   function renderPlayCell(track: Track) {
     if (track.missing) return null
@@ -502,7 +533,7 @@ export function TrackTable({
             style={{
               background: 'none',
               border: 'none',
-              padding: '0 4px 0 0',
+              padding: 0,
               cursor: 'pointer',
               verticalAlign: 'middle',
               color: track.id === cueTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
@@ -520,25 +551,14 @@ export function TrackTable({
   function renderCell(track: Track, key: TrackTableColumnKey) {
     switch (key) {
       case 'title':
-        if (track.missing) return decodeHtmlEntities(track.title ?? track.filename)
-        return (
-          <>
-            {track.analysisStatus === 'analyzing' && (
-              <span
-                className="material-symbols-outlined spin"
-                style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
-                title="Analyzing…"
-              >
-                progress_activity
-              </span>
-            )}
-            {decodeHtmlEntities(track.title ?? track.filename)}
-          </>
-        )
+        // Analysis progress shows in the Status column, not here.
+        return decodeHtmlEntities(track.title ?? track.filename)
       case 'filename':
         return decodeHtmlEntities(track.filename)
       case 'artist':
         return track.artist ? decodeHtmlEntities(track.artist) : '—'
+      case 'album':
+        return track.album ? decodeHtmlEntities(track.album) : '—'
       case 'tags':
       case 'subtags': {
         const names = tagNamesFor(track.id, key)
@@ -748,7 +768,6 @@ export function TrackTable({
         >
           <thead>
             <tr>
-              <th style={{ ...cellStyle, width: PLAY_COL_WIDTH, ...stickyHeaderStyle }} />
               <th style={{ ...cellStyle, width: CHECKBOX_COL_WIDTH, ...stickyHeaderStyle }}>
                 <input
                   type="checkbox"
@@ -756,10 +775,23 @@ export function TrackTable({
                   onChange={(e) => setTracksChecked(visibleTracks.map((t) => t.id), e.target.checked)}
                 />
               </th>
+              <th style={{ ...cellStyle, width: PLAY_COL_WIDTH, ...stickyHeaderStyle, padding: '4px' }}>
+                <button
+                  onClick={openColumnsMenu}
+                  title="Choose columns (or right-click a column header)"
+                  aria-label="Choose columns"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', color: 'var(--color-text-dim)' }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                    view_column
+                  </span>
+                </button>
+              </th>
               {orderedColumns.map((col) => (
                 <th
                   key={col.key}
                   onClick={() => handleSort(col.key)}
+                  onContextMenu={openColumnsMenu}
                   draggable
                   onDragStart={() => setDraggedColumn(col.key)}
                   onDragOver={(e) => e.preventDefault()}
@@ -767,7 +799,7 @@ export function TrackTable({
                     e.preventDefault()
                     handleColumnDrop(col.key)
                   }}
-                  title="Click to sort, drag to reorder"
+                  title="Click to sort, drag to reorder, right-click to choose columns"
                   style={{
                     ...cellStyle,
                     ...stickyHeaderStyle,
@@ -847,7 +879,6 @@ export function TrackTable({
                 }}
                 style={{ cursor: 'pointer', height: ROW_HEIGHT, ...(track.missing ? { opacity: 0.6 } : {}) }}
               >
-                <td style={{ ...cellStyle, padding: '8px 4px 8px 8px' }}>{renderPlayCell(track)}</td>
                 <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
@@ -858,6 +889,7 @@ export function TrackTable({
                     onChange={() => handleCheckboxClick(track.id, shiftKeyRef.current)}
                   />
                 </td>
+                <td style={{ ...cellStyle, padding: '8px 4px', overflow: 'hidden' }}>{renderPlayCell(track)}</td>
                 {orderedColumns.map((col) => (
                   <td key={col.key} style={cellStyleFor(col.key)}>
                     {renderCell(track, col.key)}
@@ -896,6 +928,25 @@ export function TrackTable({
             )}
           </tbody>
         </table>
+        {columnsMenu && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ ...contextMenuStyle, top: columnsMenu.y, left: columnsMenu.x }}
+          >
+            <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>Columns</div>
+            {columnOrder.map((key) => (
+              <label key={key} style={{ ...contextMenuItemStyle, cursor: key === 'title' ? 'default' : 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={!hiddenColumns.includes(key)}
+                  disabled={key === 'title'}
+                  onChange={(e) => setColumnVisible(key, e.target.checked)}
+                />
+                {columnLabels[key]}
+              </label>
+            ))}
+          </div>
+        )}
         {contextMenu && (
           <div
             onClick={(e) => e.stopPropagation()}

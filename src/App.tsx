@@ -92,6 +92,7 @@ export default function App() {
   const loadEffectsSettings = useCollectionStore((s) => s.loadEffectsSettings)
   const loadMidiMappings = useCollectionStore((s) => s.loadMidiMappings)
   const loadColumnOrder = useCollectionStore((s) => s.loadColumnOrder)
+  const loadHiddenColumns = useCollectionStore((s) => s.loadHiddenColumns)
   const loadSortState = useCollectionStore((s) => s.loadSortState)
   const loadAudioOutputDeviceId = useCollectionStore((s) => s.loadAudioOutputDeviceId)
   const loadCueOutputDeviceId = useCollectionStore((s) => s.loadCueOutputDeviceId)
@@ -285,6 +286,7 @@ export default function App() {
       loadEffectsSettings(),
       loadMidiMappings(),
       loadColumnOrder(),
+      loadHiddenColumns(),
       loadSortState(),
     ]).then(hideBootSplash)
     const splashTimeout = setTimeout(hideBootSplash, 8000)
@@ -331,6 +333,7 @@ export default function App() {
     loadEffectsSettings,
     loadMidiMappings,
     loadColumnOrder,
+    loadHiddenColumns,
     loadSortState,
     loadAudioOutputDeviceId,
     loadCueOutputDeviceId,

@@ -6,6 +6,26 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.46 — 2026-09-27
+
+### Added
+- **Album** column in the track list (after Artist), sortable like the
+  others.
+- **Choose which columns to show**: click the columns icon at the top of
+  the track list, or right-click any column header, and tick the ones you
+  want.
+
+### Changed
+- The track list's play and headphones column now comes right after the
+  checkbox, instead of before it, and is only as wide as its two icons.
+- The analysing spinner shows only in the Status column, no longer also
+  next to the title.
+
+### Fixed
+- Text typed into the Tag or Subtag box on one track no longer stays there
+  when you select another track, where it looked like an assigned subtag
+  even though the track had no tag.
+
 ## 1.0.45 — 2026-09-27
 
 ### Changed

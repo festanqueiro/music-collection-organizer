@@ -15,6 +15,8 @@ import {
   getMidiMappings,
   setMidiMappings,
   getColumnOrder,
+  getHiddenColumns,
+  setHiddenColumns,
   setColumnOrder,
   __setStoreForTests,
 } from './config'
@@ -182,6 +184,7 @@ describe('config store', () => {
   it('persists a set column order', () => {
     const order = [
       'artist',
+      'album',
       'title',
       'bpm',
       'musicalKey',
@@ -196,6 +199,18 @@ describe('config store', () => {
     ] as const
     setColumnOrder([...order])
     expect(getColumnOrder()).toEqual(order)
+  })
+
+  it('persists hidden columns, never hiding Title and dropping unknown keys', () => {
+    expect(getHiddenColumns()).toEqual([])
+    setHiddenColumns(['filename', 'title', 'bitrate'])
+    expect(getHiddenColumns()).toEqual(['filename', 'bitrate'])
+    const store = new Store({ name: `test-hidden-${Math.random()}`, projectName: 'v1-library-organizer' } as ConstructorParameters<
+      typeof Store
+    >[0])
+    store.set('hiddenColumns', ['album', 'gone', 'title'])
+    __setStoreForTests(store)
+    expect(getHiddenColumns()).toEqual(['album'])
   })
 
   it('adds a column missing from a stored order (added in a later app version)', () => {

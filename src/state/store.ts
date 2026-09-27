@@ -378,6 +378,10 @@ export interface CollectionState {
   columnOrder: TrackTableColumnKey[]
   loadColumnOrder: () => Promise<void>
   setColumnOrder: (order: TrackTableColumnKey[]) => void
+  // Track list columns the user switched off (Title never is).
+  hiddenColumns: TrackTableColumnKey[]
+  loadHiddenColumns: () => Promise<void>
+  setColumnVisible: (key: TrackTableColumnKey, visible: boolean) => void
   sortState: TrackTableSortState
   loadSortState: () => Promise<void>
   setSortState: (state: TrackTableSortState) => void
@@ -647,6 +651,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
+  hiddenColumns: [],
   sortState: { key: 'title', direction: 'asc' },
   audioOutputDeviceId: null,
   cueOutputDeviceId: null,
@@ -725,6 +730,19 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setColumnOrder: (order) => {
     set({ columnOrder: order })
     window.api.setColumnOrder(order).catch((err) => console.error('failed to save column order', err))
+  },
+
+  loadHiddenColumns: async () => {
+    const keys = await window.api.getHiddenColumns()
+    set({ hiddenColumns: keys })
+  },
+
+  setColumnVisible: (key, visible) => {
+    if (key === 'title') return
+    const hidden = get().hiddenColumns.filter((k) => k !== key)
+    if (!visible) hidden.push(key)
+    set({ hiddenColumns: hidden })
+    window.api.setHiddenColumns(hidden).catch((err) => console.error('failed to save hidden columns', err))
   },
 
   loadSortState: async () => {

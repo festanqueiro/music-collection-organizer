@@ -56,6 +56,8 @@ const api = {
   getColumnOrder: (): Promise<TrackTableColumnKey[]> => ipcRenderer.invoke('config:getColumnOrder'),
   setColumnOrder: (order: TrackTableColumnKey[]): Promise<void> =>
     ipcRenderer.invoke('config:setColumnOrder', order),
+  getHiddenColumns: (): Promise<TrackTableColumnKey[]> => ipcRenderer.invoke('config:getHiddenColumns'),
+  setHiddenColumns: (keys: TrackTableColumnKey[]): Promise<void> => ipcRenderer.invoke('config:setHiddenColumns', keys),
   getSortState: (): Promise<TrackTableSortState> => ipcRenderer.invoke('config:getSortState'),
   setSortState: (state: TrackTableSortState): Promise<void> => ipcRenderer.invoke('config:setSortState', state),
   getAudioOutputDeviceId: (): Promise<string | null> => ipcRenderer.invoke('config:getAudioOutputDeviceId'),

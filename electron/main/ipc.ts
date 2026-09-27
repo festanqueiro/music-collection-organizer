@@ -15,6 +15,8 @@ import {
   setMidiMappings,
   getColumnOrder,
   setColumnOrder,
+  getHiddenColumns,
+  setHiddenColumns,
   getSortState,
   setSortState,
   getAudioOutputDeviceId,
@@ -265,6 +267,10 @@ export function registerIpcHandlers(
 
   ipcMain.handle('config:getColumnOrder', (): TrackTableColumnKey[] => getColumnOrder())
   ipcMain.handle('config:setColumnOrder', (_e, order: TrackTableColumnKey[]): void => setColumnOrder(order))
+  ipcMain.handle('config:getHiddenColumns', (): TrackTableColumnKey[] => getHiddenColumns())
+  ipcMain.handle('config:setHiddenColumns', (_e, keys: TrackTableColumnKey[]): void =>
+    setHiddenColumns(Array.isArray(keys) ? keys : [])
+  )
 
   ipcMain.handle('config:getSortState', (): TrackTableSortState => getSortState())
   ipcMain.handle('config:setSortState', (_e, state: TrackTableSortState): void => setSortState(state))
