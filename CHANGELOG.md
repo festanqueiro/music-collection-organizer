@@ -10,7 +10,6 @@ installed copies update themselves.
 - **Record**: a level meter (left/right, with a clip light) and a **Level**
   knob in the Rec popover, to see how loud the recording is and turn it down
   without changing what you hear.
-
 - **Mic**: **Pitch** shifts your voice up or down (−12…+12 semitones), with
   a Mix to blend in your own voice.
 - **Mic**: **Noise suppression** in the Mic popover takes out steady
