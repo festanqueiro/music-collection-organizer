@@ -6,57 +6,47 @@ installed copies update themselves.
 
 ## Unreleased
 
-### Added
-- **Record**: a level meter (left/right, with a clip light) and a **Level**
-  knob in the Rec popover, to see how loud the recording is and turn it down
-  without changing what you hear.
-- **Mic**: **Pitch** shifts your voice up or down (−12…+12 semitones), with
-  a Mix to blend in your own voice.
-- **Mic**: **Noise suppression** in the Mic popover takes out steady
-  background noise (off by default).
-
-### Changed
-- **Mic**: a **Mic** button in the player bar (next to Rec and Cast) opens
-  the mic's on/off, input, level, Talk and Hear myself, like the Cast menu.
-  They're no longer on the FX and Live screens, which keep the Mic FX.
-- **FX screen**: the effects are now in three clearly separate groups —
-  **Music FX**, **Mic FX** and **Instruments** (the Dub Siren) — in three
-  equal columns on a wide window, and stacked on the Live screen.
-- **Mic EQ**: its bands moved to where a voice sits (250 Hz, 1 kHz, 3.5 kHz),
-  so they're audible, including on a Bluetooth headset's mic.
-- **App menu**: says **MCO** (or **MCO BETA**) instead of
-  `v1-library-organizer` in About, Hide and Quit.
-- **Visualizer**: a **Frame rate** picker in its top bar (15, 24, 30, 60 fps
-  or Max). It now defaults to 30 fps instead of the display's full refresh
-  rate, so the GPU runs cooler.
-
-### Fixed
-- **FX button**: it now lights up for the mic's effects too, and the FX and
-  Live screens list them as engaged.
-- **Cast**: when MCO's queue empties, the TV goes back to its **Load a song
-  to continue** screen instead of keeping the last track's title, year and
-  seek bar up.
-
 ## 1.0.47 — 2026-09-27
 
 ### Added
 - **Record**: a **Rec** button in the player bar records what MCO plays — the
-  track with its effects and the dub siren — to a WAV, FLAC or MP3 file
-  (in `Music/MCO Recordings` unless you pick another folder). It keeps
+  track with its effects, the dub siren and the mic — to a WAV, FLAC or MP3
+  file (in `Music/MCO Recordings` unless you pick another folder). It keeps
   recording through pauses and track changes until you stop, and what's
-  recorded is kept even if MCO quits. You can't cast while recording, or
+  recorded is kept even if MCO quits. A level meter (left/right, with a clip
+  light) and a **Level** knob show how loud the recording is and turn it
+  down without changing what you hear. You can't cast while recording, or
   record while casting.
-- **Mic**: a Mic section on the FX screen puts your voice in the mix and in
-  recordings, with its own effects: a voice chain (gain with a level meter,
-  noise gate, compressor, EQ), Echo (with Throw, BPM-synced), Reverb, a
-  Radio voice, and Ducking that turns the music down while you talk.
-  **Talk** (or the **T** key) mutes and unmutes it; hold it while muted to
-  talk. Everything can be MIDI-mapped. You don't hear yourself through the
-  speakers unless you turn on Hear myself. The mic is always off when MCO
-  starts.
-- **Live** screen (the Live button in the player bar): the queue, the
-  effects and the Mic on one screen, for running a show. The button is lit
-  while the mic is on.
+- **Mic**: a **Mic** button in the player bar (next to Rec and Cast) puts
+  your voice in the mix and in recordings: on/off, the input, a level meter,
+  **Talk** (tap to mute or unmute, hold while muted to talk, or the **T**
+  key), **Hear myself** (off by default: you don't hear yourself through the
+  speakers unless you turn it on) and optional **Noise suppression**. The
+  mic is always off when MCO starts.
+- **Mic FX**: the mic's own effects — Voice (gain, noise gate, compressor),
+  EQ, **Pitch** (−12…+12 semitones, with a Mix to blend in your own voice),
+  Echo (with Throw, BPM-synced), Reverb, a Radio voice, and Ducking that
+  turns the music down while you talk. Everything can be MIDI-mapped.
+- **Live** screen (the Live button in the player bar): the queue and all the
+  effects on one screen, for running a show. The button is lit while the
+  mic is on.
+- **Visualizer**: a **Frame rate** picker in its top bar (15, 24, 30, 60 fps
+  or Max).
+
+### Changed
+- **FX screen**: the effects are in three clearly separate groups —
+  **Music FX**, **Mic FX** and **Instruments** (the Dub Siren) — in three
+  equal columns on a wide window, and stacked on the Live screen. The FX
+  button lights up for the mic's effects too.
+- **Visualizer**: renders at 30 fps by default instead of the display's full
+  refresh rate, so the GPU runs cooler.
+- **App menu**: says **MCO** instead of `v1-library-organizer` in About, Hide
+  and Quit.
+
+### Fixed
+- **Cast**: when MCO's queue empties, the TV goes back to its **Load a song
+  to continue** screen instead of keeping the last track's title, year and
+  seek bar up.
 
 ## 1.0.46 — 2026-09-27
 

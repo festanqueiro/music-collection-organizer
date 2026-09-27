@@ -13,7 +13,8 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 - [Roadmap](product/roadmap.md): shipped, in progress, next; known issues.
 - [Glossary](product/glossary.md): the words we use (collection, Tags/Subtags, cue, receiver…).
 - [Changelog](../CHANGELOG.md): what changed in each release, newest first.
-- [Latest session](log/2026-09-26-session.md): what was built on 2026-09-26 and the issues faced.
+- [Latest session](log/2026-09-27-session.md): what was built on 2026-09-27 and the issues faced
+  ([previous](log/2026-09-26-session.md)).
 
 ## Sections
 | Folder | Holds | One file per |
