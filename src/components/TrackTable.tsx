@@ -459,7 +459,7 @@ export function TrackTable({
     onSelect(track)
   }
 
-  // Play and pre-listen: their own fixed first column, never reordered
+  // Play and pre-listen: their own fixed column after the checkbox, never reordered
   // with the others. A missing track's file is gone — nothing to play.
   function renderPlayCell(track: Track) {
     if (track.missing) return null
@@ -748,7 +748,6 @@ export function TrackTable({
         >
           <thead>
             <tr>
-              <th style={{ ...cellStyle, width: PLAY_COL_WIDTH, ...stickyHeaderStyle }} />
               <th style={{ ...cellStyle, width: CHECKBOX_COL_WIDTH, ...stickyHeaderStyle }}>
                 <input
                   type="checkbox"
@@ -756,6 +755,7 @@ export function TrackTable({
                   onChange={(e) => setTracksChecked(visibleTracks.map((t) => t.id), e.target.checked)}
                 />
               </th>
+              <th style={{ ...cellStyle, width: PLAY_COL_WIDTH, ...stickyHeaderStyle }} />
               {orderedColumns.map((col) => (
                 <th
                   key={col.key}
@@ -847,7 +847,6 @@ export function TrackTable({
                 }}
                 style={{ cursor: 'pointer', height: ROW_HEIGHT, ...(track.missing ? { opacity: 0.6 } : {}) }}
               >
-                <td style={{ ...cellStyle, padding: '8px 4px 8px 8px' }}>{renderPlayCell(track)}</td>
                 <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
@@ -858,6 +857,7 @@ export function TrackTable({
                     onChange={() => handleCheckboxClick(track.id, shiftKeyRef.current)}
                   />
                 </td>
+                <td style={{ ...cellStyle, padding: '8px 4px' }}>{renderPlayCell(track)}</td>
                 {orderedColumns.map((col) => (
                   <td key={col.key} style={cellStyleFor(col.key)}>
                     {renderCell(track, col.key)}

@@ -6,6 +6,10 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Changed
+- The track list's play and headphones column now comes right after the
+  checkbox, instead of before it.
+
 ## 1.0.45 — 2026-09-27
 
 ### Changed
