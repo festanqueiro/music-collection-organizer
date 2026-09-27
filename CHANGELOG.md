@@ -10,6 +10,11 @@ installed copies update themselves.
 - **Visualizer**: now renders at 30 fps instead of the display's full
   refresh rate, so the GPU runs cooler.
 
+### Fixed
+- **Cast**: when MCO's queue empties, the TV goes back to its **Load a song
+  to continue** screen instead of keeping the last track's title, year and
+  seek bar up.
+
 ## 1.0.47 — 2026-09-27
 
 ### Added

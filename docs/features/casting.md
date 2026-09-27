@@ -46,7 +46,8 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
     right now (Filter, EQ, Delay, Reverb, Siren), lit as they're used.
 
   With the visualizer's track info on, it also shows BPM, key and the next track. With nothing
-  loaded, it shows **Load a song to continue**. Every part of this screen has a fixed size, so nothing
+  loaded (also when MCO's queue empties
+  during a cast), it shows **Load a song to continue**, with no track details, seek bar or cover left over. Every part of this screen has a fixed size, so nothing
   moves when a track with more or less information loads (unknown stats show "—").
 - **TV visualizers**: **Drift**, **Ripples** (rings rising from the bottom), **Mandala** (6-fold)
   and **Scope**, drawn without the GPU so they run on TVs that can't handle the 3D themes

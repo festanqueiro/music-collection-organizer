@@ -596,6 +596,19 @@ function receive(message: ToReceiver): void {
       break
     case 'queue':
       queue = message
+      // MCO's queue is empty: nothing is loaded there any more, so the TV
+      // goes back to its "Load a song" screen rather than keeping the last
+      // track's title, year and seek bar up.
+      if (!message.current && currentTrack) {
+        audio.pause()
+        currentTrack = null
+        // As on first connect: no cover behind it. A track loaded again
+        // repaints it.
+        artworkShown = null
+        paintBackdrop(null)
+        render()
+        break
+      }
       renderTrack()
       renderQueue()
       break
