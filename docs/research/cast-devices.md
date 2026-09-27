@@ -68,6 +68,15 @@ keep-awake assertion.
   still doesn't offer them. Untested: more capable devices (Google TV Streamer, Chromecast with
   Google TV 4K, Nvidia Shield) may run them.
 
+## Google TV remote (dropped, 2026-09-27)
+- On-screen play/pause and next buttons driven by `keydown` (D-pad left/right, OK) did nothing on the
+  Chromecast HD: the receiver page doesn't seem to get the remote's keys.
+- Loading tracks through CAF's `PlayerManager` (`setMediaElement` on the page's own `<audio>`, then
+  `load()`), so the remote would reach it as PLAY/PAUSE, broke the receiver: the TV stayed on "Load a
+  song to continue". Reverted; remote control dropped at the user's request.
+- The Chromecast HD's remote-debugging port (9222) was closed, so what the page receives couldn't be
+  inspected.
+
 ## AirPlay
 - macOS AVKit's `AVRoutePickerView` routes an `AVPlayer` only; MCO's audio is Web Audio in Chromium.
 - CoreAudio lists no AirPlay output until one is chosen in Control Center (none listed on the user's
