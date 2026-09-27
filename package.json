@@ -74,7 +74,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.186.0",
-    "threejs-visualisers": "github:festanqueiro/threejs-visualisers#07ec4c161fd7ecccc06c6f93cc514e3879eb59d7",
+    "threejs-visualisers": "github:festanqueiro/threejs-visualisers#v0.2.0",
     "zustand": "^5.0.15"
   }
 }
