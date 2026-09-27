@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-28
 ---
 # 0047. Delay the visuals with a DelayNode on the music bus

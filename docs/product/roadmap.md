@@ -21,8 +21,8 @@ Per-release detail is in the [changelog](../log/changelog.md).
 ## Next (roughly in priority order; S ≤ a day, M = a few days, L = a week+)
 0. **Show on a screen + Visual delay (M)** — the visualizer full screen on a second display (Apple TV as
    an AirPlay display, projector, monitor), drawn by the Mac; an app-wide Visual delay to match late
-   audio. Specced ([feature](../features/second-screen.md), ADRs 0046/0047, proposed); to build when the
-   Apple TV arrives.
+   audio. Built on `feature/second-screen` ([feature](../features/second-screen.md), ADRs 0046/0047); the
+   Apple TV itself still to test.
 1. **Smart crates and saved playlists (M)** — named lists in `crates`/`crate_tracks`; smart crates as
    saved filter rules (tags AND/OR, BPM range, key, format, date added) using the table's filter
    predicates; a sidebar view; fed into the Rekordbox export.

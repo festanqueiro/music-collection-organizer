@@ -1,7 +1,7 @@
 // src/components/Visualizer.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FPS_CHOICES, FrameLimiter, VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
-import { getActiveAnalyser } from '../audio/audioAnalysis'
+import { getAudioEngine } from '../audio/audioEngine'
 import { useCollectionStore } from '../state/store'
 import { castingToAScreen } from '../cast/castSession'
 import { decodeHtmlEntities } from '../format'
@@ -135,8 +135,9 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       width: host.clientWidth,
       height: host.clientHeight,
       pixelRatio: Math.min(window.devicePixelRatio, 2),
-      // Re-read every frame: Player swaps the analyser per track.
-      analyser: getActiveAnalyser,
+      // The engine's visual tap: the music (track + siren), held back by the
+      // Visual delay (ADR 0047).
+      analyser: getAudioEngine().getVisualAnalyser(),
     })
     host.appendChild(engine.canvas)
     rendererRef.current = engine

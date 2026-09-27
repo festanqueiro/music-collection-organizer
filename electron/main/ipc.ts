@@ -2,6 +2,7 @@ import { app, ipcMain, dialog, shell, BrowserWindow, powerSaveBlocker, type IpcM
 import { basename, join, relative, isAbsolute } from 'node:path'
 import { writeFileSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { applyMoves, planMove, type MovedTrack } from './moveTracks'
+import { listScreenDisplays, watchScreenDisplays } from './screenWindow'
 import type { AppDatabase } from './db'
 import {
   getCollectionFolder,
@@ -1034,6 +1035,11 @@ export function registerIpcHandlers(
   ipcMain.handle('cast:stop', (): void => cast.stop())
 
   registerRecordingIpc(sendToRenderer)
+
+  // Displays the second screen can show on, and their changes (an Apple
+  // TV joining as an AirPlay display, a projector unplugged).
+  ipcMain.handle('screen:getDisplays', () => listScreenDisplays(getMainWindow()))
+  watchScreenDisplays(() => sendToRenderer('screen:displays', listScreenDisplays(getMainWindow())))
 
   // While the full-screen visualiser is open, keep the Mac and its display
   // awake — it's something to watch, not to interact with, so the idle

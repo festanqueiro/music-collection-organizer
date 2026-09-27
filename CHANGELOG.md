@@ -6,6 +6,19 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Added
+- **Show on a screen**: a **Screen** button in the player bar puts the
+  visualizer, with the track info, full screen on another display — an
+  Apple TV used as an AirPlay display, a projector or a monitor — or in a
+  window, while you keep using MCO. The Mac draws it, so every theme runs
+  smoothly.
+- **Visual delay** (Settings → Audio, and in the Screen menu): holds the
+  visuals back to line them up with sound that arrives late, like AirPlay
+  to an Apple TV.
+
+### Changed
+- **Visualizer**: it now reacts to the Dub Siren too.
+
 ## 1.0.48 — 2026-09-28
 
 ### Added

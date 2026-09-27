@@ -1,5 +1,5 @@
 ---
-status: planned
+status: in-progress
 updated: 2026-09-28
 adrs: [0046, 0047]
 ---
@@ -58,20 +58,22 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
 
 ## Behaviour
 - **Screen** button in the player bar, after Cast (lit while showing), opening a popover like Cast's:
-  - **Display**: the other displays by name (e.g. "Living Room" for an Apple TV, "DELL U2720Q"), plus
-    **A window on this display**. With no other display: a hint on how to add one (the Apple TV steps
-    above). The list follows displays being connected and disconnected.
-  - **Theme** and its options (the visualizer's, chosen separately from the Mac's own visualizer, and
-    remembered), **Hide track info**, **Frame rate** (the visualizer's setting, shared).
+  - **Displays**: the other displays by name, size and refresh rate (e.g. "Living Room", "DELL U2720Q
+    · 2560×1440 · 60 Hz"), plus **A window on this display**. Clicking one shows it there (or moves it).
+    With no other display: a hint on how to add one (the Apple TV steps above). The list follows
+    displays being connected and disconnected.
+  - **Theme** (chosen separately from the Mac's own visualizer, and remembered; each theme's options
+    are the visualizer's, shared) and **Hide track info**. The frame rate is the visualizer's setting.
   - **Visual delay** (the app-wide setting below).
-  - **Show** / **Stop showing**, and "Showing on Living Room" while it is.
+  - "Showing on Living Room" / "Showing in a window" with **Stop** while it is.
 - **The screen**: black, full screen on that display (a normal window for "A window on this display"),
-  the visualizer filling it, with the track's title and artist (and BPM, key, next track) unless hidden,
-  appearing on track changes as on the Mac's visualizer. No controls on it (it's for the audience); no
+  the visualizer filling it, with the track's title, artist, BPM and the next track along the bottom
+  unless hidden (sized to the screen). No controls on it (it's for the audience); no
   cursor.
 - It keeps running across track changes, pauses (the visuals settle, as the Mac's do) and screens in
   MCO; closing MCO's window or quitting closes it. Unplugging the display (or the Apple TV going away)
-  closes it and says so. The Mac and its displays don't sleep while it's showing.
+  closes it and says so ("The screen's display was disconnected"); closing the window itself (Cmd+W)
+  says "The screen was closed". The Mac and its displays don't sleep while it's showing.
 - It works alongside the Mac's own visualizer, casting and recording — they don't depend on each other.
   (Casting to a TV *and* showing on the Apple TV at once is allowed; each shows its own picture.)
 - **Visual delay** — an app-wide setting in **Settings → Audio** (and in the Screen popover): 0–3000 ms,
@@ -81,9 +83,11 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
 
 ## How it works
 - **Window** ([ADR 0046](../adr/0046-second-screen-as-a-child-window.md)): the renderer calls
-  `window.open('', 'mco-screen', 'display=<id>')`; the main process's `setWindowOpenHandler` on the main
-  window allows only the frame name `mco-screen`, placing it on that display's bounds (frameless, black,
-  full screen via `did-create-window` → `setFullScreen(true)`), and denies anything else. React renders
+  `window.open('', 'mco-screen-<time>', 'display=<id>|window')` (`src/components/SecondScreen.tsx`); the
+  main process's `setWindowOpenHandler` on the main window (`electron/main/screenWindow.ts`,
+  `screenWindowPlan`) allows only frame names starting `mco-screen`, placing it on that display's bounds
+  (frameless, black, then `setFullScreen(true)` in `did-create-window`) or as a 960×540 window centred on
+  MCO, and denies anything else. React renders
   the screen into the child's document with `createPortal` (styles copied into its `<head>`); a
   `VisualizerEngine` drives it from the child's `requestAnimationFrame` with a `FrameLimiter`. Closing:
   the renderer closes the child; the child closing itself (Cmd+W, display gone) updates the store.
@@ -93,20 +97,23 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
   feeds a `DelayNode` → `AnalyserNode` ("visual tap", built on first use); `setVisualDelay(seconds)`. The
   second screen and the Mac's visualizer read that analyser instead of the per-track one. Track info on
   the second screen changes after the same delay (a timer).
-- **Store**: `screenDisplayId` (null = not showing), `screenTheme`, `screenHideTrackInfo`, theme options
+- **Store**: `screenTarget` (a display id, `'window'`, or null = not showing), `screenTheme`, `screenHideTrackInfo`, theme options
   shared with the visualizer's per-theme options, `visualDelayMs` (localStorage, like the visualizer's
   preferences).
 - **Power**: the existing `power:keepDisplayAwake` while showing.
 
 ## Tests
-- Unit: the display list mapping (labels, "this display" excluded or marked), the window-open handler's
-  allow/deny and placement (pure function of frame name, features and displays), the visual tap's delay
-  setting (fake context, like `audioEngine.test.ts`), the delayed track-info timer.
-- BETA over DevTools: open on "A window on this display", screenshot; theme/option/hide changes reach
-  it; closing either side updates the other; the visual delay measured (a click through the siren vs. the
-  analyser's response).
-- By hand, with the Apple TV: Use As Separate Display → listed → full screen on the TV; AirPlay audio
-  latency measured and matched with Visual delay; unplug/sleep the Apple TV mid-show.
+- Unit: `electron/main/screenWindow.test.ts` (the display list's names and "MCO is on it", parsing the
+  target, the window-open plan: refused unless it's the screen, refused for a display that's gone, a
+  display's bounds + full screen, a window centred on MCO) and `src/audio/audioEngine.test.ts` (the visual
+  tap is built on first use with the delay already set; the delay is clamped and reaches the live tap).
+- BETA over DevTools (2026-09-28): the popover lists "A window on this display" and the no-display hint;
+  choosing it opens "MCO Screen" (960×540, WebGL canvas, styles and fonts copied) drawing Nebula
+  (screenshot); **Stop** closes it; closing the window from its side resets the button with "The screen
+  was closed".
+- To do by hand: a real second display (monitor/iPad Sidecar); with the Apple TV, Use As Separate
+  Display → listed → full screen on the TV; AirPlay audio latency measured and matched with Visual delay;
+  unplugging or sleeping the Apple TV mid-show.
 
 ## Limits & open questions
 - **Now-playing screen** (artwork, stats, up next — the Cast receiver's) on the second screen: not in

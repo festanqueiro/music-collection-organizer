@@ -15,6 +15,12 @@
 // recordOutput is the recording's level (the Rec popover's Level knob):
 // it changes what's written to the file, not what's heard.
 //
+//   input ─> visualDelay ─> visualAnalyser   (the visualizers' tap)
+//
+// The visualizers read the music (track + siren) through a delay line, so
+// they can be held back to match sound that reaches the room late (AirPlay,
+// Bluetooth) — the Visual delay setting (ADR 0047).
+//
 // The mic isn't heard through the speakers unless monitoring is on — a
 // mic next to speakers feeds back. duckGain pulls the music down under
 // the voice (see audio/mic.ts).
@@ -27,11 +33,14 @@
 // suspended. A running context renders the whole graph (convolver
 // included) even in silence (ADR 0025).
 export const IDLE_SUSPEND_MS = 15000
+// The Visual delay's ceiling (the setting stops at 3 s).
+export const MAX_VISUAL_DELAY_SECONDS = 5
 const PARAM_SMOOTH_TAU = 0.02
 
 type EngineContext = Pick<
   AudioContext,
   'state' | 'currentTime' | 'destination' | 'createGain' | 'resume' | 'suspend'
+  | 'createDelay' | 'createAnalyser'
 > &
   Partial<Pick<AudioContext, 'baseLatency' | 'outputLatency'>> & {
     setSinkId?: (id: string) => Promise<void>
@@ -52,6 +61,8 @@ export class AudioEngine {
   private monitorGain: GainNode
   private localGain: GainNode
   private recordMeter: RecordMeter | null = null
+  private visualTap: { delay: DelayNode; analyser: AnalyserNode } | null = null
+  private visualDelaySeconds = 0
   private recordMeterFailed = false
   // Whoever is making sound right now (a playing track, a held siren, a
   // running beat). The context suspends once this has been empty for
@@ -123,6 +134,34 @@ export class AudioEngine {
   // feedback). It's recorded either way.
   setMicMonitoring(on: boolean): void {
     this.monitorGain.gain.setTargetAtTime(on ? 1 : 0, this.context.currentTime, PARAM_SMOOTH_TAU)
+  }
+
+  // What the visualizers draw from: the music bus, delayed by the Visual
+  // delay setting. Built on first use (a delay line of a few seconds of
+  // audio only costs anything once something draws).
+  getVisualAnalyser(): AnalyserNode {
+    if (!this.visualTap) {
+      const delay = this.context.createDelay(MAX_VISUAL_DELAY_SECONDS)
+      delay.delayTime.value = this.visualDelaySeconds
+      const analyser = this.context.createAnalyser()
+      analyser.fftSize = 2048
+      analyser.smoothingTimeConstant = 0.8
+      this.input.connect(delay)
+      delay.connect(analyser)
+      this.visualTap = { delay, analyser }
+    }
+    return this.visualTap.analyser
+  }
+
+  // Holds the visuals back by `seconds` (clamped to 0..MAX), e.g. to match
+  // AirPlay audio arriving ~1-2 s late.
+  setVisualDelay(seconds: number): void {
+    this.visualDelaySeconds = Math.min(MAX_VISUAL_DELAY_SECONDS, Math.max(0, seconds))
+    this.visualTap?.delay.delayTime.setValueAtTime(this.visualDelaySeconds, this.context.currentTime)
+  }
+
+  get visualDelay(): number {
+    return this.visualDelaySeconds
   }
 
   // The recording's level in dB (0 = as heard). Only what's recorded

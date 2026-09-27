@@ -65,6 +65,9 @@ MCO's own database.
   themes: Nebula, Warp, Horizon, Sound System (a speaker stack that thumps
   along with the music), Smoke, Kaleidoscope, Paint, and Liquid 3D. It
   runs at 30 fps by default to keep the GPU cool (15 to 60 fps, or Max).
+- **Show on a screen** — the visualizer full screen on a second display (an
+  Apple TV as an AirPlay display, a projector, a monitor), drawn by the Mac,
+  with a **visual delay** to line it up with sound that arrives late.
 - **Casting** — play to a Chromecast, Google TV, or Nest speaker. On a
   TV, MCO's own Cast app plays the music with your effects and dub siren,
   runs the visualizer, and shows a now-playing screen: artwork, tags, BPM,

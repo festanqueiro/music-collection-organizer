@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../../state/store'
 import { Hint, Message, Page, Section } from './ui'
+import { VisualDelayControl } from '../VisualDelayControl'
 
 export function AudioPage() {
   const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
@@ -64,6 +65,13 @@ export function AudioPage() {
         {(cueOutputDeviceId ?? '') === (audioOutputDeviceId ?? '') && (
           <Hint>Same as the main output, so previews will be heard on the main speakers too.</Hint>
         )}
+      </Section>
+
+      <Section
+        title="Visual delay"
+        description="Holds the visualizer (on the Mac and on a second screen) back, to line it up with sound that reaches the room late — AirPlay to an Apple TV is usually 1–2 s behind, Bluetooth speakers a little. The sound itself isn't delayed."
+      >
+        <VisualDelayControl />
       </Section>
     </Page>
   )

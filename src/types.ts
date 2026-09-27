@@ -379,6 +379,24 @@ export type MidiImportResult = { mappings: MidiMappings; skipped: string[] } | {
 
 // A Google Cast device (Chromecast, Google TV, Nest speaker) found on the
 // LAN — see electron/main/cast/castDiscovery.ts.
+// A display MCO can show the second screen on (Settings-free: from
+// Electron's screen API, docs/features/second-screen.md).
+export interface ScreenDisplay {
+  id: number
+  label: string
+  internal: boolean
+  width: number
+  height: number
+  // Refresh rate, Hz (0 when macOS doesn't say).
+  hz: number
+  // MCO's own window is on it.
+  hasMainWindow: boolean
+}
+
+// Where the second screen shows: a display's id, or a window on the
+// display MCO is on.
+export type ScreenTarget = number | 'window'
+
 export interface CastDevice {
   id: string
   name: string

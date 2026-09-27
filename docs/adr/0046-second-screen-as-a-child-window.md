@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-09-28
 ---
 # 0046. Show the second screen in a same-origin child window of MCO's page
