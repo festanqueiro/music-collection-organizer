@@ -6,11 +6,12 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.45 — 2026-09-27
+
 ### Changed
 - Folder names in the folder tree stay on one line; long ones end in "…"
   and show the full name when you hover them.
 - The Mac and its screen no longer go to sleep while the visualizer is on.
-
 - **Update Collection** now removes tracks whose file is gone (and their
   tags) instead of keeping them in Missing Tracks. Background rescans still
   only hide them, and nothing is removed if the folder looks empty (e.g. an
