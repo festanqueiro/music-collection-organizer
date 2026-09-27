@@ -19,7 +19,8 @@ installed copies update themselves.
   the track list, instead of sitting in the Title column (which could be
   moved).
 - The EQ is always on: its on/off switch and Mix knob are gone, and its
-  Low, Mid and High knobs now sit next to Volume in the Master card.
+  Low, Mid and High knobs now sit next to the master Volume in one card,
+  called EQ.
 
 ### Fixed
 - The volume slider (and other sliders/checkboxes) now use the theme's

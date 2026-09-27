@@ -180,7 +180,7 @@ export function FxPanel({ track }: { track: Track | null }) {
     >
       <div style={sectionStyle}>
         <div style={headerRowStyle}>
-          <h4 style={{ margin: 0 }}>Master</h4>
+          <h4 style={{ margin: 0 }}>EQ</h4>
           <MidiLearnBadge control="master.volume" />
         </div>
         <div style={knobRowStyle}>
