@@ -38,7 +38,10 @@ macOS only for now.
   - measurements and probes → `docs/research/`; a session with notable
     findings or bugs → a dated write-up in `docs/log/`; milestones →
     `docs/product/roadmap.md`.
-  - Docs-only PRs get `[skip ci]` in the title (no version bump).
+  - Docs-only PRs get `[skip ci]` in the title (no version bump). Never put
+    `[skip ci]` in a commit on a feature branch: the squash-merge message
+    includes it and skips every workflow on main (version bump, receiver
+    deploy).
 - After finishing a change (feature, fix, tweak — whatever the user asked
   for), run `npm run dist:beta` so the BETA app on disk is rebuilt and
   reinstalled with the change, ready for the user to test immediately
