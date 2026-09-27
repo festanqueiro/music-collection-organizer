@@ -6,6 +6,8 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.47 — 2026-09-27
+
 ### Added
 - **Record**: a **Rec** button in the player bar records what MCO plays — the
   track with its effects and the dub siren — to a WAV, FLAC or MP3 file
