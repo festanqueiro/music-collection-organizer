@@ -340,6 +340,11 @@ export class CastController {
     })
     client.on('media', (status: CastMediaStatus) => {
       if (this.session !== session) return
+      // MCO's own app reports through its 'status' messages above. It
+      // plays through the framework's player too (so the TV's remote
+      // reaches it), whose media statuses would repeat those (FINISHED
+      // twice) or end the session on its own errors.
+      if (session.mode === 'receiver') return
       if (status.playerState !== 'IDLE') {
         if (session.mode === 'direct') this.forwardMedia(session, status)
         return

@@ -30,9 +30,16 @@ import {
 import logoUrl from '../resources/icon.png'
 
 // Minimal typing for the bits of Google's Cast receiver framework used here.
+interface CastPlayerManager {
+  setMediaElement(element: HTMLMediaElement): void
+  load(request: object): Promise<void>
+  setMessageInterceptor(type: string, interceptor: ((request: { requestId?: number }) => object | null) | null): void
+  setSupportedMediaCommands(commands: number, broadcastStatus?: boolean): void
+}
 interface CastContext {
   addCustomMessageListener(namespace: string, listener: (event: { data: unknown }) => void): void
   sendCustomMessage(namespace: string, senderId: string | undefined, message: unknown): void
+  getPlayerManager(): CastPlayerManager
   start(options: object): void
   stop(): void
 }
@@ -41,6 +48,14 @@ declare const cast:
       framework: {
         CastReceiverContext: { getInstance(): CastContext }
         CastReceiverOptions: new () => { disableIdleTimeout?: boolean; skipPlayersLoad?: boolean }
+        messages: {
+          MessageType: Record<string, string>
+          Command: Record<string, number>
+          LoadRequestData: new () => { media: object; currentTime?: number; autoplay?: boolean }
+          MediaInformation: new () => { contentId?: string; contentUrl?: string; contentType?: string; streamType?: string; metadata?: object }
+          MusicTrackMediaMetadata: new () => { title?: string; artist?: string; images?: object[] }
+          Image: new (url: string) => object
+        }
       }
     }
   | undefined
@@ -595,6 +610,63 @@ document.addEventListener('keydown', (e) => {
 })
 for (const event of ['play', 'pause']) audio.addEventListener(event, renderControls)
 
+// Plays a track through the Cast framework's player (on this page's own
+// <audio> element, so the effects chain still hears it), so the TV knows
+// something is playing: the remote's OK then reaches it as play/pause.
+// Should the framework refuse it, the element plays it directly, as before.
+function loadTrack(message: LoadMessage, seq: number): void {
+  const direct = () => {
+    audio.src = message.url
+    audio.addEventListener(
+      'loadedmetadata',
+      () => {
+        audio.currentTime = message.position
+        if (message.autoplay) audio.play().catch(() => {})
+      },
+      { once: true },
+    )
+  }
+  if (!context || !cast) return direct()
+  const { messages } = cast.framework
+  const media = new messages.MediaInformation()
+  media.contentId = message.url
+  media.contentUrl = message.url
+  media.contentType = 'audio/mpeg'
+  media.streamType = 'BUFFERED'
+  const metadata = new messages.MusicTrackMediaMetadata()
+  metadata.title = decode(message.title)
+  if (message.artist) metadata.artist = decode(message.artist)
+  if (message.artworkUrl) metadata.images = [new messages.Image(message.artworkUrl)]
+  media.metadata = metadata
+  const request = new messages.LoadRequestData()
+  request.media = media
+  request.currentTime = message.position
+  request.autoplay = message.autoplay
+  context
+    .getPlayerManager()
+    .load(request)
+    .catch((err: unknown) => {
+      showRemoteDebug(`framework load failed: ${String(err)}`)
+      // Unless another track has been loaded since.
+      if (seq === loadSeq) direct()
+    })
+}
+
+// TEMPORARY (remote diagnosis): a line at the bottom of the screen for each
+// remote press this page gets, as a key or as a Cast media command.
+const remoteDebugLines: string[] = []
+let remoteDebugTimer: ReturnType<typeof setTimeout> | null = null
+function showRemoteDebug(line: string): void {
+  remoteDebugLines.push(line)
+  while (remoteDebugLines.length > 4) remoteDebugLines.shift()
+  const box = $('remote-debug')
+  box.textContent = remoteDebugLines.join('   |   ')
+  box.hidden = false
+  if (remoteDebugTimer) clearTimeout(remoteDebugTimer)
+  remoteDebugTimer = setTimeout(() => (box.hidden = true), 8000)
+}
+window.addEventListener('keydown', (e) => showRemoteDebug(`key ${e.key} (${e.code || e.keyCode})`), true)
+
 function receive(message: ToReceiver): void {
   switch (message.type) {
     case 'load': {
@@ -602,15 +674,7 @@ function receive(message: ToReceiver): void {
       keepScreenAwake()
       trackId = message.trackId
       idleReason = null
-      audio.src = message.url
-      audio.addEventListener(
-        'loadedmetadata',
-        () => {
-          audio.currentTime = message.position
-          if (message.autoplay) audio.play().catch(() => {})
-        },
-        { once: true },
-      )
+      loadTrack(message, loadSeq + 1)
       currentTrack = message
       loadSeq++
       sessionStartedAt ??= Date.now()
@@ -707,6 +771,26 @@ if (context) {
   // player), so the framework would otherwise think it idle and close it.
   options.disableIdleTimeout = true
   options.skipPlayersLoad = true
+
+  // Tracks play through the framework's player on our own element (see
+  // loadTrack), so the TV's remote reaches this page as media commands.
+  // Play/pause/seek go on to the element as usual (MCO follows its
+  // status); Next becomes MCO's Next.
+  const playerManager = context.getPlayerManager()
+  playerManager.setMediaElement(audio)
+  const { MessageType, Command } = cast!.framework.messages
+  for (const type of ['PLAY', 'PAUSE', 'SEEK', 'STOP', 'QUEUE_NEXT', 'QUEUE_PREV', 'SKIP_AD', 'QUEUE_UPDATE']) {
+    if (!MessageType[type]) continue
+    playerManager.setMessageInterceptor(MessageType[type], (request) => {
+      showRemoteDebug(`command ${type}`)
+      if (type === 'QUEUE_NEXT') {
+        press('next')
+        return null
+      }
+      return request
+    })
+  }
+  playerManager.setSupportedMediaCommands(Command.PAUSE | Command.SEEK | Command.QUEUE_NEXT, false)
   context.start(options)
 
   // This page plays audio itself, not through the framework's media player,
