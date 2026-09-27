@@ -51,7 +51,7 @@ Options, as dropdowns in the bar along the top right (the theme's own options sa
   **Palette**: *Shifting*, *Mercury*, *Game Boy*, *Amber*, *CGA*.
 
 While casting to a TV, this visualizer is off: the button is dimmed and says to pick one in the
-Cast menu, where the TV's own visualizers are ([casting](casting.md),
+Cast menu, where the TV's own visualizers and the 3D themes are ([casting](casting.md),
 [ADR 0038](../adr/0038-pick-the-tv-screen-in-the-cast-menu.md)). With a speaker it works as usual.
 
 While casting to a TV, opening the visualizer shows it on the TV instead,

@@ -52,11 +52,13 @@ describe('isTvVisualizer', () => {
 })
 
 describe('isCastScreen', () => {
-  it('accepts now playing and the current TV visualizers, not removed ones', () => {
+  it('accepts now playing, the TV visualizers and the three.js themes, not removed ones', () => {
     expect(isCastScreen('now-playing')).toBe(true)
     expect(isCastScreen('tv-mandala')).toBe(true)
     expect(isCastScreen('tv-ridges')).toBe(false)
     expect(isCastScreen('tv-smoke')).toBe(false)
-    expect(isCastScreen('nebula')).toBe(false)
+    expect(isCastScreen('nebula')).toBe(true)
+    expect(isCastScreen('paint')).toBe(true)
+    expect(isCastScreen('bogus')).toBe(false)
   })
 })

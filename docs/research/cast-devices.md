@@ -63,6 +63,9 @@ keep-awake assertion.
   (tested 2026-09-26). Paint is mostly simple 2D quads/ribbons; the others use full-screen shaders,
   bloom, shadows or many particles. Deferred; levers: lower resolution + upscale, cheaper/no bloom on
   the receiver, fewer particles, a per-theme "TV quality" option. Don't degrade the desktop look.
+- That test ran uncapped (the TV's full refresh rate). Since 2026-09-27 the receiver renders the 3D
+  themes at 30 fps and the Cast menu offers them again ([ADR 0045](../adr/0045-3d-themes-back-on-the-tv-at-30-fps.md));
+  to re-test which run smoothly.
 
 ## AirPlay
 - macOS AVKit's `AVRoutePickerView` routes an `AVPlayer` only; MCO's audio is Web Audio in Chromium.

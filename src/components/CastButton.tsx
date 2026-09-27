@@ -1,5 +1,6 @@
 // src/components/CastButton.tsx
 import { useEffect, useRef, useState } from 'react'
+import { VISUALIZER_THEMES } from 'threejs-visualisers'
 import { useCollectionStore } from '../state/store'
 import { castingToAScreen, isCastActive, startCasting, stopCasting } from '../cast/castSession'
 import { TV_VISUALIZERS, type CastScreen } from '../cast/tvVisualizers'
@@ -10,10 +11,12 @@ import { barButtonStyle } from './playerBarStyles'
 const POPOVER_WIDTH = 300
 
 // What the TV can show: the now-playing screen (the track's details, the
-// queue) or one of its own visualizers.
+// queue), one of its own visualizers, or a three.js theme ("3D": most are
+// too heavy for a Chromecast HD's GPU, see docs/research/cast-devices.md).
 const SCREEN_CHOICES: { id: CastScreen; name: string; icon: string }[] = [
   { id: 'now-playing', name: 'Now playing (track details)', icon: 'info' },
   ...TV_VISUALIZERS.map((v) => ({ id: v.id, name: `Visualizer: ${v.name}`, icon: 'graphic_eq' })),
+  ...VISUALIZER_THEMES.map((theme) => ({ id: theme.id, name: `3D: ${theme.name}`, icon: 'view_in_ar' })),
 ]
 
 // Player-bar button + popover for casting to a Google Cast device (Google
