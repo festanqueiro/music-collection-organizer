@@ -6,6 +6,7 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Added
 - **Record**: a level meter (left/right, with a clip light) and a **Level**
   knob in the Rec popover, to see how loud the recording is and turn it down
   without changing what you hear.
