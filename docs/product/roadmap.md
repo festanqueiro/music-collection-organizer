@@ -19,6 +19,10 @@ Per-release detail is in the [changelog](../log/changelog.md).
 | **1.0.47 Record mode (podcast)** | shipped (2026-09-27, PR #84) | One audio engine ([ADR 0041](../adr/0041-one-audio-engine.md)); recording the output to WAV/FLAC/MP3 with a level meter and Level knob (ADR 0042/0043); the Mic (player-bar popover, noise suppression) with its own effects incl. Pitch, ducking and Talk (ADR 0044); Live screen; FX screen in Music FX / Mic FX / Instruments groups; visualizer frame-rate cap (30 fps default, ADR 0045). No casting while recording; video later. [Feature](../features/recording.md). |
 
 ## Next (roughly in priority order; S ≤ a day, M = a few days, L = a week+)
+0. **Show on a screen + Visual delay (M)** — the visualizer full screen on a second display (Apple TV as
+   an AirPlay display, projector, monitor), drawn by the Mac; an app-wide Visual delay to match late
+   audio. Specced ([feature](../features/second-screen.md), ADRs 0046/0047, proposed); to build when the
+   Apple TV arrives.
 1. **Smart crates and saved playlists (M)** — named lists in `crates`/`crate_tracks`; smart crates as
    saved filter rules (tags AND/OR, BPM range, key, format, date added) using the table's filter
    predicates; a sidebar view; fed into the Rekordbox export.
