@@ -437,7 +437,9 @@ export interface CollectionState {
   setTrackSubgenres: (trackId: number, subgenreIds: number[]) => Promise<void>
   setSearchText: (text: string) => void
   // analyseNew: also analyse the tracks this scan added.
-  runScan: (opts?: { analyseNew?: boolean }) => Promise<void>
+  // removeMissing: also delete tracks whose file is gone, with their tags
+  // (Update Collection only — ADR 0040).
+  runScan: (opts?: { analyseNew?: boolean; removeMissing?: boolean }) => Promise<void>
   runAnalysis: (trackIds?: number[]) => Promise<void>
   // One play of a track (see Player.tsx): bumps its play count.
   recordPlay: (trackId: number) => Promise<void>
@@ -1405,7 +1407,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   runScan: async (opts) => {
     const before = new Set(get().tracks.map((t) => t.id))
-    await window.api.scanCollection()
+    await window.api.scanCollection({ removeMissing: opts?.removeMissing })
     await get().loadAll()
     if (!opts?.analyseNew) return
     const added = get()

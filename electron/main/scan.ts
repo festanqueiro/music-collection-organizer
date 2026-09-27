@@ -1,4 +1,4 @@
-import { dirname, basename, extname } from 'node:path'
+import { dirname, basename, extname, sep } from 'node:path'
 import { runInTransaction, type AppDatabase } from './db'
 import { walkAudioFiles, type DiskFileWithBlocks } from './folderWalk'
 import { diffScan, type DbTrackRow } from './scanDiff'
@@ -8,6 +8,8 @@ export interface ScanResult {
   inserted: number
   updated: number
   missing: number
+  // Missing tracks deleted by a removeMissing scan (0 otherwise).
+  removed: number
 }
 
 // Files no longer found on disk are never deleted — deleting a tracks row
@@ -17,7 +19,14 @@ export interface ScanResult {
 // and hidden from the renderer (see ipc.ts's tracks:getAll); if a file with
 // the same path is found again in a later scan, it's revived (present = 1)
 // with all of its tags intact, whether or not anything else about it changed.
-export function runScan(db: AppDatabase, rootPath: string): ScanResult {
+//
+// removeMissing (the toolbar's Update Collection only — ADR 0040) does
+// delete them, and their tags: every missing track under rootPath, whether
+// it went missing now or earlier. Tracks from a previous collection folder
+// are left alone, and nothing is removed if the scan found no files at all
+// (the folder is unmounted or not synced yet), since then everything would
+// look missing.
+export function runScan(db: AppDatabase, rootPath: string, opts: { removeMissing?: boolean } = {}): ScanResult {
   const diskFiles = walkAudioFiles(rootPath)
   const trackRows = db.prepare('SELECT path, size, mtime, present, cloud_status FROM tracks').all() as unknown as (DbTrackRow & {
     present: number
@@ -38,6 +47,7 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
   const markMissingStmt = db.prepare('UPDATE tracks SET present = 0 WHERE path = ?')
   const setCloudStatusStmt = db.prepare('UPDATE tracks SET cloud_status = ? WHERE path = ?')
   const reviveStmt = db.prepare('UPDATE tracks SET present = 1 WHERE path = ?')
+  const deleteStmt = db.prepare('DELETE FROM tracks WHERE path = ? AND present = 0')
 
   const toRow = (file: DiskFileWithBlocks) => {
     // blocks was already captured by walkAudioFiles's own statSync — no
@@ -67,6 +77,13 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
     .map((f) => ({ path: f.path, status: toRow(f).cloud_status }))
     .filter((f) => f.status !== cloudStatusByPath.get(f.path))
 
+  const onDisk = new Set(diskFiles.map((f) => f.path))
+  const underRoot = rootPath.endsWith(sep) ? rootPath : rootPath + sep
+  const toDelete =
+    opts.removeMissing && diskFiles.length > 0
+      ? trackRows.map((r) => r.path).filter((path) => path.startsWith(underRoot) && !onDisk.has(path))
+      : []
+
   runInTransaction(db, () => {
     for (const file of diff.toInsert) insertStmt.run(toRow(file))
     for (const file of diff.toUpdate) {
@@ -86,10 +103,17 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
     for (const path of diff.toRemove) markMissingStmt.run(path)
     for (const file of toRevive) reviveStmt.run(file.path)
     for (const file of toRecheck) setCloudStatusStmt.run(file.status, file.path)
+    for (const path of toDelete) deleteStmt.run(path)
   })
 
   // Only files that went missing in this scan — ones already flagged
   // stay missing silently, or every watcher rescan would report them again.
-  const newlyMissing = diff.toRemove.filter((path) => presentByPath.get(path) === 1).length
-  return { inserted: diff.toInsert.length, updated: diff.toUpdate.length, missing: newlyMissing }
+  const deleted = new Set(toDelete)
+  const newlyMissing = diff.toRemove.filter((path) => presentByPath.get(path) === 1 && !deleted.has(path)).length
+  return {
+    inserted: diff.toInsert.length,
+    updated: diff.toUpdate.length,
+    missing: newlyMissing,
+    removed: toDelete.length,
+  }
 }

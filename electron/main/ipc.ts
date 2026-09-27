@@ -508,13 +508,13 @@ export function registerIpcHandlers(
     setAutoAnalyseNewTracks(enabled === true)
   )
 
-  ipcMain.handle('scan:run', async (): Promise<ScanResult> => {
+  ipcMain.handle('scan:run', async (_e, opts?: { removeMissing?: boolean }): Promise<ScanResult> => {
     if (scanInProgress) throw new Error('A scan is already in progress')
     scanInProgress = true
     try {
       const folder = getCollectionFolder()
       if (!folder) throw new Error('No collection folder configured')
-      const result = runScan(db, folder)
+      const result = runScan(db, folder, { removeMissing: opts?.removeMissing === true })
       tagReader.run()
       return result
     } finally {

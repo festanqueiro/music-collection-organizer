@@ -24,9 +24,13 @@ The **Update Collection** icon (toolbar) asks first: *"We're going to scan for n
 folder for audio files (WAV, AIFF, FLAC, MP3, M4A/AAC, OGG, Opus) and compares them with the database:
 - new files are added as *pending* analysis;
 - changed files (size or modified time) are reset to *pending* and their tags re-read;
-- files that disappeared are **hidden, never deleted**, so their tags survive a drive that isn't
-  mounted yet or a temporary move; the same path found again brings the track back
-  ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
+- files that disappeared are **removed**, with their tags — the ones gone since the last scan and
+  any already in Missing Tracks, but only inside the collection folder, and not at all if the scan
+  finds no files (an unmounted drive). The dialog says so, with the current missing count
+  ([ADR 0040](../adr/0040-update-collection-removes-missing-tracks.md)).
+- the background rescans (folder watcher) and switching collection folder only **hide** missing
+  files, so their tags survive a temporary move or a drive that isn't mounted yet; the same path
+  found again brings the track back ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
 
 ### Watching the folder
 MCO watches the collection folder, subfolders included. A few seconds after files are added, removed

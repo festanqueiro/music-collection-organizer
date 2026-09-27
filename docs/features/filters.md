@@ -30,8 +30,9 @@ with the folder or tag selection and the search.
   downloaded to this Mac yet.
 - **Missing Tracks** — shows, instead of the collection, the tracks whose file the last scan couldn't
   find (deleted, moved, renamed or not synced), dimmed with a *File missing* icon in the status
-  column. Their rows and tags are kept (`present = 0`, fetched by `tracks:getMissing`); they can be
-  selected but not played, pre-listened, queued, dragged or right-clicked.
+  column. Their rows and tags are kept (`present = 0`, fetched by `tracks:getMissing`) until the next
+  **Update Collection**, which removes them ([ADR 0040](../adr/0040-update-collection-removes-missing-tracks.md));
+  they can be selected but not played, pre-listened, queued, dragged or right-clicked.
 - Active filters show as chips above the table (× clears one) and as a count on the Filters button,
   also in the collapsed sidebar.
 - Opening Filters keeps the folder/tag selection underneath applied (that view stays mounted), and
