@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0010, 0012, 0023, 0025]
 ---
 # Player
@@ -32,7 +32,7 @@ volume still working), so the screen doesn't jump when a track loads.
 
 A track starts playing as soon as it's loaded. Loading a track that hasn't
 been analysed yet starts its analysis in the background; a cloud-only
-track is downloaded first.
+track is downloaded before it's loaded (and the next three queued are fetched ahead).
 
 ## CUE button
 

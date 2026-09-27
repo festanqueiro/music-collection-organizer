@@ -110,7 +110,7 @@ function setTrackTags(
 }
 
 // Kicks off analysis for one track in the background if it needs it —
-// shared by ensureTrackReady (the track becoming current) and the queueing
+// shared by the playing actions (the track becoming current) and the queueing
 // actions below (a track landing in the queue at all, even before it's
 // current, per the same "explicit user action" reasoning: adding it to
 // the queue is itself deliberate). A cloud-only track has no local file
@@ -126,7 +126,7 @@ function triggerBackgroundAnalysis(get: StoreApi<CollectionState>['getState'], t
 // fire off one IPC round-trip per track.
 // Local tracks that haven't been (successfully) analysed yet. Cloud-only
 // tracks are skipped — they're analysed once downloaded, which happens
-// when they're loaded in the player (see ensureTrackReady).
+// before they're played or when they're next up (see downloadBeforePlaying).
 function tracksNeedingAnalysis(tracks: Track[], trackIds: number[]): number[] {
   const byId = new Map(tracks.map((t) => [t.id, t]))
   return trackIds.filter((id) => {
@@ -154,33 +154,52 @@ function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getSta
     .catch((err) => console.error('background analysis of queued track(s) failed', err))
 }
 
-// A cloud-only track has no local audio to stream yet, so it's downloaded
-// first (blocking — nothing to play until it lands). A pending/error track
-// still plays immediately (analysis isn't needed for playback), but kicks
-// off a background analysis run for just that track — loading a track into
-// the player is itself an explicit user action, so triggering analysis as
-// its consequence is fine; this is distinct from analysing the whole
-// collection silently on its own. Called only by actions that make a track
-// the one actively playing (playTrackNow/advanceToNext).
-async function ensureTrackReady(
-  set: StoreApi<CollectionState>['setState'],
-  get: StoreApi<CollectionState>['getState'],
-  trackId: number
-): Promise<void> {
+// A cloud-only track has no local audio to stream yet: it's downloaded
+// before it goes into the player (the player reading a file that's still
+// only in the cloud stalled playback). Returns false if the download
+// failed, so the caller can leave the player alone.
+async function downloadBeforePlaying(get: StoreApi<CollectionState>['getState'], trackId: number): Promise<boolean> {
   const track = get().tracks.find((t) => t.id === trackId)
-  if (!track) return
-
-  if (track.cloudStatus === 'cloud_only') {
-    try {
-      await window.api.downloadTrack(trackId)
-      await get().loadAll()
-    } catch (err) {
-      console.error('failed to download track before playing it', err)
-      return
-    }
+  if (!track) return false
+  if (track.cloudStatus !== 'cloud_only') return true
+  const name = track.title ?? track.filename
+  get().showToast(`Downloading ${name}…`)
+  try {
+    await downloadTrack(get, trackId)
+    return true
+  } catch (err) {
+    console.error('failed to download track before playing it', err)
+    get().showToast(`Couldn't download ${name}`)
+    return false
   }
+}
 
-  triggerBackgroundAnalysis(get, trackId)
+// One download per track at a time, shared by playing and prefetching.
+const downloadsInFlight = new Map<number, Promise<void>>()
+function downloadTrack(get: StoreApi<CollectionState>['getState'], trackId: number): Promise<void> {
+  const inFlight = downloadsInFlight.get(trackId)
+  if (inFlight) return inFlight
+  const download = window.api
+    .downloadTrack(trackId)
+    .then(() => get().loadAll())
+    .finally(() => downloadsInFlight.delete(trackId))
+  downloadsInFlight.set(trackId, download)
+  return download
+}
+
+// How many upcoming queued tracks are fetched from the cloud ahead of time,
+// so they're local by the time they play — only a few, so queueing a big
+// cloud folder doesn't download all of it.
+const PREFETCH_UPCOMING = 3
+function prefetchUpcoming(get: StoreApi<CollectionState>['getState']): void {
+  const upcoming = get().playlist.slice(0, PREFETCH_UPCOMING + 1)
+  const tracks = get().tracks
+  for (const id of upcoming) {
+    if (tracks.find((t) => t.id === id)?.cloudStatus !== 'cloud_only') continue
+    downloadTrack(get, id)
+      .then(() => triggerBackgroundAnalysis(get, id))
+      .catch((err) => console.error('prefetching a queued cloud track failed', err))
+  }
 }
 
 // Registered by the mounted Player (see playbackControls below).
@@ -277,6 +296,14 @@ export interface CollectionState {
   // Tracks whose file has no artist or title (see missingMetadata.ts).
   missingMetadataFilter: boolean
   setMissingMetadataFilter: (on: boolean) => void
+  // Tracks whose file the last scan couldn't find (hidden from `tracks`),
+  // and the filter that lists them instead of the collection.
+  missingTracks: Track[]
+  missingTracksFilter: boolean
+  setMissingTracksFilter: (on: boolean) => void
+  // Tracks whose file is only in the cloud (not downloaded to this Mac).
+  cloudOnlyFilter: boolean
+  setCloudOnlyFilter: (on: boolean) => void
   // Files whose tags the background read hasn't reached yet (0 when done).
   tagReadRemaining: number
   setTagReadRemaining: (remaining: number) => void
@@ -595,6 +622,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   analysedFilter: 'all',
   duplicatesFilter: false,
   missingMetadataFilter: false,
+  missingTracks: [],
+  missingTracksFilter: false,
+  cloudOnlyFilter: false,
   mcoTagsFilter: 'all',
   tagReadRemaining: 0,
   searchText: '',
@@ -1136,11 +1166,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   loadAll: async () => {
-    const [tracks, genres, subgenres, tagIdRows] = await Promise.all([
+    const [tracks, genres, subgenres, tagIdRows, missingTracks] = await Promise.all([
       window.api.getTracks(),
       window.api.getGenres(),
       window.api.getSubgenres(),
       window.api.getAllTagIds(),
+      window.api.getMissingTracks(),
     ])
     const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
     // Keeps the batch selection across a reload (creating/renaming/
@@ -1149,7 +1180,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // that no longer exist, e.g. after a rescan marked them missing.
     const trackIds = new Set(tracks.map((t) => t.id))
     const checkedTrackIds = new Set([...get().checkedTrackIds].filter((id) => trackIds.has(id)))
-    set({ tracks, genres, subgenres, trackTags, checkedTrackIds })
+    set({ tracks, genres, subgenres, trackTags, checkedTrackIds, missingTracks })
   },
 
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),
@@ -1161,18 +1192,22 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // details on other tracks doesn't interrupt whatever's currently
   // loaded and playing. Only these explicit actions change it.
   playTrackNow: async (trackId) => {
+    if (!(await downloadBeforePlaying(get, trackId))) return
     set({ playlist: playTrackNowPure(get().playlist, trackId) })
-    await ensureTrackReady(set, get, trackId)
+    triggerBackgroundAnalysis(get, trackId)
+    prefetchUpcoming(get)
   },
 
   addToPlaylist: (trackId) => {
     set({ playlist: addToPlaylistPure(get().playlist, trackId) })
     triggerBackgroundAnalysis(get, trackId)
+    prefetchUpcoming(get)
   },
 
   addManyToPlaylist: (trackIds, options) => {
     set({ playlist: addManyToPlaylistPure(get().playlist, trackIds) })
     if (options?.analyse ?? true) triggerBackgroundAnalysisForMany(get, trackIds)
+    prefetchUpcoming(get)
   },
 
   requestAddManyToQueue: (trackIds) => {
@@ -1201,33 +1236,52 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playNext: (trackId) => {
     set({ playlist: playNextPure(get().playlist, trackId) })
     triggerBackgroundAnalysis(get, trackId)
+    prefetchUpcoming(get)
   },
 
   removeFromPlaylist: (index) => set({ playlist: removeFromPlaylistPure(get().playlist, index) }),
 
   clearPlaylist: () => set({ playlist: clearUpcomingPure(get().playlist) }),
 
-  movePlaylistItem: (fromIndex, toIndex) =>
-    set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) }),
+  movePlaylistItem: (fromIndex, toIndex) => {
+    set({ playlist: movePlaylistItemPure(get().playlist, fromIndex, toIndex) })
+    prefetchUpcoming(get)
+  },
 
-  shufflePlaylist: () => set({ playlist: shufflePlaylistPure(get().playlist) }),
+  shufflePlaylist: () => {
+    set({ playlist: shufflePlaylistPure(get().playlist) })
+    prefetchUpcoming(get)
+  },
 
   playQueueItemNow: async (index) => {
     const before = get().playlist
     const after = playQueueItemNowPure(before, index)
     if (after === before) return
+    if (!(await downloadBeforePlaying(get, after[0]))) return
+    // Left alone if the queue was changed while downloading.
+    if (get().playlist !== before) return
     set({ playlist: after })
-    await ensureTrackReady(set, get, after[0])
+    triggerBackgroundAnalysis(get, after[0])
+    prefetchUpcoming(get)
   },
 
-  playQueueItemNext: (index) => set({ playlist: playQueueItemNextPure(get().playlist, index) }),
+  playQueueItemNext: (index) => {
+    set({ playlist: playQueueItemNextPure(get().playlist, index) })
+    prefetchUpcoming(get)
+  },
 
   advanceToNext: async () => {
     const before = get().playlist
     const after = advanceToNextPure(before)
     if (after === before) return
+    // Usually already prefetched; if not, it plays once it's down (a failed
+    // download still moves on, and the player reports the error).
+    if (after.length > 0) await downloadBeforePlaying(get, after[0])
+    // Left alone if the queue was changed while downloading.
+    if (get().playlist !== before) return
     set({ playlist: after })
-    if (after.length > 0) await ensureTrackReady(set, get, after[0])
+    if (after.length > 0) triggerBackgroundAnalysis(get, after[0])
+    prefetchUpcoming(get)
   },
 
   setContinuousPlay: (value) => set({ continuousPlay: value }),
@@ -1277,6 +1331,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setDuplicatesFilter: (on) => set({ duplicatesFilter: on, checkedTrackIds: new Set() }),
   setMcoTagsFilter: (filter) => set({ mcoTagsFilter: filter, checkedTrackIds: new Set() }),
   setMissingMetadataFilter: (on) => set({ missingMetadataFilter: on, checkedTrackIds: new Set() }),
+  setMissingTracksFilter: (on) => set({ missingTracksFilter: on, checkedTrackIds: new Set() }),
+  setCloudOnlyFilter: (on) => set({ cloudOnlyFilter: on, checkedTrackIds: new Set() }),
   setTagReadRemaining: (remaining) => set({ tagReadRemaining: remaining }),
   refreshTrackFileTags: async (trackId) => {
     const track = await window.api.readFileTags(trackId)

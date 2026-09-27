@@ -129,7 +129,7 @@ export default function App() {
   const [treeView, setTreeView] = useState<TreeView>(() => loadSidebarState().treeView)
   const activeFilterCount = useCollectionStore(
     (s) =>
-      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter) + Number(s.missingMetadataFilter) + Number(s.mcoTagsFilter !== 'all')
+      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter) + Number(s.missingMetadataFilter) + Number(s.missingTracksFilter) + Number(s.cloudOnlyFilter) + Number(s.mcoTagsFilter !== 'all')
   )
   const [leftCollapsed, setLeftCollapsedState] = useState(() => {
     try {

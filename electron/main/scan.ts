@@ -19,10 +19,12 @@ export interface ScanResult {
 // with all of its tags intact, whether or not anything else about it changed.
 export function runScan(db: AppDatabase, rootPath: string): ScanResult {
   const diskFiles = walkAudioFiles(rootPath)
-  const trackRows = db.prepare('SELECT path, size, mtime, present FROM tracks').all() as unknown as (DbTrackRow & {
+  const trackRows = db.prepare('SELECT path, size, mtime, present, cloud_status FROM tracks').all() as unknown as (DbTrackRow & {
     present: number
+    cloud_status: string
   })[]
   const presentByPath = new Map(trackRows.map((r) => [r.path, r.present]))
+  const cloudStatusByPath = new Map(trackRows.map((r) => [r.path, r.cloud_status]))
   const diff = diffScan(diskFiles, trackRows)
 
   const insertStmt = db.prepare(`
@@ -34,6 +36,7 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
     WHERE path = @path
   `)
   const markMissingStmt = db.prepare('UPDATE tracks SET present = 0 WHERE path = ?')
+  const setCloudStatusStmt = db.prepare('UPDATE tracks SET cloud_status = ? WHERE path = ?')
   const reviveStmt = db.prepare('UPDATE tracks SET present = 1 WHERE path = ?')
 
   const toRow = (file: DiskFileWithBlocks) => {
@@ -56,6 +59,13 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
   // previously flagged missing still need reviving.
   const updatedPaths = new Set(diff.toUpdate.map((f) => f.path))
   const toRevive = diskFiles.filter((f) => presentByPath.get(f.path) === 0 && !updatedPaths.has(f.path))
+  // Unchanged files whose download state changed since the last scan — a
+  // Drive file downloaded (or freed up) keeps its size and mtime, so
+  // diffScan doesn't see it, and it would stay flagged cloud-only forever.
+  const toRecheck = diskFiles
+    .filter((f) => cloudStatusByPath.has(f.path) && !updatedPaths.has(f.path))
+    .map((f) => ({ path: f.path, status: toRow(f).cloud_status }))
+    .filter((f) => f.status !== cloudStatusByPath.get(f.path))
 
   runInTransaction(db, () => {
     for (const file of diff.toInsert) insertStmt.run(toRow(file))
@@ -75,7 +85,11 @@ export function runScan(db: AppDatabase, rootPath: string): ScanResult {
     }
     for (const path of diff.toRemove) markMissingStmt.run(path)
     for (const file of toRevive) reviveStmt.run(file.path)
+    for (const file of toRecheck) setCloudStatusStmt.run(file.status, file.path)
   })
 
-  return { inserted: diff.toInsert.length, updated: diff.toUpdate.length, missing: diff.toRemove.length }
+  // Only files that went missing in this scan — ones already flagged
+  // stay missing silently, or every watcher rescan would report them again.
+  const newlyMissing = diff.toRemove.filter((path) => presentByPath.get(path) === 1).length
+  return { inserted: diff.toInsert.length, updated: diff.toUpdate.length, missing: newlyMissing }
 }

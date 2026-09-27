@@ -29,6 +29,9 @@ export interface Track {
   playCount: number
   lastPlayedAt: number | null
   cloudStatus: 'local' | 'cloud_only'
+  // Set only on tracks from the Missing Tracks filter: the file wasn't
+  // found in the last scan (the row and its tags are kept).
+  missing?: boolean
   analysisStatus: 'pending' | 'analyzing' | 'done' | 'error'
   // Whether the file's own tags have been read (title/artist… are then
   // what the file says, not just unknown).

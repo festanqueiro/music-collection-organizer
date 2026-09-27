@@ -1,22 +1,26 @@
-import { readFile } from 'node:fs/promises'
+import { createReadStream } from 'node:fs'
 import type { AppDatabase } from './db'
-import { analyzeTrack } from './analysis/queue'
 
 // Takes only a track id, not a path — the caller is the renderer (over
 // IPC), which is untrusted. Looking the path up here, from the DB row this
 // id actually owns, is what stops a compromised renderer from passing an
-// arbitrary filesystem path and getting it read/analyzed/persisted as if
-// it belonged to this track.
+// arbitrary filesystem path and getting it read as if it belonged to this
+// track.
 //
-// cacheDir is passed in (not fetched internally via app.getPath) so this
-// module has no hard Electron-app dependency — same reasoning as
-// analysis/queue.ts's cacheDir parameter.
-export async function downloadTrack(db: AppDatabase, id: number, cacheDir: string): Promise<void> {
+// Just brings the file down: reading it through forces Drive for Desktop
+// (or any File Provider) to materialize it locally. Streamed and discarded,
+// so a big AIFF isn't held in memory, and async, so the main process (and
+// with it the whole app) stays responsive. Analysis is left to the caller,
+// which runs it in the analysis worker — analysing here, in-process, froze
+// the app for tens of seconds on a long track.
+export async function downloadTrack(db: AppDatabase, id: number): Promise<void> {
   const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(id) as { path: string } | undefined
   if (!row) throw new Error(`No track with id ${id}`)
-  const track = { id, path: row.path }
-
-  await readFile(track.path) // forces Drive for Desktop to materialize the file locally
-  db.prepare("UPDATE tracks SET cloud_status = 'local' WHERE id = ?").run(track.id)
-  await analyzeTrack(db, track, cacheDir)
+  await new Promise<void>((resolve, reject) => {
+    const stream = createReadStream(row.path)
+    stream.on('data', () => {})
+    stream.on('end', resolve)
+    stream.on('error', reject)
+  })
+  db.prepare("UPDATE tracks SET cloud_status = 'local' WHERE id = ?").run(id)
 }

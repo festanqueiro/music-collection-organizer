@@ -20,7 +20,7 @@ describe('downloadTrack', () => {
     db.close()
   })
 
-  it('marks the track local and analyzed after download', async () => {
+  it('marks the track local after download, leaving analysis to the worker', async () => {
     const filePath = createTestToneWav(dir)
     const id = db
       .prepare(
@@ -28,14 +28,14 @@ describe('downloadTrack', () => {
       )
       .run(filePath, dir).lastInsertRowid as number
 
-    await downloadTrack(db, id, dir)
+    await downloadTrack(db, id)
 
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
     expect(row.cloud_status).toBe('local')
-    expect(row.analysis_status).toBe('done')
+    expect(row.analysis_status).toBe('pending')
   })
 
   it('throws for an id with no matching track, without touching the filesystem', async () => {
-    await expect(downloadTrack(db, 999, dir)).rejects.toThrow('No track with id 999')
+    await expect(downloadTrack(db, 999)).rejects.toThrow('No track with id 999')
   })
 })

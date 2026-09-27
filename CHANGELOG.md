@@ -6,6 +6,29 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.44 — 2026-09-27
+
+### Added
+- **Not Locally Available filter**: tracks that are only in the cloud, not
+  downloaded to this Mac yet.
+- **Missing Tracks filter**: lists the tracks whose file is no longer in
+  the collection folder. Their tags are kept, and they come back if the
+  file returns.
+
+### Changed
+- On the TV's now-playing screen, a song title that fits on one line is
+  centred vertically in its space.
+
+### Fixed
+- Playing a track that was only in the cloud (e.g. a long AIFF on Google
+  Drive) could freeze MCO for a long time, looking like a crash. It's now
+  downloaded first, without freezing the app, and then played; the next
+  few queued tracks are downloaded ahead of time.
+- **Analyse** on a track that's only in the cloud now downloads it first,
+  instead of silently skipping it.
+- The "N missing" notice kept reappearing for the same files on every
+  background rescan; it now appears only when files actually go missing.
+
 ## 1.0.43 — 2026-09-27
 
 ### Added

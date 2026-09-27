@@ -532,6 +532,9 @@ export function DetailPanel({
     try {
       await window.api.downloadTrack(track.id)
       await loadAll()
+      // Downloading no longer analyses in the same step; this runs it in
+      // the analysis worker.
+      useCollectionStore.getState().runAnalysis([track.id]).catch((err) => console.error('analysis after download failed', err))
     } catch {
       setDownloadError('Download failed — check the file is still reachable and try again.')
     } finally {

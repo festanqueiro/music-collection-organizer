@@ -40,12 +40,25 @@ describe('runScan', () => {
     unlinkSync(filePath)
     const result = runScan(db, root)
     expect(result.missing).toBe(1)
+    // Already flagged: a later scan doesn't count it again.
+    expect(runScan(db, root).missing).toBe(0)
 
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as any
     expect(row).toBeDefined()
     expect(row.present).toBe(0)
     const tags = db.prepare('SELECT * FROM track_genres WHERE track_id = ?').all(trackId)
     expect(tags).toHaveLength(1)
+  })
+
+  it('clears a stale cloud-only flag once the file is downloaded, even though it looks unchanged', () => {
+    writeFileSync(join(root, 'c.wav'), 'x'.repeat(5000))
+    runScan(db, root)
+    // As if it had been a Drive placeholder at the last scan and was
+    // downloaded since (same size and mtime).
+    db.prepare("UPDATE tracks SET cloud_status = 'cloud_only'").run()
+    const result = runScan(db, root)
+    expect(result.updated).toBe(0)
+    expect((db.prepare('SELECT cloud_status FROM tracks').get() as any).cloud_status).toBe('local')
   })
 
   it('revives a previously-missing file (and its tags) when it reappears at the same path', () => {
