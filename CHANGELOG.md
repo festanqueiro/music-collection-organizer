@@ -13,6 +13,10 @@ installed copies update themselves.
   the collection folder. Their tags are kept, and they come back if the
   file returns.
 
+### Changed
+- On the TV's now-playing screen, a song title that fits on one line is
+  centred vertically in its space.
+
 ### Fixed
 - The "N missing" notice kept reappearing for the same files on every
   background rescan; it now appears only when files actually go missing.

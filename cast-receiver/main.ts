@@ -240,7 +240,7 @@ function renderTrack(): void {
   const info = currentInfo()
   const title = decode(currentTrack.title)
   const artist = decode(currentTrack.artist)
-  $('title').textContent = title
+  $('title-text').textContent = title
   $('artist').textContent = artist
   $('overlay-title').textContent = title
   $('overlay-artist').textContent = artist
