@@ -412,7 +412,9 @@ function TagPicker({
         <input
           type="text"
           list={datalistId}
-          value={value}
+          // A disabled picker (Subtag with no Tag yet) shows its placeholder,
+          // never leftover text that would read like an assigned subtag.
+          value={disabled ? '' : value}
           placeholder={placeholder}
           disabled={disabled}
           onChange={(e) => setValue(e.target.value)}
@@ -605,7 +607,10 @@ export function DetailPanel({
             </button>
           </div>
         )}
+        {/* Keyed by track: text half-typed into a picker belongs to the track
+            it was typed on, not the next one selected. */}
         <TagPicker
+          key={`tag-${track.id}`}
           label="Tag"
           options={genres}
           selectedIds={tags.genreIds}
@@ -614,6 +619,7 @@ export function DetailPanel({
           onCreate={applySuggestedGenre}
         />
         <TagPicker
+          key={`subtag-${track.id}`}
           label="Subtag"
           options={availableSubgenres}
           selectedIds={tags.subgenreIds}

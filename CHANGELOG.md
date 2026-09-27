@@ -21,6 +21,11 @@ installed copies update themselves.
 - The analysing spinner shows only in the Status column, no longer also
   next to the title.
 
+### Fixed
+- Text typed into the Tag or Subtag box on one track no longer stays there
+  when you select another track, where it looked like an assigned subtag
+  even though the track had no tag.
+
 ## 1.0.45 — 2026-09-27
 
 ### Changed
