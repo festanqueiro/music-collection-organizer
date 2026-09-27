@@ -20,6 +20,7 @@ interface ConfigSchema {
   effectsSettings?: EffectsSettings
   midiMappings?: MidiMappings
   columnOrder?: string[]
+  hiddenColumns?: string[]
   sortState?: TrackTableSortState
   audioOutputDeviceId?: string
   cueOutputDeviceId?: string
@@ -149,6 +150,20 @@ export function getColumnOrder(): TrackTableColumnKey[] {
 
 export function setColumnOrder(order: TrackTableColumnKey[]): void {
   getStore().set('columnOrder', order)
+}
+
+// Columns switched off in the track list (header right-click / columns
+// button). Unknown keys drop out; Title can't be hidden, so the table
+// always has something to click.
+export function getHiddenColumns(): TrackTableColumnKey[] {
+  const known = new Set<string>(DEFAULT_TRACK_TABLE_COLUMN_ORDER)
+  return (getStore().get('hiddenColumns') ?? []).filter(
+    (key): key is TrackTableColumnKey => known.has(key) && key !== 'title'
+  )
+}
+
+export function setHiddenColumns(keys: TrackTableColumnKey[]): void {
+  getStore().set('hiddenColumns', keys.filter((key) => key !== 'title'))
 }
 
 // Falls back to the table's default sort (title/ascending) rather than

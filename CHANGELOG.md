@@ -11,10 +11,13 @@ installed copies update themselves.
 ### Added
 - **Album** column in the track list (after Artist), sortable like the
   others.
+- **Choose which columns to show**: click the columns icon at the top of
+  the track list, or right-click any column header, and tick the ones you
+  want.
 
 ### Changed
 - The track list's play and headphones column now comes right after the
-  checkbox, instead of before it.
+  checkbox, instead of before it, and is only as wide as its two icons.
 
 ## 1.0.45 — 2026-09-27
 

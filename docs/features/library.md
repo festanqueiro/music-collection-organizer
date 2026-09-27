@@ -88,6 +88,10 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
   added, Date modified. Drag headers to reorder, drag edges to resize, click to sort (again to
   reverse); order, widths and sort are saved. A column added in a newer version slots in after the
   column it belongs with.
+- **Choose columns**: the columns icon at the top of the play column, or right-click any column
+  header, opens a checklist to show or hide each column (Title always stays). Saved in the config
+  (`hiddenColumns`; `config:getHiddenColumns`/`setHiddenColumns`); hidden columns keep their place
+  in the order.
 - Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted in Bitrate.
 - The Key column shows colour-coded Camelot keys ([DJ tools](dj-tools.md#harmonic-mixing)).
 - Click a row for its details; the play icon starts it (pause/resume on the playing track); the
