@@ -16,11 +16,10 @@ export function activeEffects(settings: EffectsSettings, sirenHeld: boolean): st
   return active
 }
 
-// The mic's effects that are audibly engaged: only while the mic is on
-// (its effects do nothing otherwise). For the FX button and the FX/Live
-// screens' "Engaged" line; the TV doesn't show them.
+// The mic's effects that are engaged — whether or not the mic is on, as
+// the music's show whether or not anything is playing. For the FX button
+// and the FX/Live screens' "Engaged" line; the TV doesn't show them.
 export function activeMicEffects(mic: MicSettings): string[] {
-  if (!mic.enabled) return []
   const active: string[] = []
   if (mic.eq.low !== 0 || mic.eq.mid !== 0 || mic.eq.high !== 0) active.push('Mic EQ')
   if (mic.pitch.enabled && mic.pitch.mix > 0 && mic.pitch.semitones !== 0) active.push('Mic Pitch')

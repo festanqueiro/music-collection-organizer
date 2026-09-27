@@ -31,8 +31,8 @@ installed copies update themselves.
   rate, so the GPU runs cooler.
 
 ### Fixed
-- **FX button**: it now lights up for the mic's effects too (while the mic
-  is on), and the FX and Live screens list them as engaged.
+- **FX button**: it now lights up for the mic's effects too, and the FX and
+  Live screens list them as engaged.
 - **Cast**: when MCO's queue empties, the TV goes back to its **Load a song
   to continue** screen instead of keeping the last track's title, year and
   seek bar up.

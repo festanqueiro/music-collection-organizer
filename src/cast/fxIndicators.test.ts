@@ -41,13 +41,13 @@ describe('activeMicEffects', () => {
     return settings
   }
 
-  it('shows nothing with the mic off, whatever is switched on', () => {
+  it('shows them with the mic off too, like the music effects without a track', () => {
     const settings = mic((s) => {
       s.echo.enabled = true
       s.pitch.enabled = true
     })
     settings.enabled = false
-    expect(activeMicEffects(settings)).toEqual([])
+    expect(activeMicEffects(settings)).toEqual(['Mic Pitch', 'Mic Echo'])
   })
 
   it("shows the mic's effects that are on and audible", () => {
