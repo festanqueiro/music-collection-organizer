@@ -251,6 +251,7 @@ export function getMicSettings(): MicSettings {
     eq: { ...d.eq, ...stored.eq },
     echo: { ...d.echo, ...stored.echo },
     reverb: { ...d.reverb, ...stored.reverb },
+    pitch: { ...d.pitch, ...stored.pitch },
     radio: { ...d.radio, ...stored.radio },
     duck: { ...d.duck, ...stored.duck },
   }

@@ -11,7 +11,15 @@ installed copies update themselves.
   knob in the Rec popover, to see how loud the recording is and turn it down
   without changing what you hear.
 
+- **Mic**: **Pitch** shifts your voice up or down (−12…+12 semitones), with
+  a Mix to blend in your own voice.
+
 ### Changed
+- **FX screen**: the effects are now in three clearly separate groups —
+  **Music FX**, **Mic FX** and **Instruments** (the Dub Siren) — side by side
+  on a wide window. Same on the Live screen.
+- **Mic EQ**: its bands moved to where a voice sits (250 Hz, 1 kHz, 3.5 kHz),
+  so they're audible, including on a Bluetooth headset's mic.
 - **App menu**: says **MCO** (or **MCO BETA**) instead of
   `v1-library-organizer` in About, Hide and Quit.
 - **Visualizer**: a **Frame rate** picker in its top bar (15, 24, 30, 60 fps

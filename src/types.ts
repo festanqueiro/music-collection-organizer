@@ -265,6 +265,9 @@ export interface MicSettings {
   // even when it's off.
   echo: { enabled: boolean; timeMs: number; feedback: number; mix: number }
   reverb: { enabled: boolean; decaySeconds: number; mix: number }
+  // Pitch shift, in semitones (-12..+12); mix 0..1 blends in the dry voice
+  // (1 = only shifted).
+  pitch: { enabled: boolean; semitones: number; mix: number }
   // Band-passed "telephone/megaphone" voice; drive 0..1 adds grit.
   radio: { enabled: boolean; drive: number }
   // Pulls the music down by amountDb while the mic is talking.
@@ -284,6 +287,7 @@ export const DEFAULT_MIC_SETTINGS: MicSettings = {
   eq: { low: 0, mid: 0, high: 0 },
   echo: { enabled: false, timeMs: 375, feedback: 0.45, mix: 0.5 },
   reverb: { enabled: false, decaySeconds: 1.5, mix: 0.3 },
+  pitch: { enabled: false, semitones: -5, mix: 1 },
   radio: { enabled: false, drive: 0.3 },
   duck: { enabled: true, amountDb: 10 },
   monitor: false,
@@ -340,6 +344,9 @@ export const MIDI_CONTROL_KEYS = [
   'mic.reverb.enabled',
   'mic.reverb.decaySeconds',
   'mic.reverb.mix',
+  'mic.pitch.enabled',
+  'mic.pitch.semitones',
+  'mic.pitch.mix',
   'mic.radio.enabled',
   'mic.radio.drive',
   'mic.duck.enabled',

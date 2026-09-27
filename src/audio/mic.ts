@@ -3,7 +3,7 @@
 // The mic's audio chain on the shared engine (docs/features/recording.md):
 //
 //   mic ─> gain ─> 80 Hz HPF ─> gate/meter (micWorklet) ─> compressor ─> make-up
-//       ─> EQ ─> radio (insert) ─> talk ─┬─> dry ──────────────────┐
+//       ─> EQ ─> pitch (micWorklet) ─> radio (insert) ─> talk ─┬─> dry ──────────────────┐
 //                                        ├─> echo send ─> echo ────┼─> engine.micInput
 //                                        └─> reverb send ─> reverb ┘
 //
@@ -17,9 +17,13 @@ import { MIC_GATE_OFF_DB, type MicSettings } from '../types'
 
 const PARAM_TAU = 0.02
 const HIGH_PASS_HZ = 80
-const EQ_LOW_HZ = 150
-const EQ_MID_HZ = 1500
-const EQ_HIGH_HZ = 6000
+// Voice bands: body, nasal/honk, presence. Kept inside what a Bluetooth
+// headset's hands-free mic carries (it has little above ~4–8 kHz or below
+// ~200 Hz), so every band is audible on one.
+const EQ_LOW_HZ = 250
+const EQ_MID_HZ = 1000
+const EQ_MID_Q = 0.7
+const EQ_HIGH_HZ = 3500
 // The radio voice: a telephone/megaphone band.
 const RADIO_LOW_HZ = 500
 const RADIO_HIGH_HZ = 3200
@@ -79,6 +83,7 @@ export class MicChain {
   private eqLow: BiquadFilterNode
   private eqMid: BiquadFilterNode
   private eqHigh: BiquadFilterNode
+  private pitch: AudioWorkletNode
   private radioDry: GainNode
   private radioLow: BiquadFilterNode
   private radioHigh: BiquadFilterNode
@@ -126,10 +131,11 @@ export class MicChain {
     this.eqMid = context.createBiquadFilter()
     this.eqMid.type = 'peaking'
     this.eqMid.frequency.value = EQ_MID_HZ
-    this.eqMid.Q.value = 1
+    this.eqMid.Q.value = EQ_MID_Q
     this.eqHigh = context.createBiquadFilter()
     this.eqHigh.type = 'highshelf'
     this.eqHigh.frequency.value = EQ_HIGH_HZ
+    this.pitch = new AudioWorkletNode(context, 'mco-pitch', { outputChannelCount: [1] })
 
     this.radioDry = context.createGain()
     this.radioLow = context.createBiquadFilter()
@@ -164,8 +170,9 @@ export class MicChain {
     this.makeup.connect(this.eqLow)
     this.eqLow.connect(this.eqMid)
     this.eqMid.connect(this.eqHigh)
-    this.eqHigh.connect(this.radioDry)
-    this.eqHigh.connect(this.radioLow)
+    this.eqHigh.connect(this.pitch)
+    this.pitch.connect(this.radioDry)
+    this.pitch.connect(this.radioLow)
     this.radioLow.connect(this.radioHigh)
     this.radioHigh.connect(this.radioPresence)
     this.radioPresence.connect(this.radioShaper)
@@ -219,6 +226,7 @@ export class MicChain {
     this.eqLow.gain.setTargetAtTime(settings.eq.low, now, PARAM_TAU)
     this.eqMid.gain.setTargetAtTime(settings.eq.mid, now, PARAM_TAU)
     this.eqHigh.gain.setTargetAtTime(settings.eq.high, now, PARAM_TAU)
+    this.pitch.port.postMessage({ semitones: settings.pitch.semitones, mix: settings.pitch.enabled ? settings.pitch.mix : 0 })
 
     if (settings.radio.drive !== this.lastRadioDrive) {
       this.lastRadioDrive = settings.radio.drive
@@ -271,6 +279,7 @@ export class MicChain {
       this.eqLow,
       this.eqMid,
       this.eqHigh,
+      this.pitch,
       this.radioDry,
       this.radioLow,
       this.radioHigh,

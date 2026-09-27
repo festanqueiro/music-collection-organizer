@@ -5,8 +5,7 @@
 import { useCollectionStore } from '../state/store'
 import { activeEffects } from '../cast/fxIndicators'
 import { PlaylistView } from './PlaylistView'
-import { FxPanel } from './FxPanel'
-import { MicPanel } from './MicPanel'
+import { FxGroups } from './FxGroups'
 import { FitToArea } from './FitToArea'
 
 export function LiveView() {
@@ -63,10 +62,7 @@ export function LiveView() {
         </div>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <FitToArea>
-            <div>
-              <FxPanel track={currentTrack} />
-              <MicPanel track={currentTrack} />
-            </div>
+            <FxGroups track={currentTrack} />
           </FitToArea>
         </div>
       </div>

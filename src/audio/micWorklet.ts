@@ -10,6 +10,10 @@
 // - the voice's level after the gate, which mic.ts uses to duck the music.
 // Levels are posted about 50 times a second. The threshold arrives as a
 // message: { gateDb }.
+//
+// Also registers 'mco-pitch', the voice's pitch shifter (pitchShifter.ts),
+// set by messages: { semitones, mix } (mix 0 = off).
+import { PitchShifter } from './pitchShifter'
 
 // Audio-thread globals: see worklet-globals.d.ts.
 
@@ -92,3 +96,22 @@ class MicProcessor extends AudioWorkletProcessor {
 }
 
 registerProcessor('mco-mic', MicProcessor)
+
+class PitchProcessor extends AudioWorkletProcessor {
+  private shifter = new PitchShifter(sampleRate)
+
+  constructor() {
+    super()
+    this.port.onmessage = (e: MessageEvent<{ semitones: number; mix: number }>) => this.shifter.set(e.data.semitones, e.data.mix)
+  }
+
+  process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
+    const input = inputs[0]?.[0]
+    const output = outputs[0][0]
+    if (input) this.shifter.process(input, output)
+    else output.fill(0)
+    return true
+  }
+}
+
+registerProcessor('mco-pitch', PitchProcessor)

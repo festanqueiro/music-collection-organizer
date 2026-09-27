@@ -49,7 +49,14 @@ The **Mic** section at the bottom of the FX screen ([ADR 0044](../adr/0044-mic-r
   The mic is recorded either way, but the speakers never play it unless this is on.
 - **Voice**: Gain (−12…+24 dB), Gate (a noise gate, down to Off; closes to −40 dB rather than silence),
   Comp (compressor amount with automatic make-up gain). An 80 Hz high-pass is always on.
-- **EQ**: Low, Mid, High (±12 dB).
+- **EQ**: Low (shelf, 250 Hz), Mid (1 kHz, wide), High (shelf, 3.5 kHz), ±12 dB. Voice bands, kept
+  inside what a Bluetooth headset's hands-free mic carries (it has little above ~4–8 kHz), so each is
+  audible on one.
+- **Pitch** (on/off): Semitones (−12…+12, default −5) and Mix (100% = only the shifted voice; lower
+  blends in your own for a harmony). A low-latency granular shifter (≤ 50 ms: two read heads on a
+  delay line, Hann-crossfaded; `src/audio/pitchShifter.ts`, run by `micWorklet.ts`), after the EQ and
+  before Radio, so echo and reverb get the pitched voice. Formants move with the pitch (chipmunk up,
+  monster down).
 - **Echo** (on/off): Mix, Time, Feedback, and Division (syncs Time to the loaded track's BPM). **Throw**:
   hold it and what you say goes into the echo, even with Echo off. Turning Echo off lets its tail ring out.
 - **Reverb** (on/off): Mix, Decay.
@@ -67,7 +74,8 @@ The **Mic** section at the bottom of the FX screen ([ADR 0044](../adr/0044-mic-r
   feed the music bus, which passes a duck gain to the speakers and the record bus; the mic feeds the record
   bus, and the speakers only through the monitor gain ([ADR 0044](../adr/0044-mic-records-but-isnt-heard-by-default.md)).
 - **Mic**: `src/audio/mic.ts` (`MicChain`: `getUserMedia` with the browser's call processing off → gain →
-  high-pass → `micWorklet.ts` (gate, meter, voice level) → compressor → make-up → EQ → radio insert →
+  high-pass → `micWorklet.ts` (gate, meter, voice level) → compressor → make-up → EQ → pitch
+  (`micWorklet.ts`'s `mco-pitch`) → radio insert →
   talk → dry + echo/reverb sends, using `fxModules.ts`); `micSession.ts` opens/closes it from the store;
   `micControls.ts` maps MIDI and Talk; `src/components/MicPanel.tsx` is the UI. Settings are `micSettings`
   in the config.
@@ -83,7 +91,8 @@ The **Mic** section at the bottom of the FX screen ([ADR 0044](../adr/0044-mic-r
   format is a renderer preference.
 
 ## Tests
-- `electron/main/wavWriter.test.ts` (header, valid after every chunk), `src/audio/audioEngine.test.ts`,
+- `src/audio/pitchShifter.test.ts` (octave up/down and a fifth, steady level, untouched when off),
+  `electron/main/wavWriter.test.ts` (header, valid after every chunk), `src/audio/audioEngine.test.ts`,
   `src/audio/micControls.test.ts` (Talk tap/hold, MIDI toggles and knobs, echo division, compressor).
 - Checked in BETA over DevTools: a 3 s WAV (48 kHz, 24-bit, valid), a 2.5 s MP3 (192 kbps, WAV removed),
   Cast refused while recording; the Mic section renders and lists the inputs. The mic itself (permission

@@ -7,7 +7,11 @@ adrs: [0023, 0025, 0029, 0034, 0041]
 
 The **FX** screen (the **FX** button on the right of the player bar; it
 lights up while an effect is engaged) processes playback through a Web
-Audio graph. Each effect is a card, laid out in as many columns as fit. Every control is a rotary knob that shows its live value;
+Audio graph. It's split into three groups, each with its own header and colour stripe, side by side
+on a wide window and stacked on a narrow one (`src/components/FxGroups.tsx`): **Music FX** (EQ,
+Filter, Delay, Reverb: on the playing track), **Mic FX** (the mic and its own effects, see
+[Recording](recording.md#mic)) and **Instruments** (sound sources of their own, played over the
+music: the Dub Siren). Each effect is a card, laid out in as many columns as fit. Every control is a rotary knob that shows its live value;
 **double-click** a knob to reset it. Each effect module has its own on/off
 toggle in its header; the EQ card (master volume and the 3-band EQ) is always on. All settings are saved and restored on the next launch, and
 every knob and toggle can be [MIDI-mapped](midi.md).
@@ -54,10 +58,9 @@ Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/audioEngine.ts`, `eff
   resumes on play or a siren trigger, so MCO uses ~0 % CPU while idle
   ([ADR 0025](../adr/0025-suspend-idle-audio-engines.md)).
 - Delay and reverb are reusable send modules (`src/audio/fxModules.ts`), also used by the mic.
-- Below the track's effects is the **Mic** section, with the mic's own effects — see
-  [Recording](recording.md#mic).
+- The Mic FX group has the mic's own effects — see [Recording](recording.md#mic).
 - The **Live** screen (player bar's **Live** button, lit while the mic is on) shows the queue on the left
-  and these effects with the Mic on the right, for running a show from one screen
+  and the same three groups on the right, for running a show from one screen
   (`src/components/LiveView.tsx`, with `PlaylistView embedded`).
 - While casting to a TV, the same effects run on the TV ([Casting](casting.md)).
 

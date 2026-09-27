@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { subscribeToMicLevels } from '../audio/micSession'
 import { echoTimeForDivision } from '../audio/micControls'
-import { KnobField, useRafThrottledCommit } from './FxPanel'
+import { KnobField, fxGridStyle, useRafThrottledCommit } from './FxPanel'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { ToggleSwitch } from './ToggleSwitch'
 import { DEFAULT_MIC_SETTINGS, DELAY_DIVISIONS, MIC_GATE_OFF_DB, type MicSettings, type Track } from '../types'
@@ -129,6 +129,7 @@ export function MicPanel({ track }: { track: Track | null }) {
   const updateEq = (partial: Partial<MicSettings['eq']>) => update({ eq: { ...mic.eq, ...partial } })
   const updateEcho = (partial: Partial<MicSettings['echo']>) => update({ echo: { ...mic.echo, ...partial } })
   const updateReverb = (partial: Partial<MicSettings['reverb']>) => update({ reverb: { ...mic.reverb, ...partial } })
+  const updatePitch = (partial: Partial<MicSettings['pitch']>) => update({ pitch: { ...mic.pitch, ...partial } })
   const updateRadio = (partial: Partial<MicSettings['radio']>) => update({ radio: { ...mic.radio, ...partial } })
   const updateDuck = (partial: Partial<MicSettings['duck']>) => update({ duck: { ...mic.duck, ...partial } })
   const handleEchoTime = useRafThrottledCommit((v) => updateEcho({ timeMs: v }))
@@ -141,15 +142,7 @@ export function MicPanel({ track }: { track: Track | null }) {
 
   const d = DEFAULT_MIC_SETTINGS
   return (
-    <div
-      style={{
-        padding: '0 16px 16px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '12px',
-        alignItems: 'start',
-      }}
-    >
+    <div style={fxGridStyle}>
       <div style={{ ...sectionStyle, gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
         <ToggleSwitch checked={mic.enabled} onChange={(checked) => update({ enabled: checked })} title="Mic on/off" />
         <h4 style={{ margin: 0 }}>Mic</h4>
@@ -229,6 +222,42 @@ export function MicPanel({ track }: { track: Track | null }) {
           <KnobField label="Low" control="mic.eq.low" value={mic.eq.low} min={-12} max={12} step={0.5} onChange={(v) => updateEq({ low: v })} bipolar defaultValue={d.eq.low} formatValue={dbLabel} />
           <KnobField label="Mid" control="mic.eq.mid" value={mic.eq.mid} min={-12} max={12} step={0.5} onChange={(v) => updateEq({ mid: v })} bipolar defaultValue={d.eq.mid} formatValue={dbLabel} />
           <KnobField label="High" control="mic.eq.high" value={mic.eq.high} min={-12} max={12} step={0.5} onChange={(v) => updateEq({ high: v })} bipolar defaultValue={d.eq.high} formatValue={dbLabel} />
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <ToggleSwitch checked={mic.pitch.enabled} onChange={(checked) => updatePitch({ enabled: checked })} title="Voice pitch on/off" />
+          <h4 style={{ margin: 0 }}>Pitch</h4>
+          <MidiLearnBadge control="mic.pitch.enabled" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField
+            label="Semitones"
+            control="mic.pitch.semitones"
+            value={mic.pitch.semitones}
+            min={-12}
+            max={12}
+            step={1}
+            onChange={(v) => updatePitch({ semitones: v })}
+            bipolar
+            defaultValue={d.pitch.semitones}
+            formatValue={(v) => `${v > 0 ? '+' : ''}${Math.round(v)} st`}
+          />
+          <KnobField
+            label="Mix"
+            control="mic.pitch.mix"
+            value={mic.pitch.mix}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => updatePitch({ mix: v })}
+            defaultValue={d.pitch.mix}
+            formatValue={(v) => `${Math.round(v * 100)}%`}
+          />
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', maxWidth: '150px', alignSelf: 'center' }}>
+            Down for a deep voice, up for a high one. Mix below 100% keeps your own voice in.
+          </span>
         </div>
       </div>
 

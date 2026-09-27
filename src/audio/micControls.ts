@@ -12,6 +12,7 @@ export const MIC_TOGGLES: Partial<Record<MidiControlKey, Toggle>> = {
   'mic.enabled': { get: (s) => s.enabled, set: (s, on) => ({ ...s, enabled: on }) },
   'mic.echo.enabled': { get: (s) => s.echo.enabled, set: (s, on) => ({ ...s, echo: { ...s.echo, enabled: on } }) },
   'mic.reverb.enabled': { get: (s) => s.reverb.enabled, set: (s, on) => ({ ...s, reverb: { ...s.reverb, enabled: on } }) },
+  'mic.pitch.enabled': { get: (s) => s.pitch.enabled, set: (s, on) => ({ ...s, pitch: { ...s.pitch, enabled: on } }) },
   'mic.radio.enabled': { get: (s) => s.radio.enabled, set: (s, on) => ({ ...s, radio: { ...s.radio, enabled: on } }) },
   'mic.duck.enabled': { get: (s) => s.duck.enabled, set: (s, on) => ({ ...s, duck: { ...s.duck, enabled: on } }) },
 }
@@ -28,6 +29,9 @@ export const MIC_KNOBS: Partial<Record<MidiControlKey, (s: MicSettings, v: numbe
   'mic.echo.mix': (s, v) => ({ ...s, echo: { ...s.echo, mix: v } }),
   'mic.reverb.decaySeconds': (s, v) => ({ ...s, reverb: { ...s.reverb, decaySeconds: v } }),
   'mic.reverb.mix': (s, v) => ({ ...s, reverb: { ...s.reverb, mix: v } }),
+  // Whole semitones: a MIDI knob would otherwise land between notes.
+  'mic.pitch.semitones': (s, v) => ({ ...s, pitch: { ...s.pitch, semitones: Math.round(v) } }),
+  'mic.pitch.mix': (s, v) => ({ ...s, pitch: { ...s.pitch, mix: v } }),
   'mic.radio.drive': (s, v) => ({ ...s, radio: { ...s.radio, drive: v } }),
   'mic.duck.amountDb': (s, v) => ({ ...s, duck: { ...s.duck, amountDb: v } }),
 }
