@@ -437,7 +437,9 @@ export interface CollectionState {
   setTrackSubgenres: (trackId: number, subgenreIds: number[]) => Promise<void>
   setSearchText: (text: string) => void
   // analyseNew: also analyse the tracks this scan added.
-  runScan: (opts?: { analyseNew?: boolean }) => Promise<void>
+  // removeMissing: also delete tracks whose file is gone, with their tags
+  // (Update Collection only — ADR 0040).
+  runScan: (opts?: { analyseNew?: boolean; removeMissing?: boolean }) => Promise<void>
   runAnalysis: (trackIds?: number[]) => Promise<void>
   // One play of a track (see Player.tsx): bumps its play count.
   recordPlay: (trackId: number) => Promise<void>
@@ -674,7 +676,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       ['delay.enabled', settings.delay.enabled, previous.delay.enabled],
       ['reverb.enabled', settings.reverb.enabled, previous.reverb.enabled],
       ['filter.enabled', settings.filter.enabled, previous.filter.enabled],
-      ['eq.enabled', settings.eq.enabled, previous.eq.enabled],
       ['siren.enabled', settings.siren.enabled, previous.siren.enabled],
     ]
     for (const [control, next, prev] of enabledPairs) {
@@ -876,7 +877,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       if (learning === 'delay.enabled') sendMidiFeedback(binding, currentEffectsSettings.delay.enabled)
       else if (learning === 'reverb.enabled') sendMidiFeedback(binding, currentEffectsSettings.reverb.enabled)
       else if (learning === 'filter.enabled') sendMidiFeedback(binding, currentEffectsSettings.filter.enabled)
-      else if (learning === 'eq.enabled') sendMidiFeedback(binding, currentEffectsSettings.eq.enabled)
       else if (learning === 'siren.enabled') sendMidiFeedback(binding, currentEffectsSettings.siren.enabled)
       return
     }
@@ -1056,12 +1056,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         const es = get().effectsSettings
         get().setEffectsSettings({ ...es, filter: { ...es.filter, mix: scaled } })
       })
-    } else if (match === 'eq.enabled') {
-      if (value === 0) return
-      get().setEffectsSettings({
-        ...effectsSettings,
-        eq: { ...effectsSettings.eq, enabled: !effectsSettings.eq.enabled },
-      })
     } else if (match === 'eq.low') {
       scheduleMidiCommit('eq.low', () => {
         const es = get().effectsSettings
@@ -1077,11 +1071,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         const es = get().effectsSettings
         get().setEffectsSettings({ ...es, eq: { ...es.eq, high: scaled } })
       })
-    } else if (match === 'eq.mix') {
-      scheduleMidiCommit('eq.mix', () => {
-        const es = get().effectsSettings
-        get().setEffectsSettings({ ...es, eq: { ...es.eq, mix: scaled } })
-      })
+
     } else if (match === 'siren.enabled') {
       if (value === 0) return
       get().setEffectsSettings({
@@ -1405,7 +1395,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   runScan: async (opts) => {
     const before = new Set(get().tracks.map((t) => t.id))
-    await window.api.scanCollection()
+    await window.api.scanCollection({ removeMissing: opts?.removeMissing })
     await get().loadAll()
     if (!opts?.analyseNew) return
     const added = get()

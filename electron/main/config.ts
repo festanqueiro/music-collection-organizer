@@ -4,6 +4,7 @@ import {
   DEFAULT_EFFECTS_SETTINGS,
   DEFAULT_SIREN_SETTINGS,
   DEFAULT_TRACK_TABLE_COLUMN_ORDER,
+  MIDI_CONTROL_KEYS,
   type EffectsSettings,
   type MidiMappings,
   type TrackTableColumnKey,
@@ -99,7 +100,12 @@ export function getEffectsSettings(): EffectsSettings {
     delay: { ...DEFAULT_EFFECTS_SETTINGS.delay, ...stored.delay },
     reverb: { ...DEFAULT_EFFECTS_SETTINGS.reverb, ...stored.reverb },
     filter: { ...DEFAULT_EFFECTS_SETTINGS.filter, ...stored.filter },
-    eq: { ...DEFAULT_EFFECTS_SETTINGS.eq, ...stored.eq },
+    // Only the bands: EQ on/off and mix were removed (always fully on).
+    eq: {
+      low: stored.eq?.low ?? DEFAULT_EFFECTS_SETTINGS.eq.low,
+      mid: stored.eq?.mid ?? DEFAULT_EFFECTS_SETTINGS.eq.mid,
+      high: stored.eq?.high ?? DEFAULT_EFFECTS_SETTINGS.eq.high,
+    },
     siren: { ...DEFAULT_SIREN_SETTINGS, ...stored.siren },
     masterVolume: stored.masterVolume ?? DEFAULT_EFFECTS_SETTINGS.masterVolume,
   }
@@ -109,8 +115,12 @@ export function setEffectsSettings(settings: EffectsSettings): void {
   getStore().set('effectsSettings', settings)
 }
 
+const KNOWN_MIDI_CONTROLS = new Set<string>(MIDI_CONTROL_KEYS)
+
 export function getMidiMappings(): MidiMappings {
-  return getStore().get('midiMappings') ?? {}
+  // Drops bindings for controls that no longer exist (e.g. EQ on/off and mix).
+  const stored = getStore().get('midiMappings') ?? {}
+  return Object.fromEntries(Object.entries(stored).filter(([key]) => KNOWN_MIDI_CONTROLS.has(key))) as MidiMappings
 }
 
 export function setMidiMappings(mappings: MidiMappings): void {

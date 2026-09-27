@@ -30,6 +30,7 @@ const LOSSY_FORMATS = new Set(['mp3', 'm4a', 'aac', 'ogg', 'opus'])
 const LOW_BITRATE_KBPS = 192
 const MIN_COLUMN_WIDTH = 50
 const CHECKBOX_COL_WIDTH = 36
+const PLAY_COL_WIDTH = 56
 const STATUS_COL_WIDTH = 90
 const CLOUD_COL_WIDTH = 70
 // Every row is exactly this tall (the tallest a one-line row gets, with a
@@ -458,61 +459,70 @@ export function TrackTable({
     onSelect(track)
   }
 
+  // Play and pre-listen: their own fixed first column, never reordered
+  // with the others. A missing track's file is gone — nothing to play.
+  function renderPlayCell(track: Track) {
+    if (track.missing) return null
+    return (
+      <>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            // Loading a track into the player is itself a form of
+            // selecting it — without this, the play button and
+            // clicking the row would leave the detail panel out of
+            // sync with what's actually playing.
+            onSelect(track)
+            // The loaded track's button is its play/pause toggle —
+            // clicking it again must not restart it from the top.
+            if (track.id === currentTrackId && playbackControls) playbackControls.toggle()
+            else playTrackNow(track.id)
+          }}
+          title={track.id === currentTrackId && playerPlaying ? 'Pause' : track.id === currentTrackId ? 'Resume' : 'Play track now'}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '0 4px 0 0',
+            cursor: 'pointer',
+            verticalAlign: 'middle',
+            color: track.id === currentTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+            {track.id === currentTrackId && playerPlaying ? 'pause_circle' : 'play_circle'}
+          </span>
+        </button>
+        {track.cloudStatus === 'local' && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              previewTrack(track.id)
+            }}
+            title={track.id === cueTrackId ? 'Stop pre-listen' : 'Pre-listen in headphones (P)'}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '0 4px 0 0',
+              cursor: 'pointer',
+              verticalAlign: 'middle',
+              color: track.id === cueTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+              headphones
+            </span>
+          </button>
+        )}
+      </>
+    )
+  }
+
   function renderCell(track: Track, key: TrackTableColumnKey) {
     switch (key) {
       case 'title':
-        // A missing track's file is gone: nothing to play, pre-listen or drag.
         if (track.missing) return decodeHtmlEntities(track.title ?? track.filename)
         return (
           <>
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                // Loading a track into the player is itself a form of
-                // selecting it — without this, the play button and
-                // clicking the row would leave the detail panel out of
-                // sync with what's actually playing.
-                onSelect(track)
-                // The loaded track's button is its play/pause toggle —
-                // clicking it again must not restart it from the top.
-                if (track.id === currentTrackId && playbackControls) playbackControls.toggle()
-                else playTrackNow(track.id)
-              }}
-              title={track.id === currentTrackId && playerPlaying ? 'Pause' : track.id === currentTrackId ? 'Resume' : 'Play track now'}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '0 4px 0 0',
-                cursor: 'pointer',
-                verticalAlign: 'middle',
-                color: track.id === currentTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
-              }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
-                {track.id === currentTrackId && playerPlaying ? 'pause_circle' : 'play_circle'}
-              </span>
-            </button>
-            {track.cloudStatus === 'local' && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  previewTrack(track.id)
-                }}
-                title={track.id === cueTrackId ? 'Stop pre-listen' : 'Pre-listen in headphones (P)'}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: '0 4px 0 0',
-                  cursor: 'pointer',
-                  verticalAlign: 'middle',
-                  color: track.id === cueTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
-                  headphones
-                </span>
-              </button>
-            )}
             {track.analysisStatus === 'analyzing' && (
               <span
                 className="material-symbols-outlined spin"
@@ -729,6 +739,7 @@ export function TrackTable({
             borderCollapse: 'collapse',
             tableLayout: 'fixed',
             width:
+              PLAY_COL_WIDTH +
               CHECKBOX_COL_WIDTH +
               orderedColumns.reduce((sum, col) => sum + columnWidths[col.key], 0) +
               STATUS_COL_WIDTH +
@@ -737,6 +748,7 @@ export function TrackTable({
         >
           <thead>
             <tr>
+              <th style={{ ...cellStyle, width: PLAY_COL_WIDTH, ...stickyHeaderStyle }} />
               <th style={{ ...cellStyle, width: CHECKBOX_COL_WIDTH, ...stickyHeaderStyle }}>
                 <input
                   type="checkbox"
@@ -792,7 +804,7 @@ export function TrackTable({
             {tracks.length > 0 && visibleTracks.length === 0 && (
               <tr>
                 <td
-                  colSpan={orderedColumns.length + 3}
+                  colSpan={orderedColumns.length + 4}
                   style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-dim)' }}
                 >
                   No tracks match your search/filter.
@@ -801,7 +813,7 @@ export function TrackTable({
             )}
             {firstRendered > 0 && (
               <tr aria-hidden style={{ height: firstRendered * ROW_HEIGHT }}>
-                <td colSpan={orderedColumns.length + 3} style={{ padding: 0 }} />
+                <td colSpan={orderedColumns.length + 4} style={{ padding: 0 }} />
               </tr>
             )}
             {renderedTracks.map((track) => (
@@ -835,6 +847,7 @@ export function TrackTable({
                 }}
                 style={{ cursor: 'pointer', height: ROW_HEIGHT, ...(track.missing ? { opacity: 0.6 } : {}) }}
               >
+                <td style={{ ...cellStyle, padding: '8px 4px 8px 8px' }}>{renderPlayCell(track)}</td>
                 <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
@@ -878,7 +891,7 @@ export function TrackTable({
             ))}
             {lastRendered < visibleTracks.length && (
               <tr aria-hidden style={{ height: (visibleTracks.length - lastRendered) * ROW_HEIGHT }}>
-                <td colSpan={orderedColumns.length + 3} style={{ padding: 0 }} />
+                <td colSpan={orderedColumns.length + 4} style={{ padding: 0 }} />
               </tr>
             )}
           </tbody>

@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (amended by 0040: Update Collection removes missing tracks)
 date: 2026-08-20
 ---
 # 0004. Never delete track rows on a scan; hide missing files instead

@@ -9,7 +9,7 @@ export function activeEffects(settings: EffectsSettings, sirenHeld: boolean): st
   const { delay, reverb, filter, eq, siren } = settings
   const active: string[] = []
   if (filter.enabled && filter.mix > 0 && (filter.lowpass > OPEN || filter.highpass > OPEN)) active.push('Filter')
-  if (eq.enabled && eq.mix > 0 && (eq.low !== 0 || eq.mid !== 0 || eq.high !== 0)) active.push('EQ')
+  if (eq.low !== 0 || eq.mid !== 0 || eq.high !== 0) active.push('EQ')
   if (delay.enabled && delay.mix > 0) active.push('Delay')
   if (reverb.enabled && reverb.mix > 0) active.push('Reverb')
   if (siren.enabled && (sirenHeld || siren.beat !== 'off')) active.push('Siren')

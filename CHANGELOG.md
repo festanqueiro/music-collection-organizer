@@ -6,6 +6,27 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.45 — 2026-09-27
+
+### Changed
+- Folder names in the folder tree stay on one line; long ones end in "…"
+  and show the full name when you hover them.
+- The Mac and its screen no longer go to sleep while the visualizer is on.
+- **Update Collection** now removes tracks whose file is gone (and their
+  tags) instead of keeping them in Missing Tracks. Background rescans still
+  only hide them, and nothing is removed if the folder looks empty (e.g. an
+  unplugged drive).
+- The play and headphones buttons now have their own fixed first column in
+  the track list, instead of sitting in the Title column (which could be
+  moved).
+- The EQ is always on: its on/off switch and Mix knob are gone, and its
+  Low, Mid and High knobs now sit next to the master Volume in one card,
+  called EQ.
+
+### Fixed
+- The volume slider (and other sliders/checkboxes) now use the theme's
+  accent colour instead of macOS's system blue.
+
 ## 1.0.44 — 2026-09-27
 
 ### Added

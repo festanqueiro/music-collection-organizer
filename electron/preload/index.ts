@@ -72,7 +72,7 @@ const api = {
   // pick relaunches the whole app from the main process before this
   // invoke() would otherwise get a response, same as restoreBackup below.
   chooseDbLocation: (): Promise<string | null> => ipcRenderer.invoke('config:chooseDbLocation'),
-  scanCollection: (): Promise<ScanResult> => ipcRenderer.invoke('scan:run'),
+  scanCollection: (opts?: { removeMissing?: boolean }): Promise<ScanResult> => ipcRenderer.invoke('scan:run', opts),
   analyzeCollection: (trackIds?: number[]): Promise<void> => ipcRenderer.invoke('analysis:run', trackIds),
   stopAnalysis: (): Promise<void> => ipcRenderer.invoke('analysis:stop'),
   getTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getAll'),
@@ -205,6 +205,7 @@ const api = {
     }
   },
   stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),
+  setKeepDisplayAwake: (awake: boolean): Promise<void> => ipcRenderer.invoke('power:keepDisplayAwake', awake),
   onCastDevices: (cb: (devices: CastDevice[]) => void): (() => void) => {
     const listener = (_e: unknown, devices: CastDevice[]) => cb(devices)
     ipcRenderer.on('cast:devices', listener)

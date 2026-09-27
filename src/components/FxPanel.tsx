@@ -180,7 +180,7 @@ export function FxPanel({ track }: { track: Track | null }) {
     >
       <div style={sectionStyle}>
         <div style={headerRowStyle}>
-          <h4 style={{ margin: 0 }}>Master</h4>
+          <h4 style={{ margin: 0 }}>EQ</h4>
           <MidiLearnBadge control="master.volume" />
         </div>
         <div style={knobRowStyle}>
@@ -193,31 +193,6 @@ export function FxPanel({ track }: { track: Track | null }) {
             step={0.01}
             onChange={(v) => setEffectsSettings({ ...effectsSettings, masterVolume: v })}
             defaultValue={DEFAULT_EFFECTS_SETTINGS.masterVolume}
-            formatValue={(v) => v.toFixed(2)}
-          />
-        </div>
-      </div>
-
-      <div style={sectionStyle}>
-        <div style={headerRowStyle}>
-          <ToggleSwitch
-            checked={effectsSettings.eq.enabled}
-            onChange={(checked) => updateEq({ enabled: checked })}
-            title="EQ on/off"
-          />
-          <h4 style={{ margin: 0 }}>EQ</h4>
-          <MidiLearnBadge control="eq.enabled" />
-        </div>
-        <div style={knobRowStyle}>
-          <KnobField
-            label="Mix"
-            control="eq.mix"
-            value={effectsSettings.eq.mix}
-            min={0}
-            max={1}
-            step={0.01}
-            onChange={(v) => updateEq({ mix: v })}
-            defaultValue={DEFAULT_EFFECTS_SETTINGS.eq.mix}
             formatValue={(v) => v.toFixed(2)}
           />
           <KnobField

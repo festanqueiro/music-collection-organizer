@@ -9,6 +9,8 @@ A full-screen, audio-reactive visualizer built on `three.js`. Open it from
 the player bar's **Visualizer** button; close it with **Esc** or its close
 button. It stays open across track changes and reacts to the post-FX
 output (after FX and master volume), so EQ/filter moves show up in it.
+While it's open the Mac and its display don't sleep (a `prevent-display-sleep`
+power blocker in the main process, `power:keepDisplayAwake`, released on close).
 
 Options, as dropdowns in the bar along the top right (the theme's own options saved per theme):
 

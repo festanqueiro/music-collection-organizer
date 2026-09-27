@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0023, 0025, 0029, 0034]
 ---
 # FX
@@ -8,14 +8,13 @@ adrs: [0023, 0025, 0029, 0034]
 The **FX** screen (the **FX** button on the right of the player bar; it
 lights up while an effect is engaged) processes playback through a Web
 Audio graph. Each effect is a card, laid out in as many columns as fit. Every control is a rotary knob that shows its live value;
-**double-click** a knob to reset it. Each module has its own on/off toggle
-in its header. All settings are saved and restored on the next launch, and
+**double-click** a knob to reset it. Each effect module has its own on/off
+toggle in its header; the EQ card (master volume and the 3-band EQ) is always on. All settings are saved and restored on the next launch, and
 every knob and toggle can be [MIDI-mapped](midi.md).
 
 | Module | Controls | Notes |
 | --- | --- | --- |
-| **Master** | Volume | Overall output level. |
-| **EQ** | Low, Mid, High, Mix | 3-band EQ. |
+| **EQ** | Volume, Low, Mid, High | Overall output level and a 3-band EQ, always on and fully applied like a mixer's channel EQ (flat = off). |
 | **Filter** | LP, HP, Resonance, Mix | Separate low-pass and high-pass amounts ("Open" = off); a reset button opens both fully. Resonance fades in over the first quarter of each knob's travel and the filtered level is compensated, so it's transparent at rest and doesn't hiss, rumble or clip ([ADR 0029](../adr/0029-filter-resonance-fades-in.md)). |
 | **Delay** | Time, Feedback, Division, Mix | Division snaps the time to a note value (1/1, 1/2, 1/4, 1/8, 1/16, dotted 1/4 and 1/8, triplet 1/4 and 1/8) at the loaded track's BPM. |
 | **Reverb** | Decay, Pre-delay, Mix | Synthesized impulse response (no bundled assets). |

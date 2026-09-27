@@ -17,6 +17,11 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [scanning, setScanning] = useState(false)
   const [confirmingScan, setConfirmingScan] = useState(false)
   const [analyseNew, setAnalyseNew] = useState(true)
+  // Missing tracks in this folder the scan will remove (more may go
+  // missing by then; the scan removes those too).
+  const missingCount = useCollectionStore(
+    (s) => s.missingTracks.filter((t) => collectionFolder && t.path.startsWith(collectionFolder.replace(/\/?$/, '/'))).length
+  )
   const folderName = collectionFolder?.split('/').filter(Boolean).pop() ?? collectionFolder
 
   return (
@@ -174,7 +179,7 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
             setConfirmingScan(false)
             setScanning(true)
             try {
-              await runScan({ analyseNew })
+              await runScan({ analyseNew, removeMissing: true })
             } finally {
               setScanning(false)
             }
@@ -182,6 +187,10 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         >
           <p style={{ margin: '0 0 12px' }}>
             We're going to scan for new files in <strong style={{ color: 'var(--color-text)' }}>{collectionFolder}</strong>.
+          </p>
+          <p style={{ margin: '0 0 12px' }}>
+            Tracks whose file is no longer there are removed from MCO, along with their tags
+            {missingCount > 0 ? ` (${missingCount} missing now)` : ''}.
           </p>
           <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--color-text)' }}>
             <input type="checkbox" checked={analyseNew} onChange={(e) => setAnalyseNew(e.target.checked)} />

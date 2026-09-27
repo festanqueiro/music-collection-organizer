@@ -24,9 +24,13 @@ The **Update Collection** icon (toolbar) asks first: *"We're going to scan for n
 folder for audio files (WAV, AIFF, FLAC, MP3, M4A/AAC, OGG, Opus) and compares them with the database:
 - new files are added as *pending* analysis;
 - changed files (size or modified time) are reset to *pending* and their tags re-read;
-- files that disappeared are **hidden, never deleted**, so their tags survive a drive that isn't
-  mounted yet or a temporary move; the same path found again brings the track back
-  ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
+- files that disappeared are **removed**, with their tags — the ones gone since the last scan and
+  any already in Missing Tracks, but only inside the collection folder, and not at all if the scan
+  finds no files (an unmounted drive). The dialog says so, with the current missing count
+  ([ADR 0040](../adr/0040-update-collection-removes-missing-tracks.md)).
+- the background rescans (folder watcher) and switching collection folder only **hide** missing
+  files, so their tags survive a temporary move or a drive that isn't mounted yet; the same path
+  found again brings the track back ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
 
 ### Watching the folder
 MCO watches the collection folder, subfolders included. A few seconds after files are added, removed
@@ -71,7 +75,8 @@ Four views: **Folders**, **Tags**, **Subtags** and [**Filters**](filters.md) —
 labelled; the others are icons. It **collapses** to a strip of icons, and **reopens where you left
 it**: the same view, open folders and selected folder (a folder that's gone falls back to All
 Tracks). The folder tree has **Collapse all** next to All Tracks while anything is open; its
-right-click menu has **Analyse this folder** and **Add all to queue**.
+right-click menu has **Analyse this folder** and **Add all to queue**. Each folder name stays on
+one line, cut with "…" when it's too long for the sidebar; hover it for the full name.
 
 ### Chips above the table
 Every active narrowing shows as a chip with an × to clear it: the **search** ("dub"), the
@@ -86,7 +91,8 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 - Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted in Bitrate.
 - The Key column shows colour-coded Camelot keys ([DJ tools](dj-tools.md#harmonic-mixing)).
 - Click a row for its details; the play icon starts it (pause/resume on the playing track); the
-  headphones icon pre-listens ([DJ tools](dj-tools.md#headphone-pre-listen-cue)).
+  headphones icon pre-listens ([DJ tools](dj-tools.md#headphone-pre-listen-cue)). Both sit in a
+  fixed first column of their own, before the checkbox, whatever the column order.
 - Only the rows on screen are drawn, at a fixed height, so it stays at ~120 fps with thousands of
   tracks ([ADR 0024](../adr/0024-virtualised-track-table.md)).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of the queue**, **Pre-listen

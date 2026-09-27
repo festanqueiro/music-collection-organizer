@@ -60,7 +60,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0001](adr/0001-record-decisions-in-docs.md) | Record decisions, features and findings in `docs/` | accepted |
 | [0002](adr/0002-electron-react-typescript.md) | Build MCO as an Electron + React + TypeScript desktop app, macOS only | accepted |
 | [0003](adr/0003-node-sqlite.md) | Use Node's built-in `node:sqlite` for the database | accepted |
-| [0004](adr/0004-never-delete-track-rows.md) | Never delete track rows on a scan; hide missing files instead | accepted |
+| [0004](adr/0004-never-delete-track-rows.md) | Never delete track rows on a scan; hide missing files instead | amended by 0040 |
 | [0005](adr/0005-cloud-only-detection.md) | Detect cloud-only files from allocated blocks vs size | accepted |
 | [0006](adr/0006-analysis-in-worker-threads.md) | Analyse audio with essentia.js (WASM) and ffmpeg in a pool of worker threads | accepted |
 | [0007](adr/0007-config-separate-from-database.md) | Keep settings in `electron-store`, separate from the collection database | accepted |
@@ -96,6 +96,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0037](adr/0037-keep-the-tv-awake.md) | Keep the TV's screen awake during a session; say why a session ends | accepted |
 | [0038](adr/0038-pick-the-tv-screen-in-the-cast-menu.md) | Pick what the TV shows in the Cast menu; MCO's visualizer off while casting | accepted |
 | [0039](adr/0039-download-cloud-tracks-before-playing.md) | Download cloud-only tracks before playing them, without blocking the main process | accepted |
+| [0040](adr/0040-update-collection-removes-missing-tracks.md) | Update Collection removes missing tracks; background scans only hide them | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

@@ -50,6 +50,38 @@ describe('runScan', () => {
     expect(tags).toHaveLength(1)
   })
 
+  it('removeMissing deletes missing tracks under the folder, with their tags, including earlier-missing ones', () => {
+    writeFileSync(join(root, 'keep.wav'), 'x'.repeat(1000))
+    writeFileSync(join(root, 'old.wav'), 'x'.repeat(1000))
+    writeFileSync(join(root, 'new.wav'), 'x'.repeat(1000))
+    runScan(db, root)
+    db.prepare('INSERT INTO genres (name) VALUES (?)').run('House')
+    db.prepare('INSERT INTO track_genres (track_id, genre_id) SELECT id, 1 FROM tracks').run()
+    // Missing since an earlier scan, and missing as of this one.
+    unlinkSync(join(root, 'old.wav'))
+    runScan(db, root)
+    unlinkSync(join(root, 'new.wav'))
+    // A track from a previous collection folder is left alone.
+    db.prepare("INSERT INTO tracks (path, filename, folder, format, size, mtime, present) VALUES ('/elsewhere/x.wav', 'x.wav', '/elsewhere', 'wav', 1, 1, 0)").run()
+
+    const result = runScan(db, root, { removeMissing: true })
+    expect(result.removed).toBe(2)
+    expect(result.missing).toBe(0)
+    const paths = (db.prepare('SELECT path FROM tracks ORDER BY path').all() as any[]).map((r) => r.path)
+    expect(paths).toEqual(['/elsewhere/x.wav', join(root, 'keep.wav')])
+    expect(db.prepare('SELECT COUNT(*) AS n FROM track_genres').get()).toEqual({ n: 1 })
+  })
+
+  it('removeMissing removes nothing when the folder has no files (e.g. an unmounted drive)', () => {
+    writeFileSync(join(root, 'a.wav'), 'x'.repeat(1000))
+    runScan(db, root)
+    unlinkSync(join(root, 'a.wav'))
+    const result = runScan(db, root, { removeMissing: true })
+    expect(result.removed).toBe(0)
+    expect(result.missing).toBe(1)
+    expect((db.prepare('SELECT present FROM tracks').get() as any).present).toBe(0)
+  })
+
   it('clears a stale cloud-only flag once the file is downloaded, even though it looks unchanged', () => {
     writeFileSync(join(root, 'c.wav'), 'x'.repeat(5000))
     runScan(db, root)

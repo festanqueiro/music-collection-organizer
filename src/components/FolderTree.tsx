@@ -44,6 +44,7 @@ function TreeNode({
     <div>
       <div
         data-folder-path={node.path}
+        title={node.name}
         style={{
           paddingLeft: `${depth * 16}px`,
           cursor: 'pointer',
@@ -64,7 +65,7 @@ function TreeNode({
         {hasChildren ? (
           <span
             className="material-symbols-outlined"
-            style={{ fontSize: '14px', cursor: 'pointer' }}
+            style={{ fontSize: '14px', cursor: 'pointer', flexShrink: 0 }}
             onClick={(e) => {
               e.stopPropagation()
               onToggle(node.path)
@@ -73,9 +74,13 @@ function TreeNode({
             {showChildren ? 'expand_more' : 'chevron_right'}
           </span>
         ) : (
-          <span style={{ display: 'inline-block', width: '14px' }} />
+          <span style={{ display: 'inline-block', width: '14px', flexShrink: 0 }} />
         )}
-        <span className="material-symbols-outlined">folder</span> {node.name}
+        <span className="material-symbols-outlined" style={{ flexShrink: 0 }}>folder</span>
+        {/* One line per folder; long names end in "…" (full name in the tooltip). */}
+        <span style={{ marginLeft: '4px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {node.name}
+        </span>
       </div>
       {showChildren &&
         node.children.map((child) => (
