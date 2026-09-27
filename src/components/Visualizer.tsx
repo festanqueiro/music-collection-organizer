@@ -9,6 +9,10 @@ import { ToggleSwitch } from './ToggleSwitch'
 import type { Track } from '../types'
 
 const UI_HIDE_DELAY_MS = 2500
+// The render loop is capped at 30 fps: the themes look the same to the
+// eye and it roughly halves GPU load (and heat) on a 60/120 Hz display.
+const TARGET_FPS = 30
+const FRAME_MS = 1000 / TARGET_FPS
 
 // Full-screen audio-reactive overlay. This shell owns fullscreen, the
 // render loop and the theme picker; the themes and VisualizerEngine
@@ -141,10 +145,17 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     // through React state, so it doesn't re-render the overlay.
     let fpsFrames = 0
     let fpsSince = performance.now()
+    let lastRenderMs = -Infinity
 
     function tick() {
       raf = requestAnimationFrame(tick)
       const nowMs = performance.now()
+      // Skip display refreshes until a frame is due. The small slack keeps
+      // a 60 Hz display at an even every-other-vsync despite rAF jitter;
+      // snapping to the frame grid (rather than to nowMs) avoids drift.
+      const sinceLast = nowMs - lastRenderMs
+      if (sinceLast < FRAME_MS - 2) return
+      lastRenderMs = sinceLast > FRAME_MS * 2 ? nowMs : lastRenderMs + FRAME_MS
       fpsFrames++
       if (nowMs - fpsSince >= 1000) {
         if (fpsRef.current) fpsRef.current.textContent = `${Math.round((fpsFrames * 1000) / (nowMs - fpsSince))} fps`

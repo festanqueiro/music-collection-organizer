@@ -11,6 +11,9 @@ button. It stays open across track changes and reacts to the post-FX
 output (after FX and master volume), so EQ/filter moves show up in it.
 While it's open the Mac and its display don't sleep (a `prevent-display-sleep`
 power blocker in the main process, `power:keepDisplayAwake`, released on close).
+It renders at a steady **30 fps** whatever the display's refresh rate (the
+render loop skips vsyncs until a frame is due), to keep the GPU cool; the
+fps readout in the top bar shows it.
 
 Options, as dropdowns in the bar along the top right (the theme's own options saved per theme):
 

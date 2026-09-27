@@ -6,6 +6,10 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Changed
+- **Visualizer**: now renders at 30 fps instead of the display's full
+  refresh rate, so the GPU runs cooler.
+
 ## 1.0.47 — 2026-09-27
 
 ### Added
