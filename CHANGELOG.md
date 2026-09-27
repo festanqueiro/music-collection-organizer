@@ -15,6 +15,9 @@ installed copies update themselves.
   tags) instead of keeping them in Missing Tracks. Background rescans still
   only hide them, and nothing is removed if the folder looks empty (e.g. an
   unplugged drive).
+- The play and headphones buttons now have their own fixed first column in
+  the track list, instead of sitting in the Title column (which could be
+  moved).
 
 ### Fixed
 - The volume slider (and other sliders/checkboxes) now use the theme's

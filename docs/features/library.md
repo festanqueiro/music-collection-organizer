@@ -91,7 +91,8 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 - Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted in Bitrate.
 - The Key column shows colour-coded Camelot keys ([DJ tools](dj-tools.md#harmonic-mixing)).
 - Click a row for its details; the play icon starts it (pause/resume on the playing track); the
-  headphones icon pre-listens ([DJ tools](dj-tools.md#headphone-pre-listen-cue)).
+  headphones icon pre-listens ([DJ tools](dj-tools.md#headphone-pre-listen-cue)). Both sit in a
+  fixed first column of their own, before the checkbox, whatever the column order.
 - Only the rows on screen are drawn, at a fixed height, so it stays at ~120 fps with thousands of
   tracks ([ADR 0024](../adr/0024-virtualised-track-table.md)).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of the queue**, **Pre-listen
