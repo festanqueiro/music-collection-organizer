@@ -1,5 +1,5 @@
-// The right end of the player bar, in this order: Rec and Cast — set
-// apart, since they record or move the sound rather than open a view —
+// The right end of the player bar, in this order: Rec, Mic and Cast — set
+// apart, since they record, add or move the sound rather than open a view —
 // then the full-screen views: Visualizer, FX, Queue, and Live (queue, FX
 // and mic together).
 import { useCollectionStore, type PlayerScreen } from '../state/store'
@@ -7,6 +7,7 @@ import { activeEffects } from '../cast/fxIndicators'
 import { castingToAScreen } from '../cast/castSession'
 import { CastButton } from './CastButton'
 import { RecordButton } from './RecordButton'
+import { MicButton } from './MicButton'
 import { barButtonStyle } from './playerBarStyles'
 
 function ScreenButton({
@@ -54,6 +55,7 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
       <RecordButton />
+      <MicButton />
       <CastButton />
       <span style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 4px' }} />
       <button

@@ -1,20 +1,19 @@
 // src/components/MicPanel.tsx
 //
-// The Mic section of the FX screen (docs/features/recording.md): the mic's
-// voice chain and its own effects, as knob cards like the track's FX.
-import { useEffect, useRef, useState } from 'react'
+// The Mic FX group of the FX and Live screens (docs/features/recording.md):
+// the mic's voice chain and its own effects, as knob cards like the
+// track's FX. Switching the mic on, its input, level and Talk are in the
+// player bar's Mic popover (MicButton).
+import { useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { subscribeToMicLevels } from '../audio/micSession'
 import { echoTimeForDivision } from '../audio/micControls'
 import { KnobField, fxGridStyle, useRafThrottledCommit } from './FxPanel'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { ToggleSwitch } from './ToggleSwitch'
+import { HoldButton } from './MicWidgets'
 import { DEFAULT_MIC_SETTINGS, DELAY_DIVISIONS, MIC_GATE_OFF_DB, type MicSettings, type Track } from '../types'
 
 const DEFAULT_DIVISION_INDEX = 3 // 1/8
-const METER_FLOOR_DB = -60
-const CLIP_LEVEL = 0.99
-const CLIP_HOLD_MS = 1500
 
 const sectionStyle = {
   background: 'var(--color-surface)',
@@ -26,103 +25,11 @@ const headerRowStyle = { display: 'flex', alignItems: 'center', gap: '8px', marg
 const knobRowStyle = { display: 'flex', flexWrap: 'wrap' as const, gap: '10px', alignItems: 'flex-start' }
 const dbLabel = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`
 
-function useInputDevices(): MediaDeviceInfo[] {
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
-  useEffect(() => {
-    const media = navigator.mediaDevices
-    const refresh = () =>
-      media
-        .enumerateDevices()
-        .then((all) => setDevices(all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default')))
-        .catch(() => setDevices([]))
-    refresh()
-    media.addEventListener('devicechange', refresh)
-    return () => media.removeEventListener('devicechange', refresh)
-  }, [])
-  return devices
-}
-
-// Input level, drawn straight into the DOM ~50 times a second (no
-// re-render), with a clip light that stays lit for a moment.
-function LevelMeter({ active }: { active: boolean }) {
-  const barRef = useRef<HTMLDivElement>(null)
-  const clipRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    let clipUntil = 0
-    const setLevel = (peak: number) => {
-      const db = peak > 0 ? 20 * Math.log10(peak) : METER_FLOOR_DB
-      const fraction = Math.min(1, Math.max(0, (db - METER_FLOOR_DB) / -METER_FLOOR_DB))
-      if (barRef.current) barRef.current.style.width = `${fraction * 100}%`
-      const now = performance.now()
-      if (peak >= CLIP_LEVEL) clipUntil = now + CLIP_HOLD_MS
-      if (clipRef.current) clipRef.current.style.opacity = now < clipUntil ? '1' : '0.15'
-    }
-    setLevel(0)
-    return subscribeToMicLevels((levels) => setLevel(levels.peak))
-  }, [])
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: active ? 1 : 0.4 }} title="Input level (after Gain)">
-      <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: 'var(--color-surface-raised)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-        <div
-          ref={barRef}
-          style={{ height: '100%', width: 0, background: 'linear-gradient(90deg, var(--color-accent) 70%, var(--color-cue) 88%, var(--color-error))' }}
-        />
-      </div>
-      <div ref={clipRef} title="Clipping: turn the Gain down" style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-error)', opacity: 0.15 }} />
-    </div>
-  )
-}
-
-// A button that acts while held (pointer capture so releasing off the
-// button still counts), mirroring the siren's trigger.
-function HoldButton({
-  label,
-  lit,
-  disabled,
-  title,
-  onDown,
-  onUp,
-}: {
-  label: string
-  lit: boolean
-  disabled?: boolean
-  title: string
-  onDown: () => void
-  onUp: () => void
-}) {
-  const held = useRef(false)
-  const release = () => {
-    if (!held.current) return
-    held.current = false
-    onUp()
-  }
-  return (
-    <button
-      disabled={disabled}
-      title={title}
-      style={lit ? { background: 'var(--color-accent)', color: 'var(--color-on-accent)', borderColor: 'var(--color-accent)' } : undefined}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId)
-        held.current = true
-        onDown()
-      }}
-      onPointerUp={release}
-      onLostPointerCapture={release}
-    >
-      {label}
-    </button>
-  )
-}
-
 export function MicPanel({ track }: { track: Track | null }) {
   const mic = useCollectionStore((s) => s.micSettings)
   const setMic = useCollectionStore((s) => s.setMicSettings)
-  const live = useCollectionStore((s) => s.micLive)
   const throwHeld = useCollectionStore((s) => s.micThrow)
-  const talkDown = useCollectionStore((s) => s.micTalkDown)
-  const talkUp = useCollectionStore((s) => s.micTalkUp)
   const setThrow = useCollectionStore((s) => s.setMicThrow)
-  const devices = useInputDevices()
   const [divisionIndex, setDivisionIndex] = useState(DEFAULT_DIVISION_INDEX)
 
   const update = (partial: Partial<MicSettings>) => setMic({ ...useCollectionStore.getState().micSettings, ...partial })
@@ -143,46 +50,6 @@ export function MicPanel({ track }: { track: Track | null }) {
   const d = DEFAULT_MIC_SETTINGS
   return (
     <div style={fxGridStyle}>
-      <div style={{ ...sectionStyle, gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
-        <ToggleSwitch checked={mic.enabled} onChange={(checked) => update({ enabled: checked })} title="Mic on/off" />
-        <h4 style={{ margin: 0 }}>Mic</h4>
-        <MidiLearnBadge control="mic.enabled" />
-        <select
-          value={mic.deviceId ?? ''}
-          onChange={(e) => update({ deviceId: e.target.value || null })}
-          title="Microphone"
-          style={{ fontSize: '12px', maxWidth: '260px' }}
-        >
-          <option value="">System default input</option>
-          {devices.map((device) => (
-            <option key={device.deviceId} value={device.deviceId}>
-              {device.label || 'Microphone'}
-            </option>
-          ))}
-        </select>
-        <div style={{ flex: '1 1 160px', minWidth: '120px' }}>
-          <LevelMeter active={mic.enabled} />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <HoldButton
-            label={live ? 'TALK · live' : 'TALK · muted'}
-            lit={mic.enabled && live}
-            disabled={!mic.enabled}
-            title="Tap to mute or unmute; hold while muted to talk (T)"
-            onDown={talkDown}
-            onUp={talkUp}
-          />
-          <MidiLearnBadge control="mic.talk" />
-        </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }} title="Hear the mic through the speakers — use headphones, or it feeds back">
-          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-            headphones
-          </span>
-          Hear myself
-          <ToggleSwitch checked={mic.monitor} onChange={(checked) => update({ monitor: checked })} title="Hear the mic through the speakers" />
-        </label>
-      </div>
-
       <div style={sectionStyle}>
         <div style={headerRowStyle}>
           <h4 style={{ margin: 0 }}>Voice</h4>

@@ -37,7 +37,10 @@ more. Video of the visualizer is **not** in scope until decided otherwise.
   quarter-second.
 
 ### Mic
-The **Mic** section at the bottom of the FX screen ([ADR 0044](../adr/0044-mic-records-but-isnt-heard-by-default.md)):
+The **Mic** button in the player bar (between Rec and Cast; lit while the mic is live, a crossed-out
+mic while it's muted) opens a popover with the mic's on/off, input, level meter, Talk and Hear myself
+(`src/components/MicButton.tsx`). The mic's effects are the **Mic FX** group of the FX and Live
+screens ([ADR 0044](../adr/0044-mic-records-but-isnt-heard-by-default.md)):
 
 - **Mic** on/off and the input (the system default, or a device). The first time, macOS asks whether MCO
   may use the microphone; if it's refused, MCO says where to allow it. The mic is **always off** when MCO
@@ -77,7 +80,8 @@ The **Mic** section at the bottom of the FX screen ([ADR 0044](../adr/0044-mic-r
   high-pass → `micWorklet.ts` (gate, meter, voice level) → compressor → make-up → EQ → pitch
   (`micWorklet.ts`'s `mco-pitch`) → radio insert →
   talk → dry + echo/reverb sends, using `fxModules.ts`); `micSession.ts` opens/closes it from the store;
-  `micControls.ts` maps MIDI and Talk; `src/components/MicPanel.tsx` is the UI. Settings are `micSettings`
+  `micControls.ts` maps MIDI and Talk; `src/components/MicButton.tsx` (popover) and `MicPanel.tsx` (Mic
+  FX) are the UI, sharing `MicWidgets.tsx`. Settings are `micSettings`
   in the config.
 - **Level and meter**: the engine's `recordOutput` gain sits between the record bus and the recorder
   (`setRecordLevel`, applied from the store's `recordingLevelDb` in `App.tsx`); `readRecordPeaks()` reads

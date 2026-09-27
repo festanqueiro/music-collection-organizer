@@ -15,6 +15,9 @@ installed copies update themselves.
   a Mix to blend in your own voice.
 
 ### Changed
+- **Mic**: a **Mic** button in the player bar (next to Rec and Cast) opens
+  the mic's on/off, input, level, Talk and Hear myself, like the Cast menu.
+  They're no longer on the FX and Live screens, which keep the Mic FX.
 - **FX screen**: the effects are now in three clearly separate groups —
   **Music FX**, **Mic FX** and **Instruments** (the Dub Siren) — in three
   equal columns on a wide window, and stacked on the Live screen.

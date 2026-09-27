@@ -46,7 +46,7 @@ export function FxGroups({ track, layout = 'columns' }: { track: Track | null; l
       <FxGroup
         icon="mic"
         title="Mic FX"
-        hint={micOn ? 'On your voice — recorded; heard only with Hear myself' : 'Switch the Mic on to use your voice'}
+        hint={micOn ? 'On your voice' : 'Switch the Mic on in the player bar (Mic)'}
         color="var(--color-cue)"
       >
         <MicPanel track={track} />
