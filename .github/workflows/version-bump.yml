@@ -6,10 +6,15 @@ name: Version Bump
 # two ways: [skip ci] in the bump commit's message (GitHub Actions itself
 # won't start a new run for a commit containing it), and the `if:`
 # condition below as a second line of defense.
+#
+# Also runnable by hand (Actions → Version Bump → Run workflow) for when a
+# merge didn't trigger it: a squash-merge whose message carries a
+# "[skip ci]" from one of the PR's own commits skips every push workflow.
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   bump-version:
