@@ -205,6 +205,7 @@ const api = {
     }
   },
   stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),
+  setKeepDisplayAwake: (awake: boolean): Promise<void> => ipcRenderer.invoke('power:keepDisplayAwake', awake),
   onCastDevices: (cb: (devices: CastDevice[]) => void): (() => void) => {
     const listener = (_e: unknown, devices: CastDevice[]) => cb(devices)
     ipcRenderer.on('cast:devices', listener)

@@ -122,6 +122,10 @@ export default function App() {
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const lastRefreshRef = useRef(0)
+  // Keep the screen (and Mac) awake while the visualiser is on.
+  useEffect(() => {
+    window.api.setKeepDisplayAwake(visualizerOpen)
+  }, [visualizerOpen])
   const [leftView, setLeftView] = useState<LeftView>(() => loadSidebarState().view)
   // The folder/tag view the Filters view was opened from: kept mounted
   // (hidden) meanwhile, with its selection still applied — filters combine

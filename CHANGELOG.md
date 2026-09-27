@@ -6,6 +6,11 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Changed
+- Folder names in the folder tree stay on one line; long ones end in "…"
+  and show the full name when you hover them.
+- The Mac and its screen no longer go to sleep while the visualizer is on.
+
 ## 1.0.44 — 2026-09-27
 
 ### Added

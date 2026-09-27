@@ -978,4 +978,17 @@ export function registerIpcHandlers(
     if (command && typeof command === 'object' && typeof command.type === 'string') cast.runDirect(command)
   })
   ipcMain.handle('cast:stop', (): void => cast.stop())
+
+  // While the full-screen visualiser is open, keep the Mac and its display
+  // awake — it's something to watch, not to interact with, so the idle
+  // timer would otherwise dim and sleep the screen mid-song.
+  let visualizerSleepBlocker: number | null = null
+  ipcMain.handle('power:keepDisplayAwake', (_e: IpcMainInvokeEvent, awake: boolean): void => {
+    if (awake && visualizerSleepBlocker === null) {
+      visualizerSleepBlocker = powerSaveBlocker.start('prevent-display-sleep')
+    } else if (!awake && visualizerSleepBlocker !== null) {
+      powerSaveBlocker.stop(visualizerSleepBlocker)
+      visualizerSleepBlocker = null
+    }
+  })
 }

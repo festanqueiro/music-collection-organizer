@@ -71,7 +71,8 @@ Four views: **Folders**, **Tags**, **Subtags** and [**Filters**](filters.md) —
 labelled; the others are icons. It **collapses** to a strip of icons, and **reopens where you left
 it**: the same view, open folders and selected folder (a folder that's gone falls back to All
 Tracks). The folder tree has **Collapse all** next to All Tracks while anything is open; its
-right-click menu has **Analyse this folder** and **Add all to queue**.
+right-click menu has **Analyse this folder** and **Add all to queue**. Each folder name stays on
+one line, cut with "…" when it's too long for the sidebar; hover it for the full name.
 
 ### Chips above the table
 Every active narrowing shows as a chip with an × to clear it: the **search** ("dub"), the
