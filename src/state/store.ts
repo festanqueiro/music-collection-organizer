@@ -490,6 +490,10 @@ export interface CollectionState {
   // Moves a track's file to the Trash and drops it from the collection,
   // queue and selection; returns an error message, or null.
   trashTrack: (trackId: number) => Promise<string | null>
+  // Moves tracks' files into another collection folder, after asking (rows
+  // dropped on a folder in the Folders view). The loaded and pre-listened
+  // tracks are left out: they're being read from their current path.
+  moveTracksToFolder: (trackIds: number[], folder: string) => Promise<void>
   // Writes the ID3 fields into the file; returns an error message, or null.
   writeTrackTags: (trackId: number, tags: EditableTags) => Promise<string | null>
   stopAnalysis: () => Promise<void>
@@ -1630,6 +1634,30 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const played = await window.api.recordPlay(trackId)
     if (!played) return
     set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, ...played } : t)) })
+  },
+
+  moveTracksToFolder: async (trackIds, folder) => {
+    const { playlist, cueTrackId, showToast } = get()
+    const busy = new Set([playlist[0], cueTrackId].filter((id): id is number => id != null))
+    const ids = trackIds.filter((id) => !busy.has(id))
+    if (ids.length === 0) {
+      if (trackIds.length > 0) showToast("A track that's playing can't be moved")
+      return
+    }
+    const result = await window.api.moveTracksToFolder(ids, folder)
+    if (result.cancelled) return
+    const moved = new Map(result.moved.map((m) => [m.id, m]))
+    if (moved.size > 0) {
+      set({ tracks: get().tracks.map((t) => (moved.has(t.id) ? { ...t, path: moved.get(t.id)!.path, folder: moved.get(t.id)!.folder } : t)) })
+    }
+    const folderName = folder.split('/').pop() || folder
+    const notes = [
+      moved.size > 0 ? `Moved ${moved.size === 1 ? 'the song' : `${moved.size} songs`} to ${folderName}` : '',
+      result.conflicts > 0 ? `${result.conflicts} not moved: same file name already there` : '',
+      result.failed > 0 ? `${result.failed} couldn't be moved` : '',
+      trackIds.length > ids.length ? "the playing track wasn't moved" : '',
+    ].filter(Boolean)
+    if (notes.length > 0) showToast(notes.join(' · '))
   },
 
   trashTrack: async (trackId) => {

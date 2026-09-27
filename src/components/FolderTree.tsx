@@ -26,6 +26,9 @@ function TreeNode({
   onContextMenu,
   expanded,
   onToggle,
+  dropTarget,
+  onDropTarget,
+  onDropFiles,
 }: {
   node: FolderTreeNode
   onSelect: (path: string) => void
@@ -35,9 +38,14 @@ function TreeNode({
   onContextMenu: (folder: string, isRoot: boolean, x: number, y: number) => void
   expanded: Set<string>
   onToggle: (path: string) => void
+  // The folder files are being dragged over, highlighted as a drop target.
+  dropTarget: string | null
+  onDropTarget: (path: string | null) => void
+  onDropFiles: (folder: string, files: FileList) => void
 }) {
   const hasChildren = node.children.length > 0
   const isSelected = node.path === selectedFolder
+  const isDropTarget = node.path === dropTarget
   const showChildren = expanded.has(node.path)
 
   return (
@@ -51,11 +59,28 @@ function TreeNode({
           display: 'flex',
           alignItems: 'center',
           gap: '2px',
-          background: isSelected ? 'var(--color-surface-raised)' : undefined,
+          background: isDropTarget ? 'var(--color-selected)' : isSelected ? 'var(--color-surface-raised)' : undefined,
+          outline: isDropTarget ? '1px solid var(--color-accent)' : undefined,
           borderRadius: '4px',
-          color: isSelected ? 'var(--color-accent)' : undefined,
+          color: isSelected || isDropTarget ? 'var(--color-accent)' : undefined,
         }}
         onClick={() => onSelect(node.path)}
+        // Tracks dragged from the list arrive as files (the list starts a
+        // native file drag, so they can go to Finder too).
+        onDragOver={(e) => {
+          if (!e.dataTransfer.types.includes('Files')) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          if (dropTarget !== node.path) onDropTarget(node.path)
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) onDropTarget(null)
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          onDropTarget(null)
+          onDropFiles(node.path, e.dataTransfer.files)
+        }}
         onContextMenu={(e) => {
           e.preventDefault()
           e.stopPropagation()
@@ -94,6 +119,9 @@ function TreeNode({
             onContextMenu={onContextMenu}
             expanded={expanded}
             onToggle={onToggle}
+            dropTarget={dropTarget}
+            onDropTarget={onDropTarget}
+            onDropFiles={onDropFiles}
           />
         ))}
     </div>
@@ -147,6 +175,23 @@ export function FolderTree({
     null
   )
   const [expanded, setExpanded] = useState(loadExpanded)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const moveTracksToFolder = useCollectionStore((s) => s.moveTracksToFolder)
+
+  // Dropped files that are tracks of the collection (by path) move into
+  // the folder, after asking; anything else dropped here is ignored.
+  function handleDropFiles(folder: string, files: FileList) {
+    const byPath = new Map(tracks.map((t) => [t.path, t.id]))
+    const ids = Array.from(files)
+      .map((file) => byPath.get(window.api.pathForFile(file)))
+      .filter((id): id is number => id !== undefined)
+    if (ids.length === 0) {
+      if (files.length > 0) showToast('Only tracks from the collection can be moved here')
+      return
+    }
+    void moveTracksToFolder(ids, folder)
+  }
+
   function updateExpanded(next: Set<string>) {
     setExpanded(next)
     saveExpanded(next)
@@ -221,6 +266,9 @@ export function FolderTree({
         selectedFolder={selectedFolder}
         rootPath={rootPath}
         onContextMenu={(folder, isRoot, x, y) => setContextMenu({ folder, isRoot, x, y })}
+        dropTarget={dropTarget}
+        onDropTarget={setDropTarget}
+        onDropFiles={handleDropFiles}
         expanded={expanded}
         onToggle={(path) => {
           const next = new Set(expanded)

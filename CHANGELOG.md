@@ -6,6 +6,19 @@ installed copies update themselves.
 
 ## Unreleased
 
+## 1.0.48 — 2026-09-28
+
+### Added
+- **Move tracks to a folder**: drag tracks onto a folder in the Folders view;
+  MCO asks before moving the files there, and they keep their tags and play
+  counts.
+- **Tags view**: tags fold away like folders — a chevron shows or hides a
+  tag's subtags, and **Collapse all** closes them.
+
+### Changed
+- The **Folders**, **Tags** and **Subtags** views line up: same margin,
+  spacing and row height.
+
 ## 1.0.47 — 2026-09-27
 
 ### Added

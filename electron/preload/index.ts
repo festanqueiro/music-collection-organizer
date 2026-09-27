@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type {
   Track,
   Genre,
@@ -121,6 +121,13 @@ const api = {
   // track rows, same mechanism as dragging files out of Finder — no
   // response is awaited.
   startTrackDrag: (trackIds: number[]): void => ipcRenderer.send('tracks:startDrag', trackIds),
+  // A dropped file's path on disk (Electron no longer puts it on File).
+  pathForFile: (file: File): string => webUtils.getPathForFile(file),
+  moveTracksToFolder: (
+    trackIds: number[],
+    destination: string
+  ): Promise<{ cancelled: boolean; moved: { id: number; path: string; folder: string }[]; failed: number; alreadyThere: number; conflicts: number }> =>
+    ipcRenderer.invoke('tracks:moveToFolder', trackIds, destination),
   showTrackInFolder: (trackId: number): void => ipcRenderer.send('tracks:showInFolder', trackId),
   trashTrack: (trackId: number): Promise<{ ok: true } | { ok: false; error: string }> =>
     ipcRenderer.invoke('tracks:trash', trackId),
