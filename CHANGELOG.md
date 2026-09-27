@@ -18,6 +18,8 @@ installed copies update themselves.
 ### Changed
 - The track list's play and headphones column now comes right after the
   checkbox, instead of before it, and is only as wide as its two icons.
+- The analysing spinner shows only in the Status column, no longer also
+  next to the title.
 
 ## 1.0.45 — 2026-09-27
 

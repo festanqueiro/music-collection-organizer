@@ -551,21 +551,8 @@ export function TrackTable({
   function renderCell(track: Track, key: TrackTableColumnKey) {
     switch (key) {
       case 'title':
-        if (track.missing) return decodeHtmlEntities(track.title ?? track.filename)
-        return (
-          <>
-            {track.analysisStatus === 'analyzing' && (
-              <span
-                className="material-symbols-outlined spin"
-                style={{ fontSize: '16px', verticalAlign: 'middle', marginRight: '4px', color: 'var(--color-text-dim)' }}
-                title="Analyzing…"
-              >
-                progress_activity
-              </span>
-            )}
-            {decodeHtmlEntities(track.title ?? track.filename)}
-          </>
-        )
+        // Analysis progress shows in the Status column, not here.
+        return decodeHtmlEntities(track.title ?? track.filename)
       case 'filename':
         return decodeHtmlEntities(track.filename)
       case 'artist':
