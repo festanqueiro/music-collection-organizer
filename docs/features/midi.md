@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: []
 ---
 # MIDI
@@ -33,7 +33,8 @@ Click a mapped badge again to re-learn it. Bindings are saved.
 Player volume, master volume, play/pause, next track, CUE, and every control
 in the [FX panel](fx.md): EQ, Filter, Delay (including Division), Reverb,
 and the Dub Siren (including its trigger, Mode, and Beat), plus each
-module's on/off toggle.
+module's on/off toggle (the EQ has none). Saved bindings for controls that
+no longer exist (EQ on/off and mix) are dropped on load.
 
 ## Managing bindings
 

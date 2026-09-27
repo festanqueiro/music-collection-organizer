@@ -18,6 +18,8 @@ installed copies update themselves.
 - The play and headphones buttons now have their own fixed first column in
   the track list, instead of sitting in the Title column (which could be
   moved).
+- The EQ is always on: its on/off switch and Mix knob are gone, and its
+  Low, Mid and High knobs now sit next to Volume in the Master card.
 
 ### Fixed
 - The volume slider (and other sliders/checkboxes) now use the theme's

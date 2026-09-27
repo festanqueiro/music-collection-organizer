@@ -18,9 +18,8 @@ describe('activeEffects', () => {
       s.delay.enabled = true
       s.filter.enabled = true
       s.filter.lowpass = 0.5
-      s.eq.enabled = true
     })
-    // The EQ is on but flat, so it's left out.
+    // The EQ is flat, so it's left out.
     expect(activeEffects(settings, false)).toEqual(['Filter', 'Delay'])
   })
 

@@ -211,18 +211,14 @@ export interface EffectsSettings {
   // hard global bypass on top of both (e.g. a MIDI-mapped on/off button)
   // — disabled forces both fully open without losing the dialed-in
   // amounts. mix (0..1) blends the filtered signal back against the
-  // pre-filter one, same dry/wet convention as delay.mix/reverb.mix/
-  // eq.mix; 1 (fully wet) matches the filter's original always-fully-
+  // pre-filter one, same dry/wet convention as delay.mix/reverb.mix;
+  // 1 (fully wet) matches the filter's original always-fully-
   // applied behavior.
   filter: { enabled: boolean; lowpass: number; highpass: number; resonance: number; mix: number }
   // Standard 3-band channel-strip EQ, dB gain per band (-24..+24, 0 flat).
-  // enabled is a hard bypass on top, same convention as filter.enabled —
-  // forces all three bands flat without losing the dialed-in gains. mix
-  // (0..1) blends the EQ'd signal back against the unprocessed one —
-  // same dry/wet convention as delay.mix/reverb.mix — so the tonal shift
-  // can be dialed in gradually instead of only ever being fully applied;
-  // 1 (fully wet) matches the EQ's original always-fully-applied behavior.
-  eq: { enabled: boolean; low: number; mid: number; high: number; mix: number }
+  // Always on and fully applied, like a mixer's channel EQ — no on/off or
+  // mix (flat is the "off" position).
+  eq: { low: number; mid: number; high: number }
   siren: SirenSettings
   // Global output gain applied at the very end of the chain, after every
   // FX send (delay/reverb wet, filter/EQ wet+dry) — unlike the footer
@@ -242,7 +238,7 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   // unchanged until someone actually touches the new controls.
   reverb: { enabled: false, mix: 0.3, decaySeconds: 2, preDelayMs: 0 },
   filter: { enabled: true, lowpass: 0, highpass: 0, resonance: 1, mix: 1 },
-  eq: { enabled: true, low: 0, mid: 0, high: 0, mix: 1 },
+  eq: { low: 0, mid: 0, high: 0 },
   siren: DEFAULT_SIREN_SETTINGS,
   masterVolume: 1,
 }
@@ -266,11 +262,9 @@ export const MIDI_CONTROL_KEYS = [
   'filter.highpass',
   'filter.resonance',
   'filter.mix',
-  'eq.enabled',
   'eq.low',
   'eq.mid',
   'eq.high',
-  'eq.mix',
   'siren.enabled',
   'siren.mode',
   'siren.pitchHz',

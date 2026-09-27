@@ -676,7 +676,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       ['delay.enabled', settings.delay.enabled, previous.delay.enabled],
       ['reverb.enabled', settings.reverb.enabled, previous.reverb.enabled],
       ['filter.enabled', settings.filter.enabled, previous.filter.enabled],
-      ['eq.enabled', settings.eq.enabled, previous.eq.enabled],
       ['siren.enabled', settings.siren.enabled, previous.siren.enabled],
     ]
     for (const [control, next, prev] of enabledPairs) {
@@ -878,7 +877,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       if (learning === 'delay.enabled') sendMidiFeedback(binding, currentEffectsSettings.delay.enabled)
       else if (learning === 'reverb.enabled') sendMidiFeedback(binding, currentEffectsSettings.reverb.enabled)
       else if (learning === 'filter.enabled') sendMidiFeedback(binding, currentEffectsSettings.filter.enabled)
-      else if (learning === 'eq.enabled') sendMidiFeedback(binding, currentEffectsSettings.eq.enabled)
       else if (learning === 'siren.enabled') sendMidiFeedback(binding, currentEffectsSettings.siren.enabled)
       return
     }
@@ -1058,12 +1056,6 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         const es = get().effectsSettings
         get().setEffectsSettings({ ...es, filter: { ...es.filter, mix: scaled } })
       })
-    } else if (match === 'eq.enabled') {
-      if (value === 0) return
-      get().setEffectsSettings({
-        ...effectsSettings,
-        eq: { ...effectsSettings.eq, enabled: !effectsSettings.eq.enabled },
-      })
     } else if (match === 'eq.low') {
       scheduleMidiCommit('eq.low', () => {
         const es = get().effectsSettings
@@ -1079,11 +1071,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
         const es = get().effectsSettings
         get().setEffectsSettings({ ...es, eq: { ...es.eq, high: scaled } })
       })
-    } else if (match === 'eq.mix') {
-      scheduleMidiCommit('eq.mix', () => {
-        const es = get().effectsSettings
-        get().setEffectsSettings({ ...es, eq: { ...es.eq, mix: scaled } })
-      })
+
     } else if (match === 'siren.enabled') {
       if (value === 0) return
       get().setEffectsSettings({
