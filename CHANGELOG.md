@@ -16,8 +16,8 @@ installed copies update themselves.
 
 ### Changed
 - **FX screen**: the effects are now in three clearly separate groups —
-  **Music FX**, **Mic FX** and **Instruments** (the Dub Siren) — side by side
-  on a wide window. Same on the Live screen.
+  **Music FX**, **Mic FX** and **Instruments** (the Dub Siren) — in three
+  equal columns on a wide window, and stacked on the Live screen.
 - **Mic EQ**: its bands moved to where a voice sits (250 Hz, 1 kHz, 3.5 kHz),
   so they're audible, including on a Bluetooth headset's mic.
 - **App menu**: says **MCO** (or **MCO BETA**) instead of

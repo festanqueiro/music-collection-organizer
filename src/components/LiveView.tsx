@@ -62,7 +62,7 @@ export function LiveView() {
         </div>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           <FitToArea>
-            <FxGroups track={currentTrack} />
+            <FxGroups track={currentTrack} layout="stacked" />
           </FitToArea>
         </div>
       </div>

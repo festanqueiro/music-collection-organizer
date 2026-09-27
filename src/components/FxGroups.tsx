@@ -10,11 +10,9 @@ import { FxPanel, InstrumentsPanel } from './FxPanel'
 import { MicPanel } from './MicPanel'
 import type { Track } from '../types'
 
-// `grow`/`basis`: side by side as columns on a wide screen (the Mic, with
-// the most cards, twice as wide), wrapping to rows on a narrow one.
-function FxGroup({ icon, title, hint, color, grow, children }: { icon: string; title: string; hint: string; color: string; grow: number; children: ReactNode }) {
+function FxGroup({ icon, title, hint, color, children }: { icon: string; title: string; hint: string; color: string; children: ReactNode }) {
   return (
-    <section style={{ flex: `${grow} 1 ${grow * 260}px`, minWidth: 0, borderLeft: `3px solid ${color}`, paddingLeft: '12px' }}>
+    <section style={{ minWidth: 0, borderLeft: `3px solid ${color}`, paddingLeft: '12px' }}>
       <header style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '10px' }}>
         <span className="material-symbols-outlined" style={{ fontSize: '18px', color, alignSelf: 'center' }}>
           {icon}
@@ -27,11 +25,22 @@ function FxGroup({ icon, title, hint, color, grow, children }: { icon: string; t
   )
 }
 
-export function FxGroups({ track }: { track: Track | null }) {
+// `columns` (the FX screen): the three groups side by side, equal widths.
+// `stacked` (the Live screen, next to the queue): one above the other.
+export function FxGroups({ track, layout = 'columns' }: { track: Track | null; layout?: 'columns' | 'stacked' }) {
   const micOn = useCollectionStore((s) => s.micSettings.enabled)
   return (
-    <div style={{ padding: '16px', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '16px' }}>
-      <FxGroup icon="music_note" title="Music FX" hint="On the playing track" color="var(--color-accent)" grow={1}>
+    // Columns: three equal ones on a wide screen, fewer (then one) as it narrows.
+    <div
+      style={{
+        padding: '16px',
+        display: 'grid',
+        gridTemplateColumns: layout === 'columns' ? 'repeat(auto-fit, minmax(280px, 1fr))' : '1fr',
+        alignItems: 'start',
+        gap: layout === 'columns' ? '16px' : '22px',
+      }}
+    >
+      <FxGroup icon="music_note" title="Music FX" hint="On the playing track" color="var(--color-accent)">
         <FxPanel track={track} />
       </FxGroup>
       <FxGroup
@@ -39,11 +48,10 @@ export function FxGroups({ track }: { track: Track | null }) {
         title="Mic FX"
         hint={micOn ? 'On your voice — recorded; heard only with Hear myself' : 'Switch the Mic on to use your voice'}
         color="var(--color-cue)"
-        grow={2}
       >
         <MicPanel track={track} />
       </FxGroup>
-      <FxGroup icon="campaign" title="Instruments" hint="Played over the music" color="var(--color-secondary)" grow={1}>
+      <FxGroup icon="campaign" title="Instruments" hint="Played over the music" color="var(--color-secondary)">
         <InstrumentsPanel />
       </FxGroup>
     </div>

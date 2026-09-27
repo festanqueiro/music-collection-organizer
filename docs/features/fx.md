@@ -7,8 +7,8 @@ adrs: [0023, 0025, 0029, 0034, 0041]
 
 The **FX** screen (the **FX** button on the right of the player bar; it
 lights up while an effect is engaged) processes playback through a Web
-Audio graph. It's split into three groups, each with its own header and colour stripe, side by side
-on a wide window and stacked on a narrow one (`src/components/FxGroups.tsx`): **Music FX** (EQ,
+Audio graph. It's split into three groups, each with its own header and colour stripe, in three
+equal columns on a wide window (fewer as it narrows; always stacked on the Live screen) (`src/components/FxGroups.tsx`): **Music FX** (EQ,
 Filter, Delay, Reverb: on the playing track), **Mic FX** (the mic and its own effects, see
 [Recording](recording.md#mic)) and **Instruments** (sound sources of their own, played over the
 music: the Dub Siren). Each effect is a card, laid out in as many columns as fit. Every control is a rotary knob that shows its live value;
