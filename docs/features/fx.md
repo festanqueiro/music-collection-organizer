@@ -1,7 +1,7 @@
 ---
 status: shipped
 updated: 2026-09-27
-adrs: [0023, 0025, 0029, 0034]
+adrs: [0023, 0025, 0029, 0034, 0041]
 ---
 # FX
 
@@ -39,7 +39,7 @@ A synthesized dub siren with four modes: **Siren**, **Bomb**, **Gun**,
 
 The siren works even when nothing is playing.
 
-Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/effectsChain.ts`,
+Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/audioEngine.ts`, `effectsChain.ts`, `fxModules.ts`,
 `src/audio/sirenEngine.ts`, `src/audio/sirenSchedule.ts`.
 
 ## Behaviour notes
@@ -47,10 +47,15 @@ Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/effectsChain.ts`,
   without scrolling; never smaller than normal) — [ADR 0034](../adr/0034-fx-screen-fits-the-window.md).
 - Knobs don't redraw the rest of the app while you turn them
   ([ADR 0023](../adr/0023-fx-settings-outside-react.md)).
-- The audio engines pause 15 s after going quiet and resume on play or a
-  siren trigger, so MCO uses ~0 % CPU while idle ([ADR 0025](../adr/0025-suspend-idle-audio-engines.md)).
+- Everything plays through **one audio engine** — one `AudioContext` whose mix bus the track's
+  chain and the siren feed (`src/audio/audioEngine.ts`, [ADR 0041](../adr/0041-one-audio-engine.md)).
+  The output device and the cast "mute this Mac" are set there once.
+- The engine pauses 15 s after the last sound (a playing track, a held siren or a running beat) and
+  resumes on play or a siren trigger, so MCO uses ~0 % CPU while idle
+  ([ADR 0025](../adr/0025-suspend-idle-audio-engines.md)).
+- Delay and reverb are reusable send modules (`src/audio/fxModules.ts`).
 - While casting to a TV, the same effects run on the TV ([Casting](casting.md)).
 
 ## Tests
-- `src/audio/effectsChain.test.ts` (filter resonance and compensation),
+- `src/audio/audioEngine.test.ts` (idle suspend across sources), `effectsChain.test.ts` (filter resonance and compensation),
   `sirenEngine.test.ts`, `sirenSchedule.test.ts`, `midi.test.ts`.

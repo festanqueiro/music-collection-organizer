@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-26
+updated: 2026-09-27
 ---
 # Roadmap
 
@@ -16,6 +16,7 @@ Per-release detail is in the [changelog](../log/changelog.md).
 | **1.0.39–1.0.41 Performance & tags** | shipped (2026-09-26) | 120 fps table, idle CPU ~0, ID3 editing, filename suggestions, Filters (Compatible, Analysed, Duplicates, Untagged), collapsible sidebar, external-disk backup, delete to Trash, chips. |
 | **1.0.42 Cast reliability** | shipped (2026-09-26) | Keep the Mac awake while casting; end the session when the TV moves on. |
 | **1.0.43** | in-progress (PR with this vault) | Don't drop a healthy TV when MCO is busy; multi-select details and right-click menu; this vault. |
+| **Record mode (podcast)** | in-progress | One audio engine (done, [ADR 0041](../adr/0041-one-audio-engine.md)) → audio recording with a tracklist → Mic section with its own effects, ducking and Talk. No casting while recording; video later. [Feature](../features/recording.md). |
 
 ## Next (roughly in priority order; S ≤ a day, M = a few days, L = a week+)
 1. **Smart crates and saved playlists (M)** — named lists in `crates`/`crate_tracks`; smart crates as

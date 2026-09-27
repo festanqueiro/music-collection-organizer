@@ -1,8 +1,7 @@
 import type { EffectsSettings } from '../types'
+import { getAudioEngine, type AudioEngine } from './audioEngine'
+import { DelayModule, ReverbModule } from './fxModules'
 
-const MAX_DELAY_SECONDS = 2
-const MAX_PRE_DELAY_SECONDS = 0.5
-const REVERB_DECAY_EXPONENT = 2
 const FILTER_PARAM_TAU = 0.02
 // Bypass sits at each type's edge of audibility: a lowpass at 20kHz or a
 // highpass at 20Hz cuts essentially nothing, so the filter can stay
@@ -36,41 +35,17 @@ export function resonanceCompensation(lowpassQ: number, highpassQ: number): numb
   return Math.sqrt((FLAT_Q / lowpassQ) * (FLAT_Q / highpassQ))
 }
 
-// How long after playback stops the context keeps running — long enough
-// for a delay/reverb tail to ring out — before it's suspended. A running
-// context renders the whole FX graph (convolver included) even in silence,
-// which kept the app busy while nothing played.
-const IDLE_SUSPEND_MS = 15000
-
 const EQ_LOW_HZ = 200
 const EQ_MID_HZ = 1000
 const EQ_HIGH_HZ = 5000
-
-// Synthesizes a plate-style impulse response (exponentially decaying white
-// noise) rather than shipping a recorded .wav — no binary asset, no
-// licensing to track, good enough for a DJ preview player. `decaySeconds`
-// is user-adjustable (reverb.decaySeconds); regenerating this on every
-// settings.reverb change would mean a fresh length*2-channel Math.random()
-// loop per slider tick, so the caller only calls this when decaySeconds
-// actually changed (see EffectsChain.update's lastDecaySeconds check).
-function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds: number): AudioBuffer {
-  const sampleRate = context.sampleRate
-  const length = Math.floor(sampleRate * decaySeconds)
-  const impulse = context.createBuffer(2, length, sampleRate)
-  for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
-    const data = impulse.getChannelData(channel)
-    for (let i = 0; i < length; i++) {
-      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, REVERB_DECAY_EXPONENT)
-    }
-  }
-  return impulse
-}
 
 // Wraps a single <audio> element's output in a Web Audio graph so delay and
 // reverb sends can be mixed in alongside the dry signal. Player.tsx creates
 // one of these per mount (it already remounts fresh per track, since
 // createMediaElementSource can only be called once per media element), and
-// calls close() on unmount.
+// calls close() on unmount. The graph is built on the app's shared
+// AudioEngine and feeds its mix bus (ADR 0041); close() disconnects it
+// rather than closing a context of its own.
 //
 // setVolume() controls dryGain, and the delay/reverb sends are tapped
 // FROM dryGain's output (post-fader), not from the raw source — so
@@ -87,7 +62,7 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 // can't be topped up with fresh signal anymore.
 //
 //                                                              ┌─> lowpassNode -> highpassNode -> filterWetGain ─┐                  ┌─────────────────────────────────────────┐
-// source ──> dryGain ──> eqLow -> eqMid -> eqHigh ─────────────> ┤                                                 ├─> delayNode <-> feedbackGain ├─> destination
+// source ──> dryGain ──> eqLow -> eqMid -> eqHigh ─────────────> ┤                                                 ├─> delayNode <-> feedbackGain ├─> engine mix bus
 //                                                              └────────────────────────────────> filterDryGain ─┘   │      └────────> delayWetGain ─┤
 //                                                                                                                     ├─> preDelayNode ─> convolver ─> reverbWetGain ┤
 //                                                                                                                     └────────────────────────────────────────────┘
@@ -114,7 +89,9 @@ function createSyntheticImpulseResponse(context: BaseAudioContext, decaySeconds:
 // filterDryGain, fed from the EQ stage's own wet+dry outputs) blends the
 // swept signal back against the pre-filter one, same convention as delay.mix.
 export class EffectsChain {
+  private engine: AudioEngine
   private context: AudioContext
+  private source: MediaElementAudioSourceNode
   private dryGain: GainNode
   private eqLow: BiquadFilterNode
   private eqMid: BiquadFilterNode
@@ -123,22 +100,16 @@ export class EffectsChain {
   private highpassNode: BiquadFilterNode
   private filterDryGain: GainNode
   private filterWetGain: GainNode
-  private delayNode: DelayNode
-  private delayFeedbackGain: GainNode
-  private delayWetGain: GainNode
-  private preDelayNode: DelayNode
-  private convolver: ConvolverNode
-  private reverbWetGain: GainNode
-  private lastDecaySeconds: number
+  private delay: DelayModule
+  private reverb: ReverbModule
   private masterGain: GainNode
-  private localGain: GainNode
   private analyser: AnalyserNode
   private audioElement: HTMLAudioElement
-  private suspendTimer: ReturnType<typeof setTimeout> | null = null
 
-  constructor(audioElement: HTMLAudioElement) {
-    this.context = new AudioContext()
-    const source = this.context.createMediaElementSource(audioElement)
+  constructor(audioElement: HTMLAudioElement, engine: AudioEngine = getAudioEngine()) {
+    this.engine = engine
+    this.context = engine.context
+    this.source = this.context.createMediaElementSource(audioElement)
     this.audioElement = audioElement
     audioElement.addEventListener('play', this.handlePlay)
     audioElement.addEventListener('pause', this.handleStop)
@@ -151,12 +122,7 @@ export class EffectsChain {
     // those sends land here downstream of themselves rather than upstream.
     this.masterGain = this.context.createGain()
     this.masterGain.gain.value = 1
-    // localGain only mutes this Mac's own speakers while casting (see
-    // setLocalMuted) — downstream of the analyser tap below, so the
-    // visualizer keeps reacting.
-    this.localGain = this.context.createGain()
-    this.masterGain.connect(this.localGain)
-    this.localGain.connect(this.context.destination)
+    this.masterGain.connect(engine.input)
 
     // Read-only tap for the Visualizer, after masterGain so it reflects
     // exactly what's heard (FX tails included, silent when muted). An
@@ -169,7 +135,7 @@ export class EffectsChain {
 
     this.dryGain = this.context.createGain()
     this.dryGain.gain.value = 1
-    source.connect(this.dryGain)
+    this.source.connect(this.dryGain)
 
     this.eqLow = this.context.createBiquadFilter()
     this.eqLow.type = 'lowshelf'
@@ -207,58 +173,27 @@ export class EffectsChain {
     this.filterWetGain.connect(this.masterGain)
     this.filterDryGain.connect(this.masterGain)
 
-    this.delayNode = this.context.createDelay(MAX_DELAY_SECONDS)
-    this.delayFeedbackGain = this.context.createGain()
-    this.delayWetGain = this.context.createGain()
-    this.delayWetGain.gain.value = 0
-    this.filterWetGain.connect(this.delayNode)
-    this.filterDryGain.connect(this.delayNode)
-    this.delayNode.connect(this.delayFeedbackGain)
-    this.delayFeedbackGain.connect(this.delayNode)
-    this.delayNode.connect(this.delayWetGain)
-    this.delayWetGain.connect(this.masterGain)
+    this.delay = new DelayModule(this.context)
+    this.filterWetGain.connect(this.delay.input)
+    this.filterDryGain.connect(this.delay.input)
+    this.delay.output.connect(this.masterGain)
 
-    this.lastDecaySeconds = 2
-    this.preDelayNode = this.context.createDelay(MAX_PRE_DELAY_SECONDS)
-    this.convolver = this.context.createConvolver()
-    this.convolver.buffer = createSyntheticImpulseResponse(this.context, this.lastDecaySeconds)
-    this.reverbWetGain = this.context.createGain()
-    this.reverbWetGain.gain.value = 0
-    this.filterWetGain.connect(this.preDelayNode)
-    this.filterDryGain.connect(this.preDelayNode)
-    this.preDelayNode.connect(this.convolver)
-    this.convolver.connect(this.reverbWetGain)
-    this.reverbWetGain.connect(this.masterGain)
+    this.reverb = new ReverbModule(this.context)
+    this.filterWetGain.connect(this.reverb.input)
+    this.filterDryGain.connect(this.reverb.input)
+    this.reverb.output.connect(this.masterGain)
   }
 
   update(settings: EffectsSettings): void {
-    // Reassigning delayTime.value directly jumps the delay line's read
-    // position discontinuously while audio is already flowing through it —
-    // audible as a click/glitch on every slider tick (worse while
-    // dragging, since it fires continuously). setTargetAtTime glides to
-    // the new value over a short time constant instead, keeping changes
-    // smooth while still tracking the slider closely enough to feel
-    // immediate.
+    // setTargetAtTime glides each parameter over a short time constant
+    // rather than jumping, so dragging a knob doesn't click.
     const now = this.context.currentTime
     this.eqLow.gain.setTargetAtTime(settings.eq.low, now, FILTER_PARAM_TAU)
     this.eqMid.gain.setTargetAtTime(settings.eq.mid, now, FILTER_PARAM_TAU)
     this.eqHigh.gain.setTargetAtTime(settings.eq.high, now, FILTER_PARAM_TAU)
 
-    this.delayNode.delayTime.setTargetAtTime(settings.delay.timeMs / 1000, now, 0.08)
-    this.delayFeedbackGain.gain.value = settings.delay.enabled ? settings.delay.feedback : 0
-    this.delayWetGain.gain.value = settings.delay.enabled ? settings.delay.mix : 0
-
-    // Same glitch-avoidance as delayTime above.
-    this.preDelayNode.delayTime.setTargetAtTime(settings.reverb.preDelayMs / 1000, now, 0.05)
-    // Regenerating the impulse response is a length*channels Math.random()
-    // loop — skip it unless decaySeconds actually changed, so dragging an
-    // unrelated reverb slider (mix, pre-delay) doesn't redo this on every
-    // tick.
-    if (settings.reverb.decaySeconds !== this.lastDecaySeconds) {
-      this.lastDecaySeconds = settings.reverb.decaySeconds
-      this.convolver.buffer = createSyntheticImpulseResponse(this.context, settings.reverb.decaySeconds)
-    }
-    this.reverbWetGain.gain.value = settings.reverb.enabled ? settings.reverb.mix : 0
+    this.delay.update(settings.delay)
+    this.reverb.update(settings.reverb)
 
     // lowpass/highpass are each 0 (wide open, inaudible) .. 1 (fully
     // closed) — the node's type never changes, only its frequency, so
@@ -301,55 +236,44 @@ export class EffectsChain {
   // of the speakers is (the audio graph plus the output device), where the
   // browser reports it.
   outputLatencySeconds(): number {
-    const context = this.context as AudioContext & { outputLatency?: number }
-    return (context.baseLatency || 0) + (context.outputLatency || 0)
+    return this.engine.outputLatencySeconds()
   }
 
-  setLocalMuted(muted: boolean): void {
-    this.localGain.gain.setTargetAtTime(muted ? 0 : 1, this.context.currentTime, FILTER_PARAM_TAU)
-  }
-
-  // Routes this context's output to a specific Core Audio device (an
-  // audio interface, say) instead of the system default — AudioContext.
-  // setSinkId() is a fairly recent addition (Chrome 110+/this Electron's
-  // Chromium), so it's feature-detected rather than assumed; null means
-  // "system default", passed through as '' per the spec. Best-effort: a
-  // device that's since been unplugged rejects, which shouldn't crash
-  // playback — the context just keeps outputting to wherever it already
-  // was.
-  async setSinkId(deviceId: string | null): Promise<void> {
-    const context = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> }
-    if (typeof context.setSinkId !== 'function') return
-    try {
-      await context.setSinkId(deviceId ?? '')
-    } catch (err) {
-      console.error('failed to set audio output device', err)
-    }
-  }
-
-  // AudioContexts start suspended until a user gesture resumes them — call
-  // this from the same click handler that starts playback.
+  // Wakes the shared engine — call this from the same click handler that
+  // starts playback (an AudioContext starts suspended until a gesture).
   resume(): void {
-    if (this.suspendTimer) clearTimeout(this.suspendTimer)
-    this.suspendTimer = null
-    if (this.context.state === 'suspended') this.context.resume().catch(() => {})
+    this.engine.resume()
   }
 
+  // Disconnects this track's graph from the engine; the shared context
+  // itself keeps running for everything else.
   close(): void {
-    if (this.suspendTimer) clearTimeout(this.suspendTimer)
     this.audioElement.removeEventListener('play', this.handlePlay)
     this.audioElement.removeEventListener('pause', this.handleStop)
     this.audioElement.removeEventListener('ended', this.handleStop)
-    this.context.close().catch(() => {})
+    this.engine.setActive(this, false)
+    for (const node of [
+      this.source,
+      this.dryGain,
+      this.eqLow,
+      this.eqMid,
+      this.eqHigh,
+      this.lowpassNode,
+      this.highpassNode,
+      this.filterDryGain,
+      this.filterWetGain,
+      this.masterGain,
+      this.analyser,
+    ]) {
+      node.disconnect()
+    }
+    this.delay.disconnect()
+    this.reverb.disconnect()
   }
 
-  private handlePlay = (): void => this.resume()
+  private handlePlay = (): void => this.engine.setActive(this, true)
 
-  private handleStop = (): void => {
-    if (this.suspendTimer) clearTimeout(this.suspendTimer)
-    this.suspendTimer = setTimeout(() => {
-      this.suspendTimer = null
-      if (this.audioElement.paused && this.context.state === 'running') this.context.suspend().catch(() => {})
-    }, IDLE_SUSPEND_MS)
-  }
+  // The engine keeps running for IDLE_SUSPEND_MS after the last source goes
+  // quiet, so delay/reverb tails ring out before it suspends.
+  private handleStop = (): void => this.engine.setActive(this, false)
 }

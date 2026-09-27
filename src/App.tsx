@@ -22,6 +22,7 @@ import { UndoToast } from './components/UndoToast'
 import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
+import { getAudioEngine } from './audio/audioEngine'
 import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
@@ -208,8 +209,8 @@ export default function App() {
     })
   }, [handleMidiControlChange])
 
-  // The siren is a global module singleton (its own AudioContext, not
-  // per-track like EffectsChain) — pushing settings here, not from inside
+  // The siren is a global module singleton (not per-track like
+  // EffectsChain) — pushing settings here, not from inside
   // Player (which remounts per track and unmounts entirely when the queue
   // is empty), keeps it in sync regardless of what's playing.
   // Subscribed outside React: a hook here would re-render the whole app
@@ -221,11 +222,10 @@ export default function App() {
     })
   }, [])
 
-  // Same reasoning as above — the siren is its own separate AudioContext,
-  // so the chosen output device has to be applied to it independently of
-  // whatever Player.tsx's EffectsChain is doing for the current track.
+  // The chosen output device, applied once to the shared audio engine that
+  // the track, the siren (and later the mic) all play through.
   useEffect(() => {
-    getDubSirenEngine().setSinkId(audioOutputDeviceId)
+    getAudioEngine().setSinkId(audioOutputDeviceId)
   }, [audioOutputDeviceId])
 
   // Casting: main-process status/device events, and keeping MCO's app on
@@ -234,8 +234,10 @@ export default function App() {
   useEffect(() => initReceiverSync(), [])
   const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
   const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)
+  // While the TV is playing (a few seconds behind), optionally silence
+  // this Mac so the two don't echo — the visualizer's analyser is upstream.
   useEffect(() => {
-    getDubSirenEngine().setLocalMuted(castPlaying && castMuteLocal)
+    getAudioEngine().setLocalMuted(castPlaying && castMuteLocal)
   }, [castPlaying, castMuteLocal])
 
   // Hold-S keyboard trigger, mirroring the FxPanel button. Lives here

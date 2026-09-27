@@ -51,6 +51,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [DJ tools](features/dj-tools.md) (Camelot, Compatible, pre-listen, Rekordbox export) ·
 [Visualizer](features/visualizer.md) ·
 [Casting](features/casting.md) ·
+[Recording](features/recording.md) (in progress) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
@@ -81,7 +82,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0022](adr/0022-cast-session-lifetime.md) | A cast session keeps the Mac awake, ends when the TV moves on, and dies on missed heartbeats | accepted (the hidden-page rule amended by 0037) |
 | [0023](adr/0023-fx-settings-outside-react.md) | FX settings reach the audio engines through store subscriptions, not React state | accepted |
 | [0024](adr/0024-virtualised-track-table.md) | Render only the visible rows of the track table, at a fixed row height | accepted |
-| [0025](adr/0025-suspend-idle-audio-engines.md) | Suspend the audio engines when nothing is playing | accepted |
+| [0025](adr/0025-suspend-idle-audio-engines.md) | Suspend the audio engines when nothing is playing | amended by 0041 |
 | [0026](adr/0026-write-tags-byte-for-byte.md) | Write file tags by editing bytes in place — never re-encode, never rebuild the tag | accepted |
 | [0027](adr/0027-read-file-tags-in-background.md) | Read every file's tags in the background, not only during analysis | accepted |
 | [0028](adr/0028-suggest-never-auto-write-file-tags.md) | Tag changes to files are suggested, never saved automatically | accepted |
@@ -97,6 +98,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0038](adr/0038-pick-the-tv-screen-in-the-cast-menu.md) | Pick what the TV shows in the Cast menu; MCO's visualizer off while casting | accepted |
 | [0039](adr/0039-download-cloud-tracks-before-playing.md) | Download cloud-only tracks before playing them, without blocking the main process | accepted |
 | [0040](adr/0040-update-collection-removes-missing-tracks.md) | Update Collection removes missing tracks; background scans only hide them | accepted |
+| [0041](adr/0041-one-audio-engine.md) | Play everything through one audio engine (one `AudioContext`, one mix bus) | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

@@ -1,6 +1,7 @@
 // src/audio/sirenEngine.ts
 import type { SirenMode, SirenSettings } from '../types'
 import { BEAT_INTERVAL_SECONDS, stabTimesInWindow } from './sirenSchedule'
+import { getAudioEngine, type AudioEngine } from './audioEngine'
 
 interface ModeVoice {
   carrier: OscillatorType
@@ -38,10 +39,6 @@ const MODE_VOICES: Record<SirenMode, ModeVoice> = {
   },
 }
 
-// How long after the siren goes quiet (released, beat off) its context
-// keeps running for the echo tail, before it's suspended — a running
-// context keeps rendering its oscillators and echo even when silent.
-const IDLE_SUSPEND_MS = 15000
 const SUSTAIN_GAIN = 0.9
 const SUSTAIN_ATTACK_TAU = 0.005
 const RELEASE_TAU = 0.08
@@ -83,7 +80,11 @@ function createSoftClipCurve(): Float32Array<ArrayBuffer> {
   return curve
 }
 
+// Builds on the app's shared AudioEngine and feeds its mix bus directly —
+// not through the track's EffectsChain, so the track's FX, master volume
+// and the visualizer's analyser don't touch it (ADR 0041).
 export class DubSirenEngine {
+  private engine: AudioEngine
   private context: AudioContext
   private osc: OscillatorNode
   private lfoOsc: OscillatorNode
@@ -93,7 +94,8 @@ export class DubSirenEngine {
   private echoDelay: DelayNode
   private echoFeedbackGain: GainNode
   private echoWetGain: GainNode
-  private localGain: GainNode
+  private softClip: WaveShaperNode
+  private dryTrim: GainNode
 
   private mode: SirenMode = 'siren'
   private pitchHz = 350
@@ -103,10 +105,10 @@ export class DubSirenEngine {
   private beatSchedulerId: ReturnType<typeof setInterval> | null = null
   private lastBeatStabTime: number | null = null
   private currentBeat: SirenSettings['beat'] = 'off'
-  private suspendTimer: ReturnType<typeof setTimeout> | null = null
 
-  constructor() {
-    this.context = new AudioContext()
+  constructor(engine: AudioEngine = getAudioEngine()) {
+    this.engine = engine
+    this.context = engine.context
 
     this.osc = this.context.createOscillator()
     this.osc.type = 'sine'
@@ -128,9 +130,9 @@ export class DubSirenEngine {
     this.levelGain.gain.value = 0.8
     this.envGain.connect(this.levelGain)
 
-    const dryTrim = this.context.createGain()
-    dryTrim.gain.value = DRY_TRIM
-    this.levelGain.connect(dryTrim)
+    this.dryTrim = this.context.createGain()
+    this.dryTrim.gain.value = DRY_TRIM
+    this.levelGain.connect(this.dryTrim)
 
     this.echoDelay = this.context.createDelay(1)
     this.echoDelay.delayTime.value = ECHO_DELAY_SECONDS
@@ -143,19 +145,15 @@ export class DubSirenEngine {
     this.echoWetGain.gain.value = ECHO_WET
     this.echoDelay.connect(this.echoWetGain)
 
-    const softClip = this.context.createWaveShaper()
-    softClip.curve = createSoftClipCurve()
-    softClip.oversample = '2x'
-    dryTrim.connect(softClip)
-    this.echoWetGain.connect(softClip)
-    // Same local mute as EffectsChain (see setLocalMuted).
-    this.localGain = this.context.createGain()
-    softClip.connect(this.localGain)
-    this.localGain.connect(this.context.destination)
+    this.softClip = this.context.createWaveShaper()
+    this.softClip.curve = createSoftClipCurve()
+    this.softClip.oversample = '2x'
+    this.dryTrim.connect(this.softClip)
+    this.echoWetGain.connect(this.softClip)
+    this.softClip.connect(engine.input)
 
     this.osc.start()
     this.lfoOsc.start()
-    this.suspendWhenIdle()
   }
 
   update(settings: SirenSettings): void {
@@ -197,7 +195,7 @@ export class DubSirenEngine {
   triggerDown(): void {
     if (this.held) return
     this.held = true
-    this.resume()
+    this.updateActive()
     const voice = MODE_VOICES[this.mode]
 
     if (voice.oneShot) {
@@ -216,7 +214,7 @@ export class DubSirenEngine {
   triggerUp(): void {
     this.held = false
     this.stopGunRetrigger()
-    this.suspendWhenIdle()
+    this.updateActive()
     const voice = MODE_VOICES[this.mode]
     if (voice.oneShot) return // one-shots decay on their own schedule
     const now = this.context.currentTime
@@ -224,47 +222,38 @@ export class DubSirenEngine {
     this.envGain.gain.setTargetAtTime(0, now, RELEASE_TAU)
   }
 
+  // Wakes the shared engine (the FX panel calls this as the siren is
+  // switched on, so the first trigger sounds straight away).
   resume(): void {
-    if (this.suspendTimer) clearTimeout(this.suspendTimer)
-    this.suspendTimer = null
-    if (this.context.state === 'suspended') this.context.resume().catch(() => {})
+    this.engine.resume()
   }
 
-  // Suspends the context once the siren has been silent for a while — not
-  // held and no beat running.
-  private suspendWhenIdle(): void {
-    if (this.suspendTimer) clearTimeout(this.suspendTimer)
-    this.suspendTimer = setTimeout(() => {
-      this.suspendTimer = null
-      if (!this.held && this.currentBeat === 'off' && this.context.state === 'running') {
-        this.context.suspend().catch(() => {})
-      }
-    }, IDLE_SUSPEND_MS)
-  }
-
-  // Same output-device routing as EffectsChain.setSinkId — the siren is
-  // its own separate AudioContext, so it needs this applied independently
-  // or it would keep playing through the system default even after the
-  // track's own audio moved to a chosen interface.
-  async setSinkId(deviceId: string | null): Promise<void> {
-    const context = this.context as AudioContext & { setSinkId?: (id: string) => Promise<void> }
-    if (typeof context.setSinkId !== 'function') return
-    try {
-      await context.setSinkId(deviceId ?? '')
-    } catch (err) {
-      console.error('failed to set siren audio output device', err)
-    }
-  }
-
-  setLocalMuted(muted: boolean): void {
-    this.localGain.gain.setTargetAtTime(muted ? 0 : 1, this.context.currentTime, PARAM_SMOOTH_TAU)
+  // The siren counts as making sound while held or while its beat runs;
+  // after that the engine lets the echo tail ring out before suspending.
+  private updateActive(): void {
+    this.engine.setActive(this, this.held || this.currentBeat !== 'off')
   }
 
   close(): void {
-    if (this.suspendTimer) clearTimeout(this.suspendTimer)
     this.stopGunRetrigger()
     this.stopBeatScheduler()
-    this.context.close().catch(() => {})
+    this.engine.setActive(this, false)
+    this.osc.stop()
+    this.lfoOsc.stop()
+    for (const node of [
+      this.osc,
+      this.lfoOsc,
+      this.lfoDepthGain,
+      this.envGain,
+      this.levelGain,
+      this.dryTrim,
+      this.echoDelay,
+      this.echoFeedbackGain,
+      this.echoWetGain,
+      this.softClip,
+    ]) {
+      node.disconnect()
+    }
   }
 
   private fireOneShot(voice: ModeVoice): void {
@@ -314,12 +303,11 @@ export class DubSirenEngine {
 
   private updateBeat(beat: SirenSettings['beat']): void {
     this.currentBeat = beat
+    this.updateActive()
     if (beat === 'off') {
-      if (this.beatSchedulerId) this.suspendWhenIdle()
       this.stopBeatScheduler()
       return
     }
-    this.resume()
     if (this.beatSchedulerId) return // already running — the interval below reads this.currentBeat live on every tick
 
     this.lastBeatStabTime = null
@@ -349,10 +337,8 @@ export class DubSirenEngine {
 
 let sharedEngine: DubSirenEngine | undefined
 
-// Lazily-constructed module singleton. The AudioContext is not created
-// until this is first called, which must be from inside a user gesture
-// (or immediately after one) — otherwise it starts suspended, same as
-// EffectsChain.
+// Lazily-constructed module singleton, on the shared AudioEngine (which is
+// woken by resume() from the gesture that triggers the siren).
 export function getDubSirenEngine(): DubSirenEngine {
   if (!sharedEngine) sharedEngine = new DubSirenEngine()
   return sharedEngine
