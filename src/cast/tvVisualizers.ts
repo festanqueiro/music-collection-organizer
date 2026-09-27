@@ -4,16 +4,15 @@
 // drawing on a small canvas that Chromium rasterizes in software (see
 // TvVisualizer below), at 30 fps. They're offered only while casting to a
 // screen, and only the receiver renders them.
-import { VISUALIZER_THEMES, type VisualizerThemeId } from 'threejs-visualisers'
+import type { VisualizerThemeId } from 'threejs-visualisers'
 
 export type TvVisualizerId = 'tv-drift' | 'tv-ripples' | 'tv-mandala' | 'tv-scope'
 // Any theme MCO can show: a threejs-visualisers theme or a TV-only one.
 export type AnyVisualizerThemeId = VisualizerThemeId | TvVisualizerId
 
 // What the TV shows while casting, picked in MCO's Cast menu: the
-// now-playing screen, one of these visualizers, or a three.js theme
-// (heavy for a Chromecast's GPU; the receiver renders them at 30 fps).
-export type CastScreen = 'now-playing' | AnyVisualizerThemeId
+// now-playing screen or one of these visualizers.
+export type CastScreen = 'now-playing' | TvVisualizerId
 
 export interface TvVisualizerDef {
   id: TvVisualizerId
@@ -33,7 +32,7 @@ export const TV_VISUALIZERS: TvVisualizerDef[] = [
 export const TV_VISUALIZER_OPTIONS: Record<string, string> = { palette: 'changing', colour: 'changing', symmetry: '6' }
 
 export function isCastScreen(id: string): id is CastScreen {
-  return id === 'now-playing' || isTvVisualizer(id) || VISUALIZER_THEMES.some((theme) => theme.id === id)
+  return id === 'now-playing' || isTvVisualizer(id)
 }
 
 export function isTvVisualizer(id: string): id is TvVisualizerId {

@@ -102,7 +102,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0042](adr/0042-record-pcm-to-wav-on-disk.md) | Record the mix bus as PCM streamed to a WAV on disk | accepted |
 | [0043](adr/0043-no-casting-while-recording.md) | No casting while recording | accepted |
 | [0044](adr/0044-mic-records-but-isnt-heard-by-default.md) | The mic goes to the recording, and to the speakers only when asked | accepted |
-| [0045](adr/0045-3d-themes-back-on-the-tv-at-30-fps.md) | The 3D themes are back on the TV, rendered at 30 fps | accepted |
+| [0045](adr/0045-tv-renders-3d-themes-at-30-fps.md) | The Cast receiver renders the 3D themes at 30 fps | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

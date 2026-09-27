@@ -9,9 +9,6 @@ installed copies update themselves.
 ### Changed
 - **Visualizer**: now renders at 30 fps instead of the display's full
   refresh rate, so the GPU runs cooler.
-- **Cast**: the visualizer's 3D themes are back in the Cast menu's **On the
-  TV** list (as **3D: …**), rendered on the TV at 30 fps. Most are heavy
-  for a Chromecast HD; Paint is the safe one.
 
 ## 1.0.47 — 2026-09-27
 

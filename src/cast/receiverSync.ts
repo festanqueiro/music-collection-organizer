@@ -7,7 +7,7 @@
 import { useCollectionStore, type CollectionState } from '../state/store'
 import type { ReceiverSettingsMessage } from './receiverProtocol'
 import { buildReceiverQueue } from './receiverQueue'
-import { TV_VISUALIZER_OPTIONS, isTvVisualizer } from './tvVisualizers'
+import { TV_VISUALIZER_OPTIONS } from './tvVisualizers'
 
 // FX knobs (and MIDI) can move many times a second; the TV only needs the
 // latest value about this often.
@@ -25,12 +25,9 @@ function displayMessage(state: CollectionState): ReceiverSettingsMessage {
     type: 'display',
     // Picked in the Cast menu. Speakers have nothing to show it on.
     showVisualizer: state.castScreen !== 'now-playing' && !state.castStatus.audioOnly,
+    // The TV shows its own (GPU-free) themes only.
     theme: state.castScreen === 'now-playing' ? 'tv-drift' : state.castScreen,
-    // A three.js theme gets the options picked for it in the visualizer;
-    // the receiver falls back to each option's first value.
-    options: isTvVisualizer(state.castScreen) || state.castScreen === 'now-playing'
-      ? TV_VISUALIZER_OPTIONS
-      : (state.visualizerThemeOptions[state.castScreen] ?? {}),
+    options: TV_VISUALIZER_OPTIONS,
     hideTrackInfo: state.visualizerHideTrackInfo,
   }
 }

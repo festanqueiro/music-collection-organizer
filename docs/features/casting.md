@@ -28,7 +28,7 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
 - **Continuous play** moves to the next queued track when the device finishes one
   ([ADR 0021](../adr/0021-advance-queue-on-device-finished.md)).
 - **Pick what the TV shows in the Cast menu** ([ADR 0038](../adr/0038-pick-the-tv-screen-in-the-cast-menu.md)):
-  under **On the TV**, **Now playing (track details)** one of the TV visualizers or a 3D theme, rendered on
+  under **On the TV**, **Now playing (track details)** one of the TV visualizers, rendered on
   the TV from the audio it plays, so picture and sound are in sync (with *Hide track info* for the
   visualizers). MCO's own **Visualizer** button is dimmed while casting to a screen; pressing it says
   to use the Cast menu, and an open visualizer closes when casting to a screen starts. The
@@ -52,10 +52,9 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
   and **Scope**, drawn without the GPU so they run on TVs that can't handle the 3D themes
   ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)). No options for now: their colours
   always shift slowly. The choice is remembered for the next cast.
-- **3D themes** (**3D: Nebula**, **3D: Paint**…): the visualizer's three.js themes, with the options
-  picked for them in MCO's visualizer, rendered on the TV at 30 fps
-  ([ADR 0045](../adr/0045-3d-themes-back-on-the-tv-at-30-fps.md)). Most are heavy for a Chromecast
-  HD; Paint is the safe one.
+- The receiver can still render the visualizer's 3D (three.js) themes, capped at 30 fps
+  ([ADR 0045](../adr/0045-tv-renders-3d-themes-at-30-fps.md)), but the Cast menu doesn't offer them:
+  most are too heavy for a Chromecast HD.
 
 ### Speakers
 Speakers (no screen) use Google's built-in player directly — a Nest Mini never answers a request to
