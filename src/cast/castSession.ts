@@ -42,10 +42,16 @@ export function stopCasting(): void {
 export function initCast(): () => void {
   const offStatus = window.api.onCastStatus((status) => useCollectionStore.getState().setCastStatus(status))
   const offDevices = window.api.onCastDevices((devices) => useCollectionStore.getState().setCastDevices(devices))
+  // Next, pressed on the TV's remote: move the queue on as MCO's own Next
+  // button does (the TV then gets the new track like any other).
+  const offRemote = window.api.onCastRemote((command) => {
+    if (command === 'next') void useCollectionStore.getState().advanceToNext()
+  })
   // Picks up a session that outlived a renderer reload.
   window.api.getCastStatus().then((status) => useCollectionStore.getState().setCastStatus(status))
   return () => {
     offStatus()
     offDevices()
+    offRemote()
   }
 }

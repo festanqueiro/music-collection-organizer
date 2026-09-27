@@ -20,7 +20,9 @@ import type { CastDevice, CastDirectCommand, CastMediaEvent, CastMode, CastStatu
 import {
   RECEIVER_APP_ID,
   isReceiverGoodbye,
+  isReceiverRemote,
   isReceiverStatus,
+  type ReceiverRemote,
   type ReceiverSettingsMessage,
   type ToReceiver,
 } from '../../../src/cast/receiverProtocol'
@@ -73,6 +75,8 @@ export class CastController {
     private readonly sendStatus: (status: CastStatus) => void,
     private readonly sendMedia: (event: CastMediaEvent) => void,
     private readonly sources: DirectMediaSources,
+    // A command from the TV's remote (see ReceiverRemote), for the renderer.
+    private readonly sendRemote: (command: ReceiverRemote['command']) => void,
   ) {
     this.discovery = new CastDiscovery(sendDevices)
   }
@@ -316,6 +320,10 @@ export class CastController {
       if (this.session !== session) return
       if (isReceiverGoodbye(message)) {
         session.endReason = 'The TV went to another app or its screensaver'
+        return
+      }
+      if (isReceiverRemote(message)) {
+        this.sendRemote(message.command)
         return
       }
       if (!isReceiverStatus(message)) return

@@ -954,6 +954,7 @@ export function registerIpcHandlers(
     },
     (event) => sendToRenderer('cast:media', event),
     castSources,
+    (command) => sendToRenderer('cast:remote', command),
   )
   // Casting ends with MCO. On quit, hold the quit briefly so the TV is
   // actually told to stop (back to its home screen) rather than left on a

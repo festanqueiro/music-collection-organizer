@@ -6,6 +6,12 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Added
+- **Cast**: **play/pause** and **next** buttons on the TV's now-playing
+  screen, for the TV's remote (left/right picks one, OK presses it). A
+  remote's own play/pause and next keys work too, and OK plays/pauses
+  while a visualizer is showing.
+
 ### Changed
 - **Visualizer**: a **Frame rate** picker in its top bar (15, 24, 30, 60 fps
   or Max). It now defaults to 30 fps instead of the display's full refresh

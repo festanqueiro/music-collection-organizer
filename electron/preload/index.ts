@@ -44,7 +44,7 @@ function applyInitialAppTheme(): void {
 }
 applyInitialAppTheme()
 document.addEventListener('readystatechange', applyInitialAppTheme, { once: true })
-import type { ReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
+import type { ReceiverRemote, ReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import type { ScanResult } from '../main/scan'
 
 const api = {
@@ -207,6 +207,13 @@ const api = {
     ipcRenderer.on('cast:media', listener)
     return () => {
       ipcRenderer.removeListener('cast:media', listener)
+    }
+  },
+  onCastRemote: (cb: (command: ReceiverRemote['command']) => void): (() => void) => {
+    const listener = (_e: unknown, command: ReceiverRemote['command']) => cb(command)
+    ipcRenderer.on('cast:remote', listener)
+    return () => {
+      ipcRenderer.removeListener('cast:remote', listener)
     }
   },
   stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),

@@ -37,7 +37,11 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
   - BPM, key, **energy** (1–10: loudness weighted 55 %, how busy the drums are 45 %; only for
     analysed tracks) and loudness (LUFS), format/bitrate, date added, how often and how recently it's
     been played, and its folder;
-  - its waveform, lit up to the playhead;
+  - its waveform, lit up to the playhead, with **play/pause** and **next** buttons under it for the
+    TV's remote: left/right picks one, OK presses it. A remote's own play/pause and next keys (where
+    it has them) work directly, and OK plays/pauses while a visualizer is showing. Play/pause acts on
+    the TV's player and MCO follows; Next sends a `remote` message and MCO moves its queue on, as
+    its own Next button does (dimmed when nothing is queued after the track);
   - **Up next**: the next tracks, each with its tempo change from the one before (↑2, ↓3, 2×, ½×)
     and a ✓ on a BPM or key that mixes; how many are queued, their total length and when the queue
     will end;
