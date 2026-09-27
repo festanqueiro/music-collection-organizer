@@ -1,7 +1,7 @@
 // src/audio/recorder.ts
 //
-// Records the audio engine's mix bus — exactly what's heard, before the
-// cast "mute this Mac" — to a file (docs/features/recording.md). The
+// Records the audio engine's record bus — the music as heard (before the
+// cast "mute this Mac") plus the mic — to a file (docs/features/recording.md). The
 // AudioWorklet (recorderWorklet.ts) turns the bus into 24-bit PCM on the
 // audio thread; each chunk goes straight to the main process, which
 // appends it to a WAV on disk.
@@ -54,7 +54,7 @@ export class Recorder {
         if (e.data.done) resolve()
       }
     })
-    this.engine.input.connect(node)
+    this.engine.recordBus.connect(node)
     // A node only gets processed if it leads to the destination; it
     // outputs silence.
     node.connect(context.destination)
@@ -81,7 +81,7 @@ export class Recorder {
     if (node) {
       node.port.postMessage('stop')
       await this.finished
-      this.engine.input.disconnect(node)
+      this.engine.recordBus.disconnect(node)
       node.disconnect()
       node.port.onmessage = null
     }

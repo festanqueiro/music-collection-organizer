@@ -1,0 +1,309 @@
+// src/components/MicPanel.tsx
+//
+// The Mic section of the FX screen (docs/features/recording.md): the mic's
+// voice chain and its own effects, as knob cards like the track's FX.
+import { useEffect, useRef, useState } from 'react'
+import { useCollectionStore } from '../state/store'
+import { subscribeToMicLevels } from '../audio/micSession'
+import { echoTimeForDivision } from '../audio/micControls'
+import { KnobField, useRafThrottledCommit } from './FxPanel'
+import { MidiLearnBadge } from './MidiLearnBadge'
+import { ToggleSwitch } from './ToggleSwitch'
+import { DEFAULT_MIC_SETTINGS, DELAY_DIVISIONS, MIC_GATE_OFF_DB, type MicSettings, type Track } from '../types'
+
+const DEFAULT_DIVISION_INDEX = 3 // 1/8
+const METER_FLOOR_DB = -60
+const CLIP_LEVEL = 0.99
+const CLIP_HOLD_MS = 1500
+
+const sectionStyle = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
+  borderRadius: '8px',
+  padding: '12px 14px',
+}
+const headerRowStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }
+const knobRowStyle = { display: 'flex', flexWrap: 'wrap' as const, gap: '10px', alignItems: 'flex-start' }
+const dbLabel = (v: number) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`
+
+function useInputDevices(): MediaDeviceInfo[] {
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
+  useEffect(() => {
+    const media = navigator.mediaDevices
+    const refresh = () =>
+      media
+        .enumerateDevices()
+        .then((all) => setDevices(all.filter((d) => d.kind === 'audioinput' && d.deviceId !== 'default')))
+        .catch(() => setDevices([]))
+    refresh()
+    media.addEventListener('devicechange', refresh)
+    return () => media.removeEventListener('devicechange', refresh)
+  }, [])
+  return devices
+}
+
+// Input level, drawn straight into the DOM ~50 times a second (no
+// re-render), with a clip light that stays lit for a moment.
+function LevelMeter({ active }: { active: boolean }) {
+  const barRef = useRef<HTMLDivElement>(null)
+  const clipRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    let clipUntil = 0
+    const setLevel = (peak: number) => {
+      const db = peak > 0 ? 20 * Math.log10(peak) : METER_FLOOR_DB
+      const fraction = Math.min(1, Math.max(0, (db - METER_FLOOR_DB) / -METER_FLOOR_DB))
+      if (barRef.current) barRef.current.style.width = `${fraction * 100}%`
+      const now = performance.now()
+      if (peak >= CLIP_LEVEL) clipUntil = now + CLIP_HOLD_MS
+      if (clipRef.current) clipRef.current.style.opacity = now < clipUntil ? '1' : '0.15'
+    }
+    setLevel(0)
+    return subscribeToMicLevels((levels) => setLevel(levels.peak))
+  }, [])
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', opacity: active ? 1 : 0.4 }} title="Input level (after Gain)">
+      <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: 'var(--color-surface-raised)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
+        <div
+          ref={barRef}
+          style={{ height: '100%', width: 0, background: 'linear-gradient(90deg, var(--color-accent) 70%, var(--color-cue) 88%, var(--color-error))' }}
+        />
+      </div>
+      <div ref={clipRef} title="Clipping: turn the Gain down" style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--color-error)', opacity: 0.15 }} />
+    </div>
+  )
+}
+
+// A button that acts while held (pointer capture so releasing off the
+// button still counts), mirroring the siren's trigger.
+function HoldButton({
+  label,
+  lit,
+  disabled,
+  title,
+  onDown,
+  onUp,
+}: {
+  label: string
+  lit: boolean
+  disabled?: boolean
+  title: string
+  onDown: () => void
+  onUp: () => void
+}) {
+  const held = useRef(false)
+  const release = () => {
+    if (!held.current) return
+    held.current = false
+    onUp()
+  }
+  return (
+    <button
+      disabled={disabled}
+      title={title}
+      style={lit ? { background: 'var(--color-accent)', color: 'var(--color-on-accent)', borderColor: 'var(--color-accent)' } : undefined}
+      onPointerDown={(e) => {
+        e.currentTarget.setPointerCapture(e.pointerId)
+        held.current = true
+        onDown()
+      }}
+      onPointerUp={release}
+      onLostPointerCapture={release}
+    >
+      {label}
+    </button>
+  )
+}
+
+export function MicPanel({ track }: { track: Track | null }) {
+  const mic = useCollectionStore((s) => s.micSettings)
+  const setMic = useCollectionStore((s) => s.setMicSettings)
+  const live = useCollectionStore((s) => s.micLive)
+  const throwHeld = useCollectionStore((s) => s.micThrow)
+  const talkDown = useCollectionStore((s) => s.micTalkDown)
+  const talkUp = useCollectionStore((s) => s.micTalkUp)
+  const setThrow = useCollectionStore((s) => s.setMicThrow)
+  const devices = useInputDevices()
+  const [divisionIndex, setDivisionIndex] = useState(DEFAULT_DIVISION_INDEX)
+
+  const update = (partial: Partial<MicSettings>) => setMic({ ...useCollectionStore.getState().micSettings, ...partial })
+  const updateEq = (partial: Partial<MicSettings['eq']>) => update({ eq: { ...mic.eq, ...partial } })
+  const updateEcho = (partial: Partial<MicSettings['echo']>) => update({ echo: { ...mic.echo, ...partial } })
+  const updateReverb = (partial: Partial<MicSettings['reverb']>) => update({ reverb: { ...mic.reverb, ...partial } })
+  const updateRadio = (partial: Partial<MicSettings['radio']>) => update({ radio: { ...mic.radio, ...partial } })
+  const updateDuck = (partial: Partial<MicSettings['duck']>) => update({ duck: { ...mic.duck, ...partial } })
+  const handleEchoTime = useRafThrottledCommit((v) => updateEcho({ timeMs: v }))
+  const handleDecay = useRafThrottledCommit((v) => updateReverb({ decaySeconds: v }))
+
+  function applyDivision(index: number) {
+    setDivisionIndex(index)
+    if (track?.bpm) updateEcho({ timeMs: echoTimeForDivision(track.bpm, DELAY_DIVISIONS[index].beats) })
+  }
+
+  const d = DEFAULT_MIC_SETTINGS
+  return (
+    <div
+      style={{
+        padding: '0 16px 16px',
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gap: '12px',
+        alignItems: 'start',
+      }}
+    >
+      <div style={{ ...sectionStyle, gridColumn: '1 / -1', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
+        <ToggleSwitch checked={mic.enabled} onChange={(checked) => update({ enabled: checked })} title="Mic on/off" />
+        <h4 style={{ margin: 0 }}>Mic</h4>
+        <MidiLearnBadge control="mic.enabled" />
+        <select
+          value={mic.deviceId ?? ''}
+          onChange={(e) => update({ deviceId: e.target.value || null })}
+          title="Microphone"
+          style={{ fontSize: '12px', maxWidth: '260px' }}
+        >
+          <option value="">System default input</option>
+          {devices.map((device) => (
+            <option key={device.deviceId} value={device.deviceId}>
+              {device.label || 'Microphone'}
+            </option>
+          ))}
+        </select>
+        <div style={{ flex: '1 1 160px', minWidth: '120px' }}>
+          <LevelMeter active={mic.enabled} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <HoldButton
+            label={live ? 'TALK · live' : 'TALK · muted'}
+            lit={mic.enabled && live}
+            disabled={!mic.enabled}
+            title="Tap to mute or unmute; hold while muted to talk (T)"
+            onDown={talkDown}
+            onUp={talkUp}
+          />
+          <MidiLearnBadge control="mic.talk" />
+        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }} title="Hear the mic through the speakers — use headphones, or it feeds back">
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+            headphones
+          </span>
+          Hear myself
+          <ToggleSwitch checked={mic.monitor} onChange={(checked) => update({ monitor: checked })} title="Hear the mic through the speakers" />
+        </label>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <h4 style={{ margin: 0 }}>Voice</h4>
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField label="Gain" control="mic.gainDb" value={mic.gainDb} min={-12} max={24} step={0.5} onChange={(v) => update({ gainDb: v })} defaultValue={d.gainDb} formatValue={dbLabel} />
+          <KnobField
+            label="Gate"
+            control="mic.gateDb"
+            value={mic.gateDb}
+            min={MIC_GATE_OFF_DB}
+            max={-20}
+            step={1}
+            onChange={(v) => update({ gateDb: v })}
+            defaultValue={d.gateDb}
+            formatValue={(v) => (v <= MIC_GATE_OFF_DB ? 'Off' : `${Math.round(v)} dB`)}
+          />
+          <KnobField
+            label="Comp"
+            control="mic.compressor"
+            value={mic.compressor}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => update({ compressor: v })}
+            defaultValue={d.compressor}
+            formatValue={(v) => (v === 0 ? 'Off' : `${Math.round(v * 100)}%`)}
+          />
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <h4 style={{ margin: 0 }}>EQ</h4>
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField label="Low" control="mic.eq.low" value={mic.eq.low} min={-12} max={12} step={0.5} onChange={(v) => updateEq({ low: v })} bipolar defaultValue={d.eq.low} formatValue={dbLabel} />
+          <KnobField label="Mid" control="mic.eq.mid" value={mic.eq.mid} min={-12} max={12} step={0.5} onChange={(v) => updateEq({ mid: v })} bipolar defaultValue={d.eq.mid} formatValue={dbLabel} />
+          <KnobField label="High" control="mic.eq.high" value={mic.eq.high} min={-12} max={12} step={0.5} onChange={(v) => updateEq({ high: v })} bipolar defaultValue={d.eq.high} formatValue={dbLabel} />
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <ToggleSwitch checked={mic.echo.enabled} onChange={(checked) => updateEcho({ enabled: checked })} title="Mic echo on/off" />
+          <h4 style={{ margin: 0 }}>Echo</h4>
+          <MidiLearnBadge control="mic.echo.enabled" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField label="Mix" control="mic.echo.mix" value={mic.echo.mix} min={0} max={1} step={0.01} onChange={(v) => updateEcho({ mix: v })} defaultValue={d.echo.mix} formatValue={(v) => v.toFixed(2)} />
+          <KnobField label="Time" control="mic.echo.timeMs" value={mic.echo.timeMs} min={20} max={1000} step={5} onChange={handleEchoTime} defaultValue={d.echo.timeMs} formatValue={(v) => `${Math.round(v)} ms`} />
+          <KnobField label="Feedback" control="mic.echo.feedback" value={mic.echo.feedback} min={0} max={0.9} step={0.01} onChange={(v) => updateEcho({ feedback: v })} defaultValue={d.echo.feedback} formatValue={(v) => v.toFixed(2)} />
+          <KnobField
+            label="Division"
+            control="mic.echo.division"
+            value={divisionIndex}
+            min={0}
+            max={DELAY_DIVISIONS.length - 1}
+            step={1}
+            onChange={(v) => applyDivision(Math.round(v))}
+            defaultValue={DEFAULT_DIVISION_INDEX}
+            disabled={!track?.bpm}
+            formatValue={(v) => (track?.bpm ? `${DELAY_DIVISIONS[Math.round(v)].label} @ ${Math.round(track.bpm)} BPM` : 'No BPM')}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', width: '64px' }}>
+            <HoldButton
+              label="THROW"
+              lit={throwHeld}
+              disabled={!mic.enabled}
+              title="Hold: what you say goes into the echo, even with Echo off"
+              onDown={() => setThrow(true)}
+              onUp={() => setThrow(false)}
+            />
+            <MidiLearnBadge control="mic.echo.throw" />
+          </div>
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <ToggleSwitch checked={mic.reverb.enabled} onChange={(checked) => updateReverb({ enabled: checked })} title="Mic reverb on/off" />
+          <h4 style={{ margin: 0 }}>Reverb</h4>
+          <MidiLearnBadge control="mic.reverb.enabled" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField label="Mix" control="mic.reverb.mix" value={mic.reverb.mix} min={0} max={1} step={0.01} onChange={(v) => updateReverb({ mix: v })} defaultValue={d.reverb.mix} formatValue={(v) => v.toFixed(2)} />
+          <KnobField label="Decay" control="mic.reverb.decaySeconds" value={mic.reverb.decaySeconds} min={0.2} max={5} step={0.1} onChange={handleDecay} defaultValue={d.reverb.decaySeconds} formatValue={(v) => `${v.toFixed(1)} s`} />
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <ToggleSwitch checked={mic.radio.enabled} onChange={(checked) => updateRadio({ enabled: checked })} title="Radio voice on/off" />
+          <h4 style={{ margin: 0 }}>Radio</h4>
+          <MidiLearnBadge control="mic.radio.enabled" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField label="Drive" control="mic.radio.drive" value={mic.radio.drive} min={0} max={1} step={0.01} onChange={(v) => updateRadio({ drive: v })} defaultValue={d.radio.drive} formatValue={(v) => `${Math.round(v * 100)}%`} />
+        </div>
+      </div>
+
+      <div style={sectionStyle}>
+        <div style={headerRowStyle}>
+          <ToggleSwitch checked={mic.duck.enabled} onChange={(checked) => updateDuck({ enabled: checked })} title="Ducking on/off" />
+          <h4 style={{ margin: 0 }}>Ducking</h4>
+          <MidiLearnBadge control="mic.duck.enabled" />
+        </div>
+        <div style={knobRowStyle}>
+          <KnobField label="Amount" control="mic.duck.amountDb" value={mic.duck.amountDb} min={0} max={24} step={0.5} onChange={(v) => updateDuck({ amountDb: v })} defaultValue={d.duck.amountDb} formatValue={(v) => `−${v.toFixed(1)} dB`} />
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', maxWidth: '150px', alignSelf: 'center' }}>
+            Turns the music down while you talk.
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}

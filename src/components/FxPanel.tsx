@@ -31,7 +31,7 @@ const DEFAULT_DIVISION_INDEX = 2
 // decaySeconds a full impulse-response buffer regeneration) that once
 // caused an audible delay-time glitch. See effectsChain.ts's own
 // setTargetAtTime smoothing for the rest of that fix.
-function useRafThrottledCommit(commit: (value: number) => void): (value: number) => void {
+export function useRafThrottledCommit(commit: (value: number) => void): (value: number) => void {
   const pending = useRef<number | null>(null)
   const rafId = useRef<number | null>(null)
   return (value: number) => {
@@ -49,7 +49,7 @@ function useRafThrottledCommit(commit: (value: number) => void): (value: number)
 
 // One knob + its label + MIDI-learn badge, stacked vertically — the unit
 // each FX section repeats horizontally.
-function KnobField({
+export function KnobField({
   label,
   control,
   value,

@@ -13,6 +13,14 @@ installed copies update themselves.
   recording through pauses and track changes until you stop, and what's
   recorded is kept even if MCO quits. You can't cast while recording, or
   record while casting.
+- **Mic**: a Mic section on the FX screen puts your voice in the mix and in
+  recordings, with its own effects: a voice chain (gain with a level meter,
+  noise gate, compressor, EQ), Echo (with Throw, BPM-synced), Reverb, a
+  Radio voice, and Ducking that turns the music down while you talk.
+  **Talk** (or the **T** key) mutes and unmutes it; hold it while muted to
+  talk. Everything can be MIDI-mapped. You don't hear yourself through the
+  speakers unless you turn on Hear myself. The mic is always off when MCO
+  starts.
 
 ## 1.0.46 — 2026-09-27
 

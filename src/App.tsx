@@ -24,6 +24,7 @@ import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
 import { getAudioEngine } from './audio/audioEngine'
 import { initRecording } from './audio/recordingSession'
+import { initMic } from './audio/micSession'
 import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
@@ -233,6 +234,7 @@ export default function App() {
   // the device in step with the effects, siren and visualizer.
   useEffect(() => initCast(), [])
   useEffect(() => initRecording(), [])
+  useEffect(() => initMic(), [])
   useEffect(() => initReceiverSync(), [])
   const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
   const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)
@@ -242,7 +244,8 @@ export default function App() {
     getAudioEngine().setLocalMuted(castPlaying && castMuteLocal)
   }, [castPlaying, castMuteLocal])
 
-  // Hold-S keyboard trigger, mirroring the FxPanel button. Lives here
+  // Hold-S keyboard trigger, mirroring the FxPanel button, and T for the
+  // mic's Talk (tap to mute/unmute, hold while muted to talk). Lives here
   // (not in Player) for the same reason as the effect above — it must
   // keep working even when nothing is queued.
   useEffect(() => {
@@ -251,7 +254,12 @@ export default function App() {
       return ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(el?.tagName)
     }
     function handleKeyDown(e: KeyboardEvent) {
-      if (modalOpen || isTypingTarget(e.target) || e.key !== 's' || e.repeat) return
+      if (modalOpen || isTypingTarget(e.target) || e.repeat) return
+      if (e.key === 't') {
+        if (useCollectionStore.getState().micSettings.enabled) useCollectionStore.getState().micTalkDown()
+        return
+      }
+      if (e.key !== 's') return
       const { siren } = useCollectionStore.getState().effectsSettings
       if (!siren.enabled || siren.beat !== 'off') return
       const engine = getDubSirenEngine()
@@ -260,6 +268,7 @@ export default function App() {
       useCollectionStore.getState().setSirenTriggered(true)
     }
     function handleKeyUp(e: KeyboardEvent) {
+      if (e.key === 't') useCollectionStore.getState().micTalkUp()
       if (e.key !== 's') return
       getDubSirenEngine().triggerUp()
       useCollectionStore.getState().setSirenTriggered(false)
@@ -267,6 +276,7 @@ export default function App() {
     // Holding S and Cmd-Tabbing away means keyup never arrives — without
     // this, the siren would sound forever behind another app.
     function handleBlur() {
+      useCollectionStore.getState().micTalkUp()
       getDubSirenEngine().triggerUp()
       useCollectionStore.getState().setSirenTriggered(false)
     }
@@ -288,6 +298,7 @@ export default function App() {
       loadAll(),
       loadCollectionFolder(),
       loadEffectsSettings(),
+      useCollectionStore.getState().loadMicSettings(),
       loadMidiMappings(),
       loadColumnOrder(),
       loadHiddenColumns(),

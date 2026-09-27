@@ -4,14 +4,14 @@
 // the audio engine's mix bus and streams 24-bit PCM here in chunks; this
 // appends them to a WAV as they come (WavWriter keeps it valid on disk the
 // whole time) and, on stop, has ffmpeg make a FLAC or MP3 of it if asked.
-import { app, ipcMain, dialog, shell, BrowserWindow, powerSaveBlocker, type IpcMainInvokeEvent } from 'electron'
+import { app, ipcMain, dialog, shell, systemPreferences, BrowserWindow, powerSaveBlocker, type IpcMainInvokeEvent } from 'electron'
 import { spawn } from 'node:child_process'
 import { existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { WavWriter } from './wavWriter'
 import { resolveFfmpegPath } from './ffmpegPath'
-import { getRecordingFolder, setRecordingFolder } from './config'
-import type { RecordingFormat, RecordingResult } from '../../src/types'
+import { getMicSettings, getRecordingFolder, setMicSettings, setRecordingFolder } from './config'
+import type { MicSettings, RecordingFormat, RecordingResult } from '../../src/types'
 
 const CHANNELS = 2
 const BITS_PER_SAMPLE = 24
@@ -73,6 +73,11 @@ export function registerRecordingIpc(sendToRenderer: (channel: string, payload: 
     sleepBlocker = null
     return path
   }
+
+  ipcMain.handle('mic:getSettings', (): MicSettings => getMicSettings())
+  ipcMain.handle('mic:setSettings', (_e, settings: MicSettings): void => setMicSettings(settings))
+  // macOS asks once whether MCO may use the microphone (true if allowed).
+  ipcMain.handle('mic:requestAccess', (): Promise<boolean> => systemPreferences.askForMediaAccess('microphone'))
 
   ipcMain.handle('recording:getFolder', (): string => recordingFolder())
 

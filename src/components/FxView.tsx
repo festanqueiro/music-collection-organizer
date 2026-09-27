@@ -1,6 +1,7 @@
 // The FX screen (the player bar's FX icon): every effect, full screen.
 import { useCollectionStore } from '../state/store'
 import { FxPanel } from './FxPanel'
+import { MicPanel } from './MicPanel'
 import { FitToArea } from './FitToArea'
 import { activeEffects } from '../cast/fxIndicators'
 
@@ -49,7 +50,10 @@ export function FxView() {
         </button>
       </div>
       <FitToArea>
-        <FxPanel track={currentTrack} />
+        <div>
+          <FxPanel track={currentTrack} />
+          <MicPanel track={currentTrack} />
+        </div>
       </FitToArea>
     </div>
   )

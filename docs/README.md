@@ -101,6 +101,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0041](adr/0041-one-audio-engine.md) | Play everything through one audio engine (one `AudioContext`, one mix bus) | accepted |
 | [0042](adr/0042-record-pcm-to-wav-on-disk.md) | Record the mix bus as PCM streamed to a WAV on disk | accepted |
 | [0043](adr/0043-no-casting-while-recording.md) | No casting while recording | accepted |
+| [0044](adr/0044-mic-records-but-isnt-heard-by-default.md) | The mic goes to the recording, and to the speakers only when asked | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |
@@ -114,5 +115,6 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | Shift-click | track table rows / checkboxes | Check a range of tracks |
 | P | track table | Pre-listen to the selected track in the headphones (again to stop) |
 | S (hold) | anywhere | Fire the Dub Siren (when it's on and Beat is Off) |
+| T | anywhere (mic on) | Talk: tap to mute/unmute the mic, hold while muted to talk |
 | Esc | visualizer, dialogs, tag editor | Close / cancel |
 | 1–8 | visualizer | Switch theme |

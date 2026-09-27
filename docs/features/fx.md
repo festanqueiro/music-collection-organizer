@@ -53,7 +53,9 @@ Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/audioEngine.ts`, `eff
 - The engine pauses 15 s after the last sound (a playing track, a held siren or a running beat) and
   resumes on play or a siren trigger, so MCO uses ~0 % CPU while idle
   ([ADR 0025](../adr/0025-suspend-idle-audio-engines.md)).
-- Delay and reverb are reusable send modules (`src/audio/fxModules.ts`).
+- Delay and reverb are reusable send modules (`src/audio/fxModules.ts`), also used by the mic.
+- Below the track's effects is the **Mic** section, with the mic's own effects — see
+  [Recording](recording.md#mic).
 - While casting to a TV, the same effects run on the TV ([Casting](casting.md)).
 
 ## Tests

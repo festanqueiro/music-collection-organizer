@@ -24,6 +24,7 @@ import type {
   ExternalBackupProgress,
   ExternalBackupResult,
   RecordingFormat,
+  MicSettings,
   RecordingResult,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
@@ -210,6 +211,9 @@ const api = {
   },
   stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),
   setKeepDisplayAwake: (awake: boolean): Promise<void> => ipcRenderer.invoke('power:keepDisplayAwake', awake),
+  getMicSettings: (): Promise<MicSettings> => ipcRenderer.invoke('mic:getSettings'),
+  setMicSettings: (settings: MicSettings): Promise<void> => ipcRenderer.invoke('mic:setSettings', settings),
+  requestMicAccess: (): Promise<boolean> => ipcRenderer.invoke('mic:requestAccess'),
   getRecordingFolder: (): Promise<string> => ipcRenderer.invoke('recording:getFolder'),
   chooseRecordingFolder: (): Promise<string | null> => ipcRenderer.invoke('recording:chooseFolder'),
   startRecording: (sampleRate: number): Promise<string> => ipcRenderer.invoke('recording:start', sampleRate),

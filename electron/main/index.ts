@@ -223,16 +223,19 @@ function createWindow(onShown?: () => void): void {
 // enumerateDevices() consults the check to decide whether to expose real
 // output device labels/IDs (and AudioContext.setSinkId() needs those IDs),
 // so granting it there gives the Settings → Audio output picker real
-// device names without ever opening an input stream. Requests
-// (getUserMedia — mic/camera) stay denied: this app never records, and
-// merely opening a mic stream makes macOS switch Bluetooth headphones
-// (AirPods, etc.) into their low-quality hands-free profile, which is
-// audible as a sudden drop in playback quality.
+// device names without ever opening an input stream. A 'media' *request*
+// (getUserMedia) is granted for audio only — the mic in record mode, only
+// ever opened when the user switches the Mic on (audio/mic.ts). Camera
+// stays denied. Opening a mic stream makes macOS switch Bluetooth
+// headphones (AirPods, etc.) into their low-quality hands-free profile if
+// the mic is theirs, which is why it never opens on its own.
 function registerPermissionHandlers(): void {
   const grantedRequests = new Set(['midi', 'midiSysex'])
   const grantedChecks = new Set(['midi', 'midiSysex', 'media'])
-  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
-    callback(grantedRequests.has(permission))
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    const mediaTypes = (details as { mediaTypes?: string[] }).mediaTypes ?? []
+    const audioOnly = permission === 'media' && mediaTypes.length > 0 && mediaTypes.every((t) => t === 'audio')
+    callback(grantedRequests.has(permission) || audioOnly)
   })
   session.defaultSession.setPermissionCheckHandler((_webContents, permission) => {
     return grantedChecks.has(permission)

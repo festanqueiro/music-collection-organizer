@@ -1,16 +1,20 @@
 // src/audio/audioEngine.ts
 //
-// The app's one AudioContext (ADR 0041). Everything that makes sound — the
-// current track's EffectsChain, the dub siren, and later the mic — builds
-// its nodes on `context` and connects its output to `input`, the mix bus.
-// The bus is the single point a recorder can tap to get exactly what's
-// heard, which separate per-track/per-siren contexts couldn't offer
-// (a tap on one would lose its input at every track change, and would
-// never hear the siren).
+// The app's one AudioContext (ADR 0041). Everything that makes sound
+// builds its nodes on `context`: the current track's EffectsChain and the
+// dub siren connect to `input` (the music bus), the mic to `micInput`.
+// `recordBus` carries both — the single point the recorder taps — which
+// separate per-track/per-siren contexts couldn't offer.
 //
 //   track chain ─┐
-//   siren ───────┼─> input (mix bus) ─> localGain ─> destination
-//   (mic later) ─┘
+//   siren ───────┴─> input ─> duckGain ─┬─> localGain ─> destination
+//                                       └─> recordBus ─> (recorder)
+//   mic ─> micInput ─┬─> recordBus
+//                    └─> monitorGain ─> localGain   (off unless monitoring)
+//
+// The mic isn't heard through the speakers unless monitoring is on — a
+// mic next to speakers feeds back. duckGain pulls the music down under
+// the voice (see audio/mic.ts).
 //
 // Output device and the cast "mute this Mac" live here once, instead of
 // being applied to each context separately.
@@ -32,8 +36,15 @@ type EngineContext = Pick<
 
 export class AudioEngine {
   readonly context: AudioContext
-  // The mix bus: connect a source's final node here.
+  // The music bus: connect a track's or the siren's final node here.
   readonly input: GainNode
+  // The mic's bus: recorded, and heard only while monitoring.
+  readonly micInput: GainNode
+  // Music (after ducking) plus the mic — what a recording captures.
+  readonly recordBus: GainNode
+  // Pulled down by the mic's ducking.
+  readonly duckGain: GainNode
+  private monitorGain: GainNode
   private localGain: GainNode
   // Whoever is making sound right now (a playing track, a held siren, a
   // running beat). The context suspends once this has been empty for
@@ -44,8 +55,18 @@ export class AudioEngine {
   constructor(context: EngineContext = new AudioContext()) {
     this.context = context as AudioContext
     this.input = this.context.createGain()
+    this.duckGain = this.context.createGain()
+    this.recordBus = this.context.createGain()
+    this.micInput = this.context.createGain()
+    this.monitorGain = this.context.createGain()
+    this.monitorGain.gain.value = 0
     this.localGain = this.context.createGain()
-    this.input.connect(this.localGain)
+    this.input.connect(this.duckGain)
+    this.duckGain.connect(this.localGain)
+    this.duckGain.connect(this.recordBus)
+    this.micInput.connect(this.recordBus)
+    this.micInput.connect(this.monitorGain)
+    this.monitorGain.connect(this.localGain)
     this.localGain.connect(this.context.destination)
     this.scheduleSuspend()
   }
@@ -89,8 +110,14 @@ export class AudioEngine {
     }
   }
 
-  // Silences this Mac's speakers while casting, without touching the mix
-  // bus (the visualizer's analyser and a recorder sit upstream of this).
+  // Whether the mic is heard through the speakers (off by default:
+  // feedback). It's recorded either way.
+  setMicMonitoring(on: boolean): void {
+    this.monitorGain.gain.setTargetAtTime(on ? 1 : 0, this.context.currentTime, PARAM_SMOOTH_TAU)
+  }
+
+  // Silences this Mac's speakers while casting, without touching the
+  // buses (the visualizer's analyser and a recorder sit upstream of this).
   setLocalMuted(muted: boolean): void {
     this.localGain.gain.setTargetAtTime(muted ? 0 : 1, this.context.currentTime, PARAM_SMOOTH_TAU)
   }

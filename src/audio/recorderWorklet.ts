@@ -1,17 +1,12 @@
 // src/audio/recorderWorklet.ts
 //
 // Runs on the audio thread (an AudioWorklet, loaded by recorder.ts). Takes
-// the engine's mix bus as its input, converts it to 24-bit little-endian
+// the engine's record bus as its input, converts it to 24-bit little-endian
 // interleaved stereo PCM, and posts it to the main thread in chunks of
 // about a quarter of a second. On a 'stop' message it posts what's left,
 // then { done: true }, and stops processing.
 
-// The AudioWorkletGlobalScope isn't in TypeScript's DOM lib.
-declare const sampleRate: number
-declare class AudioWorkletProcessor {
-  readonly port: MessagePort
-}
-declare function registerProcessor(name: string, processor: new () => AudioWorkletProcessor): void
+// Audio-thread globals: see worklet-globals.d.ts.
 
 const BYTES_PER_FRAME = 6 // 2 channels × 3 bytes
 const MAX_24BIT = 0x7fffff

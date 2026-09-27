@@ -1,4 +1,4 @@
-import { SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS, type MidiBinding, type MidiControlKey } from '../types'
+import { SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS, MIC_GATE_OFF_DB, type MidiBinding, type MidiControlKey } from '../types'
 
 // Minimal local typings for the parts of the Web MIDI API this app uses.
 // Not relying on lib.dom's (optional, version-dependent) WebMidi types
@@ -189,6 +189,29 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'player.playNext': { min: 0, max: 1 },
   // CDJ-style CUE: press and release both matter (hold-to-preview), no LED.
   'player.cue': { min: 0, max: 1 },
+  // The mic. Toggles and momentary buttons (enabled, talk, throw) and the
+  // echo's division (a discrete pick) don't go through scaleMidiValue.
+  'mic.enabled': { min: 0, max: 1 },
+  'mic.talk': { min: 0, max: 1 },
+  'mic.gainDb': { min: -12, max: 24 },
+  'mic.gateDb': { min: MIC_GATE_OFF_DB, max: -20 },
+  'mic.compressor': { min: 0, max: 1 },
+  'mic.eq.low': { min: -12, max: 12 },
+  'mic.eq.mid': { min: -12, max: 12 },
+  'mic.eq.high': { min: -12, max: 12 },
+  'mic.echo.enabled': { min: 0, max: 1 },
+  'mic.echo.throw': { min: 0, max: 1 },
+  'mic.echo.timeMs': { min: 20, max: 1000 },
+  'mic.echo.feedback': { min: 0, max: 0.9 },
+  'mic.echo.mix': { min: 0, max: 1 },
+  'mic.echo.division': { min: 0, max: DELAY_DIVISIONS.length - 1 },
+  'mic.reverb.enabled': { min: 0, max: 1 },
+  'mic.reverb.decaySeconds': { min: 0.2, max: 5 },
+  'mic.reverb.mix': { min: 0, max: 1 },
+  'mic.radio.enabled': { min: 0, max: 1 },
+  'mic.radio.drive': { min: 0, max: 1 },
+  'mic.duck.enabled': { min: 0, max: 1 },
+  'mic.duck.amountDb': { min: 0, max: 24 },
 }
 
 // Scales a 7-bit MIDI CC value (0-127) to a control's real-world range.
