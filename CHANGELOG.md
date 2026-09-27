@@ -12,6 +12,9 @@ installed copies update themselves.
   Apple TV used as an AirPlay display, a projector or a monitor — or in a
   window, while you keep using MCO. The Mac draws it, so every theme runs
   smoothly.
+- **Audio** button in the player bar: pick the main output and the
+  headphones (pre-listen) output, each with its volume, like the Mic menu.
+  The list updates when devices come and go.
 - **Visual delay** (Settings → Audio, and in the Screen menu): holds the
   visuals back to line them up with sound that arrives late, like AirPlay
   to an Apple TV.

@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-27
+updated: 2026-09-28
 adrs: [0010, 0012, 0023, 0025]
 ---
 # Player
@@ -62,7 +62,13 @@ Hold **C** on the keyboard, or map the button to a MIDI pad (see
 
 ## Audio output device
 
-**Settings → Audio → Main output** sends playback (and the Dub Siren) to a
+The **Audio** button (first on the right of the player bar) opens a popover like the Mic's: **Main
+output** (device and volume) and **Headphones (pre-listen)** (device and volume), with a note when both
+are the same device. The device list follows outputs coming and going — an AirPlay speaker appears once
+it's picked in Control Center → Sound (`src/components/AudioButton.tsx`, `audioOutputs.tsx`, shared
+with Settings → Audio).
+
+**Settings → Audio → Main output** also sends playback (and the Dub Siren) to a
 specific output — an audio interface, say — instead of the system default.
 The choice is saved.
 
