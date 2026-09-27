@@ -6,7 +6,8 @@ adrs: [0023, 0025, 0029, 0034, 0041]
 # FX
 
 The **FX** screen (the **FX** button on the right of the player bar; it
-lights up while an effect is engaged) processes playback through a Web
+lights up while an effect is engaged: the music's, or the mic's while the mic
+is on) processes playback through a Web
 Audio graph. It's split into three groups, each with its own header and colour stripe, in three
 equal columns on a wide window (fewer as it narrows; always stacked on the Live screen) (`src/components/FxGroups.tsx`): **Music FX** (EQ,
 Filter, Delay, Reverb: on the playing track), **Mic FX** (the mic's own effects; switching it on, its input and

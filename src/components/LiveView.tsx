@@ -3,7 +3,7 @@
 // Mic (with its own effects) on the right. The Queue and FX screens still
 // exist on their own.
 import { useCollectionStore } from '../state/store'
-import { activeEffects } from '../cast/fxIndicators'
+import { activeEffects, activeMicEffects } from '../cast/fxIndicators'
 import { PlaylistView } from './PlaylistView'
 import { FxGroups } from './FxGroups'
 import { FitToArea } from './FitToArea'
@@ -17,7 +17,8 @@ export function LiveView() {
   const micLive = useCollectionStore((s) => s.micLive)
   const setPlayerScreen = useCollectionStore((s) => s.setPlayerScreen)
   const currentTrack = playlist[0] != null ? (tracks.find((t) => t.id === playlist[0]) ?? null) : null
-  const active = activeEffects(effectsSettings, sirenTriggered)
+  const micSettings = useCollectionStore((s) => s.micSettings)
+  const active = [...activeEffects(effectsSettings, sirenTriggered), ...activeMicEffects(micSettings)]
 
   return (
     <div

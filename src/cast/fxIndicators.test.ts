@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { activeEffects } from './fxIndicators'
-import { DEFAULT_EFFECTS_SETTINGS, type EffectsSettings } from '../types'
+import { activeEffects, activeMicEffects } from './fxIndicators'
+import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_MIC_SETTINGS, type EffectsSettings } from '../types'
 
 function withFx(patch: (s: EffectsSettings) => void): EffectsSettings {
   const settings = structuredClone(DEFAULT_EFFECTS_SETTINGS)
@@ -30,5 +30,47 @@ describe('activeEffects', () => {
     })
     expect(activeEffects(settings, false)).toEqual([])
     expect(activeEffects(settings, true)).toEqual(['Siren'])
+  })
+})
+
+describe('activeMicEffects', () => {
+  const mic = (patch: (s: typeof DEFAULT_MIC_SETTINGS) => void) => {
+    const settings = structuredClone(DEFAULT_MIC_SETTINGS)
+    settings.enabled = true
+    patch(settings)
+    return settings
+  }
+
+  it('shows nothing with the mic off, whatever is switched on', () => {
+    const settings = mic((s) => {
+      s.echo.enabled = true
+      s.pitch.enabled = true
+    })
+    settings.enabled = false
+    expect(activeMicEffects(settings)).toEqual([])
+  })
+
+  it("shows the mic's effects that are on and audible", () => {
+    expect(activeMicEffects(mic(() => {}))).toEqual([])
+    expect(
+      activeMicEffects(
+        mic((s) => {
+          s.pitch.enabled = true
+          s.echo.enabled = true
+          s.eq.high = 3
+        })
+      )
+    ).toEqual(['Mic EQ', 'Mic Pitch', 'Mic Echo'])
+  })
+
+  it('leaves out a pitch shift of zero semitones', () => {
+    expect(
+      activeMicEffects(
+        mic((s) => {
+          s.pitch.enabled = true
+          s.pitch.semitones = 0
+        })
+      )
+    ).toEqual([])
   })
 })

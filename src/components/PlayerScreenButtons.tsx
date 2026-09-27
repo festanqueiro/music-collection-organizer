@@ -3,7 +3,7 @@
 // then the full-screen views: Visualizer, FX, Queue, and Live (queue, FX
 // and mic together).
 import { useCollectionStore, type PlayerScreen } from '../state/store'
-import { activeEffects } from '../cast/fxIndicators'
+import { activeEffects, activeMicEffects } from '../cast/fxIndicators'
 import { castingToAScreen } from '../cast/castSession'
 import { CastButton } from './CastButton'
 import { RecordButton } from './RecordButton'
@@ -44,8 +44,11 @@ function ScreenButton({
 // hasTrack: the visualizer needs something playing.
 export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
   const queued = useCollectionStore((s) => s.playlist.length)
-  // Lit while any effect is audibly engaged, so it's visible from here.
-  const fxActive = useCollectionStore((s) => activeEffects(s.effectsSettings, s.sirenTriggered).length > 0)
+  // Lit while any effect is audibly engaged — the music's, or the mic's
+  // while it's on — so it's visible from here.
+  const fxActive = useCollectionStore(
+    (s) => activeEffects(s.effectsSettings, s.sirenTriggered).length > 0 || activeMicEffects(s.micSettings).length > 0
+  )
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const showToast = useCollectionStore((s) => s.showToast)
   // Lit while the mic is on, like FX while an effect is engaged.
