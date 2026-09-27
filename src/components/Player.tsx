@@ -57,7 +57,6 @@ export function Player({
   const [cueHeld, setCueHeld] = useState(false)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const playerVolume = useCollectionStore((s) => s.playerVolume)
-  const audioOutputDeviceId = useCollectionStore((s) => s.audioOutputDeviceId)
   const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
   const continuousPlay = useCollectionStore((s) => s.continuousPlay)
   const advanceToNext = useCollectionStore((s) => s.advanceToNext)
@@ -256,22 +255,10 @@ export function Player({
     effectsChainRef.current?.setVolume(playerVolume)
   }, [playerVolume])
 
-  // Same store-driven pattern as playerVolume above, for the chosen audio
-  // output device — also runs on mount (Player remounts fresh per track,
-  // so a newly created EffectsChain otherwise defaults to the system
-  // output until this fires).
-  useEffect(() => {
-    effectsChainRef.current?.setSinkId(audioOutputDeviceId)
-  }, [audioOutputDeviceId])
-
-  // While the TV is playing (a few seconds behind), optionally silence
-  // this Mac so the two don't echo — the cast tap is upstream of this.
+  // The output device and the cast "mute this Mac" are applied to the
+  // shared audio engine in App.tsx, not per track.
   const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
   const castMode = useCollectionStore((s) => s.castStatus.mode)
-  const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)
-  useEffect(() => {
-    effectsChainRef.current?.setLocalMuted(castPlaying && castMuteLocal)
-  }, [castPlaying, castMuteLocal])
 
   // The track played to its end — here, or on the cast device.
   function handleTrackEnded() {

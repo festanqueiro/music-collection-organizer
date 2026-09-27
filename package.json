@@ -36,6 +36,7 @@
       "artifactName": "MCO-${version}-${arch}.${ext}",
       "extendInfo": {
         "NSLocalNetworkUsageDescription": "MCO looks for Chromecast and Google TV devices on your network so it can cast to them.",
+        "NSMicrophoneUsageDescription": "MCO uses your microphone when you switch on the Mic, to put your voice in the mix and in recordings.",
         "NSBonjourServices": [
           "_googlecast._tcp"
         ]
@@ -73,7 +74,7 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.186.0",
-    "threejs-visualisers": "github:festanqueiro/threejs-visualisers#v0.1.2",
+    "threejs-visualisers": "github:festanqueiro/threejs-visualisers#v0.2.0",
     "zustand": "^5.0.15"
   }
 }

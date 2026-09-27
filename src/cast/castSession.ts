@@ -22,6 +22,11 @@ function errorMessage(err: unknown): string {
 }
 
 export async function startCasting(device: CastDevice): Promise<void> {
+  // Recording and casting never run together (docs/features/recording.md).
+  if (useCollectionStore.getState().recordingState !== 'idle') {
+    useCollectionStore.getState().showToast('Stop recording to cast')
+    return
+  }
   try {
     await window.api.startCast(device.id)
   } catch (err) {

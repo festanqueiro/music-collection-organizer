@@ -2,6 +2,8 @@
 import { create, type StoreApi } from 'zustand'
 import type {
   Track,
+  RecordingFormat,
+  MicSettings,
   EditableTags,
   Genre,
   Subgenre,
@@ -18,13 +20,16 @@ import type {
   CastDevice,
   CastStatus,
 } from '../types'
-import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
+import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_MIC_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
+import { MIC_KNOBS, MIC_TOGGLES, echoTimeForDivision, talkAfterRelease } from '../audio/micControls'
 import { getDubSirenEngine } from '../audio/sirenEngine'
 import type { TrackTagIds } from './tagFilter'
 
 // 'unanalysed' includes tracks whose analysis failed.
 export type AnalysedFilter = 'all' | 'analysed' | 'unanalysed'
+
+export type RecordingState = 'idle' | 'starting' | 'recording' | 'stopping'
 // MCO's own tags: 'no-tags' = no Tags at all (so no Subtags either);
 // 'no-subtags' = no Subtag, whether or not it has Tags.
 export type McoTagsFilter = 'all' | 'no-tags' | 'no-subtags'
@@ -51,6 +56,10 @@ import {
 // onChange continuously, and writing to electron-store on every tick would
 // mean dozens of synchronous disk writes per second while dragging.
 let effectsSettingsSaveTimeout: ReturnType<typeof setTimeout> | null = null
+let micSettingsSaveTimeout: ReturnType<typeof setTimeout> | null = null
+// When the Talk button went down, and whether the mic was live then (see
+// micTalkDown/micTalkUp).
+let talkPress: { at: number; wasLive: boolean } | null = null
 
 // Backs showToast's auto-dismiss below.
 let toastTimeout: ReturnType<typeof setTimeout> | null = null
@@ -209,7 +218,7 @@ export interface PlaybackControls {
   cueUp: () => void
 }
 
-export type PlayerScreen = 'queue' | 'fx'
+export type PlayerScreen = 'queue' | 'fx' | 'live'
 
 export interface CollectionState {
   tracks: Track[]
@@ -271,6 +280,10 @@ export interface CollectionState {
   // out whenever the mouse is idle.
   visualizerHideTrackInfo: boolean
   setVisualizerHideTrackInfo: (hide: boolean) => void
+  // The Visualizer's frame-rate cap (picked from threejs-visualisers'
+  // FPS_CHOICES); 0 is no cap, the display's refresh rate. Default 30.
+  visualizerFps: number
+  setVisualizerFps: (fps: number) => void
   // Whether MIDI-learn badges are shown next to mappable controls
   // (Settings → MIDI). Purely visual — bindings keep working when hidden.
   showMidiControls: boolean
@@ -334,6 +347,33 @@ export interface CollectionState {
   // seconds behind, so hearing both at once is an echo.
   castMuteLocal: boolean
   setCastMuteLocal: (mute: boolean) => void
+  // Record mode (see audio/recordingSession.ts). Recording and casting
+  // never run together.
+  recordingState: RecordingState
+  setRecordingState: (state: RecordingState) => void
+  recordingFormat: RecordingFormat
+  setRecordingFormat: (format: RecordingFormat) => void
+  // The recording's level in dB (the Rec popover's Level knob; 0 = as
+  // heard). App.tsx applies it to the audio engine.
+  recordingLevelDb: number
+  setRecordingLevelDb: (db: number) => void
+  // The mic (audio/micSession.ts applies these to its chain).
+  micSettings: MicSettings
+  loadMicSettings: () => Promise<void>
+  setMicSettings: (settings: MicSettings) => void
+  // Talk: false while the mic is muted. Starts live each time it opens.
+  micLive: boolean
+  setMicLive: (live: boolean) => void
+  // Talk as one button: a tap toggles live/muted, holding a muted mic
+  // talks while held (see micControls.ts).
+  micTalkDown: () => void
+  micTalkUp: () => void
+  // Throw: held, the voice goes into the mic's echo.
+  micThrow: boolean
+  setMicThrow: (held: boolean) => void
+  // The last recording's file, for "Show in Finder" after stopping.
+  lastRecordingPath: string | null
+  setLastRecordingPath: (path: string | null) => void
   setPlaybackControls: (controls: PlaybackControls | null) => void
   // Same imperative-escape-hatch pattern as playbackControls above: the
   // Division knob's "recompute delay.timeMs from the current track's
@@ -541,7 +581,39 @@ function loadVisualizerHideTrackInfo(): boolean {
   }
 }
 
+const VISUALIZER_FPS_KEY = 'visualizerFps'
+const DEFAULT_VISUALIZER_FPS = 30
+function loadVisualizerFps(): number {
+  try {
+    const stored = localStorage.getItem(VISUALIZER_FPS_KEY)
+    const fps = stored === null ? NaN : Number(stored)
+    return Number.isInteger(fps) && fps >= 0 && fps <= 240 ? fps : DEFAULT_VISUALIZER_FPS
+  } catch {
+    return DEFAULT_VISUALIZER_FPS
+  }
+}
+
 const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
+const RECORDING_FORMAT_KEY = 'recordingFormat'
+function loadRecordingFormat(): RecordingFormat {
+  try {
+    const value = localStorage.getItem(RECORDING_FORMAT_KEY)
+    return value === 'flac' || value === 'mp3' ? value : 'wav'
+  } catch {
+    return 'wav'
+  }
+}
+const RECORDING_LEVEL_KEY = 'recordingLevelDb'
+export const RECORDING_LEVEL_MIN_DB = -24
+export const RECORDING_LEVEL_MAX_DB = 6
+function loadRecordingLevelDb(): number {
+  try {
+    const value = Number(localStorage.getItem(RECORDING_LEVEL_KEY) ?? 0)
+    return Number.isFinite(value) ? Math.min(RECORDING_LEVEL_MAX_DB, Math.max(RECORDING_LEVEL_MIN_DB, value)) : 0
+  } catch {
+    return 0
+  }
+}
 function loadBooleanPreference(key: string, fallback: boolean): boolean {
   try {
     const value = localStorage.getItem(key)
@@ -620,6 +692,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   visualizerTheme: loadVisualizerTheme(),
   castScreen: loadCastScreen(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
+  visualizerFps: loadVisualizerFps(),
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
   keyNotation: loadKeyNotation(),
@@ -648,6 +721,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castStatus: { state: 'idle' },
   castDevices: [],
   castMuteLocal: loadBooleanPreference(CAST_MUTE_LOCAL_KEY, true),
+  recordingState: 'idle',
+  recordingFormat: loadRecordingFormat(),
+  recordingLevelDb: loadRecordingLevelDb(),
+  lastRecordingPath: null,
+  micSettings: DEFAULT_MIC_SETTINGS,
+  micLive: true,
+  micThrow: false,
   delayDivisionSync: null,
   midiMappings: {},
   columnOrder: [...DEFAULT_TRACK_TABLE_COLUMN_ORDER],
@@ -715,6 +795,66 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ castMuteLocal: mute })
     saveBooleanPreference(CAST_MUTE_LOCAL_KEY, mute)
   },
+  setRecordingState: (state) => set({ recordingState: state }),
+  setRecordingFormat: (format) => {
+    set({ recordingFormat: format })
+    try {
+      localStorage.setItem(RECORDING_FORMAT_KEY, format)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+  setRecordingLevelDb: (db) => {
+    set({ recordingLevelDb: db })
+    try {
+      localStorage.setItem(RECORDING_LEVEL_KEY, String(db))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+  setLastRecordingPath: (path) => set({ lastRecordingPath: path }),
+
+  loadMicSettings: async () => {
+    set({ micSettings: await window.api.getMicSettings() })
+  },
+
+  setMicSettings: (settings) => {
+    // Same LED mirroring as setEffectsSettings, for the mic's toggles.
+    const previous = get().micSettings
+    const mappings = get().midiMappings
+    for (const [control, toggle] of Object.entries(MIC_TOGGLES) as [MidiControlKey, NonNullable<(typeof MIC_TOGGLES)[MidiControlKey]>][]) {
+      const binding = mappings[control]
+      if (binding && toggle.get(settings) !== toggle.get(previous)) sendMidiFeedback(binding, toggle.get(settings))
+    }
+    // Opening the mic starts it live.
+    if (settings.enabled && !previous.enabled) get().setMicLive(true)
+    set({ micSettings: settings })
+    if (micSettingsSaveTimeout) clearTimeout(micSettingsSaveTimeout)
+    micSettingsSaveTimeout = setTimeout(() => {
+      window.api.setMicSettings(settings).catch((err) => console.error('failed to save mic settings', err))
+    }, 300)
+  },
+
+  setMicLive: (live) => {
+    set({ micLive: live })
+    const binding = get().midiMappings['mic.talk']
+    if (binding) sendMidiFeedback(binding, live)
+  },
+
+  micTalkDown: () => {
+    const wasLive = get().micLive
+    talkPress = { at: Date.now(), wasLive }
+    if (!wasLive) get().setMicLive(true)
+  },
+
+  micTalkUp: () => {
+    if (!talkPress) return
+    const { at, wasLive } = talkPress
+    talkPress = null
+    get().setMicLive(talkAfterRelease(wasLive, Date.now() - at))
+  },
+
+  setMicThrow: (held) => set({ micThrow: held }),
   setDelayDivisionSync: (sync) => set({ delayDivisionSync: sync }),
 
   loadMidiMappings: async () => {
@@ -864,6 +1004,41 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // nothing is learning) looks up a matching existing binding and applies
   // the scaled value to the corresponding piece of state.
   handleMidiControlChange: (channel, controller, value, kind) => {
+    // The mic's controls (micControls.ts): toggles flip on the press,
+    // Talk and Throw act on press and release, knobs commit once a frame.
+    function handleMicMidi(control: MidiControlKey, midiValue: number): void {
+      if (control === 'mic.talk') {
+        if (midiValue !== 0) get().micTalkDown()
+        else get().micTalkUp()
+        return
+      }
+      if (control === 'mic.echo.throw') {
+        get().setMicThrow(midiValue !== 0)
+        return
+      }
+      if (control === 'mic.echo.division') {
+        const { playlist, tracks } = get()
+        const bpm = tracks.find((t) => t.id === playlist[0])?.bpm
+        if (!bpm) return
+        const division = scaleMidiValueToOption(DELAY_DIVISIONS, midiValue)
+        const ms = echoTimeForDivision(bpm, division.beats)
+        get().setMicSettings({ ...get().micSettings, echo: { ...get().micSettings.echo, timeMs: ms } })
+        return
+      }
+      const toggle = MIC_TOGGLES[control]
+      if (toggle) {
+        if (midiValue === 0) return
+        const mic = get().micSettings
+        get().setMicSettings(toggle.set(mic, !toggle.get(mic)))
+        return
+      }
+      const knob = MIC_KNOBS[control]
+      if (knob) {
+        const scaledValue = scaleMidiValue(control, midiValue)
+        scheduleMidiCommit(control, () => get().setMicSettings(knob(get().micSettings, scaledValue)))
+      }
+    }
+
     const learning = get().midiLearningControl
     if (learning) {
       const binding: MidiBinding = { channel, controller, kind }
@@ -896,6 +1071,8 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       else if (learning === 'reverb.enabled') sendMidiFeedback(binding, currentEffectsSettings.reverb.enabled)
       else if (learning === 'filter.enabled') sendMidiFeedback(binding, currentEffectsSettings.filter.enabled)
       else if (learning === 'siren.enabled') sendMidiFeedback(binding, currentEffectsSettings.siren.enabled)
+      else if (learning === 'mic.talk') sendMidiFeedback(binding, get().micLive)
+      else if (MIC_TOGGLES[learning]) sendMidiFeedback(binding, MIC_TOGGLES[learning].get(get().micSettings))
       return
     }
 
@@ -987,6 +1164,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       const controls = get().playbackControls
       if (value !== 0) controls?.cueDown()
       else controls?.cueUp()
+      return
+    }
+
+    if (match.startsWith('mic.')) {
+      handleMicMidi(match, value)
       return
     }
 
@@ -1303,6 +1485,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ visualizerHideTrackInfo: hide })
     try {
       localStorage.setItem(VISUALIZER_HIDE_TRACK_INFO_KEY, String(hide))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setVisualizerFps: (fps) => {
+    set({ visualizerFps: fps })
+    try {
+      localStorage.setItem(VISUALIZER_FPS_KEY, String(fps))
     } catch {
       // Non-essential preference — fine to lose.
     }

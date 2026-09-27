@@ -1,8 +1,8 @@
 // The FX screen (the player bar's FX icon): every effect, full screen.
 import { useCollectionStore } from '../state/store'
-import { FxPanel } from './FxPanel'
+import { FxGroups } from './FxGroups'
 import { FitToArea } from './FitToArea'
-import { activeEffects } from '../cast/fxIndicators'
+import { activeEffects, activeMicEffects } from '../cast/fxIndicators'
 
 export function FxView() {
   const playlist = useCollectionStore((s) => s.playlist)
@@ -11,7 +11,8 @@ export function FxView() {
   const sirenTriggered = useCollectionStore((s) => s.sirenTriggered)
   const setPlayerScreen = useCollectionStore((s) => s.setPlayerScreen)
   const currentTrack = playlist[0] != null ? (tracks.find((t) => t.id === playlist[0]) ?? null) : null
-  const active = activeEffects(effectsSettings, sirenTriggered)
+  const micSettings = useCollectionStore((s) => s.micSettings)
+  const active = [...activeEffects(effectsSettings, sirenTriggered), ...activeMicEffects(micSettings)]
 
   return (
     <div
@@ -49,7 +50,7 @@ export function FxView() {
         </button>
       </div>
       <FitToArea>
-        <FxPanel track={currentTrack} />
+        <FxGroups track={currentTrack} />
       </FitToArea>
     </div>
   )

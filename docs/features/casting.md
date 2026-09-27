@@ -1,7 +1,7 @@
 ---
 status: shipped
 updated: 2026-09-27
-adrs: [0015, 0016, 0017, 0019, 0020, 0021, 0022, 0036, 0037]
+adrs: [0015, 0016, 0017, 0019, 0020, 0021, 0022, 0036, 0037, 0043, 0045]
 ---
 # Casting
 
@@ -28,7 +28,7 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
 - **Continuous play** moves to the next queued track when the device finishes one
   ([ADR 0021](../adr/0021-advance-queue-on-device-finished.md)).
 - **Pick what the TV shows in the Cast menu** ([ADR 0038](../adr/0038-pick-the-tv-screen-in-the-cast-menu.md)):
-  under **On the TV**, **Now playing (track details)** or one of the TV visualizers, rendered on
+  under **On the TV**, **Now playing (track details)** one of the TV visualizers, rendered on
   the TV from the audio it plays, so picture and sound are in sync (with *Hide track info* for the
   visualizers). MCO's own **Visualizer** button is dimmed while casting to a screen; pressing it says
   to use the Cast menu, and an open visualizer closes when casting to a screen starts. The
@@ -46,12 +46,16 @@ in **MCO's own Cast app** on TVs ([ADR 0017](../adr/0017-own-cast-receiver-app.m
     right now (Filter, EQ, Delay, Reverb, Siren), lit as they're used.
 
   With the visualizer's track info on, it also shows BPM, key and the next track. With nothing
-  loaded, it shows **Load a song to continue**. Every part of this screen has a fixed size, so nothing
+  loaded (also when MCO's queue empties
+  during a cast), it shows **Load a song to continue**, with no track details, seek bar or cover left over. Every part of this screen has a fixed size, so nothing
   moves when a track with more or less information loads (unknown stats show "—").
 - **TV visualizers**: **Drift**, **Ripples** (rings rising from the bottom), **Mandala** (6-fold)
   and **Scope**, drawn without the GPU so they run on TVs that can't handle the 3D themes
   ([ADR 0036](../adr/0036-tv-only-visualizers-without-gpu.md)). No options for now: their colours
   always shift slowly. The choice is remembered for the next cast.
+- The receiver can still render the visualizer's 3D (three.js) themes, capped at 30 fps
+  ([ADR 0045](../adr/0045-tv-renders-3d-themes-at-30-fps.md)), but the Cast menu doesn't offer them:
+  most are too heavy for a Chromecast HD.
 
 ### Speakers
 Speakers (no screen) use Google's built-in player directly — a Nest Mini never answers a request to
@@ -63,6 +67,10 @@ MCO falls back to Google's built-in player ("Default Media Receiver"): tracks wi
 and the TV remote and the Google Home app can pause and seek too. MCO's effects, siren and visualizer
 aren't available there, and volume is set on the device. A device can refuse MCO's app for a while
 after the app was changed in the Cast console, until it's restarted.
+
+### Not while recording
+Casting and recording never run together: while recording, **Cast** is dimmed and says to stop recording
+first ([ADR 0043](../adr/0043-no-casting-while-recording.md)).
 
 ### Popover options
 - **Mute this Mac while casting** (on by default) silences the Mac's own output, so you don't hear

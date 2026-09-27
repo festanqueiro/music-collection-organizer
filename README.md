@@ -8,7 +8,8 @@ MCO is a desktop app for DJs who keep their music as files on disk. Point
 it at your collection folder and it finds every track, works out its BPM,
 musical key, energy, and waveform, and lets you browse, search, tag, and
 play the whole collection in one place. It also has a play queue, DJ-style
-effects, MIDI controller support, a full-screen music visualizer, and
+effects, a microphone with its own effects, recording of your sets and
+podcasts, MIDI controller support, a full-screen music visualizer, and
 casting to your TV.
 
 Everything stays on your machine. MCO never uploads your music, and it
@@ -36,11 +37,24 @@ MCO's own database.
   on its own full screen.
 - **Player** — a waveform you can click to seek, a CDJ-style cue button,
   volume and mute, macOS media keys and AirPods controls, and a choice of
-  audio output device. Queue, FX, Visualizer and Cast sit together at the
-  right of the player bar.
-- **Effects** — EQ, low/high-pass filter, a tempo-synced delay, reverb,
-  and a dub siren, all as rotary knobs on their own full screen. The FX
-  button lights up while an effect is engaged.
+  audio output device. Rec, Mic and Cast, then Visualizer, FX, Queue and
+  Live, sit together at the right of the player bar.
+- **Effects** — rotary knobs on their own full screen, in three groups:
+  **Music FX** (EQ, low/high-pass filter, a tempo-synced delay, reverb),
+  **Mic FX** (your voice's effects, below) and **Instruments** (a dub
+  siren). The FX button lights up while an effect is engaged.
+- **Mic** — put your voice in the mix from the player bar's Mic button:
+  pick the input, watch its level, Talk (tap to mute, hold to talk, or the
+  T key), optional noise suppression, and hear yourself only if you want
+  to. Its own effects: gain, noise gate, compressor, EQ, pitch shift,
+  echo (with throw, tempo-synced), reverb, a radio voice, and ducking that
+  turns the music down while you talk.
+- **Record** — record what MCO plays (the music with its effects, the
+  siren and your mic) to WAV, FLAC or MP3, for podcasts and mixes, with a
+  level meter and a recording-level knob. It keeps recording through
+  pauses and track changes, and what's recorded survives a quit.
+- **Live screen** — the queue and every effect on one screen, for running
+  a show.
 - **DJ tools** — keys in Camelot notation with a "Compatible" filter for
   harmonic mixing (same key, one step round the [Camelot wheel](https://mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp), or
   the relative major/minor, at a BPM that matches), headphone pre-listen
@@ -49,7 +63,8 @@ MCO's own database.
   in two clicks, with LED feedback where your controller supports it.
 - **Visualizer** — a full-screen, audio-reactive visualizer with eight
   themes: Nebula, Warp, Horizon, Sound System (a speaker stack that thumps
-  along with the music), Smoke, Kaleidoscope, Paint, and Liquid 3D.
+  along with the music), Smoke, Kaleidoscope, Paint, and Liquid 3D. It
+  runs at 30 fps by default to keep the GPU cool (15 to 60 fps, or Max).
 - **Casting** — play to a Chromecast, Google TV, or Nest speaker. On a
   TV, MCO's own Cast app plays the music with your effects and dub siren,
   runs the visualizer, and shows a now-playing screen: artwork, tags, BPM,

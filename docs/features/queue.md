@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-09-27
 adrs: [0012]
 ---
 # Queue
@@ -8,6 +8,9 @@ adrs: [0012]
 MCO has a play **queue**, not saved playlists. It's first-in, first-out:
 the track playing is always at the top, and once it finishes (or you skip)
 it leaves the queue.
+
+It's the **Queue** screen, and also the left pane of the **Live** screen
+(with the effects and the Mic beside it — see [FX](fx.md)).
 
 ## Adding tracks
 

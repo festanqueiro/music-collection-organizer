@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted (amended by 0041: one engine, suspended when all sources are quiet)
 date: 2026-09-26
 ---
 # 0025. Suspend the audio engines when nothing is playing

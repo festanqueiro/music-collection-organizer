@@ -130,13 +130,12 @@ function QueueRow({
 }
 
 // Full-screen overlay above the toolbar/left/center/right grid areas while
-// the footer Player (with its own compact transport strip and
-// down-chevron trigger) stays mounted underneath — so playback is never
-// interrupted by expanding/collapsing this view. Split 50/50: the queue on
-// the left, FX (delay/reverb today, Dub Siren later) on the right — FX
-// controls need real space to grow into, which the footer strip can't
-// spare.
-export function PlaylistView() {
+// the footer Player (with its own compact transport strip) stays mounted
+// underneath — so playback is never interrupted by opening/closing this
+// view. `embedded`: the queue as the left pane of the Live screen
+// (LiveView) instead of a screen of its own — no close button, and its
+// toolbar wraps to fit.
+export function PlaylistView({ embedded = false }: { embedded?: boolean } = {}) {
   const playlist = useCollectionStore((s) => s.playlist)
   const tracks = useCollectionStore((s) => s.tracks)
   const continuousPlay = useCollectionStore((s) => s.continuousPlay)
@@ -184,19 +183,18 @@ export function PlaylistView() {
   return (
     <div
       style={{
-        position: 'absolute',
-        inset: 0,
+        ...(embedded ? { position: 'relative', height: '100%' } : { position: 'absolute', inset: 0, zIndex: 10 }),
         background: 'var(--color-bg)',
         display: 'flex',
         flexDirection: 'column',
-        zIndex: 10,
       }}
     >
       <div
         style={{
           display: 'flex',
+          flexWrap: embedded ? 'wrap' : undefined,
           alignItems: 'center',
-          gap: '12px',
+          gap: embedded ? '8px 12px' : '12px',
           padding: '12px 16px',
           borderBottom: '1px solid var(--color-border)',
         }}
@@ -244,13 +242,15 @@ export function PlaylistView() {
             {playlist.length} track{playlist.length === 1 ? '' : 's'} · {formatDuration(totalDuration)} total
           </span>
         )}
-        <button
-          onClick={() => setPlayerScreen(null)}
-          title="Close queue"
-          style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}
-        >
-          <span className="material-symbols-outlined">close</span>
-        </button>
+        {!embedded && (
+          <button
+            onClick={() => setPlayerScreen(null)}
+            title="Close queue"
+            style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>

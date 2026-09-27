@@ -1,10 +1,13 @@
-// The right end of the player bar, in this order: Cast — set apart, since
-// it changes where the sound goes rather than opening a view — then the
-// full-screen views: Visualizer, FX and Queue.
+// The right end of the player bar, in this order: Rec, Mic and Cast — set
+// apart, since they record, add or move the sound rather than open a view —
+// then the full-screen views: Visualizer, FX, Queue, and Live (queue, FX
+// and mic together).
 import { useCollectionStore, type PlayerScreen } from '../state/store'
-import { activeEffects } from '../cast/fxIndicators'
+import { activeEffects, activeMicEffects } from '../cast/fxIndicators'
 import { castingToAScreen } from '../cast/castSession'
 import { CastButton } from './CastButton'
+import { RecordButton } from './RecordButton'
+import { MicButton } from './MicButton'
 import { barButtonStyle } from './playerBarStyles'
 
 function ScreenButton({
@@ -41,14 +44,21 @@ function ScreenButton({
 // hasTrack: the visualizer needs something playing.
 export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
   const queued = useCollectionStore((s) => s.playlist.length)
-  // Lit while any effect is audibly engaged, so it's visible from here.
-  const fxActive = useCollectionStore((s) => activeEffects(s.effectsSettings, s.sirenTriggered).length > 0)
+  // Lit while any effect is engaged — the music's or the mic's — so it's
+  // visible from here.
+  const fxActive = useCollectionStore(
+    (s) => activeEffects(s.effectsSettings, s.sirenTriggered).length > 0 || activeMicEffects(s.micSettings).length > 0
+  )
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const showToast = useCollectionStore((s) => s.showToast)
+  // Lit while the mic is on, like FX while an effect is engaged.
+  const micOn = useCollectionStore((s) => s.micSettings.enabled)
   // The TV's picture is picked in the Cast menu instead.
   const castingToScreen = useCollectionStore((s) => castingToAScreen(s.castStatus))
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+      <RecordButton />
+      <MicButton />
       <CastButton />
       <span style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 4px' }} />
       <button
@@ -78,6 +88,7 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
       </button>
       <ScreenButton screen="fx" icon="tune" label="FX" lit={fxActive} />
       <ScreenButton screen="queue" icon="queue_music" label="Queue" badge={queued > 0 ? String(queued) : undefined} />
+      <ScreenButton screen="live" icon="dashboard" label="Live" lit={micOn} />
     </div>
   )
 }

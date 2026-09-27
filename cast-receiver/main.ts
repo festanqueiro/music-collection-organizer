@@ -571,6 +571,19 @@ function receive(message: ToReceiver): void {
       break
     case 'queue':
       queue = message
+      // MCO's queue is empty: nothing is loaded there any more, so the TV
+      // goes back to its "Load a song" screen rather than keeping the last
+      // track's title, year and seek bar up.
+      if (!message.current && currentTrack) {
+        audio.pause()
+        currentTrack = null
+        // As on first connect: no cover behind it. A track loaded again
+        // repaints it.
+        artworkShown = null
+        paintBackdrop(null)
+        render()
+        break
+      }
       renderTrack()
       renderQueue()
       break
@@ -588,6 +601,9 @@ function receive(message: ToReceiver): void {
           themeOptions: message.options,
           // Render at CSS resolution (720p on most TVs): the TV's GPU is modest.
           pixelRatio: 1,
+          // Capped: a theme the TV can't hold at 60 runs evenly instead of
+          // stuttering, and the GPU gets half the work.
+          fps: 30,
           autoStart: false,
         })
       } else if (message.theme !== visualizer.theme.id) {

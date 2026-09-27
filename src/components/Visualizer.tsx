@@ -1,6 +1,6 @@
 // src/components/Visualizer.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
+import { FPS_CHOICES, FrameLimiter, VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
 import { getActiveAnalyser } from '../audio/audioAnalysis'
 import { useCollectionStore } from '../state/store'
 import { castingToAScreen } from '../cast/castSession'
@@ -25,6 +25,14 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const setThemeId = useCollectionStore((s) => s.setVisualizerTheme)
   const hideTrackInfo = useCollectionStore((s) => s.visualizerHideTrackInfo)
   const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
+  // The render loop's frame-rate cap (default 30: the themes look much the
+  // same, at about half the GPU load and heat of 60).
+  const fps = useCollectionStore((s) => s.visualizerFps)
+  const setFps = useCollectionStore((s) => s.setVisualizerFps)
+  const limiterRef = useRef(new FrameLimiter(fps))
+  useEffect(() => {
+    limiterRef.current.fps = fps
+  }, [fps])
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   const castingToScreen = useCollectionStore((s) => castingToAScreen(s.castStatus))
@@ -145,6 +153,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     function tick() {
       raf = requestAnimationFrame(tick)
       const nowMs = performance.now()
+      if (!limiterRef.current.shouldRender(nowMs)) return
       fpsFrames++
       if (nowMs - fpsSince >= 1000) {
         if (fpsRef.current) fpsRef.current.textContent = `${Math.round((fpsFrames * 1000) / (nowMs - fpsSince))} fps`
@@ -254,6 +263,13 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             <div key={`empty-${i}`} style={{ width: PICKER_WIDTH, flexShrink: 0 }} />
           )
         })}
+        <PickerSelect
+          label="Frame rate"
+          value={String(fps)}
+          title="Lower rates keep the GPU cooler"
+          options={FPS_CHOICES.map((choice) => ({ id: String(choice.fps), name: choice.label }))}
+          onChange={(value) => setFps(Number(value))}
+        />
         <label
           style={{
             display: 'flex',

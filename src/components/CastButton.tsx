@@ -29,6 +29,9 @@ export function CastButton() {
   const muteLocal = useCollectionStore((s) => s.castMuteLocal)
   const setMuteLocal = useCollectionStore((s) => s.setCastMuteLocal)
   const active = isCastActive(status)
+  // Recording and casting never run together (docs/features/recording.md).
+  const recording = useCollectionStore((s) => s.recordingState !== 'idle')
+  const showToast = useCollectionStore((s) => s.showToast)
   const toScreen = castingToAScreen(status)
   const castScreen = useCollectionStore((s) => s.castScreen)
   const setCastScreen = useCollectionStore((s) => s.setCastScreen)
@@ -55,6 +58,11 @@ export function CastButton() {
   }, [open])
 
   function toggleOpen(e: React.MouseEvent<HTMLButtonElement>) {
+    if (recording && !active) {
+      showToast('Stop recording to cast')
+      e.currentTarget.blur()
+      return
+    }
     const rect = e.currentTarget.getBoundingClientRect()
     setAnchor({
       left: Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8)),
@@ -77,8 +85,9 @@ export function CastButton() {
       <button
         ref={buttonRef}
         onClick={toggleOpen}
-        title={active ? (statusText ?? 'Casting') : 'Cast to a TV or speaker'}
-        style={barButtonStyle(open, status.state === 'casting')}
+        title={active ? (statusText ?? 'Casting') : recording ? 'Stop recording to cast' : 'Cast to a TV or speaker'}
+        // Looks off while recording, but still clicks, to say why.
+        style={{ ...barButtonStyle(open, status.state === 'casting'), ...(recording && !active ? { opacity: 0.45 } : {}) }}
       >
         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
           {active ? 'cast_connected' : 'cast'}

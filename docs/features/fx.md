@@ -1,13 +1,17 @@
 ---
 status: shipped
 updated: 2026-09-27
-adrs: [0023, 0025, 0029, 0034]
+adrs: [0023, 0025, 0029, 0034, 0041]
 ---
 # FX
 
 The **FX** screen (the **FX** button on the right of the player bar; it
-lights up while an effect is engaged) processes playback through a Web
-Audio graph. Each effect is a card, laid out in as many columns as fit. Every control is a rotary knob that shows its live value;
+lights up while an effect is engaged: the music's or the mic's) processes playback through a Web
+Audio graph. It's split into three groups, each with its own header and colour stripe, in three
+equal columns on a wide window (fewer as it narrows; always stacked on the Live screen) (`src/components/FxGroups.tsx`): **Music FX** (EQ,
+Filter, Delay, Reverb: on the playing track), **Mic FX** (the mic's own effects; switching it on, its input and
+Talk are in the player bar's **Mic** popover, see [Recording](recording.md#mic)) and **Instruments** (sound sources of their own, played over the
+music: the Dub Siren). Each effect is a card, laid out in as many columns as fit. Every control is a rotary knob that shows its live value;
 **double-click** a knob to reset it. Each effect module has its own on/off
 toggle in its header; the EQ card (master volume and the 3-band EQ) is always on. All settings are saved and restored on the next launch, and
 every knob and toggle can be [MIDI-mapped](midi.md).
@@ -39,7 +43,7 @@ A synthesized dub siren with four modes: **Siren**, **Bomb**, **Gun**,
 
 The siren works even when nothing is playing.
 
-Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/effectsChain.ts`,
+Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/audioEngine.ts`, `effectsChain.ts`, `fxModules.ts`,
 `src/audio/sirenEngine.ts`, `src/audio/sirenSchedule.ts`.
 
 ## Behaviour notes
@@ -47,10 +51,19 @@ Code: `src/components/FxPanel.tsx`, `Knob.tsx`, `src/audio/effectsChain.ts`,
   without scrolling; never smaller than normal) — [ADR 0034](../adr/0034-fx-screen-fits-the-window.md).
 - Knobs don't redraw the rest of the app while you turn them
   ([ADR 0023](../adr/0023-fx-settings-outside-react.md)).
-- The audio engines pause 15 s after going quiet and resume on play or a
-  siren trigger, so MCO uses ~0 % CPU while idle ([ADR 0025](../adr/0025-suspend-idle-audio-engines.md)).
+- Everything plays through **one audio engine** — one `AudioContext` whose mix bus the track's
+  chain and the siren feed (`src/audio/audioEngine.ts`, [ADR 0041](../adr/0041-one-audio-engine.md)).
+  The output device and the cast "mute this Mac" are set there once.
+- The engine pauses 15 s after the last sound (a playing track, a held siren or a running beat) and
+  resumes on play or a siren trigger, so MCO uses ~0 % CPU while idle
+  ([ADR 0025](../adr/0025-suspend-idle-audio-engines.md)).
+- Delay and reverb are reusable send modules (`src/audio/fxModules.ts`), also used by the mic.
+- The Mic FX group has the mic's own effects — see [Recording](recording.md#mic).
+- The **Live** screen (player bar's **Live** button, lit while the mic is on) shows the queue on the left
+  and the same three groups on the right, for running a show from one screen
+  (`src/components/LiveView.tsx`, with `PlaylistView embedded`).
 - While casting to a TV, the same effects run on the TV ([Casting](casting.md)).
 
 ## Tests
-- `src/audio/effectsChain.test.ts` (filter resonance and compensation),
+- `src/audio/audioEngine.test.ts` (idle suspend across sources), `effectsChain.test.ts` (filter resonance and compensation),
   `sirenEngine.test.ts`, `sirenSchedule.test.ts`, `midi.test.ts`.

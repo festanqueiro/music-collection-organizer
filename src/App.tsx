@@ -14,6 +14,7 @@ import { Player, EmptyPlayer } from './components/Player'
 import { FiltersPanel } from './components/FiltersPanel'
 import { PlaylistView } from './components/PlaylistView'
 import { FxView } from './components/FxView'
+import { LiveView } from './components/LiveView'
 import { Visualizer } from './components/Visualizer'
 import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
@@ -22,6 +23,9 @@ import { UndoToast } from './components/UndoToast'
 import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
+import { getAudioEngine } from './audio/audioEngine'
+import { initRecording } from './audio/recordingSession'
+import { initMic } from './audio/micSession'
 import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
@@ -208,8 +212,8 @@ export default function App() {
     })
   }, [handleMidiControlChange])
 
-  // The siren is a global module singleton (its own AudioContext, not
-  // per-track like EffectsChain) — pushing settings here, not from inside
+  // The siren is a global module singleton (not per-track like
+  // EffectsChain) — pushing settings here, not from inside
   // Player (which remounts per track and unmounts entirely when the queue
   // is empty), keeps it in sync regardless of what's playing.
   // Subscribed outside React: a hook here would re-render the whole app
@@ -221,24 +225,35 @@ export default function App() {
     })
   }, [])
 
-  // Same reasoning as above — the siren is its own separate AudioContext,
-  // so the chosen output device has to be applied to it independently of
-  // whatever Player.tsx's EffectsChain is doing for the current track.
+  // The chosen output device, applied once to the shared audio engine that
+  // the track, the siren (and later the mic) all play through.
   useEffect(() => {
-    getDubSirenEngine().setSinkId(audioOutputDeviceId)
+    getAudioEngine().setSinkId(audioOutputDeviceId)
   }, [audioOutputDeviceId])
+
+  // The recording's level (the Rec popover's Level knob), on the engine's
+  // record output.
+  const recordingLevelDb = useCollectionStore((s) => s.recordingLevelDb)
+  useEffect(() => {
+    getAudioEngine().setRecordLevel(recordingLevelDb)
+  }, [recordingLevelDb])
 
   // Casting: main-process status/device events, and keeping MCO's app on
   // the device in step with the effects, siren and visualizer.
   useEffect(() => initCast(), [])
+  useEffect(() => initRecording(), [])
+  useEffect(() => initMic(), [])
   useEffect(() => initReceiverSync(), [])
   const castPlaying = useCollectionStore((s) => s.castStatus.state === 'casting')
   const castMuteLocal = useCollectionStore((s) => s.castMuteLocal)
+  // While the TV is playing (a few seconds behind), optionally silence
+  // this Mac so the two don't echo — the visualizer's analyser is upstream.
   useEffect(() => {
-    getDubSirenEngine().setLocalMuted(castPlaying && castMuteLocal)
+    getAudioEngine().setLocalMuted(castPlaying && castMuteLocal)
   }, [castPlaying, castMuteLocal])
 
-  // Hold-S keyboard trigger, mirroring the FxPanel button. Lives here
+  // Hold-S keyboard trigger, mirroring the FxPanel button, and T for the
+  // mic's Talk (tap to mute/unmute, hold while muted to talk). Lives here
   // (not in Player) for the same reason as the effect above — it must
   // keep working even when nothing is queued.
   useEffect(() => {
@@ -247,7 +262,12 @@ export default function App() {
       return ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(el?.tagName)
     }
     function handleKeyDown(e: KeyboardEvent) {
-      if (modalOpen || isTypingTarget(e.target) || e.key !== 's' || e.repeat) return
+      if (modalOpen || isTypingTarget(e.target) || e.repeat) return
+      if (e.key === 't') {
+        if (useCollectionStore.getState().micSettings.enabled) useCollectionStore.getState().micTalkDown()
+        return
+      }
+      if (e.key !== 's') return
       const { siren } = useCollectionStore.getState().effectsSettings
       if (!siren.enabled || siren.beat !== 'off') return
       const engine = getDubSirenEngine()
@@ -256,6 +276,7 @@ export default function App() {
       useCollectionStore.getState().setSirenTriggered(true)
     }
     function handleKeyUp(e: KeyboardEvent) {
+      if (e.key === 't') useCollectionStore.getState().micTalkUp()
       if (e.key !== 's') return
       getDubSirenEngine().triggerUp()
       useCollectionStore.getState().setSirenTriggered(false)
@@ -263,6 +284,7 @@ export default function App() {
     // Holding S and Cmd-Tabbing away means keyup never arrives — without
     // this, the siren would sound forever behind another app.
     function handleBlur() {
+      useCollectionStore.getState().micTalkUp()
       getDubSirenEngine().triggerUp()
       useCollectionStore.getState().setSirenTriggered(false)
     }
@@ -284,6 +306,7 @@ export default function App() {
       loadAll(),
       loadCollectionFolder(),
       loadEffectsSettings(),
+      useCollectionStore.getState().loadMicSettings(),
       loadMidiMappings(),
       loadColumnOrder(),
       loadHiddenColumns(),
@@ -386,7 +409,7 @@ export default function App() {
       >
         {playerScreen && (
           <div style={{ gridRow: '1 / span 2', gridColumn: '1 / span 3', position: 'relative', zIndex: 10 }}>
-            {playerScreen === 'queue' ? <PlaylistView /> : <FxView />}
+            {playerScreen === 'queue' ? <PlaylistView /> : playerScreen === 'live' ? <LiveView /> : <FxView />}
           </div>
         )}
 

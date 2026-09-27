@@ -31,7 +31,7 @@ const DEFAULT_DIVISION_INDEX = 2
 // decaySeconds a full impulse-response buffer regeneration) that once
 // caused an audible delay-time glitch. See effectsChain.ts's own
 // setTargetAtTime smoothing for the rest of that fix.
-function useRafThrottledCommit(commit: (value: number) => void): (value: number) => void {
+export function useRafThrottledCommit(commit: (value: number) => void): (value: number) => void {
   const pending = useRef<number | null>(null)
   const rafId = useRef<number | null>(null)
   return (value: number) => {
@@ -49,7 +49,7 @@ function useRafThrottledCommit(commit: (value: number) => void): (value: number)
 
 // One knob + its label + MIDI-learn badge, stacked vertically — the unit
 // each FX section repeats horizontally.
-function KnobField({
+export function KnobField({
   label,
   control,
   value,
@@ -98,15 +98,30 @@ function KnobField({
   )
 }
 
-// Lives in the right half of the full-screen queue view (PlaylistView),
-// mirroring the queue's left half. `track` (the currently-playing track,
+// Each effect is a card; the cards flow into as many columns as fit.
+const sectionStyle = {
+  background: 'var(--color-surface)',
+  border: '1px solid var(--color-border)',
+  borderRadius: '8px',
+  padding: '12px 14px',
+}
+const headerRowStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }
+const knobRowStyle = { display: 'flex', flexWrap: 'wrap' as const, gap: '10px', alignItems: 'flex-start' }
+export const fxGridStyle = {
+  display: 'grid',
+  // min(): a card never overflows a narrow group column.
+  gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))',
+  gap: '12px',
+  alignItems: 'start',
+}
+
+// The music's effects: EQ, Filter, Delay and Reverb on the playing track
+// (the Music FX group, FxGroups.tsx). `track` (the currently-playing track,
 // if any) is only used for the delay-time BPM sync — the FX settings
 // themselves are global, not per-track.
 export function FxPanel({ track }: { track: Track | null }) {
   const effectsSettings = useCollectionStore((s) => s.effectsSettings)
   const setEffectsSettings = useCollectionStore((s) => s.setEffectsSettings)
-  const sirenTriggered = useCollectionStore((s) => s.sirenTriggered)
-  const setSirenTriggered = useCollectionStore((s) => s.setSirenTriggered)
   const setDelayDivisionSync = useCollectionStore((s) => s.setDelayDivisionSync)
   const [divisionIndex, setDivisionIndex] = useState(DEFAULT_DIVISION_INDEX)
 
@@ -124,10 +139,6 @@ export function FxPanel({ track }: { track: Track | null }) {
 
   function updateEq(partial: Partial<EffectsSettings['eq']>) {
     setEffectsSettings({ ...effectsSettings, eq: { ...effectsSettings.eq, ...partial } })
-  }
-
-  function updateSiren(partial: Partial<SirenSettings>) {
-    setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, ...partial } })
   }
 
   const handleTimeChange = useRafThrottledCommit((v) => updateDelay({ timeMs: v }))
@@ -158,26 +169,8 @@ export function FxPanel({ track }: { track: Track | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Each effect is a card; the cards flow into as many columns as fit.
-  const sectionStyle = {
-    background: 'var(--color-surface)',
-    border: '1px solid var(--color-border)',
-    borderRadius: '8px',
-    padding: '12px 14px',
-  }
-  const headerRowStyle = { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }
-  const knobRowStyle = { display: 'flex', flexWrap: 'wrap' as const, gap: '10px', alignItems: 'flex-start' }
-
   return (
-    <div
-      style={{
-        padding: '16px',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-        gap: '12px',
-        alignItems: 'start',
-      }}
-    >
+    <div style={fxGridStyle}>
       <div style={sectionStyle}>
         <div style={headerRowStyle}>
           <h4 style={{ margin: 0 }}>EQ</h4>
@@ -410,6 +403,24 @@ export function FxPanel({ track }: { track: Track | null }) {
         </div>
       </div>
 
+    </div>
+  )
+}
+
+// Instruments: sound sources of their own, played over the music (not
+// effects on it) — for now the Dub Siren.
+export function InstrumentsPanel() {
+  const effectsSettings = useCollectionStore((s) => s.effectsSettings)
+  const setEffectsSettings = useCollectionStore((s) => s.setEffectsSettings)
+  const sirenTriggered = useCollectionStore((s) => s.sirenTriggered)
+  const setSirenTriggered = useCollectionStore((s) => s.setSirenTriggered)
+
+  function updateSiren(partial: Partial<SirenSettings>) {
+    setEffectsSettings({ ...effectsSettings, siren: { ...effectsSettings.siren, ...partial } })
+  }
+
+  return (
+    <div style={fxGridStyle}>
       <div style={sectionStyle}>
         <div style={headerRowStyle}>
           <ToggleSwitch

@@ -63,6 +63,19 @@ keep-awake assertion.
   (tested 2026-09-26). Paint is mostly simple 2D quads/ribbons; the others use full-screen shaders,
   bloom, shadows or many particles. Deferred; levers: lower resolution + upscale, cheaper/no bloom on
   the receiver, fewer particles, a per-theme "TV quality" option. Don't degrade the desktop look.
+- That test ran uncapped (the TV's full refresh rate). Since 2026-09-27 the receiver renders the 3D
+  themes at 30 fps ([ADR 0045](../adr/0045-tv-renders-3d-themes-at-30-fps.md)); the Cast menu
+  still doesn't offer them. Untested: more capable devices (Google TV Streamer, Chromecast with
+  Google TV 4K, Nvidia Shield) may run them.
+
+## Google TV remote (dropped, 2026-09-27)
+- On-screen play/pause and next buttons driven by `keydown` (D-pad left/right, OK) did nothing on the
+  Chromecast HD: the receiver page doesn't seem to get the remote's keys.
+- Loading tracks through CAF's `PlayerManager` (`setMediaElement` on the page's own `<audio>`, then
+  `load()`), so the remote would reach it as PLAY/PAUSE, broke the receiver: the TV stayed on "Load a
+  song to continue". Reverted; remote control dropped at the user's request.
+- The Chromecast HD's remote-debugging port (9222) was closed, so what the page receives couldn't be
+  inspected.
 
 ## AirPlay
 - macOS AVKit's `AVRoutePickerView` routes an `AVPlayer` only; MCO's audio is Web Audio in Chromium.

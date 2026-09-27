@@ -3,9 +3,11 @@ import { getDataFolder } from './bootstrap'
 import {
   DEFAULT_EFFECTS_SETTINGS,
   DEFAULT_SIREN_SETTINGS,
+  DEFAULT_MIC_SETTINGS,
   DEFAULT_TRACK_TABLE_COLUMN_ORDER,
   MIDI_CONTROL_KEYS,
   type EffectsSettings,
+  type MicSettings,
   type MidiMappings,
   type TrackTableColumnKey,
   type TrackTableSortState,
@@ -29,6 +31,8 @@ interface ConfigSchema {
   autoAnalyseNewTracks?: boolean
   appTheme?: string
   externalBackupFolder?: string
+  recordingFolder?: string
+  micSettings?: MicSettings
   lastExternalBackup?: ExternalBackupResult
 }
 
@@ -232,6 +236,37 @@ export function getExternalBackupFolder(): string | null {
 
 export function setExternalBackupFolder(folder: string): void {
   getStore().set('externalBackupFolder', folder)
+}
+
+// Merged one level deep over the defaults, like getEffectsSettings, so a
+// field added later gets its default. The mic always starts off.
+export function getMicSettings(): MicSettings {
+  const stored = getStore().get('micSettings')
+  if (!stored) return DEFAULT_MIC_SETTINGS
+  const d = DEFAULT_MIC_SETTINGS
+  return {
+    ...d,
+    ...stored,
+    enabled: false,
+    eq: { ...d.eq, ...stored.eq },
+    echo: { ...d.echo, ...stored.echo },
+    reverb: { ...d.reverb, ...stored.reverb },
+    pitch: { ...d.pitch, ...stored.pitch },
+    radio: { ...d.radio, ...stored.radio },
+    duck: { ...d.duck, ...stored.duck },
+  }
+}
+
+export function setMicSettings(settings: MicSettings): void {
+  getStore().set('micSettings', settings)
+}
+
+export function getRecordingFolder(): string | null {
+  return getStore().get('recordingFolder') ?? null
+}
+
+export function setRecordingFolder(folder: string): void {
+  getStore().set('recordingFolder', folder)
 }
 
 export function getLastExternalBackup(): ExternalBackupResult | null {

@@ -178,3 +178,14 @@ h6 {
     background: color-mix(in srgb, var(--color-midi) 35%, transparent);
   }
 }
+
+/* Record mode (RecordButton.tsx): the red dot pulses while recording. */
+.rec-pulse {
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}

@@ -245,6 +245,59 @@ export const DEFAULT_EFFECTS_SETTINGS: EffectsSettings = {
   masterVolume: 1,
 }
 
+// The mic (docs/features/recording.md): its voice chain and its own
+// effects, separate from the track's EffectsSettings (which are also sent
+// to the TV when casting). Saved, except that the mic always starts off.
+export interface MicSettings {
+  // The mic is open and live in the mix. Never restored on launch.
+  enabled: boolean
+  // Input device (null = the system default).
+  deviceId: string | null
+  // Chromium's (WebRTC) noise suppression on the input: takes out steady
+  // background noise, at some cost to the voice. Changing it reopens the
+  // mic. (macOS Voice Isolation isn't honoured by Chromium here.)
+  noiseSuppression: boolean
+  // Input gain, dB.
+  gainDb: number
+  // Noise gate threshold, dBFS; GATE_OFF_DB (the minimum) turns it off.
+  gateDb: number
+  // Compressor amount, 0 (off) .. 1 (heavy), with automatic make-up gain.
+  compressor: number
+  // 3-band EQ, dB (-12..+12), always on (flat = off).
+  eq: { low: number; mid: number; high: number }
+  // The mic's own echo. Throw (not a setting) sends into it while held,
+  // even when it's off.
+  echo: { enabled: boolean; timeMs: number; feedback: number; mix: number }
+  reverb: { enabled: boolean; decaySeconds: number; mix: number }
+  // Pitch shift, in semitones (-12..+12); mix 0..1 blends in the dry voice
+  // (1 = only shifted).
+  pitch: { enabled: boolean; semitones: number; mix: number }
+  // Band-passed "telephone/megaphone" voice; drive 0..1 adds grit.
+  radio: { enabled: boolean; drive: number }
+  // Pulls the music down by amountDb while the mic is talking.
+  duck: { enabled: boolean; amountDb: number }
+  // Hear the mic through the speakers (feedback risk: use headphones).
+  monitor: boolean
+}
+
+export const MIC_GATE_OFF_DB = -80
+
+export const DEFAULT_MIC_SETTINGS: MicSettings = {
+  enabled: false,
+  deviceId: null,
+  noiseSuppression: false,
+  gainDb: 0,
+  gateDb: -55,
+  compressor: 0.4,
+  eq: { low: 0, mid: 0, high: 0 },
+  echo: { enabled: false, timeMs: 375, feedback: 0.45, mix: 0.5 },
+  reverb: { enabled: false, decaySeconds: 1.5, mix: 0.3 },
+  pitch: { enabled: false, semitones: -5, mix: 1 },
+  radio: { enabled: false, drive: 0.3 },
+  duck: { enabled: true, amountDb: 10 },
+  monitor: false,
+}
+
 // Every MIDI-mappable control. A runtime list (not just a union type) so
 // imported mapping files can be validated against it.
 export const MIDI_CONTROL_KEYS = [
@@ -279,6 +332,30 @@ export const MIDI_CONTROL_KEYS = [
   'player.playPause',
   'player.playNext',
   'player.cue',
+  'mic.enabled',
+  'mic.talk',
+  'mic.gainDb',
+  'mic.gateDb',
+  'mic.compressor',
+  'mic.eq.low',
+  'mic.eq.mid',
+  'mic.eq.high',
+  'mic.echo.enabled',
+  'mic.echo.throw',
+  'mic.echo.timeMs',
+  'mic.echo.feedback',
+  'mic.echo.mix',
+  'mic.echo.division',
+  'mic.reverb.enabled',
+  'mic.reverb.decaySeconds',
+  'mic.reverb.mix',
+  'mic.pitch.enabled',
+  'mic.pitch.semitones',
+  'mic.pitch.mix',
+  'mic.radio.enabled',
+  'mic.radio.drive',
+  'mic.duck.enabled',
+  'mic.duck.amountDb',
 ] as const
 
 export type MidiControlKey = (typeof MIDI_CONTROL_KEYS)[number]
@@ -388,4 +465,13 @@ export interface ExternalBackupInfo {
   problem: string | null
   last: ExternalBackupResult | null
   running: boolean
+}
+
+// Record mode (docs/features/recording.md): the file format a recording is
+// saved in, and what stopping one produced.
+export type RecordingFormat = 'wav' | 'flac' | 'mp3'
+export interface RecordingResult {
+  // The saved file, or null if nothing was recorded.
+  path: string | null
+  error: string | null
 }

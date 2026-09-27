@@ -13,7 +13,8 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 - [Roadmap](product/roadmap.md): shipped, in progress, next; known issues.
 - [Glossary](product/glossary.md): the words we use (collection, Tags/Subtags, cue, receiver…).
 - [Changelog](../CHANGELOG.md): what changed in each release, newest first.
-- [Latest session](log/2026-09-26-session.md): what was built on 2026-09-26 and the issues faced.
+- [Latest session](log/2026-09-27-session.md): what was built on 2026-09-27 and the issues faced
+  ([previous](log/2026-09-26-session.md)).
 
 ## Sections
 | Folder | Holds | One file per |
@@ -51,6 +52,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [DJ tools](features/dj-tools.md) (Camelot, Compatible, pre-listen, Rekordbox export) ·
 [Visualizer](features/visualizer.md) ·
 [Casting](features/casting.md) ·
+[Recording](features/recording.md) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
@@ -81,7 +83,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0022](adr/0022-cast-session-lifetime.md) | A cast session keeps the Mac awake, ends when the TV moves on, and dies on missed heartbeats | accepted (the hidden-page rule amended by 0037) |
 | [0023](adr/0023-fx-settings-outside-react.md) | FX settings reach the audio engines through store subscriptions, not React state | accepted |
 | [0024](adr/0024-virtualised-track-table.md) | Render only the visible rows of the track table, at a fixed row height | accepted |
-| [0025](adr/0025-suspend-idle-audio-engines.md) | Suspend the audio engines when nothing is playing | accepted |
+| [0025](adr/0025-suspend-idle-audio-engines.md) | Suspend the audio engines when nothing is playing | amended by 0041 |
 | [0026](adr/0026-write-tags-byte-for-byte.md) | Write file tags by editing bytes in place — never re-encode, never rebuild the tag | accepted |
 | [0027](adr/0027-read-file-tags-in-background.md) | Read every file's tags in the background, not only during analysis | accepted |
 | [0028](adr/0028-suggest-never-auto-write-file-tags.md) | Tag changes to files are suggested, never saved automatically | accepted |
@@ -97,6 +99,11 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0038](adr/0038-pick-the-tv-screen-in-the-cast-menu.md) | Pick what the TV shows in the Cast menu; MCO's visualizer off while casting | accepted |
 | [0039](adr/0039-download-cloud-tracks-before-playing.md) | Download cloud-only tracks before playing them, without blocking the main process | accepted |
 | [0040](adr/0040-update-collection-removes-missing-tracks.md) | Update Collection removes missing tracks; background scans only hide them | accepted |
+| [0041](adr/0041-one-audio-engine.md) | Play everything through one audio engine (one `AudioContext`, one mix bus) | accepted |
+| [0042](adr/0042-record-pcm-to-wav-on-disk.md) | Record the mix bus as PCM streamed to a WAV on disk | accepted |
+| [0043](adr/0043-no-casting-while-recording.md) | No casting while recording | accepted |
+| [0044](adr/0044-mic-records-but-isnt-heard-by-default.md) | The mic goes to the recording, and to the speakers only when asked | accepted |
+| [0045](adr/0045-tv-renders-3d-themes-at-30-fps.md) | The Cast receiver renders the 3D themes at 30 fps | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |
@@ -110,5 +117,6 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | Shift-click | track table rows / checkboxes | Check a range of tracks |
 | P | track table | Pre-listen to the selected track in the headphones (again to stop) |
 | S (hold) | anywhere | Fire the Dub Siren (when it's on and Beat is Off) |
+| T | anywhere (mic on) | Talk: tap to mute/unmute the mic, hold while muted to talk |
 | Esc | visualizer, dialogs, tag editor | Close / cancel |
 | 1–8 | visualizer | Switch theme |
