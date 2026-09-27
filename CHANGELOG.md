@@ -13,6 +13,8 @@ installed copies update themselves.
 
 - **Mic**: **Pitch** shifts your voice up or down (−12…+12 semitones), with
   a Mix to blend in your own voice.
+- **Mic**: **Noise suppression** in the Mic popover takes out steady
+  background noise (off by default).
 
 ### Changed
 - **Mic**: a **Mic** button in the player bar (next to Rec and Cast) opens

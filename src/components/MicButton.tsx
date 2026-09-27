@@ -109,6 +109,21 @@ export function MicButton() {
 
           <LevelMeter active={mic.enabled} />
 
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+            title="Takes out steady background noise (fans, hum, street), at some cost to the voice. Reopens the mic."
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              noise_control_off
+            </span>
+            <span style={{ flex: 1 }}>Noise suppression</span>
+            <ToggleSwitch
+              checked={mic.noiseSuppression}
+              onChange={(checked) => update({ noiseSuppression: checked })}
+              title="Noise suppression on/off"
+            />
+          </label>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <HoldButton
               label={live ? 'TALK · live' : 'TALK · muted'}

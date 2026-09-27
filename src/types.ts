@@ -253,6 +253,10 @@ export interface MicSettings {
   enabled: boolean
   // Input device (null = the system default).
   deviceId: string | null
+  // Chromium's (WebRTC) noise suppression on the input: takes out steady
+  // background noise, at some cost to the voice. Changing it reopens the
+  // mic. (macOS Voice Isolation isn't honoured by Chromium here.)
+  noiseSuppression: boolean
   // Input gain, dB.
   gainDb: number
   // Noise gate threshold, dBFS; GATE_OFF_DB (the minimum) turns it off.
@@ -281,6 +285,7 @@ export const MIC_GATE_OFF_DB = -80
 export const DEFAULT_MIC_SETTINGS: MicSettings = {
   enabled: false,
   deviceId: null,
+  noiseSuppression: false,
   gainDb: 0,
   gateDb: -55,
   compressor: 0.4,

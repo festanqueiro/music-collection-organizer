@@ -42,6 +42,10 @@ mic while it's muted) opens a popover with the mic's on/off, input, level meter,
 (`src/components/MicButton.tsx`). The mic's effects are the **Mic FX** group of the FX and Live
 screens ([ADR 0044](../adr/0044-mic-records-but-isnt-heard-by-default.md)):
 
+- **Noise suppression** (off by default, remembered): Chromium's WebRTC suppressor on the input — takes
+  out steady background noise (fans, hum, street) at some cost to the voice. Changing it reopens the mic.
+  macOS Voice Isolation isn't an option: Chromium lists the constraint, but it stayed off when requested
+  (checked 2026-09-27 on AirPods).
 - **Mic** on/off and the input (the system default, or a device). The first time, macOS asks whether MCO
   may use the microphone; if it's refused, MCO says where to allow it. The mic is **always off** when MCO
   starts.

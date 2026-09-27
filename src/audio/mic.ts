@@ -198,12 +198,13 @@ export class MicChain {
     workletLoaded ??= engine.context.audioWorklet.addModule(micWorkletUrl)
     await workletLoaded
     // The voice chain does its own processing, so the browser's (tuned for
-    // calls, and audible on a voice-over) is off.
+    // calls, and audible on a voice-over) is off — except noise
+    // suppression, when asked for.
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId: settings.deviceId ? { exact: settings.deviceId } : undefined,
         echoCancellation: false,
-        noiseSuppression: false,
+        noiseSuppression: settings.noiseSuppression,
         autoGainControl: false,
         channelCount: 1,
       },

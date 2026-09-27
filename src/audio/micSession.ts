@@ -34,9 +34,13 @@ async function open(settings: MicSettings): Promise<void> {
   }
   try {
     const opened = await MicChain.open(settings)
-    // Switched off (or the device changed) while it was opening.
+    // Switched off (or the input changed) while it was opening.
     const current = useCollectionStore.getState()
-    if (!current.micSettings.enabled || current.micSettings.deviceId !== settings.deviceId) {
+    if (
+      !current.micSettings.enabled ||
+      current.micSettings.deviceId !== settings.deviceId ||
+      current.micSettings.noiseSuppression !== settings.noiseSuppression
+    ) {
       opened.close()
       return
     }
@@ -78,9 +82,12 @@ function sync(): void {
 export function initMic(): () => void {
   const unsubscribe = useCollectionStore.subscribe((state, previous) => {
     if (state.micSettings !== previous.micSettings) {
-      const deviceChanged = state.micSettings.deviceId !== previous.micSettings.deviceId
-      if (state.micSettings.enabled !== previous.micSettings.enabled || deviceChanged) {
-        if (deviceChanged) close()
+      // Both are fixed when the input is opened, so a change reopens it.
+      const inputChanged =
+        state.micSettings.deviceId !== previous.micSettings.deviceId ||
+        state.micSettings.noiseSuppression !== previous.micSettings.noiseSuppression
+      if (state.micSettings.enabled !== previous.micSettings.enabled || inputChanged) {
+        if (inputChanged) close()
         sync()
       } else {
         chain?.update(state.micSettings)
