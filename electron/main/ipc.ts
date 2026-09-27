@@ -1,6 +1,7 @@
 import { app, ipcMain, dialog, shell, BrowserWindow, powerSaveBlocker, type IpcMainInvokeEvent, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
-import { join } from 'node:path'
-import { writeFileSync, readFileSync, statSync } from 'node:fs'
+import { basename, join, relative, isAbsolute } from 'node:path'
+import { writeFileSync, readFileSync, statSync, existsSync } from 'node:fs'
+import { applyMoves, planMove, type MovedTrack } from './moveTracks'
 import type { AppDatabase } from './db'
 import {
   getCollectionFolder,
@@ -728,6 +729,52 @@ export function registerIpcHandlers(
     if (rows.length === 0) return
     event.sender.startDrag({ file: rows[0].path, files: rows.map((r) => r.path), icon: getDragIcon() })
   })
+
+  // Moves tracks' files into another folder of the collection (rows
+  // dropped on a folder in the Folders view), after asking. Tracks already
+  // there are left alone, and so are ones whose file name is taken there.
+  ipcMain.handle(
+    'tracks:moveToFolder',
+    async (
+      event,
+      trackIds: number[],
+      destination: string
+    ): Promise<{ cancelled: boolean; moved: MovedTrack[]; failed: number; alreadyThere: number; conflicts: number }> => {
+      const none = { cancelled: false, moved: [], failed: 0, alreadyThere: 0, conflicts: 0 }
+      // Only into a folder of the collection that still exists.
+      const collection = getCollectionFolder()
+      const inside = collection ? relative(collection, destination) : '..'
+      if (inside.startsWith('..') || isAbsolute(inside) || !existsSync(destination) || trackIds.length === 0) return none
+      const placeholders = trackIds.map(() => '?').join(',')
+      const rows = db
+        .prepare(`SELECT id, path FROM tracks WHERE present = 1 AND id IN (${placeholders})`)
+        .all(...trackIds) as { id: number; path: string }[]
+      const plan = planMove(rows, destination, existsSync)
+      const counts = { alreadyThere: plan.alreadyThere.length, conflicts: plan.conflicts.length }
+      if (plan.moves.length === 0) return { ...none, ...counts }
+
+      const count = plan.moves.length
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const options = {
+        type: 'question' as const,
+        buttons: ['Move', 'Cancel'],
+        defaultId: 0,
+        cancelId: 1,
+        message: count === 1 ? 'Do you want to move this song to this folder?' : `Do you want to move these ${count} songs to this folder?`,
+        detail: [
+          `${count === 1 ? basename(plan.moves[0].from) : `${count} files`} → ${basename(destination)}`,
+          counts.conflicts > 0 ? `${counts.conflicts} with a file of the same name already there will be left where ${counts.conflicts === 1 ? 'it is' : 'they are'}.` : '',
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
+      }
+      const { response } = window ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options)
+      if (response !== 0) return { ...none, ...counts, cancelled: true }
+      const result = await applyMoves(db, plan)
+      for (const failure of result.failed) console.error('moving a track failed', failure.path, failure.error)
+      return { cancelled: false, moved: result.moved, failed: result.failed.length, ...counts }
+    }
+  )
 
   // Reveals the track's file in Finder (highlighted, folder already open)
   // — same as macOS's own "Show in Finder". A cloud-only placeholder has
