@@ -38,7 +38,9 @@ macOS only for now.
   - measurements and probes → `docs/research/`; a session with notable
     findings or bugs → a dated write-up in `docs/log/`; milestones →
     `docs/product/roadmap.md`.
-  - Docs-only PRs get `[skip ci]` in the title (no version bump). Never put
+  - Docs-only PRs get `[skip ci]` in the title (no version bump) — and in
+    the commit message too: a one-commit PR's squash merge takes the
+    commit's message, not the PR title (1.0.50 was bumped that way). Never put
     `[skip ci]` in a commit on a feature branch: the squash-merge message
     includes it and skips every workflow on main (version bump, receiver
     deploy).

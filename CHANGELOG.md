@@ -4,7 +4,7 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
-## 1.0.49 — 2026-09-28
+## 1.0.50 — 2026-09-28
 
 ### Added
 - **Show on a screen**: a **Screen** button in the player bar puts the
