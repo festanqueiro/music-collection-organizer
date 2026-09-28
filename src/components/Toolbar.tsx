@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import logo from '../../resources/icon.png'
+import { baseName, isInFolder } from '../paths'
 
 // One row, everything the same height: brand on the left, search in the
 // middle, then the collection folder, Update Collection and Settings.
@@ -20,9 +21,9 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
   // Missing tracks in this folder the scan will remove (more may go
   // missing by then; the scan removes those too).
   const missingCount = useCollectionStore(
-    (s) => s.missingTracks.filter((t) => collectionFolder && t.path.startsWith(collectionFolder.replace(/\/?$/, '/'))).length
+    (s) => s.missingTracks.filter((t) => collectionFolder && isInFolder(t.path, collectionFolder)).length
   )
-  const folderName = collectionFolder?.split('/').filter(Boolean).pop() ?? collectionFolder
+  const folderName = collectionFolder ? baseName(collectionFolder) : collectionFolder
 
   return (
     <div

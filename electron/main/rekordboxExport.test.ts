@@ -40,6 +40,10 @@ describe('toRekordboxLocation', () => {
       'file://localhost/Users/dj/My%20Music/Dub%20%231%3F.mp3'
     )
   })
+
+  it('writes a Windows path with forward slashes and its drive letter as is', () => {
+    expect(toRekordboxLocation('C:\\Users\\dj\\My Music\\a.mp3')).toBe('file://localhost/C:/Users/dj/My%20Music/a.mp3')
+  })
 })
 
 describe('buildRekordboxXml', () => {

@@ -8,6 +8,7 @@ import { getActiveRecorder, startRecording, stopRecording } from '../audio/recor
 import { formatDuration } from '../format'
 import { barButtonStyle } from './playerBarStyles'
 import type { RecordingFormat } from '../types'
+import { baseName } from '../paths'
 
 const POPOVER_WIDTH = 300
 
@@ -23,7 +24,7 @@ function formatSize(bytes: number): string {
 }
 
 function fileName(path: string): string {
-  return path.split('/').pop() ?? path
+  return baseName(path)
 }
 
 // Elapsed time and file size while recording, refreshed twice a second

@@ -53,6 +53,7 @@ import {
   playQueueItemNow as playQueueItemNowPure,
   playQueueItemNext as playQueueItemNextPure,
 } from './playlist'
+import { baseName } from '../paths'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
 // onChange continuously, and writing to electron-store on every tick would
@@ -1719,7 +1720,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     if (moved.size > 0) {
       set({ tracks: get().tracks.map((t) => (moved.has(t.id) ? { ...t, path: moved.get(t.id)!.path, folder: moved.get(t.id)!.folder } : t)) })
     }
-    const folderName = folder.split('/').pop() || folder
+    const folderName = baseName(folder)
     const notes = [
       moved.size > 0 ? `Moved ${moved.size === 1 ? 'the song' : `${moved.size} songs`} to ${folderName}` : '',
       result.conflicts > 0 ? `${result.conflicts} not moved: same file name already there` : '',

@@ -5,6 +5,7 @@ import type { Genre, Subgenre, Track } from '../types'
 import type { TrackTagIds } from '../state/tagFilter'
 import { areBpmsCompatible, areKeysCompatible, camelotColor, formatKey, toCamelot, type KeyNotation } from '../state/harmonic'
 import type { ReceiverSettingsMessage, ReceiverTrackInfo } from './receiverProtocol'
+import { baseName } from '../paths'
 
 // How many upcoming tracks the TV lists by name.
 export const UP_NEXT_COUNT = 4
@@ -21,7 +22,7 @@ export interface ReceiverQueueSource {
 }
 
 function folderName(folder: string): string {
-  return folder.split('/').filter(Boolean).pop() ?? folder
+  return baseName(folder)
 }
 
 // How the tempo moves from one track to the next, as a DJ would read it.

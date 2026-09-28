@@ -65,9 +65,13 @@ export function xmlAttr(value: string | number | null | undefined): string {
 }
 
 // Rekordbox expects "file://localhost" + the absolute path with each
-// segment percent-encoded (spaces as %20, "#" and "?" escaped too).
+// segment percent-encoded (spaces as %20, "#" and "?" escaped too). A
+// Windows path goes in with forward slashes: file://localhost/C:/Music/a.mp3.
 export function toRekordboxLocation(absolutePath: string): string {
-  return 'file://localhost' + absolutePath.split('/').map(encodeURIComponent).join('/')
+  const windows = /^[A-Za-z]:\\/.test(absolutePath)
+  const segments = windows ? absolutePath.split('\\') : absolutePath.split('/')
+  const encoded = segments.map((s, i) => (windows && i === 0 ? s : encodeURIComponent(s))).join('/')
+  return 'file://localhost' + (windows ? '/' : '') + encoded
 }
 
 function formatDate(ms: number | null): string {

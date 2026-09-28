@@ -14,4 +14,8 @@ describe('isCloudOnly', () => {
   it('returns false for an empty file', () => {
     expect(isCloudOnly({ size: 0, blocks: 0 })).toBe(false)
   })
+
+  it('returns false when the file system reports no block count', () => {
+    expect(isCloudOnly({ size: 5_000_000 })).toBe(false)
+  })
 })
