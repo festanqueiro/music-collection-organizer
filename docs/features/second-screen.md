@@ -141,6 +141,10 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
 - **Now playing** uses the Cast receiver's layout as is (sized in rem = 1/60 of the screen height), so
   it looks the same on the Apple TV as on a Google TV; MCO's own styles are copied into the window
   too (for the visualizer), and only its global resets (`box-sizing`, heading sizes) reach it.
+- **The Live screen** (queue, FX knobs, Mic) as a third "Show" choice, for a monitor or Sidecar:
+  considered on 2026-09-28 and left out for now — the second screen stays audience-only (no cursor, no
+  input). It would need input in the child window, and knob drags, menus and fitting to listen on the
+  control's own window instead of MCO's; it's no use on an Apple TV (no pointer).
 - **AirPlay's audio latency varies** by device and network; a fixed delay may drift. A "measure"
   helper (flash + click, the user adjusts until they line up) could come later.
 - Does full screen on a second macOS display need "Displays have separate Spaces" on (the default)? To
