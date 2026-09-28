@@ -53,7 +53,7 @@ export function downsamplePeaks(peaks: number[], bars: number): number[] {
   return out
 }
 
-export function buildReceiverQueue(source: ReceiverQueueSource): ReceiverSettingsMessage {
+export function buildReceiverQueue(source: ReceiverQueueSource): Extract<ReceiverSettingsMessage, { type: 'queue' }> {
   const byId = new Map(source.tracks.map((t) => [t.id, t]))
   const genresById = new Map(source.genres.map((g) => [g.id, g]))
   const subgenresById = new Map(source.subgenres.map((s) => [s.id, s]))

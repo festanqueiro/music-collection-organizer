@@ -293,10 +293,13 @@ export interface CollectionState {
   visualDelayMs: number
   setVisualDelayMs: (ms: number) => void
   // The second screen (docs/features/second-screen.md): where it's showing
-  // (null = not showing; never restored on launch), its own theme and
-  // track-info choice (remembered), and the displays macOS offers.
+  // (null = not showing; never restored on launch), what it shows (the
+  // now-playing screen or a visualizer theme) and its track-info choice
+  // (remembered), and the displays macOS offers.
   screenTarget: ScreenTarget | null
   setScreenTarget: (target: ScreenTarget | null) => void
+  screenNowPlaying: boolean
+  setScreenNowPlaying: (nowPlaying: boolean) => void
   screenTheme: VisualizerThemeId
   setScreenTheme: (theme: VisualizerThemeId) => void
   screenHideTrackInfo: boolean
@@ -625,6 +628,7 @@ function loadScreenTheme(): VisualizerThemeId {
   return loadVisualizerTheme()
 }
 const SCREEN_HIDE_TRACK_INFO_KEY = 'screenHideTrackInfo'
+const SCREEN_NOW_PLAYING_KEY = 'screenNowPlaying'
 
 const VISUALIZER_FPS_KEY = 'visualizerFps'
 const DEFAULT_VISUALIZER_FPS = 30
@@ -740,6 +744,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   visualizerFps: loadVisualizerFps(),
   visualDelayMs: loadVisualDelayMs(),
   screenTarget: null,
+  screenNowPlaying: loadBooleanPreference(SCREEN_NOW_PLAYING_KEY, false),
   screenTheme: loadScreenTheme(),
   screenHideTrackInfo: loadBooleanPreference(SCREEN_HIDE_TRACK_INFO_KEY, false),
   screenDisplays: [],
@@ -1550,6 +1555,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }
   },
   setScreenTarget: (target) => set({ screenTarget: target }),
+  setScreenNowPlaying: (nowPlaying) => {
+    set({ screenNowPlaying: nowPlaying })
+    saveBooleanPreference(SCREEN_NOW_PLAYING_KEY, nowPlaying)
+  },
   setScreenTheme: (theme) => {
     set({ screenTheme: theme })
     try {

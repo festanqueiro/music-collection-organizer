@@ -11,7 +11,9 @@ installed copies update themselves.
   visualizer, with the track info, full screen on another display — an
   Apple TV used as an AirPlay display, a projector or a monitor — or in a
   window, while you keep using MCO. The Mac draws it, so every theme runs
-  smoothly.
+  smoothly. It can also show the **Now playing** screen from casting — the
+  track's artwork, details and stats, what's up next and the waveform —
+  instead of a visualizer (Screen menu → Show).
 - **Audio** button in the player bar: pick the main output and the
   headphones (pre-listen) output, each with its volume, like the Mic menu.
   The list updates when devices come and go.

@@ -3,16 +3,17 @@
 // "Show on a screen" (docs/features/second-screen.md, ADR 0046): while the
 // store has a screen target, opens a same-origin child window (the main
 // process puts it on that display, full screen) and renders the visualizer
-// into it with a portal — sharing this page's audio engine and store, so
-// it reacts with no lag. It draws from the engine's visual tap, held back
-// by the Visual delay (ADR 0047), and the track info changes after the
-// same delay.
+// — or the now-playing screen (SecondScreenNowPlaying.tsx) — into it with
+// a portal, sharing this page's audio engine and store, so it reacts with
+// no lag. It draws from the engine's visual tap, held back by the Visual
+// delay (ADR 0047), and the track info changes after the same delay.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FrameLimiter, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
 import { useCollectionStore } from '../state/store'
 import { getAudioEngine } from '../audio/audioEngine'
 import { decodeHtmlEntities } from '../format'
+import { SecondScreenNowPlaying } from './SecondScreenNowPlaying'
 import type { Track } from '../types'
 
 // Copies the page's styles (fonts, theme variables) into the child, with
@@ -73,7 +74,12 @@ export function SecondScreen() {
     store.showToast("The screen's display was disconnected")
   }, [target, displays])
 
-  return screen ? createPortal(<ScreenView child={screen.child} />, screen.root) : null
+  const nowPlaying = useCollectionStore((s) => s.screenNowPlaying)
+  if (!screen) return null
+  return createPortal(
+    nowPlaying ? <SecondScreenNowPlaying child={screen.child} /> : <VisualizerView child={screen.child} />,
+    screen.root,
+  )
 }
 
 // A value that follows `value` `delayMs` late (at once when 0).
@@ -90,7 +96,7 @@ function useDelayed<T>(value: T, delayMs: number): T {
   return delayMs <= 0 ? value : shown
 }
 
-function ScreenView({ child }: { child: Window }) {
+function VisualizerView({ child }: { child: Window }) {
   const hostRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<VisualizerEngine | null>(null)
   const instanceRef = useRef<ThemeInstance | null>(null)

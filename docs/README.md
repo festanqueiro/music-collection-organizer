@@ -107,6 +107,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0045](adr/0045-tv-renders-3d-themes-at-30-fps.md) | The Cast receiver renders the 3D themes at 30 fps | accepted |
 | [0046](adr/0046-second-screen-as-a-child-window.md) | Show the second screen in a same-origin child window of MCO's page | accepted |
 | [0047](adr/0047-visual-delay-in-the-audio-graph.md) | Delay the visuals with a DelayNode on the music bus | accepted |
+| [0048](adr/0048-shared-now-playing-screen.md) | One now-playing screen, shared by the Cast receiver and the second screen | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

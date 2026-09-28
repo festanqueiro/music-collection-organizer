@@ -1,7 +1,7 @@
 ---
 status: shipped
 updated: 2026-09-28
-adrs: [0046, 0047]
+adrs: [0046, 0047, 0048]
 ---
 # Show on a screen (Apple TV, projector, second display)
 
@@ -62,14 +62,22 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
     · 2560×1440 · 60 Hz"), plus **A window on this display**. Clicking one shows it there (or moves it).
     With no other display: a hint on how to add one (the Apple TV steps above). The list follows
     displays being connected and disconnected.
-  - **Theme** (chosen separately from the Mac's own visualizer, and remembered; each theme's options
-    are the visualizer's, shared) and **Hide track info**. The frame rate is the visualizer's setting.
+  - **Show**: **Now playing (track details)** — the Cast receiver's now-playing screen — or a
+    visualizer theme (chosen separately from the Mac's own visualizer, and remembered; each theme's
+    options are the visualizer's, shared). **Hide track info** (visualizer only). The frame rate is
+    the visualizer's setting. Switching keeps the window; only its contents change.
   - **Visual delay** (the app-wide setting below).
   - "Showing on Living Room" / "Showing in a window" with **Stop** while it is.
 - **The screen**: black, full screen on that display (a normal window for "A window on this display"),
   the visualizer filling it, with the track's title, artist, BPM and the next track along the bottom
   unless hidden (sized to the screen). No controls on it (it's for the audience); no
   cursor.
+- **Now playing** on the screen: the same page a Google TV shows while casting — the artwork (and a
+  blurred wash of it behind), album/year, title, artist, genre and subgenre chips, the eight stats
+  (BPM, key, energy, loudness, format, added, played, folder), Up next (three tracks, with mix hints),
+  Just played, the queue's length and end time, the session's length and plays, the engaged FX and
+  the waveform with the playhead. Before anything plays: "Load a song to continue". Everything on
+  it — the track change, the playhead, the FX lights — runs the Visual delay behind the player.
 - It keeps running across track changes, pauses (the visuals settle, as the Mac's do) and screens in
   MCO; closing MCO's window or quitting closes it. Unplugging the display (or the Apple TV going away)
   closes it and says so ("The screen's display was disconnected"); closing the window itself (Cmd+W)
@@ -97,7 +105,16 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
   feeds a `DelayNode` → `AnalyserNode` ("visual tap", built on first use); `setVisualDelay(seconds)`. The
   second screen and the Mac's visualizer read that analyser instead of the per-track one. Track info on
   the second screen changes after the same delay (a timer).
-- **Store**: `screenTarget` (a display id, `'window'`, or null = not showing), `screenTheme`, `screenHideTrackInfo`, theme options
+- **Now playing** (`src/components/SecondScreenNowPlaying.tsx`): the receiver's now-playing screen
+  was pulled out of `cast-receiver/main.ts` into `cast-receiver/nowPlaying.ts` (`NowPlayingScreen`:
+  markup, rendering, session "played" tracking; `load`/`clear`/`setQueue`/`setEffects`/
+  `setSirenHeld`) and `nowPlaying.css` (injected into the child's `<head>` via `?inline`). The
+  second screen feeds it the same `queue` message the TV gets (`buildReceiverQueue`), with artwork
+  from `tracks:getArtwork` (data URLs, cached), throttled like `receiverSync.ts`; each change is
+  applied after the Visual delay (timers). The playhead comes from a `PlaybackTimeline`
+  (`src/state/playbackTimeline.ts`): a sample on every progress/play/track change, read at
+  now − delay and moved on in real time between samples.
+- **Store**: `screenTarget` (a display id, `'window'`, or null = not showing), `screenNowPlaying`, `screenTheme`, `screenHideTrackInfo`, theme options
   shared with the visualizer's per-theme options, `visualDelayMs` (localStorage, like the visualizer's
   preferences).
 - **Power**: the existing `power:keepDisplayAwake` while showing.
@@ -106,7 +123,12 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
 - Unit: `electron/main/screenWindow.test.ts` (the display list's names and "MCO is on it", parsing the
   target, the window-open plan: refused unless it's the screen, refused for a display that's gone, a
   display's bounds + full screen, a window centred on MCO) and `src/audio/audioEngine.test.ts` (the visual
-  tap is built on first use with the delay already set; the delay is clamped and reaches the live tap).
+  tap is built on first use with the delay already set; the delay is clamped and reaches the live tap)
+  and `src/state/playbackTimeline.test.ts` (the delayed playhead: idle, playing moves on up to the
+  end, paused holds, a past moment reads the sample then — the old track just after a change — and
+  old samples are dropped).
+- The refactored receiver page, built and opened with `?dev` in Chrome (2026-09-28): the waiting
+  screen, then a load + queue message → the details, eight stats, Up next and waveform as before.
 - BETA over DevTools (2026-09-28): the popover lists "A window on this display" and the no-display hint;
   choosing it opens "MCO Screen" (960×540, WebGL canvas, styles and fonts copied) drawing Nebula
   (screenshot); **Stop** closes it; closing the window from its side resets the button with "The screen
@@ -116,9 +138,9 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
   unplugging or sleeping the Apple TV mid-show.
 
 ## Limits & open questions
-- **Now-playing screen** (artwork, stats, up next — the Cast receiver's) on the second screen: not in
-  the first version. Its code lives in `cast-receiver/` as plain DOM driven by Cast messages; reusing it
-  means extracting it into shared components first.
+- **Now playing** uses the Cast receiver's layout as is (sized in rem = 1/60 of the screen height), so
+  it looks the same on the Apple TV as on a Google TV; MCO's own styles are copied into the window
+  too (for the visualizer), and only its global resets (`box-sizing`, heading sizes) reach it.
 - **AirPlay's audio latency varies** by device and network; a fixed delay may drift. A "measure"
   helper (flash + click, the user adjusts until they line up) could come later.
 - Does full screen on a second macOS display need "Displays have separate Spaces" on (the default)? To
