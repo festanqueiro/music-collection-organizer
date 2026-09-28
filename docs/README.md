@@ -1,5 +1,5 @@
 ---
-updated: 2026-09-26
+updated: 2026-09-28
 ---
 # MCO vault
 
@@ -108,6 +108,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0046](adr/0046-second-screen-as-a-child-window.md) | Show the second screen in a same-origin child window of MCO's page | accepted |
 | [0047](adr/0047-visual-delay-in-the-audio-graph.md) | Delay the visuals with a DelayNode on the music bus | accepted |
 | [0048](adr/0048-shared-now-playing-screen.md) | One now-playing screen, shared by the Cast receiver and the second screen | accepted |
+| [0049](adr/0049-windows-installer-on-release.md) | Build an unsigned Windows installer with every release, without auto-update | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

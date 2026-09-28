@@ -1,29 +1,48 @@
 ---
 status: shipped
-updated: 2026-09-26
-adrs: [0013, 0018, 0035]
+updated: 2026-09-28
+adrs: [0013, 0018, 0035, 0049]
 ---
 # Releasing
 
-Releases are built by GitHub Actions and published as a DMG installer on
-the repo's Releases page. There are no accounts to set up and no secrets
+Releases are built by GitHub Actions and published on the repo's Releases
+page: a DMG installer for Macs and an installer for Windows. There are no accounts to set up and no secrets
 to configure.
 
 ## Cutting a release
 
 1. Merge to `main`. The Version Bump workflow bumps the patch version and
    tags it (`vX.Y.Z`).
-2. Go to **Actions → Release → Run workflow** on `main`. Tick "draft" if
-   you want to check the release before it goes public.
+2. Wait for the Version Bump run to finish (it pushes a commit to `main`),
+   then go to **Actions → Release → Run workflow** on `main`. Tick "draft"
+   if you want to check the release before it goes public. Untick
+   "publish" to only build (any branch): the files stay on the run as
+   artifacts.
 3. The workflow type-checks and tests, builds the app, checks its
    signature, and creates the GitHub release `vX.Y.Z` with:
    - `MCO-X.Y.Z-arm64.dmg` — the installer (drag MCO to Applications);
-   - `MCO-X.Y.Z-arm64.zip` — the same app, zipped;
+   - `MCO-X.Y.Z-arm64.zip` — the same app, zipped (what the updater installs);
+   - `MCO-X.Y.Z-win-x64-setup.exe` — the Windows installer, built by a
+     separate job on a Windows runner;
    - install instructions (`docs/release-notes-install.md`) followed by
      the auto-generated list of merged PRs.
 4. If you made a draft, open it on the Releases page and **Publish**.
 
-`npm run dist:release` builds the same DMG/ZIP locally into `release/`.
+`npm run dist:release` builds the same DMG/ZIP locally into `release/`;
+`npm run dist:release:win` builds the Windows installer, on Windows only
+(`ffmpeg-static` downloads the ffmpeg for the OS that runs `npm install`).
+
+## Windows ([ADR 0049](../adr/0049-windows-installer-on-release.md))
+
+- An NSIS installer for 64-bit Windows, **unsigned**: SmartScreen says
+  *"Windows protected your PC"* once; **More info → Run anyway**.
+- **No auto-update**: the updater is macOS-only and says so in Settings.
+  Installing a new version over the old one keeps the library.
+- **Not tried on a Windows PC yet** — only type-checked and built in CI
+  (tests run on macOS). What was made portable: paths in the renderer
+  (`src/paths.ts`), cloud-only detection (a missing block count means
+  local; OneDrive placeholders [UNVERIFIED]), the mic prompt (macOS only),
+  Rekordbox locations (`file://localhost/C:/…`).
 
 ## Why macOS shows a warning, and why that's OK
 
@@ -86,6 +105,7 @@ To get rid of the warning, join the Apple Developer Program and:
 User-facing changes go into [`CHANGELOG.md`](../../CHANGELOG.md)'s **Unreleased**
 section as they're made; the section is labelled with the upcoming version inside
 the PR that will be released ([ADR 0035](../adr/0035-changelog-labelled-in-the-feature-pr.md)).
-Docs-only PRs carry `[skip ci]` in the title so merging doesn't bump the version.
+Docs-only PRs carry `[skip ci]` in the title *and* the commit message so merging
+doesn't bump the version (a one-commit PR's squash merge takes the commit's message).
 The in-app update banner and its behaviour are described in
 [Settings & data](settings-and-data.md#automatic-updates).
