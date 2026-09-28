@@ -77,7 +77,11 @@ export function registerRecordingIpc(sendToRenderer: (channel: string, payload: 
   ipcMain.handle('mic:getSettings', (): MicSettings => getMicSettings())
   ipcMain.handle('mic:setSettings', (_e, settings: MicSettings): void => setMicSettings(settings))
   // macOS asks once whether MCO may use the microphone (true if allowed).
-  ipcMain.handle('mic:requestAccess', (): Promise<boolean> => systemPreferences.askForMediaAccess('microphone'))
+  // Windows has no such prompt in Electron: its privacy setting shows up as
+  // getUserMedia failing instead.
+  ipcMain.handle('mic:requestAccess', (): Promise<boolean> =>
+    process.platform === 'darwin' ? systemPreferences.askForMediaAccess('microphone') : Promise.resolve(true)
+  )
 
   ipcMain.handle('recording:getFolder', (): string => recordingFolder())
 

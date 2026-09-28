@@ -12,7 +12,9 @@ for audio decode/transcode, `essentia.js` (WASM) for BPM/key analysis,
 [`threejs-visualisers`](https://github.com/festanqueiro/threejs-visualisers)
 package (a GitHub dependency pinned to a tag — change themes there, tag a
 release, then bump the tag in `package.json`).
-macOS only for now.
+macOS first; releases also ship an untested, unsigned Windows installer
+(ADR 0049) — in the renderer, handle file paths with `src/paths.ts`, never
+`split('/')`.
 
 ## Working preferences
 

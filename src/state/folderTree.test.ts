@@ -15,4 +15,11 @@ describe('buildFolderTree', () => {
     const tree = buildFolderTree(['/root/House', '/root/House'], '/root')
     expect(tree.children).toHaveLength(1)
   })
+
+  it('builds the tree from Windows paths', () => {
+    const tree = buildFolderTree(['C:\\Music\\House', 'C:\\Music\\House\\Deep'], 'C:\\Music')
+    expect(tree.name).toBe('Music')
+    expect(tree.children[0].path).toBe('C:\\Music\\House')
+    expect(tree.children[0].children[0].path).toBe('C:\\Music\\House\\Deep')
+  })
 })

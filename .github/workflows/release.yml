@@ -13,6 +13,12 @@ name: Release
 # docs/features/releases-and-updates.md). An ad-hoc signature is what makes that button
 # appear at all: a downloaded, completely unsigned Apple-silicon app is
 # reported as "damaged" instead.
+#
+# The Windows installer (NSIS, x64, unsigned: SmartScreen warns once) is
+# built on a Windows runner — ffmpeg-static downloads the ffmpeg for the OS
+# that runs `npm ci` — and handed to the macOS job, which publishes it with
+# the Mac files. "publish" off builds both and keeps them as workflow
+# artifacts only (to try a branch without making a release).
 on:
   workflow_dispatch:
     inputs:
@@ -20,9 +26,39 @@ on:
         description: Create the GitHub release as a draft (publish it by hand after checking)
         type: boolean
         default: false
+      publish:
+        description: Publish a GitHub release (off = build only, files kept as workflow artifacts)
+        type: boolean
+        default: true
 
 jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npx tsc -b --noEmit
+
+      - name: Build installer
+        run: npm run dist:release:win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: release/*.exe
+          if-no-files-found: error
+
   release:
+    needs: windows
     runs-on: macos-14 # Apple silicon — the build is arm64-only (see docs/features/releases-and-updates.md)
     permissions:
       contents: write
@@ -51,14 +87,28 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           codesign --display --verbose=2 "$app" 2>&1 | grep -q "Signature=adhoc"
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: release
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !inputs.publish }}
+        with:
+          name: mac-installer
+          path: |
+            release/*.dmg
+            release/*.zip
+
       - name: Create GitHub release
+        if: ${{ inputs.publish }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=$(node -p "require('./package.json').version")
           draft=()
           [ "${{ inputs.draft }}" = "true" ] && draft=(--draft)
-          gh release create "v${version}" release/*.dmg release/*.zip \
+          gh release create "v${version}" release/*.dmg release/*.zip release/*.exe \
             --target "$GITHUB_SHA" \
             --title "MCO ${version}" \
             --notes-file docs/product/release-notes-install.md \

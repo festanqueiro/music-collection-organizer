@@ -7,6 +7,7 @@ import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './
 import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
+import { baseName, isInFolder } from '../paths'
 
 type SortKey = TrackTableColumnKey
 
@@ -299,7 +300,7 @@ export function TrackTable({
     const query = searchText.trim().toLowerCase()
     // Missing Tracks lists the files that are gone instead of the collection.
     return (missingTracksFilter ? missingTracks : tracks)
-      .filter((t) => (selectedFolder ? t.folder === selectedFolder || t.folder.startsWith(selectedFolder + '/') : true))
+      .filter((t) => (selectedFolder ? isInFolder(t.folder, selectedFolder) : true))
       .filter(activeFilter)
       .filter((t) => {
         if (!compatibleFilter || !canFilterCompatible || !currentTrack) return true
@@ -707,7 +708,7 @@ export function TrackTable({
         {selectedFolder && (
           <FilterChip
             icon="folder"
-            label={selectedFolder.split('/').filter(Boolean).pop() ?? selectedFolder}
+            label={baseName(selectedFolder)}
             title={selectedFolder}
             onClear={onClearFolder}
           />

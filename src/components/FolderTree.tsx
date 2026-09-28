@@ -3,6 +3,7 @@ import { CONTEXT_MENU_Z_INDEX } from './contextMenuStyles'
 import { useCollectionStore } from '../state/store'
 import { buildFolderTree, type FolderTreeNode } from '../state/folderTree'
 import type { Track } from '../types'
+import { isInFolder, parentPath } from '../paths'
 
 const folderContextMenuItemStyle = {
   display: 'flex',
@@ -154,7 +155,7 @@ function saveExpanded(expanded: Set<string>): void {
 // the same containment rule TrackTable uses to decide which rows a
 // selected folder shows.
 function tracksInFolder(tracks: Track[], folder: string): Track[] {
-  return tracks.filter((t) => t.folder === folder || t.folder.startsWith(folder + '/'))
+  return tracks.filter((t) => isInFolder(t.folder, folder))
 }
 
 export function FolderTree({
@@ -217,8 +218,8 @@ export function FolderTree({
   useEffect(() => {
     if (!selectedFolder) return
     const ancestors: string[] = []
-    for (let path = selectedFolder; path.length > rootPath.length; path = path.slice(0, path.lastIndexOf('/'))) {
-      const parent = path.slice(0, path.lastIndexOf('/'))
+    for (let path = selectedFolder; path.length > rootPath.length; path = parentPath(path)) {
+      const parent = parentPath(path)
       if (parent.length >= rootPath.length) ancestors.push(parent)
     }
     const current = loadExpanded()

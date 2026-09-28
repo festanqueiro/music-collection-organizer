@@ -94,7 +94,10 @@ converts AIFF to for its own playback.
 ## How it works
 - MCO's Cast app is `cast-receiver/`, published to GitHub Pages on every merge to `main`
   (`.github/workflows/cast-receiver.yml`) and registered in the Google Cast SDK Developer Console as
-  application `E056A69A`.
+  application `E056A69A`. Its now-playing screen (markup, styles, rendering) is
+  `cast-receiver/nowPlaying.ts` + `nowPlaying.css`, shared with the second screen's "Now playing"
+  ([Show on a screen](second-screen.md)); `main.ts` adds the audio, the TV visualizers and the Cast
+  messaging.
 - MCO starts it on the device, serves the track files and artwork from a small server on the local
   network (`electron/main/cast/castMediaServer.ts`), and exchanges the messages in
   `src/cast/receiverProtocol.ts` with it: load/play/pause/seek, effects, siren, display and queue one

@@ -4,6 +4,19 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.51 — 2026-09-28
+
+### Added
+- **Windows**: every release now has a Windows installer,
+  `MCO-<version>-win-x64-setup.exe` (64-bit). It isn't signed, so Windows
+  warns the first time (**More info → Run anyway**), and it doesn't update
+  itself yet: install a new version over the old one. It's new and hasn't
+  been tried on a Windows PC yet.
+- **Show on a screen** can show the **Now playing** screen from casting —
+  the track's artwork, details and stats, what's up next and the waveform —
+  instead of a visualizer (Screen menu → Show). 1.0.50 listed this, but it
+  was left out of that release by mistake.
+
 ## 1.0.50 — 2026-09-28
 
 ### Added

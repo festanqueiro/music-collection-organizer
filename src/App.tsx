@@ -30,6 +30,7 @@ import { initMic } from './audio/micSession'
 import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
+import { isInFolder } from './paths'
 
 type LeftView = 'folders' | 'tags' | 'subtags' | 'filters'
 type TreeView = Exclude<LeftView, 'filters'>
@@ -169,7 +170,7 @@ export default function App() {
   useEffect(() => {
     if (!tracksLoaded || !selectedFolder) return
     const { tracks } = useCollectionStore.getState()
-    if (!tracks.some((t) => t.folder === selectedFolder || t.folder.startsWith(selectedFolder + '/'))) setSelectedFolder(null)
+    if (!tracks.some((t) => isInFolder(t.folder, selectedFolder))) setSelectedFolder(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracksLoaded])
   const [selectedTrack, setSelectedTrack] = useState<Track | null>(null)

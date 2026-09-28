@@ -9,7 +9,7 @@ export const AUDIO_EXTENSIONS = new Set(['.wav', '.aiff', '.aif', '.flac', '.mp3
 // toRow() used to statSync() every file a second time just to read this,
 // since it wasn't captured here.
 export interface DiskFileWithBlocks extends DiskFile {
-  blocks: number
+  blocks?: number
 }
 
 export function walkAudioFiles(rootPath: string): DiskFileWithBlocks[] {
@@ -46,7 +46,7 @@ export function walkAudioFiles(rootPath: string): DiskFileWithBlocks[] {
             size: stats.size,
             mtime: Math.floor(stats.mtimeMs),
             birthtime: Math.floor(stats.birthtimeMs),
-            blocks: (stats as unknown as { blocks?: number }).blocks ?? 0,
+            blocks: (stats as unknown as { blocks?: number }).blocks,
           })
         } catch (err) {
           console.warn(`walkAudioFiles: skipping unreadable file ${fullPath}`, err)

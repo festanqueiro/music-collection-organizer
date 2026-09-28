@@ -12,6 +12,7 @@
     "dist:install": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.extraMetadata.name=v1-library-organizer && scripts/install-release.sh",
     "dist:beta": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.appId=com.local.music-collection-organizer.beta -c.productName=\"MCO - Music Collection Organizer BETA\" -c.mac.icon=resources/icon-beta.png -c.extraMetadata.name=v1-library-organizer-beta && scripts/install-beta.sh",
     "dist:release": "electron-vite build && electron-builder --mac dmg zip --arm64 --publish never",
+    "dist:release:win": "electron-vite build && electron-builder --win nsis --x64 --publish never",
     "build:receiver": "vite build --config vite.receiver.config.ts"
   },
   "keywords": [],
@@ -41,6 +42,15 @@
           "_googlecast._tcp"
         ]
       }
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "artifactName": "MCO-${version}-win-x64-setup.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "extraMetadata": {
       "name": "v1-library-organizer"

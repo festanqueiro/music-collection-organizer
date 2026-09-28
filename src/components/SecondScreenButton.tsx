@@ -2,8 +2,9 @@
 //
 // Player-bar button + popover for "Show on a screen"
 // (docs/features/second-screen.md): pick a display (an Apple TV used as an
-// AirPlay display, a projector, a monitor — or a window here), the theme,
-// track info and the Visual delay. Lit while showing.
+// AirPlay display, a projector, a monitor — or a window here), what it shows
+// (the now-playing screen or a visualizer theme), track info and the Visual
+// delay. Lit while showing.
 import { useEffect, useRef, useState } from 'react'
 import { VISUALIZER_THEMES, getVisualizerTheme, type VisualizerThemeId } from 'threejs-visualisers'
 import { useCollectionStore } from '../state/store'
@@ -14,6 +15,8 @@ import { barButtonStyle } from './playerBarStyles'
 import type { ScreenTarget } from '../types'
 
 const POPOVER_WIDTH = 320
+// The "Show" choice for the now-playing screen, next to the themes.
+const NOW_PLAYING = 'now-playing'
 
 export function SecondScreenButton() {
   const [open, setOpen] = useState(false)
@@ -25,6 +28,8 @@ export function SecondScreenButton() {
   const displays = useCollectionStore((s) => s.screenDisplays)
   const themeId = getVisualizerTheme(useCollectionStore((s) => s.screenTheme)).id
   const setTheme = useCollectionStore((s) => s.setScreenTheme)
+  const nowPlaying = useCollectionStore((s) => s.screenNowPlaying)
+  const setNowPlaying = useCollectionStore((s) => s.setScreenNowPlaying)
   const hideTrackInfo = useCollectionStore((s) => s.screenHideTrackInfo)
   const setHideTrackInfo = useCollectionStore((s) => s.setScreenHideTrackInfo)
   const otherDisplays = displays.filter((d) => !d.hasMainWindow)
@@ -148,19 +153,32 @@ export function SecondScreenButton() {
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={sectionLabel}>On the screen</div>
             <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px', gap: '8px' }}>
-              Theme
-              <select value={themeId} onChange={(e) => setTheme(e.target.value as VisualizerThemeId)} style={{ fontSize: '12px' }}>
-                {VISUALIZER_THEMES.map((theme) => (
-                  <option key={theme.id} value={theme.id}>
-                    {theme.name}
-                  </option>
-                ))}
+              Show
+              <select
+                value={nowPlaying ? NOW_PLAYING : themeId}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setNowPlaying(value === NOW_PLAYING)
+                  if (value !== NOW_PLAYING) setTheme(value as VisualizerThemeId)
+                }}
+                style={{ fontSize: '12px' }}
+              >
+                <option value={NOW_PLAYING}>Now playing (track details)</option>
+                <optgroup label="Visualizer">
+                  {VISUALIZER_THEMES.map((theme) => (
+                    <option key={theme.id} value={theme.id}>
+                      {theme.name}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
-              Hide track info
-              <ToggleSwitch checked={hideTrackInfo} onChange={setHideTrackInfo} title="Hide the track info on the screen" />
-            </label>
+            {!nowPlaying && (
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}>
+                Hide track info
+                <ToggleSwitch checked={hideTrackInfo} onChange={setHideTrackInfo} title="Hide the track info on the screen" />
+              </label>
+            )}
           </div>
 
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
