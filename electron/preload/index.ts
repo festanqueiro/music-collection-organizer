@@ -26,6 +26,7 @@ import type {
   RecordingFormat,
   MicSettings,
   RecordingResult,
+  ScreenDisplay,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -217,6 +218,14 @@ const api = {
     }
   },
   stopCast: (): Promise<void> => ipcRenderer.invoke('cast:stop'),
+  getScreenDisplays: (): Promise<ScreenDisplay[]> => ipcRenderer.invoke('screen:getDisplays'),
+  onScreenDisplays: (cb: (displays: ScreenDisplay[]) => void): (() => void) => {
+    const listener = (_e: unknown, displays: ScreenDisplay[]) => cb(displays)
+    ipcRenderer.on('screen:displays', listener)
+    return () => {
+      ipcRenderer.removeListener('screen:displays', listener)
+    }
+  },
   setKeepDisplayAwake: (awake: boolean): Promise<void> => ipcRenderer.invoke('power:keepDisplayAwake', awake),
   getMicSettings: (): Promise<MicSettings> => ipcRenderer.invoke('mic:getSettings'),
   setMicSettings: (settings: MicSettings): Promise<void> => ipcRenderer.invoke('mic:setSettings', settings),

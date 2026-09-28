@@ -17,6 +17,7 @@ import { APP_THEME_ARG, getAppTheme } from '../../src/appThemes'
 import { Updater, appBundlePathFromExecPath } from './updater'
 import { getDbFilePath } from './dbPath'
 import { mediaUrlToFilePath } from './mediaProtocol'
+import { attachScreenWindowPolicy } from './screenWindow'
 import { getPlayableFilePath, pruneMediaCache } from './audioTranscode'
 import { getMediaCacheDir } from './mediaCacheDir'
 import { parseRangeHeader } from './rangeHeader'
@@ -191,6 +192,8 @@ function createWindow(onShown?: () => void): void {
   })
 
   currentWindow = mainWindow
+  // The second screen is the only window MCO's page may open (ADR 0046).
+  attachScreenWindowPolicy(mainWindow)
   // On macOS the app outlives its last window, and IPC work (e.g. an
   // analysis run) can still be reporting progress — clear the reference
   // so nothing tries to talk to a destroyed window.

@@ -15,6 +15,12 @@ function fakeContext() {
     suspend: vi.fn(async () => {
       context.state = 'suspended'
     }),
+    createDelay: vi.fn((maxDelay: number) => ({
+      maxDelay,
+      connect: vi.fn(),
+      delayTime: { value: 0, setValueAtTime: vi.fn(function (this: { value: number }, v: number) { this.value = v }) },
+    })),
+    createAnalyser: vi.fn(() => ({ fftSize: 0, smoothingTimeConstant: 0 })),
   }
   return context
 }
@@ -68,5 +74,30 @@ describe('AudioEngine', () => {
     engine.setActive({}, true)
     engine.setActive({}, false)
     expect(engine.isActive()).toBe(true)
+  })
+
+  it('builds the visual tap on first use, with the delay already set', () => {
+    const context = fakeContext()
+    const engine = new AudioEngine(context as never)
+    engine.setVisualDelay(1.5)
+    expect(context.createDelay).not.toHaveBeenCalled()
+    const analyser = engine.getVisualAnalyser()
+    expect(engine.getVisualAnalyser()).toBe(analyser)
+    expect(context.createDelay).toHaveBeenCalledTimes(1)
+    const delay = context.createDelay.mock.results[0].value
+    expect(delay.delayTime.value).toBe(1.5)
+    expect(engine.input.connect).toHaveBeenCalledWith(delay)
+  })
+
+  it('clamps the visual delay and applies changes to the live tap', () => {
+    const context = fakeContext()
+    const engine = new AudioEngine(context as never)
+    engine.getVisualAnalyser()
+    const delay = context.createDelay.mock.results[0].value
+    engine.setVisualDelay(9)
+    expect(engine.visualDelay).toBe(5)
+    expect(delay.delayTime.value).toBe(5)
+    engine.setVisualDelay(-1)
+    expect(engine.visualDelay).toBe(0)
   })
 })

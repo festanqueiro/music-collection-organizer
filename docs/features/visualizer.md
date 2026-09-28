@@ -11,6 +11,10 @@ button. It stays open across track changes and reacts to the post-FX
 output (after FX and master volume), so EQ/filter moves show up in it.
 While it's open the Mac and its display don't sleep (a `prevent-display-sleep`
 power blocker in the main process, `power:keepDisplayAwake`, released on close).
+It draws from the audio engine's visual tap — the music (track and siren), held back by the
+**Visual delay** setting (Settings → Audio, [ADR 0047](../adr/0047-visual-delay-in-the-audio-graph.md))
+to line up with sound that reaches the room late. It can also be shown on another display with
+[Show on a screen](second-screen.md).
 Its **Frame rate** (in the top bar) caps the render loop: 15, 24, **30**
 (the default, to keep the GPU cool), 60 fps or Max (the display's refresh
 rate). The choice is remembered; the fps readout bottom left shows the

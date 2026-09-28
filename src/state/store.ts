@@ -19,6 +19,8 @@ import type {
   UpdateState,
   CastDevice,
   CastStatus,
+  ScreenDisplay,
+  ScreenTarget,
 } from '../types'
 import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_MIC_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
@@ -284,6 +286,22 @@ export interface CollectionState {
   // FPS_CHOICES); 0 is no cap, the display's refresh rate. Default 30.
   visualizerFps: number
   setVisualizerFps: (fps: number) => void
+  // Visual delay (ms, 0..MAX_VISUAL_DELAY_MS): holds the visualizers back to
+  // match sound that reaches the room late (AirPlay, Bluetooth). App.tsx
+  // applies it to the audio engine's visual tap (ADR 0047).
+  visualDelayMs: number
+  setVisualDelayMs: (ms: number) => void
+  // The second screen (docs/features/second-screen.md): where it's showing
+  // (null = not showing; never restored on launch), its own theme and
+  // track-info choice (remembered), and the displays macOS offers.
+  screenTarget: ScreenTarget | null
+  setScreenTarget: (target: ScreenTarget | null) => void
+  screenTheme: VisualizerThemeId
+  setScreenTheme: (theme: VisualizerThemeId) => void
+  screenHideTrackInfo: boolean
+  setScreenHideTrackInfo: (hide: boolean) => void
+  screenDisplays: ScreenDisplay[]
+  setScreenDisplays: (displays: ScreenDisplay[]) => void
   // Whether MIDI-learn badges are shown next to mappable controls
   // (Settings → MIDI). Purely visual — bindings keep working when hidden.
   showMidiControls: boolean
@@ -585,6 +603,28 @@ function loadVisualizerHideTrackInfo(): boolean {
   }
 }
 
+const VISUAL_DELAY_KEY = 'visualDelayMs'
+export const MAX_VISUAL_DELAY_MS = 3000
+function loadVisualDelayMs(): number {
+  try {
+    const value = Number(localStorage.getItem(VISUAL_DELAY_KEY) ?? 0)
+    return Number.isFinite(value) ? Math.min(MAX_VISUAL_DELAY_MS, Math.max(0, Math.round(value))) : 0
+  } catch {
+    return 0
+  }
+}
+const SCREEN_THEME_KEY = 'screenTheme'
+function loadScreenTheme(): VisualizerThemeId {
+  try {
+    const stored = localStorage.getItem(SCREEN_THEME_KEY)
+    if (stored && (VISUALIZER_THEME_IDS as string[]).includes(stored)) return stored as VisualizerThemeId
+  } catch {
+    // localStorage unavailable (e.g. under Vitest's node environment).
+  }
+  return loadVisualizerTheme()
+}
+const SCREEN_HIDE_TRACK_INFO_KEY = 'screenHideTrackInfo'
+
 const VISUALIZER_FPS_KEY = 'visualizerFps'
 const DEFAULT_VISUALIZER_FPS = 30
 function loadVisualizerFps(): number {
@@ -697,6 +737,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castScreen: loadCastScreen(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   visualizerFps: loadVisualizerFps(),
+  visualDelayMs: loadVisualDelayMs(),
+  screenTarget: null,
+  screenTheme: loadScreenTheme(),
+  screenHideTrackInfo: loadBooleanPreference(SCREEN_HIDE_TRACK_INFO_KEY, false),
+  screenDisplays: [],
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
   keyNotation: loadKeyNotation(),
@@ -1493,6 +1538,30 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       // Non-essential preference — fine to lose.
     }
   },
+
+  setVisualDelayMs: (ms) => {
+    const value = Math.min(MAX_VISUAL_DELAY_MS, Math.max(0, Math.round(ms)))
+    set({ visualDelayMs: value })
+    try {
+      localStorage.setItem(VISUAL_DELAY_KEY, String(value))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+  setScreenTarget: (target) => set({ screenTarget: target }),
+  setScreenTheme: (theme) => {
+    set({ screenTheme: theme })
+    try {
+      localStorage.setItem(SCREEN_THEME_KEY, theme)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+  setScreenHideTrackInfo: (hide) => {
+    set({ screenHideTrackInfo: hide })
+    saveBooleanPreference(SCREEN_HIDE_TRACK_INFO_KEY, hide)
+  },
+  setScreenDisplays: (displays) => set({ screenDisplays: displays }),
 
   setVisualizerFps: (fps) => {
     set({ visualizerFps: fps })

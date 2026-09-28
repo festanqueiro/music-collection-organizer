@@ -24,6 +24,7 @@ import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
 import { getAudioEngine } from './audio/audioEngine'
+import { SecondScreen } from './components/SecondScreen'
 import { initRecording } from './audio/recordingSession'
 import { initMic } from './audio/micSession'
 import { initCast } from './cast/castSession'
@@ -127,10 +128,12 @@ export default function App() {
   const setVisualizerOpen = useCollectionStore((s) => s.setVisualizerOpen)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const lastRefreshRef = useRef(0)
-  // Keep the screen (and Mac) awake while the visualiser is on.
+  // Keep the screen (and Mac) awake while the visualiser is on, here or
+  // on a second screen.
+  const screenShowing = useCollectionStore((s) => s.screenTarget !== null)
   useEffect(() => {
-    window.api.setKeepDisplayAwake(visualizerOpen)
-  }, [visualizerOpen])
+    window.api.setKeepDisplayAwake(visualizerOpen || screenShowing)
+  }, [visualizerOpen, screenShowing])
   const [leftView, setLeftView] = useState<LeftView>(() => loadSidebarState().view)
   // The folder/tag view the Filters view was opened from: kept mounted
   // (hidden) meanwhile, with its selection still applied — filters combine
@@ -230,6 +233,20 @@ export default function App() {
   useEffect(() => {
     getAudioEngine().setSinkId(audioOutputDeviceId)
   }, [audioOutputDeviceId])
+
+  // Visual delay (ADR 0047), on the engine's visual tap.
+  const visualDelayMs = useCollectionStore((s) => s.visualDelayMs)
+  useEffect(() => {
+    getAudioEngine().setVisualDelay(visualDelayMs / 1000)
+  }, [visualDelayMs])
+
+  // The displays the second screen can show on, kept current as they come
+  // and go.
+  useEffect(() => {
+    const setDisplays = useCollectionStore.getState().setScreenDisplays
+    window.api.getScreenDisplays().then(setDisplays)
+    return window.api.onScreenDisplays(setDisplays)
+  }, [])
 
   // The recording's level (the Rec popover's Level knob), on the engine's
   // record output.
@@ -377,6 +394,7 @@ export default function App() {
       {/* Rendered here, not inside Player, so it stays open across track
           changes (Player remounts per track). */}
       {visualizerOpen && <Visualizer track={currentTrack} onClose={() => setVisualizerOpen(false)} />}
+      <SecondScreen />
       <SettingsModal
         open={settingsOpen}
         onClose={() => {
