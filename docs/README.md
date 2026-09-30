@@ -54,6 +54,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [Casting](features/casting.md) ·
 [Recording](features/recording.md) ·
 [Show on a screen](features/second-screen.md) ·
+[Stats](features/stats.md) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
