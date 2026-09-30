@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-27
+updated: 2026-10-01
 adrs: [0014, 0045]
 ---
 # Visualizer
@@ -22,10 +22,10 @@ rate reached. The themes and audio smoothing follow each frame's real
 duration, so they move at the same speed at any rate (threejs-visualisers
 0.2.0: `FrameLimiter`, `FPS_CHOICES`).
 
-Options, as dropdowns in the bar along the top right (the theme's own options saved per theme):
+Options, as dropdowns in the bar along the bottom right (the track's title and artist have the top row) (the theme's own options saved per theme):
 
 - **Theme** — Nebula, Warp, Horizon, Sound System, Smoke, Kaleidoscope,
-  Paint, or Liquid 3D (keys **1–8** switch while it's open);
+  Paint, Liquid, or Origins (keys **1–9** switch while it's open);
 - **Frame rate** — 15, 24, 30 (default), 60 fps or Max;
 - **Hide track info** — hides the title/artist overlay;
 - per-theme options (below).
@@ -53,10 +53,16 @@ Options, as dropdowns in the bar along the top right (the theme's own options sa
 - **Paint** — paint flung at a black wall: splats on the kicks, bright
   whips on the mids and highs, sinking to dark stains. **Colours**:
   *Yellow*, *Shifting*, *Mixed*.
-- **Liquid 3D** — raymarched liquid blobs flowing into each other in
+- **Liquid** (called *Liquid 3D* before threejs-visualisers 0.3.0; same
+  theme id, `liquid`, so saved picks and options carry over) — raymarched liquid blobs flowing into each other in
   front of a fixed camera; bass and kicks merge and ripple them.
   **Style**: *3D* or *Lo-Res* (big dithered pixels in a few colours);
   **Palette**: *Shifting*, *Mercury*, *Game Boy*, *Amber*, *CGA*.
+- **Origins** — a flight through the dark past floating yellow spheres, a
+  spiral of white spheres and squiggly sound waves, shaded like a grainy
+  illustration. Mids speed the flight and wind the spiral, bass swells
+  travel down it, kicks pulse the spheres. **Colours**: *Dream*, *Candy*,
+  *Noir*, *Shifting* (threejs-visualisers 0.3.0).
 
 While casting to a TV, this visualizer is off: the button is dimmed and says to pick one in the
 Cast menu, where the TV's own visualizers are ([casting](casting.md),

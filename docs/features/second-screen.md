@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-28
+updated: 2026-10-01
 adrs: [0046, 0047, 0048]
 ---
 # Show on a screen (Apple TV, projector, second display)
@@ -69,7 +69,7 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
   - **Visual delay** (the app-wide setting below).
   - "Showing on Living Room" / "Showing in a window" with **Stop** while it is.
 - **The screen**: black, full screen on that display (a normal window for "A window on this display"),
-  the visualizer filling it, with the track's title, artist, BPM and the next track along the bottom
+  the visualizer filling it, with the track's title, artist and the next track along the bottom
   unless hidden (sized to the screen). No controls on it (it's for the audience); no
   cursor.
 - **Now playing** on the screen: the same page a Google TV shows while casting — the artwork (and a
@@ -97,7 +97,9 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
   (frameless, black, then `setFullScreen(true)` in `did-create-window`) or as a 960×540 window centred on
   MCO, and denies anything else. React renders
   the screen into the child's document with `createPortal` (styles copied into its `<head>`); a
-  `VisualizerEngine` drives it from the child's `requestAnimationFrame` with a `FrameLimiter`. Closing:
+  `VisualizerEngine` drives it from the child's `requestAnimationFrame` with a `FrameLimiter`, timed
+  with this page's `performance.now()` — never the child's rAF timestamp, whose clock starts when the
+  child opens and made the first frame's time step hugely negative (black/white screen in 1.0.51). Closing:
   the renderer closes the child; the child closing itself (Cmd+W, display gone) updates the store.
 - **Displays**: `screen:getDisplays` (Electron `screen.getAllDisplays()`: id, label, size, internal,
   whether MCO's window is on it) and a `screen:displays` push on `display-added/removed/metrics-changed`.
@@ -108,7 +110,7 @@ back to match audio that arrives late (AirPlay speakers, a Bluetooth speaker, a 
 - **Now playing** (`src/components/SecondScreenNowPlaying.tsx`): the receiver's now-playing screen
   was pulled out of `cast-receiver/main.ts` into `cast-receiver/nowPlaying.ts` (`NowPlayingScreen`:
   markup, rendering, session "played" tracking; `load`/`clear`/`setQueue`/`setEffects`/
-  `setSirenHeld`) and `nowPlaying.css` (injected into the child's `<head>` via `?inline`). The
+  `setSirenHeld`) and `nowPlaying.css` (imported `?inline` and adopted as a constructed stylesheet — the child inherits the page's Content-Security-Policy, which blocks an inline `<style>`; 1.0.51 showed just a full-size logo). The
   second screen feeds it the same `queue` message the TV gets (`buildReceiverQueue`), with artwork
   from `tracks:getArtwork` (data URLs, cached), throttled like `receiverSync.ts`; each change is
   applied after the Visual delay (timers). The playhead comes from a `PlaybackTimeline`

@@ -141,8 +141,13 @@ function VisualizerView({ child }: { child: Window }) {
     const resize = new ChildResizeObserver(() => engine.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight)))
     resize.observe(host)
     let frame = 0
-    const tick = (now: number) => {
+    // This page's clock, not the child's rAF timestamp: the child's clock
+    // starts when it opens, so the engine (created on this page's clock)
+    // would see time jump backwards and its smoothing blow up (a black or
+    // white screen).
+    const tick = () => {
       frame = child.requestAnimationFrame(tick)
+      const now = performance.now()
       if (limiterRef.current.shouldRender(now)) engine.render(now)
     }
     frame = child.requestAnimationFrame(tick)
@@ -190,10 +195,7 @@ function VisualizerView({ child }: { child: Window }) {
 }
 
 function TrackInfo({ track, next }: { track: Track; next: Track | null }) {
-  const meta = [
-    track.bpm ? `${Math.round(track.bpm)} BPM` : '',
-    next ? `Next: ${decodeHtmlEntities(next.title ?? next.filename)}${next.artist ? ` — ${decodeHtmlEntities(next.artist)}` : ''}` : '',
-  ].filter(Boolean)
+  const meta = next ? [`Next: ${decodeHtmlEntities(next.title ?? next.filename)}${next.artist ? ` — ${decodeHtmlEntities(next.artist)}` : ''}`] : []
   return (
     <div
       style={{

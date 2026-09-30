@@ -209,8 +209,8 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
             position: 'absolute',
             top: '24px',
             left: '28px',
-            // Leaves room for the controls on the right.
-            maxWidth: 'max(200px, calc(100% - 920px))',
+            // The whole top row: the controls are along the bottom.
+            maxWidth: 'calc(100% - 56px)',
             color: '#fff',
             opacity: hideTrackInfo ? 0 : 1,
             transition: 'opacity 400ms ease',
@@ -228,10 +228,15 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
       )}
       <div
         style={{
+          // Along the bottom, right of the fps readout, so they never cover
+          // the track info; a narrow window wraps them upwards.
           position: 'absolute',
-          top: '24px',
+          bottom: '24px',
+          left: '120px',
           right: '28px',
           display: 'flex',
+          flexWrap: 'wrap-reverse',
+          justifyContent: 'flex-end',
           alignItems: 'center',
           gap: '10px',
           color: '#fff',
@@ -246,6 +251,7 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           value={activeThemeId}
           title="Keys 1–9 pick one directly"
           options={VISUALIZER_THEMES.map((theme, i) => ({ id: theme.id, name: i < 9 ? `${i + 1}  ${theme.name}` : theme.name }))}
+          shownName={(name) => name.replace(/^\d+\s+/, '')}
           onChange={pickTheme}
         />
         {/* As many slots as the theme with the most options, unused ones kept
@@ -349,12 +355,16 @@ function PickerSelect({
   options,
   onChange,
   title,
+  shownName = (name) => name,
 }: {
   label: string
   value: string
   options: { id: string; name: string }[]
   onChange: (value: string) => void
   title?: string
+  // The chosen option as shown on the pill (the theme menu's names start
+  // with their shortcut key, which the pill leaves out).
+  shownName?: (name: string) => string
 }) {
   return (
     <label
@@ -378,7 +388,7 @@ function PickerSelect({
     >
       <span style={{ fontSize: '10px', letterSpacing: '0.06em', textTransform: 'uppercase', opacity: 0.6 }}>{label}</span>
       <span style={{ fontSize: '13px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {options.find((option) => option.id === value)?.name.replace(/^\d+\s+/, '') ?? ''}
+        {shownName(options.find((option) => option.id === value)?.name ?? '')}
       </span>
       <span
         className="material-symbols-outlined"

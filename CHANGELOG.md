@@ -4,6 +4,38 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.52 — 2026-10-01
+
+### Added
+- **Visualizer**: a new **Origins** theme — a flight through the dark past
+  floating yellow spheres, a spiral of white spheres and squiggly sound
+  waves, drawn like a grainy illustration. Its **Colours** can be *Dream*,
+  *Candy*, *Noir* or *Shifting*. Key **9** picks it. It's also in the
+  Screen menu for Show on a screen.
+- **Stats**: the collection in numbers, from the new icon between Update
+  Collection and Settings — songs, playtime, size, artists, albums and
+  genres; file quality (lossless, lossy, low bitrate, not analysed) and
+  formats; songs per tempo and per key; the top 10 genres and artists;
+  years of release and songs added per month; how many are analysed,
+  tagged, missing or only in iCloud. For the whole collection or one folder.
+- **Table**: an **Add to queue** icon on every row, between play and
+  pre-listen. It lights up while the song is waiting in the queue.
+
+### Changed
+- **Visualizer**: the *Liquid 3D* theme is now just called **Liquid**. If
+  you had it picked, it stays picked, with its options.
+- **Visualizer**: its controls moved to the bottom right, so they no longer
+  cover a long track title. The frame rate picker shows the rate again
+  ("30 fps", not just "fps").
+- **Show on a screen**: the visualizer's track info no longer shows the BPM.
+
+### Fixed
+- **Show on a screen**: the **Now playing** screen showed only a huge MCO
+  logo — its styles were blocked in the screen's window. It now shows the
+  track's artwork, details, queue and waveform as intended.
+- **Show on a screen**: visualizers stayed black (or white) on the screen,
+  with only the track title showing. They draw again.
+
 ## 1.0.51 — 2026-09-28
 
 ### Added

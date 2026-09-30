@@ -543,7 +543,15 @@ export interface CollectionState {
 // (per-app userData, like everything else) rather than an electron-store
 // IPC round-trip.
 const VISUALIZER_THEME_KEY = 'visualizerTheme'
-const VISUALIZER_THEME_IDS: VisualizerThemeId[] = ['nebula', 'warp', 'horizon', 'soundsystem', 'smoke', 'kaleidoscope', 'paint', 'liquid']
+// A Record so tsc fails when threejs-visualisers adds a theme that's missing
+// here (a saved pick of it would otherwise fall back to Nebula on restart).
+// Kept as literals rather than read from VISUALIZER_THEMES so the store
+// doesn't pull three.js in.
+const VISUALIZER_THEME_ID_SET: Record<VisualizerThemeId, true> = {
+  nebula: true, warp: true, horizon: true, soundsystem: true, smoke: true,
+  kaleidoscope: true, paint: true, liquid: true, origins: true,
+}
+const VISUALIZER_THEME_IDS = Object.keys(VISUALIZER_THEME_ID_SET) as VisualizerThemeId[]
 const CAST_SCREEN_KEY = 'castScreen'
 function loadCastScreen(): CastScreen {
   try {

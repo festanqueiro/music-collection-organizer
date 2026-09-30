@@ -34,9 +34,13 @@ export function SecondScreenNowPlaying({ child }: { child: Window }) {
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
-    const style = child.document.createElement('style')
-    style.textContent = nowPlayingCss
-    child.document.head.appendChild(style)
+    // A constructed sheet, not a <style>: the child inherits the page's
+    // Content-Security-Policy, which blocks inline <style> elements (the
+    // screen then showed just the full-size logo).
+    const ChildStyleSheet = (child as Window & { CSSStyleSheet: typeof CSSStyleSheet }).CSSStyleSheet
+    const sheet = new ChildStyleSheet()
+    sheet.replaceSync(nowPlayingCss)
+    child.document.adoptedStyleSheets = [...child.document.adoptedStyleSheets, sheet]
 
     const delayMs = () => useCollectionStore.getState().visualDelayMs
     const timeline = new PlaybackTimeline()
@@ -148,7 +152,7 @@ export function SecondScreenNowPlaying({ child }: { child: Window }) {
       for (const timer of pending) clearTimeout(timer)
       screen.dispose()
       host.replaceChildren()
-      style.remove()
+      child.document.adoptedStyleSheets = child.document.adoptedStyleSheets.filter((s) => s !== sheet)
     }
   }, [child])
 

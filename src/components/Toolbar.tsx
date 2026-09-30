@@ -5,10 +5,10 @@ import logo from '../../resources/icon.png'
 import { baseName, isInFolder } from '../paths'
 
 // One row, everything the same height: brand on the left, search in the
-// middle, then the collection folder, Update Collection and Settings.
+// middle, then the collection folder, Update Collection, Stats and Settings.
 const CONTROL_HEIGHT = '32px'
 
-export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
+export function Toolbar({ onOpenSettings, onOpenStats }: { onOpenSettings: () => void; onOpenStats: () => void }) {
   const searchText = useCollectionStore((s) => s.searchText)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const runScan = useCollectionStore((s) => s.runScan)
@@ -156,6 +156,16 @@ export function Toolbar({ onOpenSettings }: { onOpenSettings: () => void }) {
         >
           <span className={`material-symbols-outlined${scanning ? ' spin' : ''}`} style={{ fontSize: '18px' }}>
             {scanning ? 'progress_activity' : 'refresh'}
+          </span>
+        </button>
+        <button
+          onClick={onOpenStats}
+          title="Stats — the collection in numbers"
+          aria-label="Stats"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: CONTROL_HEIGHT, height: CONTROL_HEIGHT, padding: 0 }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+            query_stats
           </span>
         </button>
         <button
