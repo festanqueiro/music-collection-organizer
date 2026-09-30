@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
-import type { PlaylistNode } from '../types'
+import type { PlaylistNode, RekordboxImportPlan } from '../types'
 
 const LAYOUT_KEY = 'playlistsBox'
 const MIN_HEIGHT = 80
@@ -66,6 +66,26 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   const [menu, setMenu] = useState<{ x: number; y: number; node: PlaylistNode | null } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PlaylistNode | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
+  const [importPlan, setImportPlan] = useState<{ filePaths: string[]; plan: RekordboxImportPlan } | null>(null)
+
+  async function pickImport() {
+    const picked = await window.api.pickRekordboxImport()
+    if (!picked) return
+    if ('error' in picked) return showToast(picked.error)
+    if (picked.plan.playlists.length === 0) return showToast('No playlists in that file')
+    setImportPlan(picked)
+  }
+
+  async function runImport(filePaths: string[]) {
+    try {
+      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths) })
+      const selected = useCollectionStore.getState().selectedPlaylistId
+      if (selected !== null) void useCollectionStore.getState().selectPlaylist(selected)
+      showToast('Imported from Rekordbox')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err))
+    }
+  }
 
   useEffect(() => {
     if (!menu) return
@@ -333,6 +353,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
             <>
               {menuItem('queue_music', 'New playlist', () => startCreate('playlist', null))}
               {menuItem('create_new_folder', 'New folder', () => startCreate('folder', null))}
+              {menuItem('download', 'Import from Rekordbox…', () => void pickImport())}
             </>
           ) : menu.node.kind === 'playlist' ? (
             <>
@@ -345,6 +366,11 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                 })
               })}
               {menuItem('edit', 'Rename', () => setEditing({ kind: 'rename', id: menu.node!.id }))}
+              {menu.node.source === 'rekordbox' &&
+                menuItem('link_off', 'Keep as my own', () => {
+                  void window.api.detachPlaylistNode(menu.node!.id).then((nodes) => useCollectionStore.setState({ playlistNodes: nodes }))
+                  showToast(`${menu.node!.name} won't be refreshed from Rekordbox any more`)
+                })}
               {menuItem('delete', 'Delete playlist…', () => setConfirmDelete(menu.node))}
             </>
           ) : (
@@ -353,12 +379,32 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
               {menuItem('queue_music', 'New playlist here', () => startCreate('playlist', menu.node!.id))}
               {menuItem('create_new_folder', 'New folder here', () => startCreate('folder', menu.node!.id))}
               {menuItem('edit', 'Rename', () => setEditing({ kind: 'rename', id: menu.node!.id }))}
+              {menu.node.source === 'rekordbox' &&
+                menuItem('link_off', 'Keep as my own', () => {
+                  void window.api.detachPlaylistNode(menu.node!.id).then((nodes) => useCollectionStore.setState({ playlistNodes: nodes }))
+                  showToast(`${menu.node!.name} won't be refreshed from Rekordbox any more`)
+                })}
               {menuItem('delete', 'Delete folder…', () => setConfirmDelete(menu.node))}
             </>
           )}
         </div>
       )}
 
+      {importPlan && (
+        <ConfirmDialog
+          title="Import from Rekordbox"
+          icon="download"
+          confirmLabel="Import"
+          onCancel={() => setImportPlan(null)}
+          onConfirm={() => {
+            const { filePaths } = importPlan
+            setImportPlan(null)
+            void runImport(filePaths)
+          }}
+        >
+          <ImportSummary plan={importPlan.plan} />
+        </ConfirmDialog>
+      )}
       {confirmDelete && (
         <ConfirmDialog
           title={confirmDelete.kind === 'playlist' ? 'Delete playlist' : 'Delete folder'}
@@ -387,6 +433,57 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
           )}
         </ConfirmDialog>
       )}
+    </div>
+  )
+}
+
+function ImportSummary({ plan }: { plan: RekordboxImportPlan }) {
+  const refreshed = plan.playlists.filter((p) => p.refresh).length
+  const fresh = plan.playlists.length - refreshed
+  const missing = plan.songs - plan.matched
+  const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '460px' }}>
+      <p style={{ margin: 0 }}>
+        {count(plan.playlists.length, 'playlist')}
+        {plan.folders > 0 ? ` in ${count(plan.folders, 'folder')}` : ''} — {fresh} new
+        {refreshed > 0 ? `, ${refreshed} to refresh` : ''}. They go in the <strong style={{ color: 'var(--color-text)' }}>Rekordbox</strong>{' '}
+        folder.
+      </p>
+      <p style={{ margin: 0 }}>
+        {plan.matched} of {count(plan.songs, 'song')} found in your collection.
+        {missing > 0 && ` ${missing} not found (outside the collection folder, not scanned yet, or — from a .txt — a different title or artist); they're left out.`}
+      </p>
+      {refreshed > 0 && (
+        <p style={{ margin: 0 }}>Refreshed playlists get Rekordbox's songs; changes you made to them in MCO are replaced.</p>
+      )}
+      {plan.gone.length > 0 && (
+        <p style={{ margin: 0 }}>
+          No longer in this export (kept): {plan.gone.join(', ')}
+        </p>
+      )}
+      <div
+        style={{
+          maxHeight: '180px',
+          overflowY: 'auto',
+          border: '1px solid var(--color-border)',
+          borderRadius: '6px',
+          padding: '6px 8px',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {plan.playlists.map((p, i) => (
+          <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {p.name}
+              {p.refresh ? ' ↻' : ''}
+            </span>
+            <span style={{ color: p.matched < p.songs ? 'var(--color-cue)' : 'var(--color-text-dim)', flexShrink: 0 }}>
+              {p.matched}/{p.songs}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

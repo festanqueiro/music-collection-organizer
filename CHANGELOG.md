@@ -15,8 +15,15 @@ installed copies update themselves.
   playlist…**; remove them with right-click → **Remove from…**. Right-click
   a playlist to **Play playlist** (replaces the queue — *Undo* brings the
   old one back), add it to the queue, rename it or **Delete** it (after a
-  confirmation; the songs stay in your collection). Importing from
-  Rekordbox comes next.
+  confirmation; the songs stay in your collection).
+- **Import playlists from Rekordbox** (Playlists **+** → *Import from
+  Rekordbox…*): pick one or more playlists exported from Rekordbox
+  (right-click a playlist → *Export a playlist to a file* → **m3u8** is
+  best, **Text** works too), or the whole collection exported from
+  Rekordbox's **File → Export Collection in xml format** with all its
+  folders. A summary shows how many songs were found before anything
+  changes. They go in a **Rekordbox** folder; importing the same export
+  again refreshes them. *Keep as my own* stops a playlist being refreshed.
 
 ## 1.0.52 — 2026-10-01
 

@@ -28,6 +28,7 @@ import type {
   RecordingResult,
   ScreenDisplay,
   PlaylistNode,
+  RekordboxImportPlan,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -88,6 +89,10 @@ const api = {
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),
   getPlaylistNodes: (): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:getNodes'),
+  pickRekordboxImport: (): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> =>
+    ipcRenderer.invoke('playlists:pickRekordbox'),
+  importRekordbox: (filePaths: string[]): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:importRekordbox', filePaths),
+  detachPlaylistNode: (id: number): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:detach', id),
   createPlaylistNode: (kind: 'folder' | 'playlist', name: string, parentId: number | null): Promise<{ id: number; nodes: PlaylistNode[] }> =>
     ipcRenderer.invoke('playlists:create', kind, name, parentId),
   renamePlaylistNode: (id: number, name: string): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:rename', id, name),

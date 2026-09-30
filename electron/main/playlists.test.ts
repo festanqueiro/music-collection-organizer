@@ -9,7 +9,12 @@ import {
   getPlaylistTrackIds,
   removeTracksFromPlaylist,
   renamePlaylistNode,
+  applyRekordboxImport,
+  detachPlaylistNode,
+  planRekordboxImport,
+  rekordboxTxtToTree,
 } from './playlists'
+import type { RekordboxNode } from './rekordboxXml'
 
 describe('playlists', () => {
   let db: AppDatabase
@@ -91,5 +96,59 @@ describe('playlists', () => {
     addTracksToPlaylist(db, outside, [t[3]])
     expect(getNodeTrackIds(db, f)).toEqual([t[1], t[2], t[0]])
     expect(getNodeTrackIds(db, b)).toEqual([t[2], t[0]])
+  })
+})
+
+describe('rekordbox import', () => {
+  let db: AppDatabase
+  beforeEach(() => {
+    db = openDatabase(':memory:')
+    const insert = db.prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime, title, artist) VALUES (?, ?, '/', 'wav', 1, 1, ?, ?)`)
+    insert.run('/m/a.wav', 'a.wav', 'Hornsman', 'King Earthquake')
+    insert.run('/m/b.wav', 'b.wav', 'Long Time ft. Galas', 'D-Operation Drop')
+  })
+  const tree = (paths: string[]): RekordboxNode[] => [
+    { kind: 'folder', name: 'Sets', children: [{ kind: 'playlist', name: 'Bassin', paths }] },
+  ]
+
+  it('plans, imports under a Rekordbox folder, and refreshes on a second import', () => {
+    const plan = planRekordboxImport(db, tree(['/m/b.wav', '/M/A.wav', '/elsewhere.wav']))
+    expect(plan).toMatchObject({ folders: 1, songs: 3, matched: 2, gone: [] })
+    expect(plan.playlists).toEqual([{ name: 'Sets / Bassin', songs: 3, matched: 2, refresh: false }])
+    applyRekordboxImport(db, tree(['/m/b.wav', '/M/A.wav', '/elsewhere.wav']))
+    const nodes = getPlaylistNodes(db)
+    expect(nodes.map((n) => [n.name, n.kind, n.source])).toEqual([
+      ['Rekordbox', 'folder', 'rekordbox'],
+      ['Sets', 'folder', 'rekordbox'],
+      ['Bassin', 'playlist', 'rekordbox'],
+    ])
+    const bassin = nodes[2].id
+    expect(getPlaylistTrackIds(db, bassin)).toHaveLength(2)
+
+    expect(planRekordboxImport(db, tree(['/m/a.wav'])).playlists[0].refresh).toBe(true)
+    applyRekordboxImport(db, tree(['/m/a.wav']))
+    expect(getPlaylistNodes(db)).toHaveLength(3)
+    expect(getPlaylistTrackIds(db, bassin)).toHaveLength(1)
+    expect(planRekordboxImport(db, []).gone).toEqual(['Bassin'])
+  })
+
+  it('leaves playlists made in MCO or kept as own alone', () => {
+    applyRekordboxImport(db, tree(['/m/a.wav']))
+    const bassin = getPlaylistNodes(db).find((n) => n.name === 'Bassin')!.id
+    detachPlaylistNode(db, bassin)
+    applyRekordboxImport(db, tree(['/m/b.wav']))
+    const named = getPlaylistNodes(db).filter((n) => n.name === 'Bassin')
+    expect(named).toHaveLength(2)
+    expect(getPlaylistTrackIds(db, bassin)).toHaveLength(1)
+  })
+
+  it('matches a text export by title and artist, ignoring case and punctuation', () => {
+    const [node] = rekordboxTxtToTree(db, 'Starters', [
+      { title: 'HORNSMAN', artist: 'King Earthquake' },
+      { title: 'Long Time ft Galas', artist: 'D-Operation Drop / DPRTNDRP' },
+      { title: 'Unknown', artist: 'Nobody' },
+    ])
+    expect(node.kind === 'playlist' && node.paths.slice(0, 2)).toEqual(['/m/a.wav', '/m/b.wav'])
+    expect(planRekordboxImport(db, [node]).matched).toBe(2)
   })
 })

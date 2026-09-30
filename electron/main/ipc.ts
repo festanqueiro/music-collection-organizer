@@ -92,7 +92,12 @@ import {
   getPlaylistTrackIds,
   removeTracksFromPlaylist,
   renamePlaylistNode,
+  applyRekordboxImport,
+  detachPlaylistNode,
+  planRekordboxImport,
+  rekordboxTxtToTree,
 } from './playlists'
+import { decodeRekordboxText, parseM3u, parseRekordboxTxt, parseRekordboxXml, type RekordboxNode } from './rekordboxXml'
 import type {
   Track,
   Genre,
@@ -115,6 +120,7 @@ import type {
   ExternalBackupInfo,
   ExternalBackupResult,
   PlaylistNode,
+  RekordboxImportPlan,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -683,6 +689,42 @@ export function registerIpcHandlers(
   })
   ipcMain.handle('playlists:delete', (_e, id: number): PlaylistNode[] => {
     deletePlaylistNode(db, id)
+    return getPlaylistNodes(db)
+  })
+  // Rekordbox: the whole collection's XML export (File menu), or single
+  // playlists exported as .m3u8 (paths) or .txt (titles) — several at once.
+  const readRekordboxFiles = (filePaths: string[]): RekordboxNode[] =>
+    filePaths.flatMap((filePath): RekordboxNode[] => {
+      const text = decodeRekordboxText(readFileSync(filePath))
+      if (/\.xml$/i.test(filePath)) return parseRekordboxXml(text)
+      const name = basename(filePath).replace(/\.[^.]+$/, '')
+      if (/\.m3u8?$/i.test(filePath)) return [{ kind: 'playlist', name, paths: parseM3u(text) }]
+      return rekordboxTxtToTree(db, name, parseRekordboxTxt(text))
+    })
+  ipcMain.handle(
+    'playlists:pickRekordbox',
+    async (event): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> => {
+      const window = BrowserWindow.fromWebContents(event.sender)
+      const options = {
+        title: 'Import from Rekordbox',
+        properties: ['openFile' as const, 'multiSelections' as const],
+        filters: [{ name: 'Rekordbox export', extensions: ['m3u8', 'm3u', 'txt', 'xml'] }],
+      }
+      const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
+      if (result.canceled || result.filePaths.length === 0) return null
+      try {
+        return { filePaths: result.filePaths, plan: planRekordboxImport(db, readRekordboxFiles(result.filePaths)) }
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+  )
+  ipcMain.handle('playlists:importRekordbox', (_e, filePaths: string[]): PlaylistNode[] => {
+    applyRekordboxImport(db, readRekordboxFiles(filePaths))
+    return getPlaylistNodes(db)
+  })
+  ipcMain.handle('playlists:detach', (_e, id: number): PlaylistNode[] => {
+    detachPlaylistNode(db, id)
     return getPlaylistNodes(db)
   })
   ipcMain.handle('playlists:getTrackIds', (_e, playlistId: number): number[] => getPlaylistTrackIds(db, playlistId))

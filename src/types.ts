@@ -109,6 +109,16 @@ export interface PlaylistNode {
   trackCount: number
 }
 
+// What a Rekordbox import will do, shown before anything is written.
+export interface RekordboxImportPlan {
+  folders: number
+  playlists: { name: string; songs: number; matched: number; refresh: boolean }[]
+  songs: number
+  matched: number
+  // Imported playlists that aren't in this export any more (kept).
+  gone: string[]
+}
+
 // Auto-updater state, pushed from main (electron/main/updater.ts).
 //   disabled    — this build never updates itself (dev, BETA); see error
 //   available   — latestVersion is newer; canInstall says whether this
