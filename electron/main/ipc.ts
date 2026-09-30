@@ -83,6 +83,16 @@ import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
 import { getCastableFilePath } from './audioTranscode'
 import { registerRecordingIpc } from './recording'
 import { mimeTypeFor } from './mediaTypes'
+import {
+  addTracksToPlaylist,
+  createPlaylistNode,
+  deletePlaylistNode,
+  getNodeTrackIds,
+  getPlaylistNodes,
+  getPlaylistTrackIds,
+  removeTracksFromPlaylist,
+  renamePlaylistNode,
+} from './playlists'
 import type {
   Track,
   Genre,
@@ -104,6 +114,7 @@ import type {
   WriteTagsResult,
   ExternalBackupInfo,
   ExternalBackupResult,
+  PlaylistNode,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -655,6 +666,42 @@ export function registerIpcHandlers(
   )
 
   ipcMain.handle('tags:createGenre', (_e, name: string): number => createGenre(db, name))
+
+  // Playlists (docs/features/playlists.md): changes return the tree after
+  // the write, so the store patches locally.
+  ipcMain.handle('playlists:getNodes', (): PlaylistNode[] => getPlaylistNodes(db))
+  ipcMain.handle(
+    'playlists:create',
+    (_e, kind: 'folder' | 'playlist', name: string, parentId: number | null): { id: number; nodes: PlaylistNode[] } => {
+      const id = createPlaylistNode(db, kind, name, parentId)
+      return { id, nodes: getPlaylistNodes(db) }
+    }
+  )
+  ipcMain.handle('playlists:rename', (_e, id: number, name: string): PlaylistNode[] => {
+    renamePlaylistNode(db, id, name)
+    return getPlaylistNodes(db)
+  })
+  ipcMain.handle('playlists:delete', (_e, id: number): PlaylistNode[] => {
+    deletePlaylistNode(db, id)
+    return getPlaylistNodes(db)
+  })
+  ipcMain.handle('playlists:getTrackIds', (_e, playlistId: number): number[] => getPlaylistTrackIds(db, playlistId))
+  ipcMain.handle('playlists:getNodeTrackIds', (_e, id: number): number[] => getNodeTrackIds(db, id))
+  ipcMain.handle(
+    'playlists:addTracks',
+    (_e, playlistId: number, trackIds: number[]): { added: number; skipped: number; trackIds: number[]; nodes: PlaylistNode[] } => ({
+      ...addTracksToPlaylist(db, playlistId, trackIds),
+      trackIds: getPlaylistTrackIds(db, playlistId),
+      nodes: getPlaylistNodes(db),
+    })
+  )
+  ipcMain.handle(
+    'playlists:removeTracks',
+    (_e, playlistId: number, trackIds: number[]): { trackIds: number[]; nodes: PlaylistNode[] } => {
+      removeTracksFromPlaylist(db, playlistId, trackIds)
+      return { trackIds: getPlaylistTrackIds(db, playlistId), nodes: getPlaylistNodes(db) }
+    }
+  )
   ipcMain.handle('tags:createSubgenre', (_e, name: string, genreId: number): number =>
     createSubgenre(db, name, genreId)
   )

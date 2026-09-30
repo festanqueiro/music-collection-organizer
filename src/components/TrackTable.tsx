@@ -8,6 +8,7 @@ import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
 import { baseName, isInFolder } from '../paths'
+import { AddToPlaylistMenu } from './PlaylistsBox'
 // Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 
@@ -173,6 +174,18 @@ export function TrackTable({
   const sortKey = sortState.key
   const sortDir = sortState.direction
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
+  const [addToPlaylistMenu, setAddToPlaylistMenu] = useState<{ trackIds: number[]; x: number; y: number } | null>(null)
+  // The selected playlist (docs/features/playlists.md): its songs, in its
+  // order until a column header is clicked.
+  const selectedPlaylistId = useCollectionStore((s) => s.selectedPlaylistId)
+  const selectedPlaylistTrackIds = useCollectionStore((s) => s.selectedPlaylistTrackIds)
+  const selectedPlaylistName = useCollectionStore(
+    (s) => s.playlistNodes.find((n) => n.id === s.selectedPlaylistId)?.name ?? null
+  )
+  const selectPlaylist = useCollectionStore((s) => s.selectPlaylist)
+  const removeTracksFromSelectedPlaylist = useCollectionStore((s) => s.removeTracksFromSelectedPlaylist)
+  const [playlistOrder, setPlaylistOrder] = useState(true)
+  useEffect(() => setPlaylistOrder(true), [selectedPlaylistId])
   // Show/hide columns: from the columns button or a right-click on any header.
   const [columnsMenu, setColumnsMenu] = useState<{ x: number; y: number } | null>(null)
   // Anchor for shift-click range checking — the last row whose checkbox
@@ -259,6 +272,12 @@ export function TrackTable({
   }
 
   function handleSort(key: SortKey) {
+    if (selectedPlaylistId !== null && playlistOrder) {
+      // The first click leaves the playlist's order for this column.
+      setPlaylistOrder(false)
+      setSortState({ key, direction: key === sortKey ? sortDir : 'asc' })
+      return
+    }
     if (key === sortKey) {
       setSortState({ key, direction: sortDir === 'asc' ? 'desc' : 'asc' })
     } else {
@@ -300,8 +319,15 @@ export function TrackTable({
 
   const visibleTracks = useMemo(() => {
     const query = searchText.trim().toLowerCase()
-    // Missing Tracks lists the files that are gone instead of the collection.
-    return (missingTracksFilter ? missingTracks : tracks)
+    // Missing Tracks lists the files that are gone instead of the
+    // collection; a playlist lists its songs (missing ones too, greyed).
+    let source = missingTracksFilter ? missingTracks : tracks
+    if (selectedPlaylistId !== null && !missingTracksFilter) {
+      const byId = new Map([...tracks, ...missingTracks.map((t) => ({ ...t, missing: true }))].map((t) => [t.id, t]))
+      source = [...new Set(selectedPlaylistTrackIds)].map((id) => byId.get(id)).filter((t): t is Track => !!t)
+    }
+    const inPlaylistOrder = selectedPlaylistId !== null && playlistOrder && !duplicates
+    return source
       .filter((t) => (selectedFolder ? isInFolder(t.folder, selectedFolder) : true))
       .filter(activeFilter)
       .filter((t) => {
@@ -330,6 +356,7 @@ export function TrackTable({
           : true
       )
       .sort((a, b) => {
+        if (inPlaylistOrder) return 0
         // Duplicates: copies of the same song sit together, each group in
         // the chosen sort order.
         if (duplicates) {
@@ -362,6 +389,9 @@ export function TrackTable({
     missingTracksFilter,
     missingTracks,
     cloudOnlyFilter,
+    selectedPlaylistId,
+    selectedPlaylistTrackIds,
+    playlistOrder,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
 
@@ -736,6 +766,21 @@ export function TrackTable({
           />
         )}
         {tagFilterChip && <FilterChip icon={tagFilterChip.icon} label={tagFilterChip.label} onClear={onClearTagFilter} />}
+        {selectedPlaylistId !== null && selectedPlaylistName && (
+          <FilterChip icon="queue_music" label={selectedPlaylistName} onClear={() => void selectPlaylist(null)} />
+        )}
+        {selectedPlaylistId !== null && !playlistOrder && (
+          <button
+            onClick={() => setPlaylistOrder(true)}
+            title="Back to the playlist's own order"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              format_list_numbered
+            </span>
+            Playlist order
+          </button>
+        )}
         {/* The Filters view's active filters, each with a quick way off. */}
         {compatibleFilter && (
           <FilterChip
@@ -835,7 +880,7 @@ export function TrackTable({
                   }}
                 >
                   {col.label}
-                  {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  {sortKey === col.key && !(selectedPlaylistId !== null && playlistOrder) ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                   <div
                     onMouseDown={(e) => handleResizeStart(col.key, e)}
                     onClick={(e) => e.stopPropagation()}
@@ -862,7 +907,9 @@ export function TrackTable({
                   colSpan={orderedColumns.length + 4}
                   style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-dim)' }}
                 >
-                  No tracks match your search/filter.
+                  {selectedPlaylistId !== null && selectedPlaylistTrackIds.length === 0
+                    ? 'This playlist is empty — drag songs onto it, or right-click a song → Add to playlist.'
+                    : 'No tracks match your search/filter.'}
                 </td>
               </tr>
             )}
@@ -1010,6 +1057,32 @@ export function TrackTable({
                 </button>
                 <button
                   onClick={() => {
+                    setAddToPlaylistMenu({ trackIds: menuTrackIds, x: contextMenu.x, y: contextMenu.y })
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    queue_music
+                  </span>
+                  Add all to playlist…
+                </button>
+                {selectedPlaylistId !== null && (
+                  <button
+                    onClick={() => {
+                      void removeTracksFromSelectedPlaylist(menuTrackIds)
+                      setContextMenu(null)
+                    }}
+                    style={contextMenuItemStyle}
+                  >
+                    <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                      playlist_remove
+                    </span>
+                    Remove all from {selectedPlaylistName}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
                     runAnalysis(menuTrackIds)
                     setContextMenu(null)
                   }}
@@ -1075,6 +1148,32 @@ export function TrackTable({
             </button>
             <button
               onClick={() => {
+                setAddToPlaylistMenu({ trackIds: [contextMenu.trackId], x: contextMenu.x, y: contextMenu.y })
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                queue_music
+              </span>
+              Add to playlist…
+            </button>
+            {selectedPlaylistId !== null && (
+              <button
+                onClick={() => {
+                  void removeTracksFromSelectedPlaylist([contextMenu.trackId])
+                  setContextMenu(null)
+                }}
+                style={contextMenuItemStyle}
+              >
+                <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                  playlist_remove
+                </span>
+                Remove from {selectedPlaylistName}
+              </button>
+            )}
+            <button
+              onClick={() => {
                 previewTrack(contextMenu.trackId)
                 setContextMenu(null)
               }}
@@ -1127,6 +1226,9 @@ export function TrackTable({
               </>
             )}
           </div>
+        )}
+        {addToPlaylistMenu && (
+          <AddToPlaylistMenu {...addToPlaylistMenu} onClose={() => setAddToPlaylistMenu(null)} />
         )}
       </div>
     </>

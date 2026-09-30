@@ -2,6 +2,7 @@
 import { create, type StoreApi } from 'zustand'
 import type {
   Track,
+  PlaylistNode,
   RecordingFormat,
   MicSettings,
   EditableTags,
@@ -66,6 +67,7 @@ let talkPress: { at: number; wasLive: boolean } | null = null
 
 // Backs showToast's auto-dismiss below.
 let toastTimeout: ReturnType<typeof setTimeout> | null = null
+let queueUndoTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Coalesces rapid MIDI CC bursts to at most one store update per animation
 // frame, per control — a touch-sensitive hardware knob/fader can send
@@ -434,6 +436,25 @@ export interface CollectionState {
   // closing looks identical to the click not registering at all.
   toastMessage: string | null
   showToast: (message: string) => void
+  // Playlists (docs/features/playlists.md) — named "playlistNodes"/"saved"
+  // because `playlist` above is the queue. The selected playlist's songs,
+  // in order, are what the table shows while it's selected.
+  playlistNodes: PlaylistNode[]
+  selectedPlaylistId: number | null
+  selectedPlaylistTrackIds: number[]
+  loadPlaylists: () => Promise<void>
+  selectPlaylist: (id: number | null) => Promise<void>
+  createPlaylistNode: (kind: 'folder' | 'playlist', name: string, parentId: number | null) => Promise<number>
+  renamePlaylistNode: (id: number, name: string) => Promise<void>
+  deletePlaylistNode: (id: number) => Promise<void>
+  addTracksToSavedPlaylist: (playlistId: number, trackIds: number[]) => Promise<void>
+  removeTracksFromSelectedPlaylist: (trackIds: number[]) => Promise<void>
+  // Replaces the queue with a playlist's (or a folder's) songs and plays
+  // the first; the queue it replaced can be brought back for a while.
+  playPlaylistNode: (id: number) => Promise<void>
+  queueUndo: { message: string; previous: number[] } | null
+  undoQueueReplace: () => void
+  dismissQueueUndo: () => void
   midiMappings: MidiMappings
   midiLearningControl: MidiControlKey | null
   loadMidiMappings: () => Promise<void>
@@ -848,6 +869,80 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     if (toastTimeout) clearTimeout(toastTimeout)
     set({ toastMessage: message })
     toastTimeout = setTimeout(() => set({ toastMessage: null }), 3000)
+  },
+
+  playlistNodes: [],
+  selectedPlaylistId: null,
+  selectedPlaylistTrackIds: [],
+  loadPlaylists: async () => set({ playlistNodes: await window.api.getPlaylistNodes() }),
+  selectPlaylist: async (id) => {
+    if (id === null) return set({ selectedPlaylistId: null, selectedPlaylistTrackIds: [] })
+    set({ selectedPlaylistId: id })
+    const trackIds = await window.api.getPlaylistTrackIds(id)
+    // Another playlist may have been picked meanwhile.
+    if (get().selectedPlaylistId === id) set({ selectedPlaylistTrackIds: trackIds })
+  },
+  createPlaylistNode: async (kind, name, parentId) => {
+    const { id, nodes } = await window.api.createPlaylistNode(kind, name, parentId)
+    set({ playlistNodes: nodes })
+    return id
+  },
+  renamePlaylistNode: async (id, name) => set({ playlistNodes: await window.api.renamePlaylistNode(id, name) }),
+  deletePlaylistNode: async (id) => {
+    const nodes = await window.api.deletePlaylistNode(id)
+    set({ playlistNodes: nodes })
+    const selected = get().selectedPlaylistId
+    if (selected !== null && !nodes.some((n) => n.id === selected)) set({ selectedPlaylistId: null, selectedPlaylistTrackIds: [] })
+  },
+  addTracksToSavedPlaylist: async (playlistId, trackIds) => {
+    if (trackIds.length === 0) return
+    const result = await window.api.addTracksToPlaylist(playlistId, trackIds)
+    set({ playlistNodes: result.nodes })
+    if (get().selectedPlaylistId === playlistId) set({ selectedPlaylistTrackIds: result.trackIds })
+    const name = result.nodes.find((n) => n.id === playlistId)?.name ?? 'the playlist'
+    const songs = (n: number) => `${n} song${n === 1 ? '' : 's'}`
+    get().showToast(
+      result.added === 0
+        ? `Already in ${name}`
+        : `Added ${songs(result.added)} to ${name}${result.skipped > 0 ? ` (${result.skipped} already in it)` : ''}`
+    )
+  },
+  removeTracksFromSelectedPlaylist: async (trackIds) => {
+    const playlistId = get().selectedPlaylistId
+    if (playlistId === null || trackIds.length === 0) return
+    const result = await window.api.removeTracksFromPlaylist(playlistId, trackIds)
+    set({ playlistNodes: result.nodes })
+    if (get().selectedPlaylistId === playlistId) set({ selectedPlaylistTrackIds: result.trackIds })
+  },
+  playPlaylistNode: async (id) => {
+    const node = get().playlistNodes.find((n) => n.id === id)
+    // Songs whose file is gone can't play; they stay in the playlist.
+    const present = new Set(get().tracks.map((t) => t.id))
+    const ids = (await window.api.getPlaylistNodeTrackIds(id)).filter((trackId) => present.has(trackId))
+    if (ids.length === 0) return get().showToast(`Nothing to play in ${node?.name ?? 'it'}`)
+    if (!(await downloadBeforePlaying(get, ids[0]))) return
+    const previous = get().playlist
+    set({ playlist: ids })
+    triggerBackgroundAnalysisForMany(get, ids)
+    prefetchUpcoming(get)
+    const message = `Playing ${node?.name ?? 'the playlist'} — ${ids.length} song${ids.length === 1 ? '' : 's'}`
+    // Only worth an undo if there was a queue to lose.
+    if (previous.length > 1) {
+      if (queueUndoTimeout) clearTimeout(queueUndoTimeout)
+      set({ queueUndo: { message, previous } })
+      queueUndoTimeout = setTimeout(() => set({ queueUndo: null }), 8000)
+    } else get().showToast(message)
+  },
+  queueUndo: null,
+  undoQueueReplace: () => {
+    const undo = get().queueUndo
+    if (queueUndoTimeout) clearTimeout(queueUndoTimeout)
+    set({ queueUndo: null })
+    if (undo) set({ playlist: undo.previous })
+  },
+  dismissQueueUndo: () => {
+    if (queueUndoTimeout) clearTimeout(queueUndoTimeout)
+    set({ queueUndo: null })
   },
 
   setPlaybackControls: (controls) => set({ playbackControls: controls }),
@@ -1419,12 +1514,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   loadAll: async () => {
-    const [tracks, genres, subgenres, tagIdRows, missingTracks] = await Promise.all([
+    const [tracks, genres, subgenres, tagIdRows, missingTracks, playlistNodes] = await Promise.all([
       window.api.getTracks(),
       window.api.getGenres(),
       window.api.getSubgenres(),
       window.api.getAllTagIds(),
       window.api.getMissingTracks(),
+      // Counts change when a scan or a delete removes tracks.
+      window.api.getPlaylistNodes(),
     ])
     const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
     // Keeps the batch selection across a reload (creating/renaming/
@@ -1433,7 +1530,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // that no longer exist, e.g. after a rescan marked them missing.
     const trackIds = new Set(tracks.map((t) => t.id))
     const checkedTrackIds = new Set([...get().checkedTrackIds].filter((id) => trackIds.has(id)))
-    set({ tracks, genres, subgenres, trackTags, checkedTrackIds, missingTracks })
+    set({ tracks, genres, subgenres, trackTags, checkedTrackIds, missingTracks, playlistNodes })
+    const playlistId = get().selectedPlaylistId
+    if (playlistId !== null) await get().selectPlaylist(playlistNodes.some((n) => n.id === playlistId) ? playlistId : null)
   },
 
   setAnalysisProgress: (progress) => set({ analysisProgress: progress }),

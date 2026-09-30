@@ -27,6 +27,7 @@ import type {
   MicSettings,
   RecordingResult,
   ScreenDisplay,
+  PlaylistNode,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -86,6 +87,20 @@ const api = {
   getGenres: (): Promise<Genre[]> => ipcRenderer.invoke('tags:getGenres'),
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),
+  getPlaylistNodes: (): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:getNodes'),
+  createPlaylistNode: (kind: 'folder' | 'playlist', name: string, parentId: number | null): Promise<{ id: number; nodes: PlaylistNode[] }> =>
+    ipcRenderer.invoke('playlists:create', kind, name, parentId),
+  renamePlaylistNode: (id: number, name: string): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:rename', id, name),
+  deletePlaylistNode: (id: number): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:delete', id),
+  getPlaylistTrackIds: (playlistId: number): Promise<number[]> => ipcRenderer.invoke('playlists:getTrackIds', playlistId),
+  getPlaylistNodeTrackIds: (id: number): Promise<number[]> => ipcRenderer.invoke('playlists:getNodeTrackIds', id),
+  addTracksToPlaylist: (
+    playlistId: number,
+    trackIds: number[]
+  ): Promise<{ added: number; skipped: number; trackIds: number[]; nodes: PlaylistNode[] }> =>
+    ipcRenderer.invoke('playlists:addTracks', playlistId, trackIds),
+  removeTracksFromPlaylist: (playlistId: number, trackIds: number[]): Promise<{ trackIds: number[]; nodes: PlaylistNode[] }> =>
+    ipcRenderer.invoke('playlists:removeTracks', playlistId, trackIds),
   createGenre: (name: string): Promise<number> => ipcRenderer.invoke('tags:createGenre', name),
   createSubgenre: (name: string, genreId: number): Promise<number> =>
     ipcRenderer.invoke('tags:createSubgenre', name, genreId),

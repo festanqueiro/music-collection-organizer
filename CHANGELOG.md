@@ -4,6 +4,20 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## Unreleased
+
+### Added
+- **Playlists** (first part): a **Playlists** box at the bottom of the
+  sidebar, under Folders / Tags / Subtags / Filters. Make playlists and
+  folders with **+**; click one to see its songs in the table, in the
+  playlist's order (click a column to sort, *Playlist order* to go back).
+  Add songs by dragging rows onto a playlist or with right-click → **Add to
+  playlist…**; remove them with right-click → **Remove from…**. Right-click
+  a playlist to **Play playlist** (replaces the queue — *Undo* brings the
+  old one back), add it to the queue, rename it or **Delete** it (after a
+  confirmation; the songs stay in your collection). Importing from
+  Rekordbox comes next.
+
 ## 1.0.52 — 2026-10-01
 
 ### Added

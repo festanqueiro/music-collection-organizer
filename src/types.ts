@@ -97,6 +97,18 @@ export interface Subgenre {
   color: string | null
 }
 
+// A playlist or a folder of them (docs/features/playlists.md). Siblings
+// are ordered by position; trackCount is 0 for folders.
+export interface PlaylistNode {
+  id: number
+  parentId: number | null
+  kind: 'folder' | 'playlist'
+  name: string
+  position: number
+  source: 'mco' | 'rekordbox'
+  trackCount: number
+}
+
 // Auto-updater state, pushed from main (electron/main/updater.ts).
 //   disabled    — this build never updates itself (dev, BETA); see error
 //   available   — latestVersion is newer; canInstall says whether this

@@ -15,6 +15,8 @@ describe('openDatabase', () => {
     expect(tables).toEqual([
       'genres',
       'moods',
+      'playlist_nodes',
+      'playlist_tracks',
       'subgenres',
       'track_genres',
       'track_moods',
