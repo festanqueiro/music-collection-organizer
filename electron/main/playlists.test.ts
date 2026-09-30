@@ -13,6 +13,7 @@ import {
   detachPlaylistNode,
   planRekordboxImport,
   rekordboxTxtToTree,
+  movePlaylistNode,
 } from './playlists'
 import type { RekordboxNode } from './rekordboxXml'
 
@@ -150,5 +151,26 @@ describe('rekordbox import', () => {
     ])
     expect(node.kind === 'playlist' && node.paths.slice(0, 2)).toEqual(['/m/a.wav', '/m/b.wav'])
     expect(planRekordboxImport(db, [node]).matched).toBe(2)
+  })
+})
+
+describe('moving playlists', () => {
+  it('moves into folders, before/after siblings, and to the top; never into itself', () => {
+    const db = openDatabase(':memory:')
+    const f = createPlaylistNode(db, 'folder', 'F', null)
+    const g = createPlaylistNode(db, 'folder', 'G', f)
+    const a = createPlaylistNode(db, 'playlist', 'A', null)
+    const b = createPlaylistNode(db, 'playlist', 'B', null)
+    const names = () => getPlaylistNodes(db).map((n) => `${n.name}<${n.parentId === null ? '' : getPlaylistNodes(db).find((p) => p.id === n.parentId)!.name}`)
+    movePlaylistNode(db, b, f, 'into')
+    expect(names()).toEqual(['F<', 'G<F', 'B<F', 'A<'])
+    movePlaylistNode(db, a, g, 'before')
+    expect(names()).toEqual(['F<', 'A<F', 'G<F', 'B<F'])
+    movePlaylistNode(db, a, b, 'after')
+    expect(names()).toEqual(['F<', 'G<F', 'B<F', 'A<F'])
+    movePlaylistNode(db, b, null, 'into')
+    expect(names()).toEqual(['F<', 'G<F', 'A<F', 'B<'])
+    expect(() => movePlaylistNode(db, f, g, 'into')).toThrow()
+    expect(() => movePlaylistNode(db, g, a, 'into')).toThrow()
   })
 })

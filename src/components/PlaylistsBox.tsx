@@ -38,6 +38,11 @@ function loadLayout(): Layout {
 // A name being typed: a new node under `parentId`, or a rename of `id`.
 type Editing = { kind: 'create'; nodeKind: PlaylistNode['kind']; parentId: number | null } | { kind: 'rename'; id: number }
 
+// Playlists and folders dragged inside the box (rows from the table come
+// as files instead).
+const NODE_TYPE = 'application/x-mco-playlist-node'
+type DropWhere = 'before' | 'after' | 'into'
+
 const songs = (n: number) => `${n} song${n === 1 ? '' : 's'}`
 
 export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: number) => void }) {
@@ -66,6 +71,25 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   const [menu, setMenu] = useState<{ x: number; y: number; node: PlaylistNode | null } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PlaylistNode | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
+  const [nodeDrop, setNodeDrop] = useState<{ id: number | null; where: DropWhere } | null>(null)
+
+  async function moveNode(id: number, targetId: number | null, where: DropWhere) {
+    try {
+      useCollectionStore.setState({ playlistNodes: await window.api.movePlaylistNode(id, targetId, where) })
+      if (where === 'into' && targetId !== null && closed.has(targetId)) toggleFolder(targetId)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+    }
+  }
+
+  // Where a node dropped on `node` lands: a folder takes it in unless it's
+  // near its top or bottom edge; a playlist puts it before or after itself.
+  function dropWhere(e: React.DragEvent, node: PlaylistNode): DropWhere {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const y = (e.clientY - rect.top) / rect.height
+    if (node.kind === 'folder') return y < 0.25 ? 'before' : y > 0.75 ? 'after' : 'into'
+    return y < 0.5 ? 'before' : 'after'
+  }
   const [importPlan, setImportPlan] = useState<{ filePaths: string[]; plan: RekordboxImportPlan } | null>(null)
 
   async function pickImport() {
@@ -213,7 +237,21 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                   e.stopPropagation()
                   setMenu({ x: e.clientX, y: e.clientY, node })
                 }}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(NODE_TYPE, String(node.id))
+                  e.dataTransfer.effectAllowed = 'move'
+                }}
+                onDragEnd={() => setNodeDrop(null)}
                 onDragOver={(e) => {
+                  if (e.dataTransfer.types.includes(NODE_TYPE)) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    e.dataTransfer.dropEffect = 'move'
+                    const where = dropWhere(e, node)
+                    if (nodeDrop?.id !== node.id || nodeDrop.where !== where) setNodeDrop({ id: node.id, where })
+                    return
+                  }
                   if (isFolder || !e.dataTransfer.types.includes('Files')) return
                   e.preventDefault()
                   // As the folder tree: the rows' native file drag offers a move.
@@ -225,8 +263,15 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                 }}
                 onDrop={(e) => {
                   e.preventDefault()
+                  e.stopPropagation()
                   setDropTarget(null)
-                  dropFiles(node.id, e.dataTransfer.files)
+                  const moved = e.dataTransfer.getData(NODE_TYPE)
+                  if (moved) {
+                    setNodeDrop(null)
+                    if (Number(moved) !== node.id) void moveNode(Number(moved), node.id, dropWhere(e, node))
+                    return
+                  }
+                  if (!isFolder) dropFiles(node.id, e.dataTransfer.files)
                 }}
                 title={isFolder ? node.name : `${node.name} — ${songs(node.trackCount)}`}
                 style={{
@@ -238,8 +283,18 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                   paddingRight: '4px',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  background: isDrop ? 'var(--color-selected)' : selected ? 'var(--color-surface-raised)' : undefined,
-                  outline: isDrop ? '1px solid var(--color-accent)' : undefined,
+                  background:
+                    isDrop || (nodeDrop?.id === node.id && nodeDrop.where === 'into')
+                      ? 'var(--color-selected)'
+                      : selected
+                        ? 'var(--color-surface-raised)'
+                        : undefined,
+                  outline: isDrop || (nodeDrop?.id === node.id && nodeDrop.where === 'into') ? '1px solid var(--color-accent)' : undefined,
+                  // A line where a dragged playlist or folder will land.
+                  boxShadow:
+                    nodeDrop?.id === node.id && nodeDrop.where !== 'into'
+                      ? `inset 0 ${nodeDrop.where === 'before' ? '2px' : '-2px'} 0 var(--color-accent)`
+                      : undefined,
                   color: selected || isDrop ? 'var(--color-accent)' : undefined,
                 }}
               >
@@ -329,6 +384,22 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
           onContextMenu={(e) => {
             e.preventDefault()
             setMenu({ x: e.clientX, y: e.clientY, node: null })
+          }}
+          // Dropped below the tree: to the end of the top level.
+          onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes(NODE_TYPE)) return
+            e.preventDefault()
+            if (nodeDrop?.id !== null) setNodeDrop({ id: null, where: 'into' })
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setNodeDrop(null)
+          }}
+          onDrop={(e) => {
+            const moved = e.dataTransfer.getData(NODE_TYPE)
+            setNodeDrop(null)
+            if (!moved) return
+            e.preventDefault()
+            void moveNode(Number(moved), null, 'into')
           }}
         >
           {nodes.length === 0 && !editing ? (

@@ -24,6 +24,9 @@ installed copies update themselves.
   folders. A summary shows how many songs were found before anything
   changes. They go in a **Rekordbox** folder; importing the same export
   again refreshes them. *Keep as my own* stops a playlist being refreshed.
+- **Playlists**: drag playlists and folders inside the Playlists box — onto
+  a folder to put them in it, onto the top or bottom edge of a row to place
+  them before or after it, or below the tree to bring them to the top level.
 
 ## 1.0.52 — 2026-10-01
 

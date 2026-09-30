@@ -94,6 +94,7 @@ import {
   renamePlaylistNode,
   applyRekordboxImport,
   detachPlaylistNode,
+  movePlaylistNode,
   planRekordboxImport,
   rekordboxTxtToTree,
 } from './playlists'
@@ -723,6 +724,13 @@ export function registerIpcHandlers(
     applyRekordboxImport(db, readRekordboxFiles(filePaths))
     return getPlaylistNodes(db)
   })
+  ipcMain.handle(
+    'playlists:move',
+    (_e, id: number, targetId: number | null, where: 'before' | 'after' | 'into'): PlaylistNode[] => {
+      movePlaylistNode(db, id, targetId, where)
+      return getPlaylistNodes(db)
+    }
+  )
   ipcMain.handle('playlists:detach', (_e, id: number): PlaylistNode[] => {
     detachPlaylistNode(db, id)
     return getPlaylistNodes(db)

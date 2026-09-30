@@ -266,3 +266,32 @@ export function rekordboxTxtToTree(db: AppDatabase, name: string, rows: Rekordbo
   })
   return [{ kind: 'playlist', name, paths }]
 }
+
+// Moves a node next to another ('before'/'after'), into a folder ('into',
+// at the end), or to the end of the top level (targetId null). Siblings
+// are renumbered in their new order. A folder can't go inside itself.
+export function movePlaylistNode(
+  db: AppDatabase,
+  id: number,
+  targetId: number | null,
+  where: 'before' | 'after' | 'into'
+): void {
+  runInTransaction(db, () => {
+    const nodes = getPlaylistNodes(db)
+    const byId = new Map(nodes.map((n) => [n.id, n]))
+    const target = targetId === null ? null : byId.get(targetId)
+    if (!byId.has(id) || (targetId !== null && !target) || id === targetId) return
+    const parentId = target === null ? null : where === 'into' ? target!.id : target!.parentId
+    if (parentId !== null && byId.get(parentId)?.kind !== 'folder') throw new Error('A playlist can only go inside a folder')
+    for (let p = parentId; p !== null; p = byId.get(p)?.parentId ?? null) {
+      if (p === id) throw new Error("A folder can't go inside itself")
+    }
+    const siblings = nodes.filter((n) => n.parentId === parentId && n.id !== id).map((n) => n.id)
+    let index = siblings.length
+    if (target && where !== 'into') index = siblings.indexOf(target.id) + (where === 'after' ? 1 : 0)
+    siblings.splice(index, 0, id)
+    const update = db.prepare('UPDATE playlist_nodes SET parent_id = ?, position = ?, updated_at = ? WHERE id = ?')
+    const now = Date.now()
+    siblings.forEach((siblingId, position) => update.run(parentId, position, now, siblingId))
+  })
+}
