@@ -15,7 +15,10 @@ format MCO already writes for its Rekordbox export (`electron/main/rekordboxExpo
 
 ## Decision
 - Playlists live in MCO's own database (`playlist_nodes`, `playlist_tracks`) and are edited in MCO.
-- Rekordbox playlists come in by importing that XML file, picked by the user. Imported nodes remember
+- Rekordbox playlists come in by importing that XML file, picked by the user — or single playlists
+  exported from Rekordbox's playlist menu as **m3u8** (file paths) or **text** (titles and
+  artists only, matched by name), which is where most users look first. MCO playlists go back
+  to Rekordbox as m3u8 files it imports. Imported nodes remember
   their name path in Rekordbox's tree; importing again refreshes those (replaces a playlist's songs,
   adds new ones, keeps ones gone from the XML) and never touches playlists made in MCO or detached
   with *Keep as my own*.
