@@ -27,6 +27,10 @@ installed copies update themselves.
 - **Playlists**: drag playlists and folders inside the Playlists box — onto
   a folder to put them in it, onto the top or bottom edge of a row to place
   them before or after it, or below the tree to bring them to the top level.
+- **Playlists → Rekordbox**: right-click a playlist → **Export for Rekordbox
+  (m3u8)…** saves it as an .m3u8 with each song's file, which Rekordbox
+  imports (File → Import → Import Playlist). Right-click a folder to export
+  every playlist in it, one file each.
 
 ## 1.0.52 — 2026-10-01
 

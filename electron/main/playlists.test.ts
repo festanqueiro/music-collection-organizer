@@ -14,6 +14,8 @@ import {
   planRekordboxImport,
   rekordboxTxtToTree,
   movePlaylistNode,
+  playlistToM3u,
+  folderPlaylists,
 } from './playlists'
 import type { RekordboxNode } from './rekordboxXml'
 
@@ -172,5 +174,24 @@ describe('moving playlists', () => {
     expect(names()).toEqual(['F<', 'G<F', 'A<F', 'B<'])
     expect(() => movePlaylistNode(db, f, g, 'into')).toThrow()
     expect(() => movePlaylistNode(db, g, a, 'into')).toThrow()
+  })
+})
+
+describe('m3u8 export', () => {
+  it('writes #EXTINF lines and paths in order, leaving out missing files; names a folder\'s playlists by path', () => {
+    const db = openDatabase(':memory:')
+    const insert = db.prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime, title, artist, duration, present) VALUES (?, ?, '/', 'wav', 1, 1, ?, ?, ?, ?)`)
+    const a = insert.run('/m/a.wav', 'a.wav', 'Hornsman', 'King Earthquake', 204.4, 1).lastInsertRowid as number
+    const b = insert.run('/m/b.wav', 'b.wav', null, null, null, 1).lastInsertRowid as number
+    const gone = insert.run('/m/c.wav', 'c.wav', 'Gone', null, 10, 0).lastInsertRowid as number
+    const f = createPlaylistNode(db, 'folder', 'Sets', null)
+    const sub = createPlaylistNode(db, 'folder', '2026', f)
+    const p = createPlaylistNode(db, 'playlist', 'Bassin', sub)
+    addTracksToPlaylist(db, p, [b, gone, a])
+    expect(playlistToM3u(db, p)).toEqual({
+      text: '#EXTM3U\n#EXTINF:-1,b.wav\n/m/b.wav\n#EXTINF:204,King Earthquake - Hornsman\n/m/a.wav\n',
+      songs: 2,
+    })
+    expect(folderPlaylists(db, f)).toEqual([{ id: p, name: '2026 - Bassin' }])
   })
 })

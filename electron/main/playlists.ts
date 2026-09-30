@@ -295,3 +295,36 @@ export function movePlaylistNode(
     siblings.forEach((siblingId, position) => update.run(parentId, position, now, siblingId))
   })
 }
+
+// A playlist as an .m3u8 Rekordbox can import (File → Import → Import
+// Playlist, or drag the file into its tree): #EXTINF with the length and
+// "Artist - Title", then the file's path. Songs whose file is gone are left
+// out, since Rekordbox couldn't load them.
+export function playlistToM3u(db: AppDatabase, playlistId: number): { text: string; songs: number } {
+  const rows = db
+    .prepare(
+      `SELECT t.path, t.filename, t.title, t.artist, t.duration FROM playlist_tracks p
+       JOIN tracks t ON t.id = p.track_id WHERE p.playlist_id = ? AND t.present = 1 ORDER BY p.position`
+    )
+    .all(playlistId) as { path: string; filename: string; title: string | null; artist: string | null; duration: number | null }[]
+  const lines = ['#EXTM3U']
+  for (const r of rows) {
+    const label = r.title ? (r.artist ? `${r.artist} - ${r.title}` : r.title) : r.filename
+    lines.push(`#EXTINF:${Math.round(r.duration ?? -1)},${label.replace(/[\r\n]+/g, ' ')}`, r.path)
+  }
+  return { text: lines.join('\n') + '\n', songs: rows.length }
+}
+
+// Every playlist under a folder, named by its path below it ("Sets - Bassin").
+export function folderPlaylists(db: AppDatabase, folderId: number): { id: number; name: string }[] {
+  const nodes = getPlaylistNodes(db)
+  const names = new Map<number, string[]>([[folderId, []]])
+  const out: { id: number; name: string }[] = []
+  for (const node of nodes) {
+    const parent = node.parentId === null ? undefined : names.get(node.parentId)
+    if (!parent) continue
+    names.set(node.id, [...parent, node.name])
+    if (node.kind === 'playlist') out.push({ id: node.id, name: [...parent, node.name].join(' - ') })
+  }
+  return out
+}

@@ -97,6 +97,8 @@ import {
   movePlaylistNode,
   planRekordboxImport,
   rekordboxTxtToTree,
+  playlistToM3u,
+  folderPlaylists,
 } from './playlists'
 import { decodeRekordboxText, parseM3u, parseRekordboxTxt, parseRekordboxXml, type RekordboxNode } from './rekordboxXml'
 import type {
@@ -731,6 +733,43 @@ export function registerIpcHandlers(
       return getPlaylistNodes(db)
     }
   )
+  // m3u8 for Rekordbox: a playlist to a file, or a folder's playlists to
+  // one file each in a chosen folder. File names lose characters macOS
+  // and Windows don't allow.
+  ipcMain.handle('playlists:exportM3u', async (event, id: number): Promise<{ files: number; songs: number } | null> => {
+    const node = getPlaylistNodes(db).find((n) => n.id === id)
+    if (!node) return null
+    const window = BrowserWindow.fromWebContents(event.sender)
+    const safe = (name: string) => name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Playlist'
+    if (node.kind === 'playlist') {
+      const options: SaveDialogOptions = {
+        title: 'Export playlist for Rekordbox',
+        defaultPath: join(app.getPath('documents'), `${safe(node.name)}.m3u8`),
+        filters: [{ name: 'Playlist', extensions: ['m3u8'] }],
+      }
+      const result = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options)
+      if (result.canceled || !result.filePath) return null
+      const { text, songs } = playlistToM3u(db, id)
+      writeFileSync(result.filePath, text, 'utf8')
+      return { files: 1, songs }
+    }
+    const options: OpenDialogOptions = {
+      title: `Export the playlists in ${node.name} for Rekordbox`,
+      buttonLabel: 'Export here',
+      properties: ['openDirectory', 'createDirectory'],
+    }
+    const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
+    const dir = result.filePaths[0]
+    if (result.canceled || !dir) return null
+    let songs = 0
+    const playlists = folderPlaylists(db, id)
+    for (const playlist of playlists) {
+      const m3u = playlistToM3u(db, playlist.id)
+      songs += m3u.songs
+      writeFileSync(join(dir, `${safe(playlist.name)}.m3u8`), m3u.text, 'utf8')
+    }
+    return { files: playlists.length, songs }
+  })
   ipcMain.handle('playlists:detach', (_e, id: number): PlaylistNode[] => {
     detachPlaylistNode(db, id)
     return getPlaylistNodes(db)

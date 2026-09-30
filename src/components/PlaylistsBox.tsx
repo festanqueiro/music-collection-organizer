@@ -436,6 +436,19 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                   requestAddManyToQueue(ids.filter((id) => present.has(id)))
                 })
               })}
+              {menuItem('ios_share', 'Export for Rekordbox (m3u8)…', () =>
+                void window.api
+                  .exportPlaylistM3u(menu.node!.id)
+                  .then((r) => {
+                    if (!r) return
+                    showToast(
+                      r.files === 1
+                        ? `Exported ${songs(r.songs)} — in Rekordbox: File → Import → Import Playlist`
+                        : `Exported ${r.files} playlists — in Rekordbox: File → Import → Import Playlist`
+                    )
+                  })
+                  .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
+              )}
               {menuItem('edit', 'Rename', () => setEditing({ kind: 'rename', id: menu.node!.id }))}
               {menu.node.source === 'rekordbox' &&
                 menuItem('link_off', 'Keep as my own', () => {
@@ -449,6 +462,19 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
               {menuItem('play_arrow', 'Play folder', () => void playNode(menu.node!.id))}
               {menuItem('queue_music', 'New playlist here', () => startCreate('playlist', menu.node!.id))}
               {menuItem('create_new_folder', 'New folder here', () => startCreate('folder', menu.node!.id))}
+              {menuItem('ios_share', 'Export playlists for Rekordbox (m3u8)…', () =>
+                void window.api
+                  .exportPlaylistM3u(menu.node!.id)
+                  .then((r) => {
+                    if (!r) return
+                    showToast(
+                      r.files === 1
+                        ? `Exported ${songs(r.songs)} — in Rekordbox: File → Import → Import Playlist`
+                        : `Exported ${r.files} playlists — in Rekordbox: File → Import → Import Playlist`
+                    )
+                  })
+                  .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
+              )}
               {menuItem('edit', 'Rename', () => setEditing({ kind: 'rename', id: menu.node!.id }))}
               {menu.node.source === 'rekordbox' &&
                 menuItem('link_off', 'Keep as my own', () => {
