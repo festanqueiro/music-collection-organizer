@@ -196,7 +196,8 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                 onDragOver={(e) => {
                   if (isFolder || !e.dataTransfer.types.includes('Files')) return
                   e.preventDefault()
-                  e.dataTransfer.dropEffect = 'copy'
+                  // As the folder tree: the rows' native file drag offers a move.
+                  e.dataTransfer.dropEffect = 'move'
                   if (dropTarget !== node.id) setDropTarget(node.id)
                 }}
                 onDragLeave={(e) => {
