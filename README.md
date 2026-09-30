@@ -61,9 +61,9 @@ MCO's own database.
   on a second output, and export of your tags as Rekordbox playlists.
 - **MIDI** — map any knob, toggle, or playback button to your controller
   in two clicks, with LED feedback where your controller supports it.
-- **Visualizer** — a full-screen, audio-reactive visualizer with eight
+- **Visualizer** — a full-screen, audio-reactive visualizer with nine
   themes: Nebula, Warp, Horizon, Sound System (a speaker stack that thumps
-  along with the music), Smoke, Kaleidoscope, Paint, and Liquid 3D. It
+  along with the music), Smoke, Kaleidoscope, Paint, Liquid, and Origins. It
   runs at 30 fps by default to keep the GPU cool (15 to 60 fps, or Max).
 - **Show on a screen** — the visualizer full screen on a second display (an
   Apple TV as an AirPlay display, a projector, a monitor), drawn by the Mac,
