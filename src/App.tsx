@@ -19,6 +19,7 @@ import { Visualizer } from './components/Visualizer'
 import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
+import { StatsView } from './components/StatsView'
 import { UndoToast } from './components/UndoToast'
 import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
@@ -184,6 +185,7 @@ export default function App() {
   const [tagFilterLabel, setTagFilterLabel] = useState<string | null>(null)
   const [tagClearSignal, setTagClearSignal] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(false)
   const [scrollToTrack, setScrollToTrack] = useState<{ trackId: number; nonce: number } | null>(null)
 
   // Tags/Subtags' checkbox selection is local component state that resets
@@ -403,6 +405,14 @@ export default function App() {
           setModalOpen(false)
         }}
       />
+      {statsOpen && (
+        <StatsView
+          onClose={() => {
+            setStatsOpen(false)
+            setModalOpen(false)
+          }}
+        />
+      )}
       {pendingGenreDeletion && (
         <UndoToast
           message={`Deleted "${pendingGenreDeletion.snapshot.genreName}"`}
@@ -437,6 +447,10 @@ export default function App() {
           <Toolbar
             onOpenSettings={() => {
               setSettingsOpen(true)
+              setModalOpen(true)
+            }}
+            onOpenStats={() => {
+              setStatsOpen(true)
               setModalOpen(true)
             }}
           />
