@@ -8,6 +8,8 @@ import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
 import { baseName, isInFolder } from '../paths'
+// Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
+import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 
 type SortKey = TrackTableColumnKey
 
@@ -26,14 +28,11 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   dateAdded: 120,
   dateModified: 120,
 }
-// Lossy files below this are flagged in the Bitrate column — 192 kbps is
-// the usual floor for playing out on a club system.
-const LOSSY_FORMATS = new Set(['mp3', 'm4a', 'aac', 'ogg', 'opus'])
-const LOW_BITRATE_KBPS = 192
 const MIN_COLUMN_WIDTH = 50
 const CHECKBOX_COL_WIDTH = 36
-// Just fits its two 16px icons: 4px padding, icon, 4px gap, icon, 4px padding.
-const PLAY_COL_WIDTH = 44
+// Just fits its three 16px icons (play, add to queue, pre-listen) with
+// 4px padding and gaps.
+const PLAY_COL_WIDTH = 64
 const STATUS_COL_WIDTH = 90
 const CLOUD_COL_WIDTH = 70
 // Every row is exactly this tall (the tallest a one-line row gets, with a
@@ -127,6 +126,9 @@ export function TrackTable({
   const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
   const playlist = useCollectionStore((s) => s.playlist)
+  const showToast = useCollectionStore((s) => s.showToast)
+  // Up next (the first entry is the loaded track), for the rows' queue icon.
+  const queuedIds = useMemo(() => new Set(playlist.slice(1)), [playlist])
   const playTrackNow = useCollectionStore((s) => s.playTrackNow)
   const addToPlaylist = useCollectionStore((s) => s.addToPlaylist)
   const requestAddManyToQueue = useCollectionStore((s) => s.requestAddManyToQueue)
@@ -522,6 +524,26 @@ export function TrackTable({
         >
           <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
             {track.id === currentTrackId && playerPlaying ? 'pause_circle' : 'play_circle'}
+          </span>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            addToPlaylist(track.id)
+            showToast(`Added "${decodeHtmlEntities(track.title ?? track.filename)}" to the queue`)
+          }}
+          title={queuedIds.has(track.id) ? 'In the queue — add it again' : 'Add to queue'}
+          style={{
+            background: 'none',
+            border: 'none',
+            padding: '0 4px 0 0',
+            cursor: 'pointer',
+            verticalAlign: 'middle',
+            color: queuedIds.has(track.id) ? 'var(--color-accent)' : 'var(--color-text-dim)',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+            {queuedIds.has(track.id) ? 'playlist_add_check' : 'playlist_add'}
           </span>
         </button>
         {track.cloudStatus === 'local' && (
