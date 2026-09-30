@@ -22,9 +22,10 @@ Per-release detail is in the [changelog](../log/changelog.md).
 | **1.0.52 Stats** | shipped (2026-10-01) | The collection in numbers (tiles, quality, tempo, keys, top genres/artists, years, added per month) for the whole collection or a folder; Add to queue on every row; threejs-visualisers 0.3.0 (Origins, Liquid renamed); Show on a screen fixed (visualizers were black, Now playing unstyled). [Feature](../features/stats.md). |
 
 ## Next (roughly in priority order; S ≤ a day, M = a few days, L = a week+)
-1. **Smart crates and saved playlists (M)** — named lists in `crates`/`crate_tracks`; smart crates as
-   saved filter rules (tags AND/OR, BPM range, key, format, date added) using the table's filter
-   predicates; a sidebar view; fed into the Rekordbox export.
+1. **Playlists (M–L)** — named, ordered lists in folders, in a Playlists box under the sidebar
+   views; Play / Delete from the right-click menu; imported (and refreshed) from Rekordbox's XML
+   export. [Spec](../features/playlists.md), [ADR 0050](../adr/0050-playlists-in-mco-imported-from-rekordbox-xml.md).
+   Smart crates (saved filter rules: tags AND/OR, BPM range, key, format, date added) come after.
 2. **Portable library: relative paths (M)** — store paths relative to the collection folder, migrate
    once, resolve everywhere a path is used (media protocol, analysis, drag, reveal, tag export). Today
    a collection moved to a different path loses its tags ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
