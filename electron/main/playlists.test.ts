@@ -130,7 +130,9 @@ describe('rekordbox import', () => {
   it('plans, imports under a Rekordbox folder, and refreshes on a second import', () => {
     const plan = planRekordboxImport(db, tree(['/m/b.wav', '/M/A.wav', '/elsewhere.wav']))
     expect(plan).toMatchObject({ folders: 1, songs: 3, matched: 2, gone: [] })
-    expect(plan.playlists).toEqual([{ name: 'Sets / Bassin', songs: 3, matched: 2, relinked: 0, refresh: false }])
+    expect(plan.playlists).toEqual([
+      { key: '["Sets","Bassin"]', name: 'Sets / Bassin', songs: 3, matched: 2, relinked: 0, refresh: false, duplicate: null },
+    ])
     applyRekordboxImport(db, tree(['/m/b.wav', '/M/A.wav', '/elsewhere.wav']))
     const nodes = getPlaylistNodes(db)
     expect(nodes.map((n) => [n.name, n.kind, n.source])).toEqual([
@@ -166,6 +168,62 @@ describe('rekordbox import', () => {
     ])
     expect(node.kind === 'playlist' && node.paths.slice(0, 2)).toEqual(['/m/a.wav', '/m/b.wav'])
     expect(planRekordboxImport(db, [node]).matched).toBe(2)
+  })
+})
+
+describe('playlists MCO already has', () => {
+  let db: AppDatabase
+  let t: number[]
+  beforeEach(() => {
+    db = openDatabase(':memory:')
+    const insert = db.prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES (?, ?, '/m', 'aiff', 1, 1)`)
+    t = [1, 2, 3, 4, 5, 6].map((n) => insert.run(`/m/${n}.aiff`, `${n}.aiff`).lastInsertRowid as number)
+  })
+  const pl = (name: string, nums: number[]): RekordboxNode => ({ kind: 'playlist', name, paths: nums.map((n) => `/m/${n}.aiff`) })
+
+  it('finds the same name, the same songs, or mostly the same songs — and leaves refreshes alone', () => {
+    const sets = createPlaylistNode(db, 'folder', 'Sets', null)
+    const sunday = createPlaylistNode(db, 'playlist', 'Sunday Session', sets)
+    addTracksToPlaylist(db, sunday, [t[0], t[1], t[2]])
+    const kiosk = createPlaylistNode(db, 'playlist', 'Kiosk', null)
+    addTracksToPlaylist(db, kiosk, [t[0], t[1], t[2], t[3], t[4]])
+    const plan = planRekordboxImport(
+      db,
+      [pl('sunday session!', [1, 2, 3]), pl('Renamed Kiosk', [1, 2, 3, 4, 5, 6]), pl('KIOSK', [6]), pl('Brand New', [6])],
+      () => undefined
+    )
+    const dup = Object.fromEntries(plan.playlists.map((p) => [p.name, p.duplicate]))
+    expect(dup['sunday session!']).toMatchObject({ id: sunday, name: 'Sets / Sunday Session', sameName: true, songs: 'same', shared: 3 })
+    expect(dup['Renamed Kiosk']).toMatchObject({ id: kiosk, sameName: false, songs: 'most', shared: 5, mcoSongs: 5 })
+    expect(dup['KIOSK']).toMatchObject({ id: kiosk, sameName: true, songs: 'different' })
+    expect(dup['Brand New']).toBeNull()
+
+    // Once imported, a second import is a refresh, not a duplicate.
+    applyRekordboxImport(db, [pl('Brand New', [6])])
+    expect(planRekordboxImport(db, [pl('Brand New', [6])], () => undefined).playlists[0]).toMatchObject({ refresh: true, duplicate: null })
+  })
+
+  it('skips, imports as new, or updates and links MCO’s playlist where it is', () => {
+    const mine = createPlaylistNode(db, 'playlist', 'Sunday', null)
+    addTracksToPlaylist(db, mine, [t[0]])
+    const other = createPlaylistNode(db, 'playlist', 'Kiosk', null)
+    const key = (name: string) => JSON.stringify([name])
+    applyRekordboxImport(db, [pl('Sunday', [2, 3]), pl('Kiosk', [4]), pl('Warm-up', [5])], [], {
+      [key('Sunday')]: { action: 'update', targetId: mine },
+      [key('Kiosk')]: { action: 'skip', targetId: other },
+      [key('Warm-up')]: { action: 'new' },
+    })
+    const nodes = getPlaylistNodes(db)
+    // Sunday updated in place (top level, not moved into the Rekordbox folder) and linked.
+    expect(getPlaylistTrackIds(db, mine)).toEqual([t[1], t[2]])
+    expect(nodes.find((n) => n.id === mine)).toMatchObject({ parentId: null, source: 'rekordbox' })
+    expect(nodes.filter((n) => n.name === 'Kiosk')).toHaveLength(1)
+    expect(nodes.find((n) => n.name === 'Warm-up')?.source).toBe('rekordbox')
+    // The next import refreshes the linked one where it is.
+    applyRekordboxImport(db, [pl('Sunday', [6])])
+    expect(getPlaylistTrackIds(db, mine)).toEqual([t[5]])
+    expect(getPlaylistNodes(db).find((n) => n.id === mine)?.parentId).toBeNull()
+    expect(getPlaylistNodes(db).filter((n) => n.name === 'Sunday')).toHaveLength(1)
   })
 })
 

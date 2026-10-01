@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
-import type { PlaylistNode, RekordboxImportPlan } from '../types'
+import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportPlan } from '../types'
 import { baseName } from '../paths'
 
 const LAYOUT_KEY = 'playlistsBox'
@@ -107,6 +107,10 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   const [importPlan, setImportPlan] = useState<{ filePaths: string[]; plan: RekordboxImportPlan } | null>(null)
   // Songs found at another path that the user unticked (by their old path).
   const [rejectedRelinks, setRejectedRelinks] = useState<Set<string>>(new Set())
+  // What to do with incoming playlists MCO already seems to have, by key:
+  // skip when the songs are the same, otherwise import as new — unless
+  // the user picks otherwise.
+  const [duplicateChoices, setDuplicateChoices] = useState<Record<string, RekordboxDuplicateAction>>({})
 
   async function pickImport() {
     const picked = await window.api.pickRekordboxImport()
@@ -114,12 +118,21 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     if ('error' in picked) return showToast(picked.error)
     if (picked.plan.playlists.length === 0) return showToast('No playlists in that file')
     setRejectedRelinks(new Set())
+    setDuplicateChoices(
+      Object.fromEntries(
+        picked.plan.playlists.filter((p) => p.duplicate).map((p) => [p.key, p.duplicate!.songs === 'same' ? 'skip' : 'new'])
+      )
+    )
     setImportPlan(picked)
   }
 
-  async function runImport(filePaths: string[], relinks: { from: string; trackId: number }[]) {
+  async function runImport(
+    filePaths: string[],
+    relinks: { from: string; trackId: number }[],
+    duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>
+  ) {
     try {
-      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths, relinks) })
+      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths, relinks, duplicates) })
       const selected = useCollectionStore.getState().selectedPlaylistId
       if (selected !== null) void useCollectionStore.getState().selectPlaylist(selected)
       showToast('Imported from Rekordbox')
@@ -535,7 +548,12 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
             setImportPlan(null)
             void runImport(
               filePaths,
-              plan.relinks.filter((r) => !rejectedRelinks.has(r.from)).map((r) => ({ from: r.from, trackId: r.trackId }))
+              plan.relinks.filter((r) => !rejectedRelinks.has(r.from)).map((r) => ({ from: r.from, trackId: r.trackId })),
+              Object.fromEntries(
+                plan.playlists
+                  .filter((p) => p.duplicate && duplicateChoices[p.key])
+                  .map((p) => [p.key, { action: duplicateChoices[p.key], targetId: p.duplicate!.id }])
+              )
             )
           }}
         >
@@ -550,6 +568,8 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
               })
             }
             onSetAll={(on) => setRejectedRelinks(on ? new Set() : new Set(importPlan.plan.relinks.map((r) => r.from)))}
+            duplicateChoices={duplicateChoices}
+            onDuplicateChoice={(key, action) => setDuplicateChoices((prev) => ({ ...prev, [key]: action }))}
           />
         </ConfirmDialog>
       )}
@@ -590,12 +610,17 @@ function ImportSummary({
   rejected,
   onToggle,
   onSetAll,
+  duplicateChoices,
+  onDuplicateChoice,
 }: {
   plan: RekordboxImportPlan
   rejected: Set<string>
   onToggle: (from: string) => void
   onSetAll: (on: boolean) => void
+  duplicateChoices: Record<string, RekordboxDuplicateAction>
+  onDuplicateChoice: (key: string, action: RekordboxDuplicateAction) => void
 }) {
+  const duplicates = plan.playlists.filter((p) => p.duplicate)
   const refreshed = plan.playlists.filter((p) => p.refresh).length
   const fresh = plan.playlists.length - refreshed
   const relinked = plan.playlists.reduce((sum, p) => sum + p.relinked, 0)
@@ -609,6 +634,54 @@ function ImportSummary({
         {refreshed > 0 ? `, ${refreshed} to refresh` : ''}. They go in the <strong style={{ color: 'var(--color-text)' }}>Rekordbox</strong>{' '}
         folder.
       </p>
+      {duplicates.length > 0 && (
+        // Playlists MCO already seems to have — same name or same songs.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <strong style={{ color: 'var(--color-text)' }}>Already in MCO ({duplicates.length})</strong>
+          <div
+            style={{
+              maxHeight: '200px',
+              overflowY: 'auto',
+              border: '1px solid var(--color-border)',
+              borderRadius: '6px',
+              padding: '4px 6px',
+            }}
+          >
+            {duplicates.map((p) => {
+              const d = p.duplicate!
+              const why = [
+                d.sameName ? 'same name' : null,
+                d.songs === 'same' ? 'same songs' : d.songs === 'most' ? `mostly the same songs (${d.shared} shared)` : `${d.shared} of its ${d.mcoSongs} songs shared`,
+              ]
+                .filter(Boolean)
+                .join(', ')
+              return (
+                <div key={p.key} style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '4px 0' }}>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
+                    <span style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-dim)' }}>
+                      MCO’s “{d.name}”: {why}
+                    </span>
+                  </span>
+                  <select
+                    aria-label={`What to do with ${p.name}`}
+                    value={duplicateChoices[p.key] ?? 'new'}
+                    onChange={(e) => onDuplicateChoice(p.key, e.target.value as RekordboxDuplicateAction)}
+                    style={{ fontSize: '12px', flexShrink: 0 }}
+                  >
+                    <option value="skip">Skip — keep MCO’s</option>
+                    <option value="new">Import as a new playlist</option>
+                    <option value="update">Update MCO’s with these songs</option>
+                  </select>
+                </div>
+              )
+            })}
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
+            Updating links MCO’s playlist to Rekordbox: it stays where it is, and importing again refreshes it.
+          </span>
+        </div>
+      )}
       <p style={{ margin: 0 }}>
         {plan.matched} of {count(plan.songs, 'song')} found in your collection
         {relinked > 0 ? `, ${relinked} more at a different path (below)` : ''}.

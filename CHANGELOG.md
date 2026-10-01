@@ -7,8 +7,8 @@ installed copies update themselves.
 ## 1.0.53 — 2026-10-01
 
 ### Added
-- **Hot cues A–H**: eight cue points per track, saved with it. Pads in the
-  player bar (and keys **1–8**) set a cue where the track is, or jump to it
+- **Hot cues A–H**: eight cue points per track, saved with it. Pads on a
+  row under the player (and keys **1–8**) set a cue where the track is, or jump to it
   and play; **Shift-1–8** deletes one. Right-click a pad to name it, pick a
   colour or delete it. They're drawn on the waveform in their colours, can
   be mapped to your MIDI controller's pads (lit while set), and a **Cues**
@@ -25,6 +25,11 @@ installed copies update themselves.
   a playlist to **Play playlist** (replaces the queue — *Undo* brings the
   old one back), add it to the queue, rename it or **Delete** it (after a
   confirmation; the songs stay in your collection).
+- **Playlists you already have**: importing from Rekordbox checks each
+  playlist against MCO's — same name, or the same (or mostly the same)
+  songs — and asks: skip it, import it as a new playlist, or update yours
+  with Rekordbox's songs (it stays where it is, and later imports refresh
+  it). Identical ones are skipped unless you say otherwise.
 - **Import playlists from Rekordbox** (Playlists **+** → *Import from
   Rekordbox…*): pick one or more playlists exported from Rekordbox
   (right-click a playlist → *Export a playlist to a file* → **m3u8** is

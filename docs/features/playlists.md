@@ -86,6 +86,14 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
 - Before anything changes, a summary dialog: the folders and playlists found, how many songs
   matched songs in MCO, how many didn't (outside the collection folder, or not scanned yet), and
   which existing imported playlists will be **refreshed**. *Import* or *Cancel*.
+- **Already in MCO**: each incoming playlist that isn't a refresh is checked against MCO's
+  playlists — the **same name** (ignoring case and punctuation) or the **same songs** (all of them,
+  or at least 80% of the two together). The summary lists them ("MCO's “Sets / Sunday Session”:
+  same name, same songs") with a choice each: **Skip — keep MCO's** (the default when the songs are
+  identical), **Import as a new playlist** (the default otherwise), or **Update MCO's with these
+  songs** — which replaces its songs and links it to Rekordbox: it stays in its folder, and the
+  next import refreshes it there. Matching uses songs found by path (not the unconfirmed
+  different-path ones).
 - The Rekordbox tree lands under a top folder **Rekordbox** (created once), mirroring Rekordbox's
   folders and order. Empty folders are kept.
 - **Refresh**: importing again matches playlists and folders that came from Rekordbox by their
@@ -176,6 +184,8 @@ the m3u8 export and songs found at a different path.
   (spaces, `%20`, non-ASCII, NFD), empty folders, smart playlists.
 - `savedPlaylist.test.ts`: moving one or several songs up/down/to the ends, dropping on a moved
   song, unknown ids; undo restoring places, keeping songs added since, no duplicates.
+- `playlists.test.ts`, already in MCO: same name, same songs, mostly the same, none; refreshes
+  aren't duplicates; skip / new / update-and-link, refreshed in place afterwards.
 - `playlists.test.ts`, songs at a different path: by size (from the export or the stick's file),
   by title and artist, by a shortened file name; never between two songs, across a duration
   mismatch or to a missing file; only confirmed ones used, and remembered for the next import.

@@ -13,7 +13,8 @@ travel to and from Rekordbox — your Rekordbox cues come into MCO, and MCO's go
 export.
 
 ## Behaviour
-- **Pads A–H** in the player bar, between the transport and the waveform. An empty pad (outlined)
+- **Pads A–H** on their own row under the player (*Hot cues*), so the transport and the waveform
+  keep their room; the empty player has the same row, disabled. An empty pad (outlined)
   **sets** a hot cue where the track is now — playing or paused; a set pad (filled with its colour)
   **jumps** there and plays.
 - **Keys 1–8** do the same as the pads; **Shift-1–8** deletes that cue. Not while typing, not with
@@ -24,9 +25,9 @@ export.
   blue, green, purple), then magenta, cyan, green, rose for E–H — so a cue looks the same in both apps.
 - **Waveform**: each hot cue is a line in its colour with its letter on top; Rekordbox's memory cues
   (thin lines) and loops (a light band) show too, from an import.
-- **MIDI**: learnt like the other controls — the **piano** button after the pads shows
-  a learn badge on each; a press sets or jumps (release does nothing); a bound pad's LED is lit
-  while its cue is set.
+- **MIDI**: learnt like the other controls — each pad has a learn badge, shown only while
+  **Settings → MIDI → Show MIDI mapping buttons** is on; a press sets or jumps (release does
+  nothing); a bound pad's LED is lit while its cue is set.
 - **Table**: a **Cues** column (from the columns menu) with how many hot cues a track has, sortable.
 - The CDJ-style **CUE** button is unchanged: one temporary cue point, set by pausing, not saved.
 

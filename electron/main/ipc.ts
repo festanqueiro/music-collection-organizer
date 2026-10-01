@@ -133,6 +133,7 @@ import type {
   PlaylistNode,
   RekordboxImportPlan,
   RekordboxReport,
+  RekordboxDuplicateAction,
   TrackCue,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
@@ -792,8 +793,17 @@ export function registerIpcHandlers(
     }
   })
   // relinks: the "found at another path" songs the user kept ticked.
-  ipcMain.handle('playlists:importRekordbox', (_e, filePaths: string[], relinks: { from: string; trackId: number }[] = []): PlaylistNode[] => {
-    applyRekordboxImport(db, readRekordboxFiles(filePaths), relinks)
+  // duplicates: per incoming playlist MCO already seemed to have, skip /
+  // new / update (with the MCO playlist to update).
+  ipcMain.handle(
+    'playlists:importRekordbox',
+    (
+      _e,
+      filePaths: string[],
+      relinks: { from: string; trackId: number }[] = [],
+      duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }> = {}
+    ): PlaylistNode[] => {
+    applyRekordboxImport(db, readRekordboxFiles(filePaths), relinks, duplicates)
     return getPlaylistNodes(db)
   })
   ipcMain.handle(

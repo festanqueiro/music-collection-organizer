@@ -30,6 +30,7 @@ import type {
   PlaylistNode,
   RekordboxImportPlan,
   RekordboxReport,
+  RekordboxDuplicateAction,
   TrackCue,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
@@ -105,8 +106,11 @@ const api = {
     ipcRenderer.invoke('rekordbox:compare', pick),
   pickRekordboxImport: (): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> =>
     ipcRenderer.invoke('playlists:pickRekordbox'),
-  importRekordbox: (filePaths: string[], relinks: { from: string; trackId: number }[]): Promise<PlaylistNode[]> =>
-    ipcRenderer.invoke('playlists:importRekordbox', filePaths, relinks),
+  importRekordbox: (
+    filePaths: string[],
+    relinks: { from: string; trackId: number }[],
+    duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>
+  ): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:importRekordbox', filePaths, relinks, duplicates),
   movePlaylistNode: (id: number, targetId: number | null, where: 'before' | 'after' | 'into'): Promise<PlaylistNode[]> =>
     ipcRenderer.invoke('playlists:move', id, targetId, where),
   exportPlaylistM3u: (id: number): Promise<{ files: number; songs: number } | null> => ipcRenderer.invoke('playlists:exportM3u', id),

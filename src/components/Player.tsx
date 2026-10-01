@@ -579,13 +579,6 @@ export function Player({
         </button>
         <MidiLearnBadge control="player.playNext" />
 
-        <HotCuePads
-          cues={cues}
-          onPad={hotCue}
-          onDelete={(slot) => void useCollectionStore.getState().deleteHotCue(track.id, slot)}
-          onChange={(slot, changes) => void useCollectionStore.getState().updateHotCue(track.id, slot, changes)}
-        />
-
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
           <CueMarkers cues={cues} duration={duration || track.duration || 0} />
           {peaks && peaks.length > 0 ? (
@@ -688,6 +681,13 @@ export function Player({
           <MidiLearnBadge control="volume" />
         </label>
       </div>
+
+      <HotCuePads
+        cues={cues}
+        onPad={hotCue}
+        onDelete={(slot) => void useCollectionStore.getState().deleteHotCue(track.id, slot)}
+        onChange={(slot, changes) => void useCollectionStore.getState().updateHotCue(track.id, slot, changes)}
+      />
     </div>
   )
 }
@@ -759,6 +759,9 @@ export function EmptyPlayer() {
           <MidiLearnBadge control="volume" />
         </label>
       </div>
+
+      {/* The same row as with a track, so the footer doesn't jump. */}
+      <HotCuePads cues={[]} onPad={() => {}} onDelete={() => {}} onChange={() => {}} disabled />
     </div>
   )
 }

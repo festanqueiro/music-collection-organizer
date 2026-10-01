@@ -4,7 +4,7 @@
 // touched, and a track deleted from the collection leaves every playlist.
 import { statSync } from 'node:fs'
 import { runInTransaction, type AppDatabase } from './db'
-import type { PlaylistNode, RekordboxImportPlan, RekordboxRelink } from '../../src/types'
+import type { PlaylistNode, RekordboxDuplicate, RekordboxDuplicateAction, RekordboxImportPlan, RekordboxRelink } from '../../src/types'
 import type { RekordboxNode, RekordboxTxtRow, SongHint } from './rekordboxXml'
 
 interface NodeRow {
@@ -252,17 +252,53 @@ function elsewhereFinder(db: AppDatabase, sizeOf: FileSize): (path: string, hint
   }
 }
 
-function importedNodes(db: AppDatabase): Map<string, { id: number; kind: string; name: string }> {
+function importedNodes(db: AppDatabase): Map<string, { id: number; kind: string; name: string; parent_id: number | null }> {
   const rows = db
-    .prepare("SELECT id, kind, name, source_path FROM playlist_nodes WHERE source = 'rekordbox' AND source_path IS NOT NULL")
-    .all() as { id: number; kind: string; name: string; source_path: string }[]
+    .prepare("SELECT id, kind, name, parent_id, source_path FROM playlist_nodes WHERE source = 'rekordbox' AND source_path IS NOT NULL")
+    .all() as { id: number; kind: string; name: string; parent_id: number | null; source_path: string }[]
   return new Map(rows.map((r) => [`${r.kind}:${r.source_path}`, r]))
+}
+
+// A playlist MCO already has that looks like an incoming one: the same
+// name (ignoring case and punctuation) or the same songs (all, or at least
+// 80% of the two together). The best one wins: same songs and name, then
+// same songs, then mostly the same, then just the name.
+function duplicateFinder(db: AppDatabase, exclude: Set<number>): (name: string, trackIds: number[]) => RekordboxDuplicate | null {
+  const nodes = getPlaylistNodes(db)
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  const pathOf = (id: number) => {
+    const parts: string[] = []
+    for (let n = byId.get(id); n; n = n.parentId === null ? undefined : byId.get(n.parentId)) parts.unshift(n.name)
+    return parts.join(' / ')
+  }
+  const candidates = nodes
+    .filter((n) => n.kind === 'playlist' && !exclude.has(n.id))
+    .map((n) => ({ node: n, ids: new Set(getPlaylistTrackIds(db, n.id)) }))
+  return (name, trackIds) => {
+    const incoming = new Set(trackIds)
+    let best: { found: RekordboxDuplicate; score: number } | null = null
+    for (const { node, ids } of candidates) {
+      const sameName = looseKey(node.name) === looseKey(name) && looseKey(name) !== ''
+      const shared = [...incoming].filter((id) => ids.has(id)).length
+      const union = new Set([...incoming, ...ids]).size
+      const songs: RekordboxDuplicate['songs'] =
+        incoming.size > 0 && shared === incoming.size && shared === ids.size ? 'same' : union > 0 && shared / union >= 0.8 ? 'most' : 'different'
+      if (!sameName && songs === 'different') continue
+      const score = (songs === 'same' ? 4 : songs === 'most' ? 2 : 0) + (sameName ? 1 : 0)
+      if (!best || score > best.score) {
+        best = { found: { id: node.id, name: pathOf(node.id), sameName, songs, shared, mcoSongs: ids.size }, score }
+      }
+    }
+    return best?.found ?? null
+  }
 }
 
 export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[], sizeOf: FileSize = fileSize): RekordboxImportPlan {
   const match = trackMatcher(db)
   const elsewhere = elsewhereFinder(db, sizeOf)
   const existing = importedNodes(db)
+  // Playlists this import refreshes aren't duplicates of themselves.
+  const findDuplicate = duplicateFinder(db, new Set([...existing.values()].map((n) => n.id)))
   const flat = flatten(tree)
   const plan: RekordboxImportPlan = { folders: 0, playlists: [], songs: 0, matched: 0, relinks: [], gone: [] }
   // Each unmatched path looked up once, however many playlists list it.
@@ -294,7 +330,17 @@ export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[], size
       }
       if (relinkByPath.get(from)) relinked++
     })
-    plan.playlists.push({ name: path.join(' / '), songs: node.paths.length, matched, relinked, refresh: existing.has(key) })
+    const refresh = existing.has(key)
+    const ids = [...new Set(node.paths.map(match).filter((id): id is number => id !== undefined))]
+    plan.playlists.push({
+      key: JSON.stringify(path),
+      name: path.join(' / '),
+      songs: node.paths.length,
+      matched,
+      relinked,
+      refresh,
+      duplicate: refresh ? null : findDuplicate(path[path.length - 1], ids),
+    })
     plan.songs += node.paths.length
     plan.matched += matched
   }
@@ -304,7 +350,16 @@ export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[], size
 
 // `relinks`: the songs found at another path that the user confirmed —
 // remembered, so the next import of the same export needs no asking.
-export function applyRekordboxImport(db: AppDatabase, tree: RekordboxNode[], relinks: { from: string; trackId: number }[] = []): void {
+// `duplicates`: for playlists MCO already seemed to have (by their key),
+// skip them, import them as new ones (the default), or update MCO's with
+// Rekordbox's songs — which also links it, so later imports refresh it
+// where it is.
+export function applyRekordboxImport(
+  db: AppDatabase,
+  tree: RekordboxNode[],
+  relinks: { from: string; trackId: number }[] = [],
+  duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }> = {}
+): void {
   runInTransaction(db, () => {
     const remember = db.prepare(
       'INSERT OR REPLACE INTO playlist_path_aliases (path, track_id) SELECT ?, id FROM tracks WHERE id = ?'
@@ -320,7 +375,9 @@ export function applyRekordboxImport(db: AppDatabase, tree: RekordboxNode[], rel
     const ensure = (kind: 'folder' | 'playlist', name: string, path: string, parentId: number | null, position: number | null) => {
       const found = existing.get(`${kind}:${path}`)
       if (found) {
-        if (position !== null) db.prepare('UPDATE playlist_nodes SET position = ?, updated_at = ? WHERE id = ?').run(position, now, found.id)
+        // A linked MCO playlist stays where the user keeps it.
+        if (position !== null && found.parent_id === parentId)
+          db.prepare('UPDATE playlist_nodes SET position = ?, updated_at = ? WHERE id = ?').run(position, now, found.id)
         return found.id
       }
       return insertNode.run(parentId, kind, name, position ?? nextPosition(db, parentId), path, now, now).lastInsertRowid as number
@@ -329,6 +386,17 @@ export function applyRekordboxImport(db: AppDatabase, tree: RekordboxNode[], rel
     const ids = new Map<string, number>([[ROOT_PATH, rootId]])
     const siblings = new Map<number, number>()
     for (const { node, path } of flatten(tree)) {
+      const decision = node.kind === 'playlist' && !existing.has(`playlist:${JSON.stringify(path)}`) ? duplicates[JSON.stringify(path)] : undefined
+      if (decision?.action === 'skip') continue
+      if (decision?.action === 'update' && decision.targetId !== undefined && node.kind === 'playlist') {
+        const target = db.prepare("SELECT id FROM playlist_nodes WHERE id = ? AND kind = 'playlist'").get(decision.targetId) as { id: number } | undefined
+        if (target) {
+          db.prepare("UPDATE playlist_nodes SET source = 'rekordbox', source_path = ?, updated_at = ? WHERE id = ?").run(JSON.stringify(path), now, target.id)
+          db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ?').run(target.id)
+          addTracksToPlaylist(db, target.id, node.paths.map(match).filter((t): t is number => t !== undefined))
+          continue
+        }
+      }
       const parentId = ids.get(JSON.stringify(path.slice(0, -1)))!
       const position = siblings.get(parentId) ?? 0
       siblings.set(parentId, position + 1)

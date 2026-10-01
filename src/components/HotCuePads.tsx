@@ -1,4 +1,4 @@
-// Hot cue pads A–H in the player (docs/features/hot-cues.md): an empty pad
+// Hot cue pads A–H, on their own row under the player (docs/features/hot-cues.md): an empty pad
 // sets a cue where the track is; a set pad jumps there and plays. Right-click
 // (or Shift-click) a set pad to name, recolour or delete it. Keys 1–8 and
 // MIDI pads do the same as clicking.
@@ -28,7 +28,6 @@ export function HotCuePads({
   const slots = hotCueSlots(cues)
   const [menu, setMenu] = useState<{ slot: number; x: number; y: number } | null>(null)
   const [naming, setNaming] = useState(false)
-  const [showMidi, setShowMidi] = useState(false)
 
   useEffect(() => {
     if (!menu) return
@@ -47,7 +46,8 @@ export function HotCuePads({
   const menuCue = menu ? slots[menu.slot] : undefined
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '3px', flexShrink: 0 }} aria-label="Hot cues">
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }} aria-label="Hot cues">
+      <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginRight: '2px' }}>Hot cues</span>
       {Array.from({ length: HOT_CUE_SLOTS }, (_, slot) => {
         const cue = slots[slot]
         const color = cue ? cueColor(cue) : undefined
@@ -90,20 +90,11 @@ export function HotCuePads({
             >
               {HOT_CUE_LETTERS[slot]}
             </button>
-            {showMidi && <MidiLearnBadge control={`player.hotCue${slot + 1}` as MidiControlKey} />}
+            {/* Shown only with Settings → MIDI → Show MIDI mapping buttons on. */}
+            <MidiLearnBadge control={`player.hotCue${slot + 1}` as MidiControlKey} />
           </span>
         )
       })}
-      <button
-        onClick={() => setShowMidi((v) => !v)}
-        title={showMidi ? 'Hide the pads’ MIDI learn buttons' : 'Map the pads to your MIDI controller'}
-        aria-pressed={showMidi}
-        style={{ background: 'none', border: 'none', padding: '0 2px', display: 'flex', color: showMidi ? 'var(--color-accent)' : 'var(--color-text-dim)' }}
-      >
-        <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-          piano
-        </span>
-      </button>
 
       {menu && menuCue && (
         <div onClick={(e) => e.stopPropagation()} style={{ ...contextMenuStyle, left: menu.x, top: menu.y - 8, transform: 'translateY(-100%)', minWidth: '200px' }}>

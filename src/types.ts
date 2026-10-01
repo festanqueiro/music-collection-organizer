@@ -129,11 +129,35 @@ export interface RekordboxRelink {
   reason: string
 }
 
+export interface RekordboxDuplicate {
+  id: number
+  // Where it is in MCO's Playlists box ("Sets / Sunday").
+  name: string
+  sameName: boolean
+  // 'same': exactly the same songs; 'most': at least 80% shared.
+  songs: 'same' | 'most' | 'different'
+  shared: number
+  mcoSongs: number
+}
+
+// What to do with an incoming playlist that MCO already seems to have.
+export type RekordboxDuplicateAction = 'skip' | 'new' | 'update'
+
 // What a Rekordbox import will do, shown before anything is written.
 export interface RekordboxImportPlan {
   folders: number
   // matched: found by path; relinked: found elsewhere, to confirm.
-  playlists: { name: string; songs: number; matched: number; relinked: number; refresh: boolean }[]
+  playlists: {
+    // Its name path in Rekordbox's tree (JSON) — what an import decision refers to.
+    key: string
+    name: string
+    songs: number
+    matched: number
+    relinked: number
+    refresh: boolean
+    // A playlist MCO already has with the same name or the same songs.
+    duplicate: RekordboxDuplicate | null
+  }[]
   songs: number
   matched: number
   relinks: RekordboxRelink[]
