@@ -40,11 +40,16 @@ Per-release detail is in the [changelog](../log/changelog.md).
    the XML it reads, plus a checklist. Starts with a probe of what Rekordbox 7 overwrites on import,
    then a read-only report. [Spec](../features/rekordbox-sync.md),
    [ADR 0052](../adr/0052-two-way-rekordbox-sync-with-a-merge-wizard.md).
-5. **TV visualizer quality (M)** — make more themes run on the Chromecast HD
+5. **Home (S–M)** — a calm first page: mixes of the day to play, queue or show (50 random from a
+   Tag/Subtag, not played in a while, never played, just added, around a tempo, a harmonic run),
+   never saved as playlists unless asked; the last music added, the last backups, and warnings with
+   one action each (backup old or failed, files not found, not analysed, cloud-only, untagged,
+   update). [Spec](../features/home.md), [ADR 0053](../adr/0053-mixes-are-temporary-lists.md).
+6. **TV visualizer quality (M)** — make more themes run on the Chromecast HD
    ([research](../research/cast-devices.md#chromecast-hd-gpu)).
-6. **Tag writing for FLAC and ID3v2.2 (S–M)**, and a reviewed bulk flow for filename suggestions
+7. **Tag writing for FLAC and ID3v2.2 (S–M)**, and a reviewed bulk flow for filename suggestions
    (still one explicit confirmation — [ADR 0028](../adr/0028-suggest-never-auto-write-file-tags.md)).
-7. **Energy in the desktop app (S)** — a column, the details panel, a filter (today only the TV shows it).
+8. **Energy in the desktop app (S)** — a column, the details panel, a filter (today only the TV shows it).
 
 ## Known issues
 - **`npm run dev` + React StrictMode**: Player's mount effect runs twice, so

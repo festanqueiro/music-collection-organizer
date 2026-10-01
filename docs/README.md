@@ -57,6 +57,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [Stats](features/stats.md) ·
 [Playlists](features/playlists.md) (planned) ·
 [Rekordbox sync](features/rekordbox-sync.md) (planned) ·
+[Home](features/home.md) (planned) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
@@ -115,6 +116,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0050](adr/0050-playlists-in-mco-imported-from-rekordbox-xml.md) | Keep playlists in MCO's database and import them from Rekordbox's XML export | proposed (one-way part superseded by 0052) |
 | [0051](adr/0051-update-rekordbox-through-xml-and-file-tags.md) | Update Rekordbox through its XML import and the files' own tags, never its database | proposed (one-way part superseded by 0052) |
 | [0052](adr/0052-two-way-rekordbox-sync-with-a-merge-wizard.md) | Sync with Rekordbox both ways: a three-way diff of its XML export, resolved in a wizard | proposed |
+| [0053](adr/0053-mixes-are-temporary-lists.md) | Home's mixes are temporary lists, never saved playlists | proposed |
 
 ## Keyboard shortcuts
 | Key | Where | Action |
