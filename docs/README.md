@@ -56,6 +56,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [Show on a screen](features/second-screen.md) ·
 [Stats](features/stats.md) ·
 [Playlists](features/playlists.md) (planned) ·
+[Rekordbox sync](features/rekordbox-sync.md) (planned) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
@@ -112,6 +113,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0048](adr/0048-shared-now-playing-screen.md) | One now-playing screen, shared by the Cast receiver and the second screen | accepted |
 | [0049](adr/0049-windows-installer-on-release.md) | Build an unsigned Windows installer with every release, without auto-update | accepted |
 | [0050](adr/0050-playlists-in-mco-imported-from-rekordbox-xml.md) | Keep playlists in MCO's database and import them from Rekordbox's XML export | proposed |
+| [0051](adr/0051-update-rekordbox-through-xml-and-file-tags.md) | Update Rekordbox through its XML import and the files' own tags, never its database | proposed |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

@@ -31,11 +31,16 @@ Per-release detail is in the [changelog](../log/changelog.md).
    a collection moved to a different path loses its tags ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
 3. **Hot cues and loops (L)** — up to 8 cue points per track (`track_cues`), waveform markers,
    number keys and MIDI pads, a zoomable waveform, loops later; in the Rekordbox export.
-4. **TV visualizer quality (M)** — make more themes run on the Chromecast HD
+4. **Rekordbox sync (M–L)** — update Rekordbox with what changed in MCO: a repeatable collection
+   XML export (a remembered file Rekordbox reads, changed-only option, MCO Tags as Genre, Subtags as
+   Grouping), MCO Tags written into the files' Genre for Rekordbox's Reload Tag, and cue points once
+   #3 exists. Starts with a probe of what Rekordbox 7 overwrites on import.
+   [Spec](../features/rekordbox-sync.md), [ADR 0051](../adr/0051-update-rekordbox-through-xml-and-file-tags.md).
+5. **TV visualizer quality (M)** — make more themes run on the Chromecast HD
    ([research](../research/cast-devices.md#chromecast-hd-gpu)).
-5. **Tag writing for FLAC and ID3v2.2 (S–M)**, and a reviewed bulk flow for filename suggestions
+6. **Tag writing for FLAC and ID3v2.2 (S–M)**, and a reviewed bulk flow for filename suggestions
    (still one explicit confirmation — [ADR 0028](../adr/0028-suggest-never-auto-write-file-tags.md)).
-6. **Energy in the desktop app (S)** — a column, the details panel, a filter (today only the TV shows it).
+7. **Energy in the desktop app (S)** — a column, the details panel, a filter (today only the TV shows it).
 
 ## Known issues
 - **`npm run dev` + React StrictMode**: Player's mount effect runs twice, so
