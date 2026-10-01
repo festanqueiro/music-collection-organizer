@@ -9,6 +9,7 @@ import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
 import type { PlaylistNode, RekordboxImportPlan } from '../types'
+import { baseName } from '../paths'
 
 const LAYOUT_KEY = 'playlistsBox'
 const MIN_HEIGHT = 80
@@ -104,18 +105,21 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     return y < 0.5 ? 'before' : 'after'
   }
   const [importPlan, setImportPlan] = useState<{ filePaths: string[]; plan: RekordboxImportPlan } | null>(null)
+  // Songs found at another path that the user unticked (by their old path).
+  const [rejectedRelinks, setRejectedRelinks] = useState<Set<string>>(new Set())
 
   async function pickImport() {
     const picked = await window.api.pickRekordboxImport()
     if (!picked) return
     if ('error' in picked) return showToast(picked.error)
     if (picked.plan.playlists.length === 0) return showToast('No playlists in that file')
+    setRejectedRelinks(new Set())
     setImportPlan(picked)
   }
 
-  async function runImport(filePaths: string[]) {
+  async function runImport(filePaths: string[], relinks: { from: string; trackId: number }[]) {
     try {
-      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths) })
+      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths, relinks) })
       const selected = useCollectionStore.getState().selectedPlaylistId
       if (selected !== null) void useCollectionStore.getState().selectPlaylist(selected)
       showToast('Imported from Rekordbox')
@@ -527,12 +531,26 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
           confirmLabel="Import"
           onCancel={() => setImportPlan(null)}
           onConfirm={() => {
-            const { filePaths } = importPlan
+            const { filePaths, plan } = importPlan
             setImportPlan(null)
-            void runImport(filePaths)
+            void runImport(
+              filePaths,
+              plan.relinks.filter((r) => !rejectedRelinks.has(r.from)).map((r) => ({ from: r.from, trackId: r.trackId }))
+            )
           }}
         >
-          <ImportSummary plan={importPlan.plan} />
+          <ImportSummary
+            plan={importPlan.plan}
+            rejected={rejectedRelinks}
+            onToggle={(from) =>
+              setRejectedRelinks((prev) => {
+                const next = new Set(prev)
+                if (!next.delete(from)) next.add(from)
+                return next
+              })
+            }
+            onSetAll={(on) => setRejectedRelinks(on ? new Set() : new Set(importPlan.plan.relinks.map((r) => r.from)))}
+          />
         </ConfirmDialog>
       )}
       {confirmDelete && (
@@ -567,10 +585,21 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   )
 }
 
-function ImportSummary({ plan }: { plan: RekordboxImportPlan }) {
+function ImportSummary({
+  plan,
+  rejected,
+  onToggle,
+  onSetAll,
+}: {
+  plan: RekordboxImportPlan
+  rejected: Set<string>
+  onToggle: (from: string) => void
+  onSetAll: (on: boolean) => void
+}) {
   const refreshed = plan.playlists.filter((p) => p.refresh).length
   const fresh = plan.playlists.length - refreshed
-  const missing = plan.songs - plan.matched
+  const relinked = plan.playlists.reduce((sum, p) => sum + p.relinked, 0)
+  const missing = plan.songs - plan.matched - relinked
   const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '460px' }}>
@@ -581,9 +610,57 @@ function ImportSummary({ plan }: { plan: RekordboxImportPlan }) {
         folder.
       </p>
       <p style={{ margin: 0 }}>
-        {plan.matched} of {count(plan.songs, 'song')} found in your collection.
+        {plan.matched} of {count(plan.songs, 'song')} found in your collection
+        {relinked > 0 ? `, ${relinked} more at a different path (below)` : ''}.
         {missing > 0 && ` ${missing} not found (outside the collection folder, not scanned yet, or — from a .txt — a different title or artist); they're left out.`}
       </p>
+      {plan.relinks.length > 0 && (
+        // An old USB stick's paths, a moved file: the same song in the
+        // collection, used only if left ticked — and remembered.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <strong style={{ color: 'var(--color-text)' }}>Found at a different path</strong>
+            <span style={{ color: 'var(--color-text-dim)' }}>
+              {plan.relinks.length - [...rejected].filter((f) => plan.relinks.some((r) => r.from === f)).length} of{' '}
+              {plan.relinks.length} used
+            </span>
+            <span style={{ flex: 1 }} />
+            <button onClick={() => onSetAll(true)} style={{ fontSize: '11px' }}>
+              All
+            </button>
+            <button onClick={() => onSetAll(false)} style={{ fontSize: '11px' }}>
+              None
+            </button>
+          </div>
+          <div
+            style={{
+              maxHeight: '200px',
+              overflowY: 'auto',
+              border: '1px solid var(--color-border)',
+              borderRadius: '6px',
+              padding: '4px 6px',
+            }}
+          >
+            {plan.relinks.map((r) => (
+              <label
+                key={r.from}
+                title={`${r.from}\n→ ${r.to}`}
+                style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', padding: '3px 0', cursor: 'pointer' }}
+              >
+                <input type="checkbox" checked={!rejected.has(r.from)} onChange={() => onToggle(r.from)} style={{ marginTop: '2px' }} />
+                <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-dim)' }}>
+                    {baseName(r.from)}
+                  </span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    → {r.label} <span style={{ color: 'var(--color-text-dim)', fontSize: '11px' }}>({r.reason})</span>
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       {refreshed > 0 && (
         <p style={{ margin: 0 }}>Refreshed playlists get Rekordbox's songs; changes you made to them in MCO are replaced.</p>
       )}
@@ -608,8 +685,9 @@ function ImportSummary({ plan }: { plan: RekordboxImportPlan }) {
               {p.name}
               {p.refresh ? ' ↻' : ''}
             </span>
-            <span style={{ color: p.matched < p.songs ? 'var(--color-cue)' : 'var(--color-text-dim)', flexShrink: 0 }}>
-              {p.matched}/{p.songs}
+            <span style={{ color: p.matched + p.relinked < p.songs ? 'var(--color-cue)' : 'var(--color-text-dim)', flexShrink: 0 }}>
+              {p.matched}
+              {p.relinked > 0 ? ` + ${p.relinked}` : ''}/{p.songs}
             </span>
           </div>
         ))}

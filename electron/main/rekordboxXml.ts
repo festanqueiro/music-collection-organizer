@@ -3,9 +3,19 @@
 // file is machine-written, one element per tag, so a small tag scanner is
 // enough (no XML library in the app); it can be tens of MB.
 
+// What an export says about a song besides its path, for finding it in the
+// collection when the path is wrong (an old USB stick's): any may be missing.
+export interface SongHint {
+  size?: number
+  duration?: number
+  title?: string
+  artist?: string
+}
+
+// `hints`, when present, runs parallel to `paths`.
 export type RekordboxNode =
   | { kind: 'folder'; name: string; children: RekordboxNode[] }
-  | { kind: 'playlist'; name: string; paths: string[] }
+  | { kind: 'playlist'; name: string; paths: string[]; hints?: SongHint[] }
 
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
@@ -42,6 +52,7 @@ export function locationToPath(location: string): string {
 export function parseRekordboxXml(xml: string): RekordboxNode[] {
   if (!/<DJ_PLAYLISTS[\s>]/.test(xml)) throw new Error("This isn't a Rekordbox XML export")
   const trackPaths = new Map<string, string>()
+  const trackHints = new Map<string, SongHint>()
   const stack: { kind: 'folder'; name: string; children: RekordboxNode[] }[] = []
   let root: RekordboxNode[] | null = null
   let inPlaylists = false
@@ -56,7 +67,16 @@ export function parseRekordboxXml(xml: string): RekordboxNode[] {
     if (!inPlaylists) {
       if (tag === 'TRACK' && !closing) {
         const a = attributes(attrText)
-        if (a.TrackID && a.Location) trackPaths.set(a.TrackID, locationToPath(a.Location))
+        if (a.TrackID && a.Location) {
+          trackPaths.set(a.TrackID, locationToPath(a.Location))
+          const number = (v: string | undefined) => (v && Number(v) > 0 ? Number(v) : undefined)
+          trackHints.set(a.TrackID, {
+            size: number(a.Size),
+            duration: number(a.TotalTime),
+            title: a.Name || undefined,
+            artist: a.Artist || undefined,
+          })
+        }
       }
       continue
     }
@@ -72,7 +92,7 @@ export function parseRekordboxXml(xml: string): RekordboxNode[] {
       const a = attributes(attrText)
       const name = a.Name ?? ''
       if (a.Type === '1') {
-        const node: RekordboxNode = { kind: 'playlist', name, paths: [] }
+        const node: RekordboxNode = { kind: 'playlist', name, paths: [], hints: [] }
         stack[stack.length - 1]?.children.push(node)
         if (!selfClosing) playlist = { node, keyType: a.KeyType ?? '0' }
       } else {
@@ -87,7 +107,10 @@ export function parseRekordboxXml(xml: string): RekordboxNode[] {
     if (tag === 'TRACK' && playlist && !closing) {
       const key = attributes(attrText).Key
       const path = playlist.keyType === '1' ? (key ? locationToPath(key) : undefined) : trackPaths.get(key ?? '')
-      if (path) playlist.node.paths.push(path)
+      if (path) {
+        playlist.node.paths.push(path)
+        playlist.node.hints!.push((playlist.keyType === '1' ? undefined : trackHints.get(key ?? '')) ?? {})
+      }
     }
   }
   return root ?? []
@@ -131,9 +154,32 @@ export function parseRekordboxTxt(text: string): RekordboxTxtRow[] {
 // A playlist exported as .m3u8/.m3u: "#" lines are comments, every other
 // line a song's file path (or a file:// URL).
 export function parseM3u(text: string): string[] {
-  return text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#'))
-    .map((l) => (l.startsWith('file:') ? locationToPath(l) : l.normalize('NFC')))
+  return parseM3uEntries(text).map((e) => e.path)
+}
+
+// The same, with what each song's "#EXTINF:<seconds>,<Artist> - <Title>"
+// line says about it.
+export function parseM3uEntries(text: string): { path: string; hint: SongHint }[] {
+  const entries: { path: string; hint: SongHint }[] = []
+  let hint: SongHint = {}
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line) continue
+    const info = /^#EXTINF:\s*(-?\d+(?:\.\d+)?)\s*,(.*)$/i.exec(line)
+    if (info) {
+      const seconds = Number(info[1])
+      const label = info[2].trim()
+      const dash = label.indexOf(' - ')
+      hint = {
+        duration: seconds > 0 ? seconds : undefined,
+        artist: dash > 0 ? label.slice(0, dash).trim() : undefined,
+        title: (dash > 0 ? label.slice(dash + 3) : label).trim() || undefined,
+      }
+      continue
+    }
+    if (line.startsWith('#')) continue
+    entries.push({ path: line.startsWith('file:') ? locationToPath(line) : line.normalize('NFC'), hint })
+    hint = {}
+  }
+  return entries
 }

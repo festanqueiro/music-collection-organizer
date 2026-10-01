@@ -99,7 +99,21 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   Rekordbox so refreshes skip it).
 - Songs are matched by file path: the XML's `Location` (`file://localhost/…`, URL-encoded)
   decoded, compared to MCO's paths after Unicode NFC normalisation (macOS paths are often NFD),
-  then case-insensitively. Unmatched songs are skipped, and counted per playlist in the summary.
+  then case-insensitively, then paths confirmed in an earlier import (below). Unmatched songs are
+  skipped, and counted per playlist in the summary.
+- **Songs at a different path** — playlists from an old Rekordbox USB stick list the stick's
+  paths (`/Volumes/…/Contents/Artist/Album/…`, file names often cut short), or a file moved since.
+  For each song not found by path, MCO looks for the same song in the collection, in order:
+  the **same file size** (from the XML's `Size`, or the file itself if the stick is plugged in),
+  the **same title and artist** (the XML's, or an m3u8's `#EXTINF` "Artist - Title"), the **same
+  file name** — or one Rekordbox shortened (a cut-off name of 12+ characters that starts the
+  collection's). Durations must agree within 2 s when both are known; only a single fitting song
+  counts, and songs whose file is missing are never suggested.
+- These are never used silently: the summary's **Found at a different path** list shows each
+  (old file name → collection song, and why), all ticked, with *All* / *None*. Ticked ones are
+  imported as the collection's song and **remembered** (`playlist_path_aliases`), so importing
+  the same export again matches them by path with no asking; unticked ones are left out and asked
+  again next time. Files are never moved or renamed.
 - Intelligent (smart) playlists come in with the songs Rekordbox listed at export time, as normal
   playlists.
 
@@ -162,6 +176,11 @@ export.
   (spaces, `%20`, non-ASCII, NFD), empty folders, smart playlists.
 - `savedPlaylist.test.ts`: moving one or several songs up/down/to the ends, dropping on a moved
   song, unknown ids; undo restoring places, keeping songs added since, no duplicates.
+- `playlists.test.ts`, songs at a different path: by size (from the export or the stick's file),
+  by title and artist, by a shortened file name; never between two songs, across a duration
+  mismatch or to a missing file; only confirmed ones used, and remembered for the next import.
+- `rekordboxXml.test.ts`: the XML's per-song hints (Size, TotalTime, Name, Artist) and m3u8
+  `#EXTINF` entries.
 - `playlists.test.ts` (against a temp DB): rewriting the order (each song once, deleted tracks
   dropped, folders refused), CRUD, positions after move/reorder/remove, cascade on
   track delete, refresh (matched replaced, new added, gone kept, MCO-made untouched, detached

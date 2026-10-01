@@ -42,6 +42,12 @@ installed copies update themselves.
   come first in *Add to playlist*; **F2** renames the selected playlist; a
   playlist icon in the collapsed sidebar opens it on the Playlists box;
   *Import from Rekordbox…* opens in the folder you last imported from.
+- **Playlists from old Rekordbox USB sticks**: when an imported playlist
+  lists a song at a path that isn't in your collection (the stick's, or a
+  moved file), MCO looks for the same song in your collection — same file
+  size, same title and artist, or the same (or shortened) file name — and
+  lists each one under *Found at a different path* in the import summary to
+  confirm. Confirmed songs are remembered for the next import.
 - **Export to Rekordbox** (Settings → Import & export) now includes your
   playlists, in an **MCO Playlists** folder next to the tags' **MCO**
   folder.

@@ -92,6 +92,13 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
   PRIMARY KEY (playlist_id, position)
 );
 CREATE INDEX IF NOT EXISTS playlist_tracks_track ON playlist_tracks(track_id);
+
+-- A path in an imported playlist (an old USB stick's, say) the user confirmed
+-- is this collection song, so importing it again needs no asking.
+CREATE TABLE IF NOT EXISTS playlist_path_aliases (
+  path TEXT PRIMARY KEY,
+  track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE
+);
 `
 
 export function openDatabase(path: string): AppDatabase {

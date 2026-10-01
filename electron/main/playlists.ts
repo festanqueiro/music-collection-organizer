@@ -2,9 +2,10 @@
 // tree in playlist_nodes, songs in order in playlist_tracks. Deleting a
 // node deletes what's under it (ON DELETE CASCADE); tracks are never
 // touched, and a track deleted from the collection leaves every playlist.
+import { statSync } from 'node:fs'
 import { runInTransaction, type AppDatabase } from './db'
-import type { PlaylistNode, RekordboxImportPlan } from '../../src/types'
-import type { RekordboxNode, RekordboxTxtRow } from './rekordboxXml'
+import type { PlaylistNode, RekordboxImportPlan, RekordboxRelink } from '../../src/types'
+import type { RekordboxNode, RekordboxTxtRow, SongHint } from './rekordboxXml'
 
 interface NodeRow {
   id: number
@@ -171,7 +172,8 @@ function flatten(nodes: RekordboxNode[], parent: string[] = []): { node: Rekordb
   return out
 }
 
-// File paths → track ids: exact (NFC), then ignoring case.
+// File paths → track ids: exact (NFC), then ignoring case, then a path the
+// user confirmed earlier is a collection song (playlist_path_aliases).
 function trackMatcher(db: AppDatabase): (path: string) => number | undefined {
   const rows = db.prepare('SELECT id, path FROM tracks').all() as { id: number; path: string }[]
   const exact = new Map<string, number>()
@@ -181,7 +183,73 @@ function trackMatcher(db: AppDatabase): (path: string) => number | undefined {
     exact.set(nfc, r.id)
     loose.set(nfc.toLowerCase(), r.id)
   }
-  return (path) => exact.get(path.normalize('NFC')) ?? loose.get(path.normalize('NFC').toLowerCase())
+  const aliases = new Map(
+    (db.prepare('SELECT path, track_id FROM playlist_path_aliases').all() as { path: string; track_id: number }[]).map((r) => [
+      r.path,
+      r.track_id,
+    ])
+  )
+  return (path) => {
+    const nfc = path.normalize('NFC')
+    return exact.get(nfc) ?? loose.get(nfc.toLowerCase()) ?? aliases.get(nfc)
+  }
+}
+
+// Ignoring case, spacing and punctuation — for titles, artists, file names.
+const looseKey = (s: string | null | undefined) => (s ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+const stem = (path: string) => looseKey((path.split(/[\\/]/).pop() ?? '').replace(/\.[^.]+$/, ''))
+
+export type FileSize = (path: string) => number | undefined
+const fileSize: FileSize = (path) => {
+  try {
+    return statSync(path).size
+  } catch {
+    return undefined
+  }
+}
+
+// A song whose path isn't in the collection (an old USB stick's, a moved
+// file) may still be one of its songs. Tried in order, each only when
+// exactly one present song fits, durations within 2 s when both known:
+// the same file size (the stick's file if it's plugged in, or the size the
+// export gives), the same title and artist, the same file name (or one
+// Rekordbox shortened on the stick: "… - 04 Kings Music - Pa.aiff").
+// Only ever a suggestion — the import summary asks before using it.
+function elsewhereFinder(db: AppDatabase, sizeOf: FileSize): (path: string, hint: SongHint) => { trackId: number; reason: string } | null {
+  const rows = db
+    .prepare('SELECT id, path, size, duration, title, artist FROM tracks WHERE present = 1')
+    .all() as { id: number; path: string; size: number; duration: number | null; title: string | null; artist: string | null }[]
+  const bySize = new Map<number, typeof rows>()
+  const byTitleArtist = new Map<string, typeof rows>()
+  for (const r of rows) {
+    bySize.set(r.size, [...(bySize.get(r.size) ?? []), r])
+    if (r.title && r.artist) {
+      const key = `${looseKey(r.title)}|${looseKey(r.artist)}`
+      byTitleArtist.set(key, [...(byTitleArtist.get(key) ?? []), r])
+    }
+  }
+  const stems = rows.map((r) => ({ row: r, stem: stem(r.path) }))
+  return (path, hint) => {
+    const fits = (r: (typeof rows)[number]) =>
+      hint.duration === undefined || r.duration === null || Math.abs(r.duration - hint.duration) <= 2
+    const one = (candidates: typeof rows | undefined) => {
+      const ok = (candidates ?? []).filter(fits)
+      return ok.length === 1 ? ok[0] : null
+    }
+    const size = hint.size ?? sizeOf(path)
+    const sameSize = size ? one(bySize.get(size)) : null
+    if (sameSize) return { trackId: sameSize.id, reason: 'same file size' }
+    if (hint.title && hint.artist) {
+      const sameTags = one(byTitleArtist.get(`${looseKey(hint.title)}|${looseKey(hint.artist)}`))
+      if (sameTags) return { trackId: sameTags.id, reason: 'same title and artist' }
+    }
+    const name = stem(path)
+    if (name) {
+      const sameName = one(stems.filter((s) => s.stem === name || (name.length >= 12 && s.stem.startsWith(name))).map((s) => s.row))
+      if (sameName) return { trackId: sameName.id, reason: 'same file name' }
+    }
+    return null
+  }
 }
 
 function importedNodes(db: AppDatabase): Map<string, { id: number; kind: string; name: string }> {
@@ -191,11 +259,15 @@ function importedNodes(db: AppDatabase): Map<string, { id: number; kind: string;
   return new Map(rows.map((r) => [`${r.kind}:${r.source_path}`, r]))
 }
 
-export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[]): RekordboxImportPlan {
+export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[], sizeOf: FileSize = fileSize): RekordboxImportPlan {
   const match = trackMatcher(db)
+  const elsewhere = elsewhereFinder(db, sizeOf)
   const existing = importedNodes(db)
   const flat = flatten(tree)
-  const plan: RekordboxImportPlan = { folders: 0, playlists: [], songs: 0, matched: 0, gone: [] }
+  const plan: RekordboxImportPlan = { folders: 0, playlists: [], songs: 0, matched: 0, relinks: [], gone: [] }
+  // Each unmatched path looked up once, however many playlists list it.
+  const relinkByPath = new Map<string, RekordboxRelink | null>()
+  const trackLabel = db.prepare('SELECT path, title, artist, filename FROM tracks WHERE id = ?')
   const incoming = new Set<string>()
   for (const { node, path } of flat) {
     const key = `${node.kind}:${JSON.stringify(path)}`
@@ -205,7 +277,24 @@ export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[]): Rek
       continue
     }
     const matched = new Set(node.paths.map(match).filter((id) => id !== undefined)).size
-    plan.playlists.push({ name: path.join(' / '), songs: node.paths.length, matched, refresh: existing.has(key) })
+    let relinked = 0
+    node.paths.forEach((songPath, i) => {
+      if (match(songPath) !== undefined) return
+      const from = songPath.normalize('NFC')
+      if (!relinkByPath.has(from)) {
+        const found = elsewhere(from, node.hints?.[i] ?? {})
+        let relink: RekordboxRelink | null = null
+        if (found) {
+          const t = trackLabel.get(found.trackId) as { path: string; title: string | null; artist: string | null; filename: string }
+          const label = t.title ? (t.artist ? `${t.artist} - ${t.title}` : t.title) : t.filename
+          relink = { from, trackId: found.trackId, to: t.path, label, reason: found.reason }
+          plan.relinks.push(relink)
+        }
+        relinkByPath.set(from, relink)
+      }
+      if (relinkByPath.get(from)) relinked++
+    })
+    plan.playlists.push({ name: path.join(' / '), songs: node.paths.length, matched, relinked, refresh: existing.has(key) })
     plan.songs += node.paths.length
     plan.matched += matched
   }
@@ -213,8 +302,14 @@ export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[]): Rek
   return plan
 }
 
-export function applyRekordboxImport(db: AppDatabase, tree: RekordboxNode[]): void {
+// `relinks`: the songs found at another path that the user confirmed —
+// remembered, so the next import of the same export needs no asking.
+export function applyRekordboxImport(db: AppDatabase, tree: RekordboxNode[], relinks: { from: string; trackId: number }[] = []): void {
   runInTransaction(db, () => {
+    const remember = db.prepare(
+      'INSERT OR REPLACE INTO playlist_path_aliases (path, track_id) SELECT ?, id FROM tracks WHERE id = ?'
+    )
+    for (const r of relinks) remember.run(r.from.normalize('NFC'), r.trackId)
     const match = trackMatcher(db)
     const existing = importedNodes(db)
     const now = Date.now()

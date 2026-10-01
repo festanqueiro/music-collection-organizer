@@ -91,7 +91,8 @@ const api = {
   getPlaylistNodes: (): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:getNodes'),
   pickRekordboxImport: (): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> =>
     ipcRenderer.invoke('playlists:pickRekordbox'),
-  importRekordbox: (filePaths: string[]): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:importRekordbox', filePaths),
+  importRekordbox: (filePaths: string[], relinks: { from: string; trackId: number }[]): Promise<PlaylistNode[]> =>
+    ipcRenderer.invoke('playlists:importRekordbox', filePaths, relinks),
   movePlaylistNode: (id: number, targetId: number | null, where: 'before' | 'after' | 'into'): Promise<PlaylistNode[]> =>
     ipcRenderer.invoke('playlists:move', id, targetId, where),
   exportPlaylistM3u: (id: number): Promise<{ files: number; songs: number } | null> => ipcRenderer.invoke('playlists:exportM3u', id),

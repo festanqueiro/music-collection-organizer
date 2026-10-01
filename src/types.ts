@@ -109,12 +109,24 @@ export interface PlaylistNode {
   trackCount: number
 }
 
+// A song an import lists at a path that isn't in the collection, which
+// looks like this collection song (`to`) — used only once confirmed.
+export interface RekordboxRelink {
+  from: string
+  trackId: number
+  to: string
+  label: string
+  reason: string
+}
+
 // What a Rekordbox import will do, shown before anything is written.
 export interface RekordboxImportPlan {
   folders: number
-  playlists: { name: string; songs: number; matched: number; refresh: boolean }[]
+  // matched: found by path; relinked: found elsewhere, to confirm.
+  playlists: { name: string; songs: number; matched: number; relinked: number; refresh: boolean }[]
   songs: number
   matched: number
+  relinks: RekordboxRelink[]
   // Imported playlists that aren't in this export any more (kept).
   gone: string[]
 }

@@ -16,6 +16,7 @@ describe('openDatabase', () => {
       'genres',
       'moods',
       'playlist_nodes',
+      'playlist_path_aliases',
       'playlist_tracks',
       'subgenres',
       'track_genres',

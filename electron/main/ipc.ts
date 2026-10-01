@@ -103,7 +103,7 @@ import {
   playlistToM3u,
   folderPlaylists,
 } from './playlists'
-import { decodeRekordboxText, parseM3u, parseRekordboxTxt, parseRekordboxXml, type RekordboxNode } from './rekordboxXml'
+import { decodeRekordboxText, parseM3uEntries, parseRekordboxTxt, parseRekordboxXml, type RekordboxNode } from './rekordboxXml'
 import type {
   Track,
   Genre,
@@ -704,7 +704,10 @@ export function registerIpcHandlers(
       const text = decodeRekordboxText(readFileSync(filePath))
       if (/\.xml$/i.test(filePath)) return parseRekordboxXml(text)
       const name = basename(filePath).replace(/\.[^.]+$/, '')
-      if (/\.m3u8?$/i.test(filePath)) return [{ kind: 'playlist', name, paths: parseM3u(text) }]
+      if (/\.m3u8?$/i.test(filePath)) {
+        const entries = parseM3uEntries(text)
+        return [{ kind: 'playlist', name, paths: entries.map((e) => e.path), hints: entries.map((e) => e.hint) }]
+      }
       return rekordboxTxtToTree(db, name, parseRekordboxTxt(text))
     })
   ipcMain.handle(
@@ -729,8 +732,9 @@ export function registerIpcHandlers(
       }
     }
   )
-  ipcMain.handle('playlists:importRekordbox', (_e, filePaths: string[]): PlaylistNode[] => {
-    applyRekordboxImport(db, readRekordboxFiles(filePaths))
+  // relinks: the "found at another path" songs the user kept ticked.
+  ipcMain.handle('playlists:importRekordbox', (_e, filePaths: string[], relinks: { from: string; trackId: number }[] = []): PlaylistNode[] => {
+    applyRekordboxImport(db, readRekordboxFiles(filePaths), relinks)
     return getPlaylistNodes(db)
   })
   ipcMain.handle(

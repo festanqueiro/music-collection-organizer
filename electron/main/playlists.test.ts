@@ -18,7 +18,7 @@ import {
   playlistToM3u,
   folderPlaylists,
 } from './playlists'
-import type { RekordboxNode } from './rekordboxXml'
+import type { RekordboxNode, SongHint } from './rekordboxXml'
 
 describe('playlists', () => {
   let db: AppDatabase
@@ -130,7 +130,7 @@ describe('rekordbox import', () => {
   it('plans, imports under a Rekordbox folder, and refreshes on a second import', () => {
     const plan = planRekordboxImport(db, tree(['/m/b.wav', '/M/A.wav', '/elsewhere.wav']))
     expect(plan).toMatchObject({ folders: 1, songs: 3, matched: 2, gone: [] })
-    expect(plan.playlists).toEqual([{ name: 'Sets / Bassin', songs: 3, matched: 2, refresh: false }])
+    expect(plan.playlists).toEqual([{ name: 'Sets / Bassin', songs: 3, matched: 2, relinked: 0, refresh: false }])
     applyRekordboxImport(db, tree(['/m/b.wav', '/M/A.wav', '/elsewhere.wav']))
     const nodes = getPlaylistNodes(db)
     expect(nodes.map((n) => [n.name, n.kind, n.source])).toEqual([
@@ -166,6 +166,78 @@ describe('rekordbox import', () => {
     ])
     expect(node.kind === 'playlist' && node.paths.slice(0, 2)).toEqual(['/m/a.wav', '/m/b.wav'])
     expect(planRekordboxImport(db, [node]).matched).toBe(2)
+  })
+})
+
+describe('songs at a different path (an old USB stick)', () => {
+  let db: AppDatabase
+  let ids: Record<string, number>
+  beforeEach(() => {
+    db = openDatabase(':memory:')
+    const insert = db.prepare(
+      `INSERT INTO tracks (path, filename, folder, format, size, mtime, duration, title, artist, present) VALUES (?, ?, '/c', 'aiff', ?, 1, ?, ?, ?, ?)`
+    )
+    const add = (name: string, size: number, duration: number, title: string | null, artist: string | null, present = 1) =>
+      insert.run(`/c/${name}`, name, size, duration, title, artist, present).lastInsertRowid as number
+    ids = {
+      kings: add('Dubkasm - Kings Music - 04 Kings Music - Part 2.aiff', 5000, 300, 'Kings Music Part 2', 'Dubkasm'),
+      lockdown: add('Sanda - Lockdown.aiff', 6000, 240, 'Lockdown', 'Sanda'),
+      twinA: add('Twin A.aiff', 7000, 200, 'Twin', 'Same'),
+      twinB: add('Twin B.aiff', 7000, 200, 'Twin', 'Same'),
+      gone: add('Gone.aiff', 8000, 180, 'Gone', 'Nobody', 0),
+    }
+  })
+  const usb = (name: string) => `/Volumes/OLD USB/Contents/${name}`
+  const playlist = (paths: string[], hints?: SongHint[]): RekordboxNode[] => [{ kind: 'playlist', name: 'Kiosk', paths, hints }]
+  const noFiles = () => undefined
+
+  it('suggests a song by file size, by title and artist, or by a name Rekordbox shortened on the stick', () => {
+    const plan = planRekordboxImport(
+      db,
+      playlist(
+        [usb('x1.aiff'), usb('Lockdown Pt.aiff'), usb('Dubkasm - Kings Music - 04 Kings Music - Pa.aiff'), usb('nothing.aiff')],
+        [{ size: 6000, duration: 241 }, { title: 'LOCKDOWN', artist: 'sanda' }, {}, { title: 'Nope', artist: 'Nobody' }]
+      ),
+      noFiles
+    )
+    expect(plan.matched).toBe(0)
+    expect(plan.playlists[0]).toMatchObject({ songs: 4, matched: 0, relinked: 3 })
+    expect(plan.relinks.map((r) => [r.from, r.trackId, r.reason])).toEqual([
+      [usb('x1.aiff'), ids.lockdown, 'same file size'],
+      [usb('Lockdown Pt.aiff'), ids.lockdown, 'same title and artist'],
+      [usb('Dubkasm - Kings Music - 04 Kings Music - Pa.aiff'), ids.kings, 'same file name'],
+    ])
+    expect(plan.relinks[0]).toMatchObject({ to: '/c/Sanda - Lockdown.aiff', label: 'Sanda - Lockdown' })
+  })
+
+  it('reads the size of the file on a plugged-in stick when the export gives none', () => {
+    const plan = planRekordboxImport(db, playlist([usb('a.aiff')]), (p) => (p === usb('a.aiff') ? 5000 : undefined))
+    expect(plan.relinks.map((r) => r.trackId)).toEqual([ids.kings])
+  })
+
+  it('never guesses between two songs, across a duration that differs, or to a missing file', () => {
+    const plan = planRekordboxImport(
+      db,
+      playlist(
+        [usb('t.aiff'), usb('Twin.aiff'), usb('l.aiff'), usb('g.aiff')],
+        [{ size: 7000 }, { title: 'Twin', artist: 'Same' }, { size: 6000, duration: 200 }, { size: 8000 }]
+      ),
+      noFiles
+    )
+    expect(plan.relinks).toEqual([])
+  })
+
+  it('uses only the confirmed ones, and remembers them for the next import', () => {
+    const paths = [usb('x1.aiff'), usb('Dubkasm - Kings Music - 04 Kings Music - Pa.aiff')]
+    const tree = playlist(paths, [{ size: 6000 }, {}])
+    const plan = planRekordboxImport(db, tree, noFiles)
+    applyRekordboxImport(db, tree, [plan.relinks[1]])
+    const kiosk = getPlaylistNodes(db).find((n) => n.name === 'Kiosk')!.id
+    expect(getPlaylistTrackIds(db, kiosk)).toEqual([ids.kings])
+    // Remembered: matched by path now; the unconfirmed one is still a question.
+    const again = planRekordboxImport(db, tree, noFiles)
+    expect(again.matched).toBe(1)
+    expect(again.relinks.map((r) => r.from)).toEqual([usb('x1.aiff')])
   })
 })
 
