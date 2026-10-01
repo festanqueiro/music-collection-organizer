@@ -109,6 +109,8 @@ const api = {
     ipcRenderer.invoke('playlists:addTracks', playlistId, trackIds),
   removeTracksFromPlaylist: (playlistId: number, trackIds: number[]): Promise<{ trackIds: number[]; nodes: PlaylistNode[] }> =>
     ipcRenderer.invoke('playlists:removeTracks', playlistId, trackIds),
+  setPlaylistTrackIds: (playlistId: number, trackIds: number[]): Promise<{ trackIds: number[]; nodes: PlaylistNode[] }> =>
+    ipcRenderer.invoke('playlists:setTracks', playlistId, trackIds),
   createGenre: (name: string): Promise<number> => ipcRenderer.invoke('tags:createGenre', name),
   createSubgenre: (name: string, genreId: number): Promise<number> =>
     ipcRenderer.invoke('tags:createSubgenre', name, genreId),

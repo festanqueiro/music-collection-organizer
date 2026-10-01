@@ -191,6 +191,9 @@ export default function App() {
   const queueUndo = useCollectionStore((s) => s.queueUndo)
   const undoQueueReplace = useCollectionStore((s) => s.undoQueueReplace)
   const dismissQueueUndo = useCollectionStore((s) => s.dismissQueueUndo)
+  const playlistUndo = useCollectionStore((s) => s.playlistUndo)
+  const undoPlaylistRemove = useCollectionStore((s) => s.undoPlaylistRemove)
+  const dismissPlaylistUndo = useCollectionStore((s) => s.dismissPlaylistUndo)
   const [scrollToTrack, setScrollToTrack] = useState<{ trackId: number; nonce: number } | null>(null)
 
   // Tags/Subtags' checkbox selection is local component state that resets
@@ -419,6 +422,9 @@ export default function App() {
         />
       )}
       {queueUndo && <UndoToast message={queueUndo.message} onUndo={undoQueueReplace} onDismiss={dismissQueueUndo} />}
+      {playlistUndo && (
+        <UndoToast message={playlistUndo.message} onUndo={() => void undoPlaylistRemove()} onDismiss={dismissPlaylistUndo} />
+      )}
       {pendingGenreDeletion && (
         <UndoToast
           message={`Deleted "${pendingGenreDeletion.snapshot.genreName}"`}

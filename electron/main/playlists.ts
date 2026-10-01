@@ -130,6 +130,24 @@ export function removeTracksFromPlaylist(db: AppDatabase, playlistId: number, tr
   })
 }
 
+// Rewrites a playlist's songs in this order (a reorder, or an undo putting
+// removed songs back). Each song once; ids no longer in the collection
+// (deleted to the Trash meanwhile) are dropped.
+export function setPlaylistTrackIds(db: AppDatabase, playlistId: number, trackIds: number[]): void {
+  runInTransaction(db, () => {
+    const node = db.prepare('SELECT kind FROM playlist_nodes WHERE id = ?').get(playlistId) as { kind: string } | undefined
+    if (node?.kind !== 'playlist') throw new Error('Not a playlist')
+    const exists = db.prepare('SELECT 1 FROM tracks WHERE id = ?')
+    db.prepare('DELETE FROM playlist_tracks WHERE playlist_id = ?').run(playlistId)
+    const insert = db.prepare('INSERT INTO playlist_tracks (playlist_id, position, track_id) VALUES (?, ?, ?)')
+    let position = 0
+    for (const trackId of new Set(trackIds)) {
+      if (exists.get(trackId)) insert.run(playlistId, position++, trackId)
+    }
+    db.prepare('UPDATE playlist_nodes SET updated_at = ? WHERE id = ?').run(Date.now(), playlistId)
+  })
+}
+
 // ---- Rekordbox import (ADR 0050) ----
 // Imported nodes live under one top folder "Rekordbox" and remember their
 // name path in Rekordbox's tree (source_path, a JSON array), so importing

@@ -92,6 +92,7 @@ import {
   getPlaylistTrackIds,
   removeTracksFromPlaylist,
   renamePlaylistNode,
+  setPlaylistTrackIds,
   applyRekordboxImport,
   detachPlaylistNode,
   movePlaylistNode,
@@ -788,6 +789,13 @@ export function registerIpcHandlers(
     'playlists:removeTracks',
     (_e, playlistId: number, trackIds: number[]): { trackIds: number[]; nodes: PlaylistNode[] } => {
       removeTracksFromPlaylist(db, playlistId, trackIds)
+      return { trackIds: getPlaylistTrackIds(db, playlistId), nodes: getPlaylistNodes(db) }
+    }
+  )
+  ipcMain.handle(
+    'playlists:setTracks',
+    (_e, playlistId: number, trackIds: number[]): { trackIds: number[]; nodes: PlaylistNode[] } => {
+      setPlaylistTrackIds(db, playlistId, trackIds)
       return { trackIds: getPlaylistTrackIds(db, playlistId), nodes: getPlaylistNodes(db) }
     }
   )

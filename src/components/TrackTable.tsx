@@ -47,6 +47,12 @@ const OVERSCAN_ROWS = 15
 // config synced through the main process.
 const COLUMN_WIDTHS_STORAGE_KEY = 'mco-track-table-column-widths'
 
+// Top half of a row: the dragged rows go before it; bottom half: after.
+function rowDropWhere(e: React.DragEvent<HTMLElement>): 'before' | 'after' {
+  const rect = e.currentTarget.getBoundingClientRect()
+  return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+}
+
 function loadColumnWidths(): Record<TrackTableColumnKey, number> {
   try {
     const stored = localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY)
@@ -184,6 +190,9 @@ export function TrackTable({
   )
   const selectPlaylist = useCollectionStore((s) => s.selectPlaylist)
   const removeTracksFromSelectedPlaylist = useCollectionStore((s) => s.removeTracksFromSelectedPlaylist)
+  const moveTracksInSelectedPlaylist = useCollectionStore((s) => s.moveTracksInSelectedPlaylist)
+  // Where dragged rows will land while reordering a playlist.
+  const [rowDrop, setRowDrop] = useState<{ id: number; where: 'before' | 'after' } | null>(null)
   const [playlistOrder, setPlaylistOrder] = useState(true)
   useEffect(() => setPlaylistOrder(true), [selectedPlaylistId])
   // Show/hide columns: from the columns button or a right-click on any header.
@@ -394,6 +403,12 @@ export function TrackTable({
     playlistOrder,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
+  // Rows can be dragged up and down while a playlist shows in its own order.
+  const canReorder = selectedPlaylistId !== null && playlistOrder && !duplicates && !missingTracksFilter
+  const trackIdsByPath = useMemo(() => new Map(tracks.map((t) => [t.path, t.id])), [tracks])
+  useEffect(() => {
+    if (!canReorder) setRowDrop(null)
+  }, [canReorder])
 
   // Only the rows in (and just around) the viewport are rendered — the
   // rest are two spacer rows of the same total height. A whole collection
@@ -441,6 +456,18 @@ export function TrackTable({
         }
         return
       }
+      // ⌫ in a playlist: remove the checked songs, or the selected one, from
+      // it (Undo puts them back). Elsewhere it does nothing — never a delete.
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (selectedPlaylistId === null) return
+        const inPlaylist = new Set(selectedPlaylistTrackIds)
+        const checked = visibleTracks.filter((t) => checkedTrackIds.has(t.id)).map((t) => t.id)
+        const ids = checked.length > 0 ? checked : selectedTrackId != null && inPlaylist.has(selectedTrackId) ? [selectedTrackId] : []
+        if (ids.length === 0) return
+        e.preventDefault()
+        void removeTracksFromSelectedPlaylist(ids)
+        return
+      }
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) return
       if (visibleTracks.length === 0) return
       e.preventDefault()
@@ -461,7 +488,17 @@ export function TrackTable({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [visibleTracks, selectedTrackId, onSelect, modalOpen, previewTrack])
+  }, [
+    visibleTracks,
+    selectedTrackId,
+    onSelect,
+    modalOpen,
+    previewTrack,
+    selectedPlaylistId,
+    selectedPlaylistTrackIds,
+    checkedTrackIds,
+    removeTracksFromSelectedPlaylist,
+  ])
 
   const columnLabels: Record<TrackTableColumnKey, string> = {
     title: 'Title',
@@ -704,6 +741,10 @@ export function TrackTable({
     const elsewhere = [...checkedTrackIds].filter((id) => !inTable.includes(id))
     return [...inTable, ...elsewhere]
   }, [contextMenu, checkedTrackIds, visibleTracks])
+  const menuOnMissing = useMemo(
+    () => !!contextMenu && !!visibleTracks.find((t) => t.id === contextMenu.trackId)?.missing,
+    [contextMenu, visibleTracks]
+  )
 
   function cellStyleFor(key: TrackTableColumnKey) {
     const width = columnWidths[key]
@@ -900,7 +941,11 @@ export function TrackTable({
               <th style={{ ...cellStyle, width: CLOUD_COL_WIDTH, ...stickyHeaderStyle }}>Cloud</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRowDrop(null)
+            }}
+          >
             {tracks.length > 0 && visibleTracks.length === 0 && (
               <tr>
                 <td
@@ -929,7 +974,8 @@ export function TrackTable({
                 onContextMenu={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  if (track.missing) return
+                  // A missing song can still be removed from the playlist.
+                  if (track.missing && selectedPlaylistId === null) return
                   setContextMenu({ trackId: track.id, x: e.clientX, y: e.clientY })
                 }}
                 draggable={!track.missing}
@@ -947,7 +993,33 @@ export function TrackTable({
                       : [track.id]
                   window.api.startTrackDrag(ids)
                 }}
-                style={{ cursor: 'pointer', height: ROW_HEIGHT, ...(track.missing ? { opacity: 0.6 } : {}) }}
+                // Reordering a playlist: the rows' native drag comes back as
+                // files, matched to tracks by path like the Playlists box does.
+                onDragOver={(e) => {
+                  if (!canReorder || !e.dataTransfer.types.includes('Files')) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  const where = rowDropWhere(e)
+                  if (rowDrop?.id !== track.id || rowDrop.where !== where) setRowDrop({ id: track.id, where })
+                }}
+                onDrop={(e) => {
+                  if (!canReorder) return
+                  e.preventDefault()
+                  setRowDrop(null)
+                  const ids = [...e.dataTransfer.files]
+                    .map((file) => trackIdsByPath.get(window.api.pathForFile(file)))
+                    .filter((id): id is number => id !== undefined)
+                  if (ids.length > 0) void moveTracksInSelectedPlaylist(ids, track.id, rowDropWhere(e))
+                }}
+                style={{
+                  cursor: 'pointer',
+                  height: ROW_HEIGHT,
+                  ...(track.missing ? { opacity: 0.6 } : {}),
+                  // A line where the dragged rows will land.
+                  ...(rowDrop?.id === track.id
+                    ? { boxShadow: `inset 0 ${rowDrop.where === 'before' ? '2px' : '-2px'} 0 var(--color-accent)` }
+                    : {}),
+                }}
               >
                 <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                   <input
@@ -1022,7 +1094,21 @@ export function TrackTable({
             onClick={(e) => e.stopPropagation()}
             style={{ ...contextMenuStyle, top: contextMenu.y, left: contextMenu.x }}
           >
-            {menuTrackIds.length > 1 ? (
+            {menuOnMissing && selectedPlaylistId !== null ? (
+              // A song whose file is gone: all it can do is leave the playlist.
+              <button
+                onClick={() => {
+                  void removeTracksFromSelectedPlaylist(menuTrackIds)
+                  setContextMenu(null)
+                }}
+                style={contextMenuItemStyle}
+              >
+                <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                  playlist_remove
+                </span>
+                {menuTrackIds.length > 1 ? `Remove ${menuTrackIds.length} songs from` : 'Remove from'} {selectedPlaylistName}
+              </button>
+            ) : menuTrackIds.length > 1 ? (
               // Right-click on one of several checked tracks: act on all of
               // them, in table order.
               <>

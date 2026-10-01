@@ -9,6 +9,7 @@ import {
   getPlaylistTrackIds,
   removeTracksFromPlaylist,
   renamePlaylistNode,
+  setPlaylistTrackIds,
   applyRekordboxImport,
   detachPlaylistNode,
   planRekordboxImport,
@@ -68,6 +69,18 @@ describe('playlists', () => {
     expect(getPlaylistTrackIds(db, p)).toEqual([t[0], t[2]])
     addTracksToPlaylist(db, p, [t[1]])
     expect(getPlaylistTrackIds(db, p)).toEqual([t[0], t[2], t[1]])
+  })
+
+  it('rewrites the order, each song once, dropping tracks no longer in the collection', () => {
+    const p = createPlaylistNode(db, 'playlist', 'P', null)
+    addTracksToPlaylist(db, p, t)
+    setPlaylistTrackIds(db, p, [t[3], t[1], t[0], t[2]])
+    expect(getPlaylistTrackIds(db, p)).toEqual([t[3], t[1], t[0], t[2]])
+    db.prepare('DELETE FROM tracks WHERE id = ?').run(t[1])
+    setPlaylistTrackIds(db, p, [t[0], t[1], t[0], 999, t[2]])
+    expect(getPlaylistTrackIds(db, p)).toEqual([t[0], t[2]])
+    const f = createPlaylistNode(db, 'folder', 'F', null)
+    expect(() => setPlaylistTrackIds(db, f, [t[0]])).toThrow()
   })
 
   it('deletes a folder with everything in it, never the tracks', () => {

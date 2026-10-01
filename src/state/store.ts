@@ -55,6 +55,7 @@ import {
   playQueueItemNext as playQueueItemNextPure,
 } from './playlist'
 import { baseName } from '../paths'
+import { moveTracksInPlaylist, restoreRemovedTracks } from './savedPlaylist'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
 // onChange continuously, and writing to electron-store on every tick would
@@ -68,6 +69,7 @@ let talkPress: { at: number; wasLive: boolean } | null = null
 // Backs showToast's auto-dismiss below.
 let toastTimeout: ReturnType<typeof setTimeout> | null = null
 let queueUndoTimeout: ReturnType<typeof setTimeout> | null = null
+let playlistUndoTimeout: ReturnType<typeof setTimeout> | null = null
 
 // Coalesces rapid MIDI CC bursts to at most one store update per animation
 // frame, per control — a touch-sensitive hardware knob/fader can send
@@ -448,7 +450,14 @@ export interface CollectionState {
   renamePlaylistNode: (id: number, name: string) => Promise<void>
   deletePlaylistNode: (id: number) => Promise<void>
   addTracksToSavedPlaylist: (playlistId: number, trackIds: number[]) => Promise<void>
+  // Removes songs from the playlist being viewed; Undo puts them back.
   removeTracksFromSelectedPlaylist: (trackIds: number[]) => Promise<void>
+  // Drag-reorder in the playlist being viewed: `trackIds` land before or
+  // after `targetId`, keeping their own order.
+  moveTracksInSelectedPlaylist: (trackIds: number[], targetId: number, where: 'before' | 'after') => Promise<void>
+  playlistUndo: { message: string; playlistId: number; previous: number[]; removed: number[] } | null
+  undoPlaylistRemove: () => Promise<void>
+  dismissPlaylistUndo: () => void
   // Replaces the queue with a playlist's (or a folder's) songs and plays
   // the first; the queue it replaced can be brought back for a while.
   playPlaylistNode: (id: number) => Promise<void>
@@ -910,9 +919,59 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   removeTracksFromSelectedPlaylist: async (trackIds) => {
     const playlistId = get().selectedPlaylistId
     if (playlistId === null || trackIds.length === 0) return
+    const previous = get().selectedPlaylistTrackIds
     const result = await window.api.removeTracksFromPlaylist(playlistId, trackIds)
     set({ playlistNodes: result.nodes })
     if (get().selectedPlaylistId === playlistId) set({ selectedPlaylistTrackIds: result.trackIds })
+    const removed = previous.filter((id) => !result.trackIds.includes(id))
+    if (removed.length === 0) return
+    const name = result.nodes.find((n) => n.id === playlistId)?.name ?? 'the playlist'
+    // One undo at a time at the bottom of the window.
+    get().dismissQueueUndo()
+    if (playlistUndoTimeout) clearTimeout(playlistUndoTimeout)
+    set({
+      playlistUndo: {
+        message: `Removed ${removed.length} song${removed.length === 1 ? '' : 's'} from ${name}`,
+        playlistId,
+        previous,
+        removed,
+      },
+    })
+    playlistUndoTimeout = setTimeout(() => set({ playlistUndo: null }), 8000)
+  },
+  moveTracksInSelectedPlaylist: async (trackIds, targetId, where) => {
+    const playlistId = get().selectedPlaylistId
+    if (playlistId === null) return
+    const before = get().selectedPlaylistTrackIds
+    const order = moveTracksInPlaylist(before, trackIds, targetId, where)
+    if (order === before) return
+    // Shown at once; the write follows.
+    set({ selectedPlaylistTrackIds: order })
+    try {
+      const result = await window.api.setPlaylistTrackIds(playlistId, order)
+      set({ playlistNodes: result.nodes })
+      if (get().selectedPlaylistId === playlistId) set({ selectedPlaylistTrackIds: result.trackIds })
+    } catch (err) {
+      if (get().selectedPlaylistId === playlistId) set({ selectedPlaylistTrackIds: before })
+      get().showToast(`Couldn't reorder: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  },
+  playlistUndo: null,
+  undoPlaylistRemove: async () => {
+    const undo = get().playlistUndo
+    get().dismissPlaylistUndo()
+    if (!undo) return
+    const current = await window.api.getPlaylistTrackIds(undo.playlistId)
+    const result = await window.api.setPlaylistTrackIds(
+      undo.playlistId,
+      restoreRemovedTracks(current, undo.previous, undo.removed)
+    )
+    set({ playlistNodes: result.nodes })
+    if (get().selectedPlaylistId === undo.playlistId) set({ selectedPlaylistTrackIds: result.trackIds })
+  },
+  dismissPlaylistUndo: () => {
+    if (playlistUndoTimeout) clearTimeout(playlistUndoTimeout)
+    set({ playlistUndo: null })
   },
   playPlaylistNode: async (id) => {
     const node = get().playlistNodes.find((n) => n.id === id)
@@ -929,6 +988,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // Only worth an undo if there was a queue to lose.
     if (previous.length > 1) {
       if (queueUndoTimeout) clearTimeout(queueUndoTimeout)
+      get().dismissPlaylistUndo()
       set({ queueUndo: { message, previous } })
       queueUndoTimeout = setTimeout(() => set({ queueUndo: null }), 8000)
     } else get().showToast(message)
