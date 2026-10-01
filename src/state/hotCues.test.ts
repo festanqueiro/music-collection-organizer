@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { TrackCue } from '../types'
-import { HOT_CUE_DEFAULT_COLORS, firstEmptySlot, firstSoundTime, suggestedCues } from './hotCues'
+import { HOT_CUE_DEFAULT_COLORS, firstEmptySlot, firstSoundTime, gridPosition, snapToBeat, suggestedCues } from './hotCues'
 
 const hot = (slot: number, start: number): TrackCue => ({ id: slot + 1, kind: 'hot', slot, start, end: null, color: null, name: '' })
 
@@ -47,5 +47,19 @@ describe('firstEmptySlot', () => {
   it('is the first pad without a cue, or null when all eight are set', () => {
     expect(firstEmptySlot([hot(0, 1), hot(2, 3)])).toBe(1)
     expect(firstEmptySlot(Array.from({ length: 8 }, (_, i) => hot(i, i)))).toBeNull()
+  })
+})
+
+describe('the beat grid (dragging a cue)', () => {
+  // 120 BPM from 0.5 s: a beat is 0.5 s, a bar 2 s.
+  it('says how many bars and beats in a time is, like the suggestions count', () => {
+    expect(gridPosition(32.5, 120, 0.5)).toEqual({ bars: 16, beats: 0 })
+    expect(gridPosition(33.6, 120, 0.5)).toEqual({ bars: 16, beats: 2 })
+    expect(gridPosition(0.2, 120, 0.5)).toEqual({ bars: -1, beats: 3 })
+  })
+
+  it('snaps to the nearest beat', () => {
+    expect(snapToBeat(32.7, 120, 0.5)).toBe(32.5)
+    expect(snapToBeat(32.8, 120, 0.5)).toBe(33)
   })
 })

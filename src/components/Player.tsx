@@ -13,7 +13,7 @@ import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { PlayerScreenButtons } from './PlayerScreenButtons'
 import { HotCuePads, CueMarkers } from './HotCuePads'
-import { hotCueSlots, suggestedCues } from '../state/hotCues'
+import { gridStart, hotCueSlots, suggestedCues } from '../state/hotCues'
 
 const NO_CUES: never[] = []
 
@@ -582,7 +582,18 @@ export function Player({
         <MidiLearnBadge control="player.playNext" />
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          <CueMarkers cues={cues} duration={duration || track.duration || 0} suggestions={suggestions} />
+          <CueMarkers
+            cues={cues}
+            duration={duration || track.duration || 0}
+            suggestions={suggestions}
+            drag={{
+              trackId: track.id,
+              bpm: track.bpm,
+              gridStart: gridStart(track, duration || track.duration || 0),
+              onMove: (slot, time) => void useCollectionStore.getState().setHotCue(track.id, slot, time),
+              onJump: hotCue,
+            }}
+          />
           {peaks && peaks.length > 0 ? (
             <svg
               width="100%"

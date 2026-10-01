@@ -68,7 +68,7 @@ export function suggestedCues(
 ): SuggestedCue[] {
   if (!track.bpm || !(track.bpm > 0) || !(duration > 0)) return []
   const beat = 60 / track.bpm
-  const start = track.firstBeat ?? firstSoundTime(track.waveformPeaks, duration)
+  const start = gridStart(track, duration)
   const hot = cues.filter((c) => c.kind === 'hot')
   return SUGGESTED_CUE_BARS.map((bar) => Math.round((start + bar * 4 * beat) * 1000) / 1000)
     .map((time, i) => ({
@@ -83,4 +83,24 @@ export function suggestedCues(
 export function firstEmptySlot(cues: TrackCue[]): number | null {
   const i = hotCueSlots(cues).findIndex((c) => !c)
   return i < 0 ? null : i
+}
+
+// Where the beat grid starts: the analysed first beat, or the waveform guess.
+export function gridStart(track: { firstBeat: number | null; waveformPeaks: number[] | null }, duration: number): number {
+  return track.firstBeat ?? firstSoundTime(track.waveformPeaks, duration)
+}
+
+// Where `time` is on the grid, counted like the suggestions: whole bars
+// since the first beat, then beats into the next bar (0–3). Before the
+// first beat both are negative-floored (bar -1 …).
+export function gridPosition(time: number, bpm: number, start: number): { bars: number; beats: number } {
+  const beatsIn = Math.floor((time - start) / (60 / bpm) + 1e-6)
+  const bars = Math.floor(beatsIn / 4)
+  return { bars, beats: beatsIn - bars * 4 }
+}
+
+// The nearest beat to `time`.
+export function snapToBeat(time: number, bpm: number, start: number): number {
+  const beat = 60 / bpm
+  return Math.round((start + Math.round((time - start) / beat) * beat) * 1000) / 1000
 }

@@ -31,6 +31,15 @@ export.
 - **Colours**: new cues take their slot's default — the ones the user's Rekordbox uses for A–D (pink,
   blue, green, purple), then orange, cyan, yellow, magenta for E–H from its palette — eight
   clearly different colours, so no two pads look alike, and a cue looks the same in both apps.
+- **Dragging**: grab a hot cue's line or letter on the waveform and drag it; release to move it
+  there (colour and name kept); a click without moving jumps there and plays, like its pad. While
+  dragging, a **zoom** opens above the waveform: a detailed waveform of the 8 bars around the cue
+  (12 s without a BPM), which slides under the cue held in the middle; bar lines numbered like the
+  suggestions (bars since the first beat; 16/32/48/64 brighter), faint beat lines, the other cues
+  in view, and a dashed line where it started. The header reads the time to the millisecond, *bar
+  N + M beats*, and how far it has moved (seconds and beats). **⌥** (Alt) moves it at the zoom's
+  scale — the waveform under the pointer moves with it — for fine placement; **Shift** snaps to the
+  nearest beat; **Esc** cancels.
 - **Waveform**: each hot cue is a line in its colour with its letter on top; Rekordbox's memory cues
   (thin lines) and loops (a light band) show too, from an import.
 - **MIDI**: learnt like the other controls — each pad has a learn badge, shown only while
@@ -64,7 +73,11 @@ export.
   two early). Tracks analysed before it existed are re-analysed when played or queued (like
   energy); until then the first beat is guessed from the waveform (`firstSoundTime`, ≈).
 - **Renderer**: `src/state/hotCues.ts` (letters, default colours, palette, hex↔RGB,
-  `suggestedCues`, `firstEmptySlot`);
+  `suggestedCues`, `firstEmptySlot`, `gridStart`, `gridPosition`, `snapToBeat`); `CueMarkers` handles
+  the drag and `src/components/CueZoom.tsx` draws the zoom on a canvas from
+  `electron/main/waveformSection.ts` (IPC `waveform:section`): ffmpeg decodes just ~80 s around the
+  cue (`-ss`/`-t`, 11 kHz mono) into 200 peaks a second — the whole-track waveform's 800 peaks are
+  under half a second each on a six-minute track — fetched again when the view nears its edge;
   `trackCues` / `hotCueCounts` in the store, loaded per track when the player mounts;
   `src/components/HotCuePads.tsx` (pads, menu, `CueMarkers` on the waveform); `Player.tsx` adds
   `hotCue(slot)` to `playbackControls`, which MIDI (`player.hotCue1`–`8`) and the keys call.
@@ -78,6 +91,10 @@ export.
 - `store.midi.test.ts`: pads 1 and 8 on press only.
 - `src/state/hotCues.test.ts`: eight distinct default colours; suggestions at bars 16–64, cut at the
   end, which pad holds one, none without a BPM, the waveform guess; the first empty pad.
+- `hotCues.test.ts` also: bar/beat position, snapping to the beat. `waveformSection.test.ts`: only the
+  asked part is decoded, at the asked detail.
+- In the real app (xvfb): dragging B 7.6 s later with ⌥ and Shift (snapped, *bar 12 + 1 beat*),
+  Esc leaving C where it was, the zoom drawn over the table.
 - `analysis/bpmKey.test.ts`: the first beat of a 120 BPM click track after 1.5 s of silence;
   ticks in a silent intro skipped.
 - In the real app (Linux/xvfb): keys 1/2 set A/B, 1 jumps back, the pad menu, markers, the import

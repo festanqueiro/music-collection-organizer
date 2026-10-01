@@ -87,6 +87,7 @@ import { CastController, type DirectMediaSources } from './cast/castSession'
 import { isReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
 import { getCastableFilePath } from './audioTranscode'
+import { waveformSection } from './waveformSection'
 import { registerRecordingIpc } from './recording'
 import { mimeTypeFor } from './mediaTypes'
 import {
@@ -135,6 +136,7 @@ import type {
   RekordboxReport,
   RekordboxDuplicateAction,
   TrackCue,
+  WaveformSection,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -776,6 +778,11 @@ export function registerIpcHandlers(
   )
   // Cue points (docs/features/hot-cues.md): writes return the track's cues.
   ipcMain.handle('cues:get', (_e, trackId: number): TrackCue[] => getTrackCues(db, trackId))
+  ipcMain.handle('waveform:section', async (_e, trackId: number, start: number, length: number): Promise<WaveformSection | null> => {
+    const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
+    if (!row || !Number.isFinite(start) || !(length > 0) || length > 300) return null
+    return waveformSection(row.path, getMediaCacheDir(), start, length)
+  })
   ipcMain.handle('cues:counts', (): Record<number, number> => getHotCueCounts(db))
   ipcMain.handle('cues:set', (_e, trackId: number, slot: number, start: number): TrackCue[] => setHotCue(db, trackId, slot, start))
   ipcMain.handle(

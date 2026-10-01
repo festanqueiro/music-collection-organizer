@@ -32,6 +32,7 @@ import type {
   RekordboxReport,
   RekordboxDuplicateAction,
   TrackCue,
+  WaveformSection,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -95,6 +96,8 @@ const api = {
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),
   getPlaylistNodes: (): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:getNodes'),
   getTrackCues: (trackId: number): Promise<TrackCue[]> => ipcRenderer.invoke('cues:get', trackId),
+  getWaveformSection: (trackId: number, start: number, length: number): Promise<WaveformSection | null> =>
+    ipcRenderer.invoke('waveform:section', trackId, start, length),
   getHotCueCounts: (): Promise<Record<number, number>> => ipcRenderer.invoke('cues:counts'),
   setHotCue: (trackId: number, slot: number, start: number): Promise<TrackCue[]> => ipcRenderer.invoke('cues:set', trackId, slot, start),
   updateHotCue: (trackId: number, slot: number, changes: { color?: string | null; name?: string }): Promise<TrackCue[]> =>

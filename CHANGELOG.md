@@ -14,6 +14,11 @@ installed copies update themselves.
   be mapped to your MIDI controller's pads (lit while set), and a **Cues**
   column shows how many a track has. Each of the eight pads has its own
   colour.
+- **Drag hot cues** along the player's waveform to move them. While you
+  drag, a zoom opens above with a detailed waveform of the bars around the
+  cue, the bar and beat lines, the exact time, which bar and beat it's on,
+  and how far it has moved. Hold **⌥** to move it finely, **Shift** to snap
+  it to the beat, **Esc** to put it back; a click on a cue jumps there.
 - **Suggested hot cues**: next to the pads, buttons for bars **16, 32, 48
   and 64** from the first beat (where most dance tracks change phrase),
   also shown as dashed lines on the waveform. Click one to put it on the

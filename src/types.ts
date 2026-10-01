@@ -644,3 +644,11 @@ export interface RecordingResult {
   path: string | null
   error: string | null
 }
+
+// A detailed waveform of part of a track: `peaks[i]` covers the time
+// start + i / perSecond (electron/main/waveformSection.ts).
+export interface WaveformSection {
+  start: number
+  perSecond: number
+  peaks: number[]
+}
