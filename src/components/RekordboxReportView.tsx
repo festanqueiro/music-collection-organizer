@@ -67,12 +67,17 @@ export function RekordboxReportView({
   onClose,
   onCompareAgain,
   onPickFile,
+  onImportCues,
 }: {
   report: RekordboxReport
   onClose: () => void
   onCompareAgain: () => void
   onPickFile: () => void
+  // Brings Rekordbox's cues into MCO for songs with none in MCO.
+  onImportCues: () => Promise<string>
 }) {
+  const [importing, setImporting] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
   const [group, setGroup] = useState<Group>('playlists')
   const [open, setOpen] = useState<string | null>(null)
   useEffect(() => {
@@ -90,7 +95,7 @@ export function RekordboxReportView({
     () => ({
       playlists: report.playlists.filter((p) => p.kind !== 'same').length,
       info: report.info.reduce((n, f) => n + f.count, 0),
-      cues: report.cues.songs,
+      cues: report.cues.rows.length,
       files: report.files.reduce((n, f) => n + f.count, 0),
     }),
     [report]
@@ -271,24 +276,51 @@ export function RekordboxReportView({
           {group === 'cues' && (
             <>
               <p style={{ marginTop: 0, color: 'var(--color-text-dim)', fontSize: '13px' }}>
-                {plural(report.cues.count, 'cue point')} on {plural(report.cues.songs, 'song')} MCO has. MCO doesn’t keep cue points
-                yet — bringing these in comes with Hot cues.
+                Songs both have, whose cue points differ: {plural(report.cues.onlyRekordbox, 'song')} with cues only in Rekordbox,{' '}
+                {plural(report.cues.onlyMco, 'song')} only in MCO, {plural(report.cues.different, 'song')} with different ones.
               </p>
+              {report.cues.onlyRekordbox > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                  <button
+                    disabled={importing}
+                    onClick={async () => {
+                      setImporting(true)
+                      try {
+                        setImportMessage(await onImportCues())
+                      } finally {
+                        setImporting(false)
+                      }
+                    }}
+                  >
+                    {importing ? 'Bringing them in…' : `Bring Rekordbox’s cues into MCO (${plural(report.cues.onlyRekordbox, 'song')})`}
+                  </button>
+                  <span style={{ fontSize: '12px', color: 'var(--color-text-dim)' }}>
+                    Only for songs with no cues in MCO; songs with their own are left alone.
+                  </span>
+                </div>
+              )}
+              {importMessage && <p style={{ fontSize: '13px' }}>{importMessage}</p>}
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', color: 'var(--color-text-dim)' }}>
+                    <th style={cellStyle}>Song</th>
+                    <th style={cellStyle}>Rekordbox</th>
+                    <th style={cellStyle}>MCO</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {report.cues.rows.map((r) => (
                     <tr key={r.trackId}>
-                      <td style={{ ...cellStyle, width: '40%' }}>{r.song}</td>
+                      <td style={{ ...cellStyle, width: '30%' }}>{r.song}</td>
                       <td style={cellStyle}>
-                        {r.marks.map((m, i) => (
-                          <Cue key={i} mark={m} />
-                        ))}
+                        {r.rekordbox.length ? r.rekordbox.map((m, i) => <Cue key={i} mark={m} />) : '—'}
                       </td>
+                      <td style={cellStyle}>{r.mco.length ? r.mco.map((m, i) => <Cue key={i} mark={m} />) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {more(report.cues.rows.length, report.cues.songs)}
+              {more(report.cues.rows.length, report.cues.onlyRekordbox + report.cues.onlyMco + report.cues.different)}
             </>
           )}
 

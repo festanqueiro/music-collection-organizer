@@ -30,7 +30,8 @@ Click a mapped badge again to re-learn it. Bindings are saved.
 
 ## Mappable controls
 
-Player volume, master volume, play/pause, next track, CUE, and every control
+Player volume, master volume, play/pause, next track, CUE, the hot cue pads A–H
+([Hot cues](hot-cues.md): press sets or jumps, LED lit while set), and every control
 in the [FX panel](fx.md): EQ, Filter, Delay (including Division), Reverb,
 and the Dub Siren (including its trigger, Mode, and Beat), plus each
 module's on/off toggle (the EQ has none). The [Mic](recording.md#mic)'s

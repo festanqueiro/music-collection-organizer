@@ -92,6 +92,14 @@ export function TransferPage() {
           onClose={() => setReport(null)}
           onCompareAgain={() => void compare(false)}
           onPickFile={() => void compare(true)}
+          onImportCues={async () => {
+            const result = await window.api.importRekordboxCues()
+            if ('error' in result) return result.error
+            await compare(false)
+            useCollectionStore.getState().refreshHotCueCounts()
+            const n = (count: number, one: string) => `${count} ${one}${count === 1 ? '' : 's'}`
+            return `Brought in ${n(result.cues, 'cue point')} on ${n(result.songs, 'song')}${result.skipped ? ` (${n(result.skipped, 'song')} with their own cues left alone)` : ''}.`
+          }}
         />
       )}
     </Page>

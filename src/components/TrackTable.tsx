@@ -28,6 +28,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   energy: 80,
   loudness: 70,
   gain: 100,
+  cues: 64,
   format: 80,
   bitrate: 90,
   duration: 90,
@@ -72,6 +73,7 @@ function loadColumnWidths(): Record<TrackTableColumnKey, number> {
 const COLUMN_HINTS: Partial<Record<TrackTableColumnKey, (target: number | null) => string>> = {
   energy: () => 'Energy: how driving the track is, 1 (calm) to 10 (peak)',
   loudness: () => 'LUFS: integrated loudness (EBU R128) — closer to 0 is louder',
+  cues: () => 'Cues: how many hot cues (A–H) the track has',
   gain: (target) =>
     target === null
       ? 'Volume Score: the gain that would bring the track to the collection’s median loudness (analyse tracks first)'
@@ -184,6 +186,7 @@ export function TrackTable({
   const setCompatibleFilter = useCollectionStore((s) => s.setCompatibleFilter)
   const analysedFilter = useCollectionStore((s) => s.analysedFilter)
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
+  const hotCueCounts = useCollectionStore((s) => s.hotCueCounts)
   // The Volume Score column's reference: the collection's median loudness.
   const loudnessTarget = useMemo(() => medianLoudness(tracks.map((t) => t.loudness)), [tracks])
   const energyFilter = useCollectionStore((s) => s.energyFilter)
@@ -360,6 +363,7 @@ export function TrackTable({
     // Not analysed sorts as the quietest / the biggest boost.
     if (key === 'loudness') return track.loudness ?? -Infinity
     if (key === 'gain') return gainToMatch(track.loudness, loudnessTarget) ?? Infinity
+    if (key === 'cues') return hotCueCounts[track.id] ?? 0
     return track[key] ?? ''
   }
 
@@ -431,6 +435,7 @@ export function TrackTable({
     currentTrack,
     analysedFilter,
     energyFilter,
+    hotCueCounts,
     duplicates,
     missingMetadataFilter,
     mcoTagsFilter,
@@ -551,6 +556,7 @@ export function TrackTable({
     energy: 'Energy',
     loudness: 'LUFS',
     gain: 'Volume Score',
+    cues: 'Cues',
     format: 'Format',
     bitrate: 'Bitrate',
     duration: 'Duration',
@@ -764,6 +770,19 @@ export function TrackTable({
           >
             {formatGain(gain)}
           </span>
+        )
+      }
+      case 'cues': {
+        const n = hotCueCounts[track.id]
+        return n ? (
+          <span title={`${n} hot cue${n === 1 ? '' : 's'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '14px', color: 'var(--color-cue)' }}>
+              bookmark
+            </span>
+            {n}
+          </span>
+        ) : (
+          '—'
         )
       }
       case 'energy':

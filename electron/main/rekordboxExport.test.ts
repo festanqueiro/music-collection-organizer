@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { openDatabase, type AppDatabase } from './db'
 import { createGenre, createSubgenre, addGenresToTracks, addSubgenresToTracks } from './tags'
 import { buildRekordboxXml, toRekordboxLocation, xmlAttr } from './rekordboxExport'
+import { readRekordboxCollection } from './rekordboxXml'
 import { addTracksToPlaylist, applyRekordboxImport, createPlaylistNode } from './playlists'
+import { setHotCue, updateHotCue } from './cues'
 
 function insertTrack(db: AppDatabase, path: string, extra: Record<string, unknown> = {}): number {
   const row = {
@@ -137,6 +139,23 @@ describe('buildRekordboxXml', () => {
     expect(xml).not.toContain('From RB')
     expect(xml).not.toContain('Name="Rekordbox"')
     expect(playlistCount).toBe(1)
+  })
+
+  it('writes cue points as POSITION_MARKs, hot cues with their colour, and reads back', () => {
+    const t1 = insertTrack(db, '/music/1.mp3')
+    insertTrack(db, '/music/2.mp3')
+    setHotCue(db, t1, 0, 12.5)
+    setHotCue(db, t1, 3, 40)
+    updateHotCue(db, t1, 3, { color: '#00e0ff', name: 'Drop & go' })
+    const { xml } = buildRekordboxXml(db, '1')
+    expect(xml).toMatch(/TrackID="1"[^>]*>\s*<POSITION_MARK Name="" Type="0" Start="12.500" Num="0" Red="255" Green="55" Blue="111"\/>/)
+    expect(xml).toContain('<POSITION_MARK Name="Drop &amp; go" Type="0" Start="40.000" Num="3" Red="0" Green="224" Blue="255"/>')
+    expect(xml).toMatch(/TrackID="2"[^>]*\/>/)
+    const read = readRekordboxCollection(xml)
+    expect(read.tracks[0].cues.map((c) => [c.num, c.start, c.color])).toEqual([
+      [0, 12.5, [255, 55, 111]],
+      [3, 40, [0, 224, 255]],
+    ])
   })
 
   it('leaves tracks that are not exported out of playlists', () => {

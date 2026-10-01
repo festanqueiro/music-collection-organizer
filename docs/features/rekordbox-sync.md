@@ -214,8 +214,9 @@ Rekordbox" is automatic. Phase 0 measures it; until then the spec assumes:
      Title falls back to the file name as Rekordbox does; Genre is compared with MCO's Tags then
      Subtags as a set of names (case, order and `,` `/` `;` ignored); BPM differs only beyond ±0.5,
      also at half/double time; keys compared as Camelot codes in any notation.
-   - *Cue points*: Rekordbox's cues on songs MCO has, with slot, time and colour (MCO keeps none
-     yet).
+   - *Cue points*: songs whose cues differ — only in Rekordbox, only in MCO, or different (same
+     slot, time within 10 ms and colour count as the same) — with both sides' cues; **Bring
+     Rekordbox's cues into MCO** copies them for songs with none in MCO ([Hot cues](hot-cues.md)).
    - *Files*: outside the collection folder, in it but not scanned, gone from disk, only in MCO,
      missing in MCO.
    Still to do for phase 1: no snapshot yet (every difference is two-sided), and no paging past

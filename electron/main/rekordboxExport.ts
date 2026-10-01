@@ -1,6 +1,7 @@
 import type { AppDatabase } from './db'
 import { getPlaylistNodes, getPlaylistTrackIds } from './playlists'
 import type { PlaylistNode } from '../../src/types'
+import { HOT_CUE_DEFAULT_COLORS, hexToRgb } from '../../src/state/hotCues'
 import { shortKeyName } from '../../src/state/harmonic'
 
 // Builds a Rekordbox "DJ_PLAYLISTS" XML file (the format behind Rekordbox's
@@ -93,6 +94,19 @@ export function buildRekordboxXml(db: AppDatabase, appVersion: string): Rekordbo
     )
     .all() as unknown as ExportTrackRow[]
   const exportedIds = new Set(tracks.map((t) => t.id))
+  const cuesByTrack = new Map<number, { kind: string; slot: number; start: number; end: number | null; color: string | null; name: string }[]>()
+  for (const c of db.prepare('SELECT track_id, kind, slot, start, end, color, name FROM track_cues ORDER BY start').all() as {
+    track_id: number
+    kind: string
+    slot: number
+    start: number
+    end: number | null
+    color: string | null
+    name: string
+  }[]) {
+    if (!exportedIds.has(c.track_id)) continue
+    cuesByTrack.set(c.track_id, [...(cuesByTrack.get(c.track_id) ?? []), c])
+  }
 
   const genres = db.prepare('SELECT id, name FROM genres ORDER BY name COLLATE NOCASE').all() as {
     id: number
@@ -150,7 +164,23 @@ export function buildRekordboxXml(db: AppDatabase, appVersion: string): Rekordbo
       .filter(([, v]) => v !== null && v !== undefined && v !== '')
       .map(([k, v]) => `${k}="${xmlAttr(v)}"`)
       .join(' ')
-    lines.push(`    <TRACK ${rendered}/>`)
+    const marks = cuesByTrack.get(t.id) ?? []
+    if (marks.length === 0) {
+      lines.push(`    <TRACK ${rendered}/>`)
+      continue
+    }
+    // Cue points (docs/features/hot-cues.md): hot cues Num 0–7 with their
+    // colour, memory cues and loops Num -1; Rekordbox analyses its own grid.
+    lines.push(`    <TRACK ${rendered}>`)
+    for (const c of marks) {
+      const rgb = hexToRgb(c.color ?? (c.kind === 'hot' ? HOT_CUE_DEFAULT_COLORS[c.slot] : '') ?? '')
+      const color = rgb ? ` Red="${rgb[0]}" Green="${rgb[1]}" Blue="${rgb[2]}"` : ''
+      const end = c.kind === 'loop' && c.end !== null ? ` End="${c.end.toFixed(3)}"` : ''
+      lines.push(
+        `      <POSITION_MARK Name="${xmlAttr(c.name)}" Type="${c.kind === 'loop' ? 4 : 0}" Start="${c.start.toFixed(3)}"${end} Num="${c.kind === 'hot' ? c.slot : -1}"${color}/>`
+      )
+    }
+    lines.push('    </TRACK>')
   }
   lines.push('  </COLLECTION>')
 

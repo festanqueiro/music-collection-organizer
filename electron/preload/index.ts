@@ -30,6 +30,7 @@ import type {
   PlaylistNode,
   RekordboxImportPlan,
   RekordboxReport,
+  TrackCue,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -92,6 +93,14 @@ const api = {
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),
   getPlaylistNodes: (): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:getNodes'),
+  getTrackCues: (trackId: number): Promise<TrackCue[]> => ipcRenderer.invoke('cues:get', trackId),
+  getHotCueCounts: (): Promise<Record<number, number>> => ipcRenderer.invoke('cues:counts'),
+  setHotCue: (trackId: number, slot: number, start: number): Promise<TrackCue[]> => ipcRenderer.invoke('cues:set', trackId, slot, start),
+  updateHotCue: (trackId: number, slot: number, changes: { color?: string | null; name?: string }): Promise<TrackCue[]> =>
+    ipcRenderer.invoke('cues:update', trackId, slot, changes),
+  deleteHotCue: (trackId: number, slot: number): Promise<TrackCue[]> => ipcRenderer.invoke('cues:delete', trackId, slot),
+  importRekordboxCues: (): Promise<{ songs: number; cues: number; skipped: number } | { error: string }> =>
+    ipcRenderer.invoke('cues:importRekordbox'),
   compareWithRekordbox: (pick: boolean): Promise<{ report: RekordboxReport } | { error: string } | null> =>
     ipcRenderer.invoke('rekordbox:compare', pick),
   pickRekordboxImport: (): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> =>

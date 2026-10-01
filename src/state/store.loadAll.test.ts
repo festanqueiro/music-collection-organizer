@@ -12,6 +12,7 @@ let tracks: Track[] = []
     getAllTagIds: vi.fn(async () => []),
     getMissingTracks: vi.fn(async () => []),
     getPlaylistNodes: vi.fn(async () => []),
+    getHotCueCounts: vi.fn(async () => ({})),
   },
 }
 

@@ -57,6 +57,7 @@ export type TrackTableColumnKey =
   | 'energy'
   | 'loudness'
   | 'gain'
+  | 'cues'
   | 'format'
   | 'bitrate'
   | 'duration'
@@ -74,6 +75,7 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
   'energy',
   'loudness',
   'gain',
+  'cues',
   'format',
   'bitrate',
   'duration',
@@ -139,6 +141,20 @@ export interface RekordboxImportPlan {
   gone: string[]
 }
 
+// A cue point on a track (docs/features/hot-cues.md): a hot cue A–H
+// (slot 0–7), or a memory cue / loop (slot -1, from Rekordbox).
+export interface TrackCue {
+  id: number
+  kind: 'hot' | 'memory' | 'loop'
+  slot: number
+  // Seconds from the start; `end` only for loops.
+  start: number
+  end: number | null
+  // "#rrggbb", or null for the slot's default colour.
+  color: string | null
+  name: string
+}
+
 // Rekordbox sync, phase 1 (docs/features/rekordbox-sync.md): what differs
 // between Rekordbox's collection export and MCO — read-only, nothing applied.
 export type RekordboxInfoField = 'title' | 'artist' | 'album' | 'year' | 'genre' | 'bpm' | 'key'
@@ -175,8 +191,20 @@ export interface RekordboxReport {
   }[]
   // Per field: how many songs differ, and the first rows.
   info: { field: RekordboxInfoField; count: number; rows: { trackId: number; song: string; rekordbox: string; mco: string }[] }[]
-  // Rekordbox's cue points on songs MCO has (MCO keeps none yet).
-  cues: { count: number; songs: number; rows: { trackId: number; song: string; marks: RekordboxCueMark[] }[] }
+  // Cue points on songs both have, where they differ: only Rekordbox has
+  // cues, only MCO has, or both but not the same (slot, time ±10 ms, colour).
+  cues: {
+    onlyRekordbox: number
+    onlyMco: number
+    different: number
+    rows: {
+      trackId: number
+      song: string
+      status: 'only-rekordbox' | 'only-mco' | 'different'
+      rekordbox: RekordboxCueMark[]
+      mco: RekordboxCueMark[]
+    }[]
+  }
   files: {
     kind: 'outside-collection' | 'not-scanned' | 'gone-from-disk' | 'only-in-mco' | 'missing-in-mco'
     count: number
@@ -419,6 +447,15 @@ export const MIDI_CONTROL_KEYS = [
   'player.playPause',
   'player.playNext',
   'player.cue',
+  // Hot cue pads A–H (docs/features/hot-cues.md).
+  'player.hotCue1',
+  'player.hotCue2',
+  'player.hotCue3',
+  'player.hotCue4',
+  'player.hotCue5',
+  'player.hotCue6',
+  'player.hotCue7',
+  'player.hotCue8',
   'mic.enabled',
   'mic.talk',
   'mic.gainDb',

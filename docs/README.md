@@ -58,6 +58,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [Playlists](features/playlists.md) (planned) ·
 [Rekordbox sync](features/rekordbox-sync.md) (planned) ·
 [Home](features/home.md) (planned) ·
+[Hot cues](features/hot-cues.md) (A–H, with Rekordbox) ·
 [Website](features/website.md) (the marketing page, captured from the app) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
@@ -119,6 +120,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0052](adr/0052-two-way-rekordbox-sync-with-a-merge-wizard.md) | Sync with Rekordbox both ways: a three-way diff of its XML export, resolved in a wizard | proposed |
 | [0053](adr/0053-mixes-are-temporary-lists.md) | Home's mixes are temporary lists, never saved playlists | proposed |
 | [0054](adr/0054-website-captured-from-the-real-app.md) | A static website whose screenshots and clips are captured from the real app | accepted |
+| [0055](adr/0055-cue-points-in-mco-kept-rekordbox-compatible.md) | Cue points live in MCO's database, shaped like Rekordbox's | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |
@@ -126,6 +128,8 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | Space | anywhere (not while typing) | Play/pause |
 | → | anywhere (not while typing) | Play the next queued track |
 | C (hold) | anywhere | CUE |
+| 1–8 | anywhere (a track loaded; not in the visualizer) | Hot cue A–H: set it here if empty, else jump and play |
+| Shift-1–8 | anywhere (a track loaded) | Delete hot cue A–H |
 | ↑ / ↓ | track table | Move the selected row |
 | Home / End | track table | First / last visible row |
 | Page Up / Page Down | track table | Jump a page of rows |

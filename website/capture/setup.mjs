@@ -48,6 +48,12 @@ export async function setupLibrary(win) {
     await api.addTracksToPlaylist(sunday, [...byTag['Dub'].slice(0, 5), ...byTag['Dubstep'].slice(0, 4)])
     await api.addTracksToPlaylist(warmup, [...byTag['House'].slice(0, 4), ...byTag['UK Garage'].slice(0, 3)])
     await api.addTracksToPlaylist(jungle, byTag['Jungle'])
+    // Hot cues on a few songs: the intro, the drop, the break (8 bars apart).
+    for (const id of [...byTag['Dubstep'], ...byTag['Dub']]) {
+      const t = tracks.find((tr) => tr.id === id)
+      const bar = (60 / (t.bpm || 140)) * 4
+      for (const [slot, bars] of [[0, 4], [1, 8], [2, 10]]) await api.setHotCue(id, slot, bars * bar)
+    }
   }, TAGS)
   await win.reload()
   await win.waitForLoadState('domcontentloaded')

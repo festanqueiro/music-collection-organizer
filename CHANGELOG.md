@@ -4,6 +4,20 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## Unreleased
+
+### Added
+- **Hot cues A–H**: eight cue points per track, saved with it. Pads in the
+  player bar (and keys **1–8**) set a cue where the track is, or jump to it
+  and play; **Shift-1–8** deletes one. Right-click a pad to name it, pick a
+  colour or delete it. They're drawn on the waveform in their colours, can
+  be mapped to your MIDI controller's pads (lit while set), and a **Cues**
+  column shows how many a track has.
+- **Your Rekordbox cues in MCO**: *Compare with Rekordbox* now compares cue
+  points too, and **Bring Rekordbox's cues into MCO** copies them (hot cues,
+  memory cues and loops, with their colours) for songs that have none in MCO.
+- **Export to Rekordbox** now includes your cue points.
+
 ## 1.0.53 — 2026-10-01
 
 ### Added

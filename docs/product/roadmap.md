@@ -28,10 +28,11 @@ Per-release detail is in the [changelog](../log/changelog.md).
 2. **Portable library: relative paths (M)** — store paths relative to the collection folder, migrate
    once, resolve everywhere a path is used (media protocol, analysis, drag, reveal, tag export). Today
    a collection moved to a different path loses its tags ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
-3. **Hot cues and loops (L)** — up to 8 cue points per track (`track_cues`), waveform markers,
-   number keys and MIDI pads, a zoomable waveform, loops later; in the Rekordbox export, and the
-   user's 111 Rekordbox hot cues imported from its collection XML
-   ([research](../research/rekordbox-collection.md)).
+3. **Hot cues and loops (L)** — hot cues A–H are built ([Hot cues](../features/hot-cues.md),
+   [ADR 0055](../adr/0055-cue-points-in-mco-kept-rekordbox-compatible.md)): pads, keys 1–8, MIDI
+   pads, waveform markers, names and colours, the Cues column, Rekordbox import and export. Still to
+   do: playable loops and memory cues, a zoomable waveform, quantize to the beat, pads on the Live
+   screen.
 4. **Two-way Rekordbox sync (L)** — Rekordbox's collection export compared with MCO against the
    last sync's snapshot (a three-way diff); one-sided changes carried over, conflicts resolved in a
    wizard of findings: playlists, music info (titles, artists, genre ↔ Tags…), cue points, files

@@ -42,6 +42,7 @@ import {
   setRekordboxCompareFile,
 } from './config'
 import { compareWithRekordbox, loadMcoSide } from './rekordboxCompare'
+import { deleteHotCue, getHotCueCounts, getTrackCues, importRekordboxCues, setHotCue, updateHotCue } from './cues'
 import { getAppTheme, isAppThemeId } from '../../src/appThemes'
 import { FolderWatcher } from './folderWatcher'
 import { isTrustedReleaseUrl, type Updater } from './updater'
@@ -98,6 +99,7 @@ import {
   removeTracksFromPlaylist,
   renamePlaylistNode,
   setPlaylistTrackIds,
+  trackMatcher,
   applyRekordboxImport,
   detachPlaylistNode,
   movePlaylistNode,
@@ -131,6 +133,7 @@ import type {
   PlaylistNode,
   RekordboxImportPlan,
   RekordboxReport,
+  TrackCue,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -768,6 +771,26 @@ export function registerIpcHandlers(
       }
     }
   )
+  // Cue points (docs/features/hot-cues.md): writes return the track's cues.
+  ipcMain.handle('cues:get', (_e, trackId: number): TrackCue[] => getTrackCues(db, trackId))
+  ipcMain.handle('cues:counts', (): Record<number, number> => getHotCueCounts(db))
+  ipcMain.handle('cues:set', (_e, trackId: number, slot: number, start: number): TrackCue[] => setHotCue(db, trackId, slot, start))
+  ipcMain.handle(
+    'cues:update',
+    (_e, trackId: number, slot: number, changes: { color?: string | null; name?: string }): TrackCue[] =>
+      updateHotCue(db, trackId, slot, changes)
+  )
+  ipcMain.handle('cues:delete', (_e, trackId: number, slot: number): TrackCue[] => deleteHotCue(db, trackId, slot))
+  // From the Compare report: the compared export's cues, for songs with none in MCO.
+  ipcMain.handle('cues:importRekordbox', (): { songs: number; cues: number; skipped: number } | { error: string } => {
+    const file = getRekordboxCompareFile()
+    if (!file || !existsSync(file)) return { error: 'Compare with Rekordbox first — the export file is gone.' }
+    try {
+      return importRekordboxCues(db, readRekordboxCollection(decodeRekordboxText(readFileSync(file))), trackMatcher(db))
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) }
+    }
+  })
   // relinks: the "found at another path" songs the user kept ticked.
   ipcMain.handle('playlists:importRekordbox', (_e, filePaths: string[], relinks: { from: string; trackId: number }[] = []): PlaylistNode[] => {
     applyRekordboxImport(db, readRekordboxFiles(filePaths), relinks)

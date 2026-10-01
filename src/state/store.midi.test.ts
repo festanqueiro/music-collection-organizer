@@ -138,7 +138,7 @@ describe('handleMidiControlChange — player.playPause/playNext', () => {
     const toggle = vi.fn()
     useCollectionStore.setState({
       midiMappings: { 'player.playPause': { channel: 1, controller: 20, kind: 'note' } },
-      playbackControls: { toggle, cueDown: vi.fn(), cueUp: vi.fn() },
+      playbackControls: { toggle, cueDown: vi.fn(), cueUp: vi.fn(), hotCue: vi.fn() },
     })
 
     useCollectionStore.getState().handleMidiControlChange(1, 20, 127, 'note')
@@ -148,12 +148,27 @@ describe('handleMidiControlChange — player.playPause/playNext', () => {
     expect(toggle).toHaveBeenCalledTimes(1) // release is a no-op, not a second toggle
   })
 
+  it('player.hotCue1–8 call the pad on press only', () => {
+    const hotCue = vi.fn()
+    useCollectionStore.setState({
+      midiMappings: {
+        'player.hotCue1': { channel: 1, controller: 30, kind: 'note' },
+        'player.hotCue8': { channel: 1, controller: 37, kind: 'note' },
+      },
+      playbackControls: { toggle: vi.fn(), cueDown: vi.fn(), cueUp: vi.fn(), hotCue },
+    })
+    useCollectionStore.getState().handleMidiControlChange(1, 30, 127, 'note')
+    useCollectionStore.getState().handleMidiControlChange(1, 30, 0, 'note')
+    useCollectionStore.getState().handleMidiControlChange(1, 37, 127, 'note')
+    expect(hotCue.mock.calls).toEqual([[0], [7]])
+  })
+
   it('player.cue calls cueDown on press and cueUp on release', () => {
     const cueDown = vi.fn()
     const cueUp = vi.fn()
     useCollectionStore.setState({
       midiMappings: { 'player.cue': { channel: 1, controller: 21, kind: 'note' } },
-      playbackControls: { toggle: vi.fn(), cueDown, cueUp },
+      playbackControls: { toggle: vi.fn(), cueDown, cueUp, hotCue: vi.fn() },
     })
 
     useCollectionStore.getState().handleMidiControlChange(1, 21, 127, 'note')

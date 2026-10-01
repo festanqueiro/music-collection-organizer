@@ -2,6 +2,7 @@
 import { create, type StoreApi } from 'zustand'
 import type {
   Track,
+  TrackCue,
   PlaylistNode,
   RecordingFormat,
   MicSettings,
@@ -71,6 +72,20 @@ let talkPress: { at: number; wasLive: boolean } | null = null
 let toastTimeout: ReturnType<typeof setTimeout> | null = null
 let queueUndoTimeout: ReturnType<typeof setTimeout> | null = null
 let playlistUndoTimeout: ReturnType<typeof setTimeout> | null = null
+
+// A track's cues after a write (the IPC returns them), into the store.
+function patchCues(
+  set: StoreApi<CollectionState>['setState'],
+  get: StoreApi<CollectionState>['getState'],
+  trackId: number,
+  cues: TrackCue[]
+): void {
+  const hot = cues.filter((c) => c.kind === 'hot').length
+  const counts = { ...get().hotCueCounts }
+  if (hot) counts[trackId] = hot
+  else delete counts[trackId]
+  set({ trackCues: new Map(get().trackCues).set(trackId, cues), hotCueCounts: counts })
+}
 
 // Playlists songs were last added to, newest first — Add to playlist lists
 // them on top. Per-viewer convenience, so localStorage (may be missing in
@@ -244,6 +259,8 @@ export interface PlaybackControls {
   toggle: () => void
   cueDown: () => void
   cueUp: () => void
+  // Hot cue pad `slot` (0–7): set it here if empty, else jump to it.
+  hotCue: (slot: number) => void
 }
 
 export type PlayerScreen = 'queue' | 'fx' | 'live'
@@ -475,6 +492,15 @@ export interface CollectionState {
   renamePlaylistNode: (id: number, name: string) => Promise<void>
   deletePlaylistNode: (id: number) => Promise<void>
   addTracksToSavedPlaylist: (playlistId: number, trackIds: number[]) => Promise<void>
+  // Cue points (docs/features/hot-cues.md), per track, loaded when needed;
+  // the counts feed the table's Cues column.
+  trackCues: Map<number, TrackCue[]>
+  hotCueCounts: Record<number, number>
+  loadTrackCues: (trackId: number) => Promise<TrackCue[]>
+  refreshHotCueCounts: () => Promise<void>
+  setHotCue: (trackId: number, slot: number, start: number) => Promise<void>
+  updateHotCue: (trackId: number, slot: number, changes: { color?: string | null; name?: string }) => Promise<void>
+  deleteHotCue: (trackId: number, slot: number) => Promise<void>
   // Removes songs from the playlist being viewed; Undo puts them back.
   removeTracksFromSelectedPlaylist: (trackIds: number[]) => Promise<void>
   // Drag-reorder in the playlist being viewed: `trackIds` land before or
@@ -906,6 +932,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     toastTimeout = setTimeout(() => set({ toastMessage: null }), 3000)
   },
 
+  trackCues: new Map(),
+  hotCueCounts: {},
+  loadTrackCues: async (trackId) => {
+    const cues = await window.api.getTrackCues(trackId)
+    set({ trackCues: new Map(get().trackCues).set(trackId, cues) })
+    return cues
+  },
+  refreshHotCueCounts: async () => set({ hotCueCounts: await window.api.getHotCueCounts() }),
+  setHotCue: async (trackId, slot, start) => patchCues(set, get, trackId, await window.api.setHotCue(trackId, slot, start)),
+  updateHotCue: async (trackId, slot, changes) => patchCues(set, get, trackId, await window.api.updateHotCue(trackId, slot, changes)),
+  deleteHotCue: async (trackId, slot) => patchCues(set, get, trackId, await window.api.deleteHotCue(trackId, slot)),
   playlistNodes: [],
   selectedPlaylistId: null,
   selectedPlaylistTrackIds: [],
@@ -1407,6 +1444,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // CDJ-style CUE: press and release both matter (holding at the cue
     // point previews, releasing snaps back), unlike playPause's press-only
     // edge.
+    // Hot cue pads: press only (set or jump); release does nothing.
+    if (match.startsWith('player.hotCue')) {
+      if (value !== 0) get().playbackControls?.hotCue(Number(match.slice('player.hotCue'.length)) - 1)
+      return
+    }
     if (match === 'player.cue') {
       const controls = get().playbackControls
       if (value !== 0) controls?.cueDown()
@@ -1603,7 +1645,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   loadAll: async () => {
-    const [tracks, genres, subgenres, tagIdRows, missingTracks, playlistNodes] = await Promise.all([
+    const [tracks, genres, subgenres, tagIdRows, missingTracks, playlistNodes, hotCueCounts] = await Promise.all([
       window.api.getTracks(),
       window.api.getGenres(),
       window.api.getSubgenres(),
@@ -1611,6 +1653,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       window.api.getMissingTracks(),
       // Counts change when a scan or a delete removes tracks.
       window.api.getPlaylistNodes(),
+      window.api.getHotCueCounts(),
     ])
     const trackTags = new Map(tagIdRows.map((r) => [r.trackId, r]))
     // Keeps the batch selection across a reload (creating/renaming/
@@ -1619,7 +1662,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // that no longer exist, e.g. after a rescan marked them missing.
     const trackIds = new Set(tracks.map((t) => t.id))
     const checkedTrackIds = new Set([...get().checkedTrackIds].filter((id) => trackIds.has(id)))
-    set({ tracks, genres, subgenres, trackTags, checkedTrackIds, missingTracks, playlistNodes })
+    set({ tracks, genres, subgenres, trackTags, checkedTrackIds, missingTracks, playlistNodes, hotCueCounts, trackCues: new Map() })
     const playlistId = get().selectedPlaylistId
     if (playlistId !== null) await get().selectPlaylist(playlistNodes.some((n) => n.id === playlistId) ? playlistId : null)
   },

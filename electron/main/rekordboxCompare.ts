@@ -8,7 +8,9 @@ import { existsSync } from 'node:fs'
 import type { AppDatabase } from './db'
 import { getPlaylistNodes, getPlaylistTrackIds, trackMatcher } from './playlists'
 import type { RekordboxCollection, RekordboxCue, RekordboxNode, RekordboxTrack } from './rekordboxXml'
-import type { RekordboxCueMark, RekordboxInfoField, RekordboxReport } from '../../src/types'
+import type { RekordboxCueMark, RekordboxInfoField, RekordboxReport, TrackCue } from '../../src/types'
+import { HOT_CUE_DEFAULT_COLORS, cueColor } from '../../src/state/hotCues'
+import { getTrackCues } from './cues'
 import { toCamelot } from '../../src/state/harmonic'
 
 // How many example rows each group carries to the window (counts are full).
@@ -45,6 +47,8 @@ export interface McoSide {
   playlists: McoPlaylist[]
   // A Rekordbox path → MCO track id (by path, ignoring case, or confirmed earlier).
   match: (path: string) => number | undefined
+  // MCO's cue points by track id.
+  cues: Map<number, TrackCue[]>
 }
 
 const clean = (s: string | null | undefined) => (s ?? '').normalize('NFC').replace(/\s+/g, ' ').trim()
@@ -82,6 +86,31 @@ function cueMark(c: RekordboxCue): RekordboxCueMark {
     ...(c.end !== undefined ? { end: c.end } : {}),
     color: hex,
   }
+}
+
+function trackCueMark(c: TrackCue): RekordboxCueMark {
+  return {
+    slot: c.kind === 'hot' ? c.slot : -1,
+    kind: c.kind,
+    start: c.start,
+    ...(c.end !== null ? { end: c.end } : {}),
+    color: c.kind === 'hot' ? cueColor(c) : c.color,
+  }
+}
+
+// The same cues: same kinds and slots, times within 10 ms, same colours
+// (a hot cue without one counts as its slot's default).
+function sameCues(a: RekordboxCueMark[], b: RekordboxCueMark[]): boolean {
+  if (a.length !== b.length) return false
+  const key = (m: RekordboxCueMark) => `${m.kind}:${m.slot}`
+  const color = (m: RekordboxCueMark) => (m.kind === 'hot' ? (m.color ?? HOT_CUE_DEFAULT_COLORS[m.slot]) : m.color)?.toLowerCase() ?? null
+  const bs = [...b]
+  return a.every((m) => {
+    const i = bs.findIndex((n) => key(n) === key(m) && Math.abs(n.start - m.start) <= 0.01 && color(n) === color(m))
+    if (i < 0) return false
+    bs.splice(i, 1)
+    return true
+  })
 }
 
 function flatten(nodes: RekordboxNode[], parent: string[] = []): { path: string[]; paths: string[] }[] {
@@ -160,10 +189,16 @@ export function compareWithRekordbox(
   }
   const FIELDS: RekordboxInfoField[] = ['title', 'artist', 'album', 'year', 'genre', 'bpm', 'key']
 
-  // ---- cue points (MCO keeps none yet: all of Rekordbox's are "only in Rekordbox") ----
-  const cueRows = pairs
-    .filter((p) => p.rb.cues.length > 0)
-    .map((p) => ({ trackId: p.mco.id, song: songLabel(p.mco), marks: p.rb.cues.map(cueMark).sort((a, b) => a.start - b.start) }))
+  // ---- cue points ----
+  const cueRows: RekordboxReport['cues']['rows'] = []
+  for (const { rb: r, mco: m } of pairs) {
+    const rbMarks = r.cues.map(cueMark).sort((a, b) => a.start - b.start)
+    const mcoMarks = (mco.cues.get(m.id) ?? []).map(trackCueMark).sort((a, b) => a.start - b.start)
+    if (rbMarks.length === 0 && mcoMarks.length === 0) continue
+    const status = mcoMarks.length === 0 ? 'only-rekordbox' : rbMarks.length === 0 ? 'only-mco' : sameCues(rbMarks, mcoMarks) ? null : 'different'
+    if (status) cueRows.push({ trackId: m.id, song: songLabel(m), status, rekordbox: rbMarks, mco: mcoMarks })
+  }
+  const cueCount = (s: string) => cueRows.filter((row) => row.status === s).length
 
   // ---- playlists ----
   const playlists: RekordboxReport['playlists'] = []
@@ -233,7 +268,12 @@ export function compareWithRekordbox(
       const rows = info.get(field) ?? []
       return { field, count: rows.length, rows: rows.slice(0, ROWS) }
     }),
-    cues: { count: cueRows.reduce((n, r) => n + r.marks.length, 0), songs: cueRows.length, rows: cueRows.slice(0, ROWS) },
+    cues: {
+      onlyRekordbox: cueCount('only-rekordbox'),
+      onlyMco: cueCount('only-mco'),
+      different: cueCount('different'),
+      rows: cueRows.slice(0, ROWS),
+    },
     files: (Object.keys(files) as (keyof typeof files)[]).map((kind) => ({ kind, count: files[kind].length, rows: files[kind].slice(0, ROWS) })),
   }
 }
@@ -298,5 +338,8 @@ export function loadMcoSide(db: AppDatabase, collectionFolder: string | null): M
       .filter((n) => n.kind === 'playlist')
       .map((n) => ({ id: n.id, path: pathOf(n.id), source: n.source, sourcePath: sourcePaths.get(n.id) ?? null, trackIds: getPlaylistTrackIds(db, n.id) })),
     match: trackMatcher(db),
+    cues: new Map(
+      (db.prepare('SELECT DISTINCT track_id FROM track_cues').all() as { track_id: number }[]).map((r) => [r.track_id, getTrackCues(db, r.track_id)])
+    ),
   }
 }

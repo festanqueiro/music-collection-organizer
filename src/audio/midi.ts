@@ -189,6 +189,15 @@ export const MIDI_CONTROL_RANGES: Record<MidiControlKey, { min: number; max: num
   'player.playNext': { min: 0, max: 1 },
   // CDJ-style CUE: press and release both matter (hold-to-preview), no LED.
   'player.cue': { min: 0, max: 1 },
+  // Hot cue pads: press sets an empty one or jumps to it; LED lit when set.
+  'player.hotCue1': { min: 0, max: 1 },
+  'player.hotCue2': { min: 0, max: 1 },
+  'player.hotCue3': { min: 0, max: 1 },
+  'player.hotCue4': { min: 0, max: 1 },
+  'player.hotCue5': { min: 0, max: 1 },
+  'player.hotCue6': { min: 0, max: 1 },
+  'player.hotCue7': { min: 0, max: 1 },
+  'player.hotCue8': { min: 0, max: 1 },
   // The mic. Toggles and momentary buttons (enabled, talk, throw) and the
   // echo's division (a discrete pick) don't go through scaleMidiValue.
   'mic.enabled': { min: 0, max: 1 },

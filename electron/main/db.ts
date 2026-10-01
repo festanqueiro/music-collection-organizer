@@ -93,6 +93,21 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 );
 CREATE INDEX IF NOT EXISTS playlist_tracks_track ON playlist_tracks(track_id);
 
+-- Cue points (docs/features/hot-cues.md): hot cues A–H (slot 0–7), and
+-- memory cues and loops (slot -1) as Rekordbox has them. Times in seconds.
+CREATE TABLE IF NOT EXISTS track_cues (
+  id INTEGER PRIMARY KEY,
+  track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('hot', 'memory', 'loop')),
+  slot INTEGER NOT NULL,
+  start REAL NOT NULL,
+  end REAL,
+  color TEXT,
+  name TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS track_cues_hot ON track_cues(track_id, slot) WHERE kind = 'hot';
+CREATE INDEX IF NOT EXISTS track_cues_track ON track_cues(track_id);
+
 -- A path in an imported playlist (an old USB stick's, say) the user confirmed
 -- is this collection song, so importing it again needs no asking.
 CREATE TABLE IF NOT EXISTS playlist_path_aliases (

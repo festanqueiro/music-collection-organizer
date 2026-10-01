@@ -191,6 +191,7 @@ describe('config store', () => {
       'gain',
       'energy',
       'loudness',
+      'cues',
       'format',
       'bitrate',
       'duration',

@@ -3,6 +3,7 @@ import { openDatabase, type AppDatabase } from './db'
 import { compareWithRekordbox, loadMcoSide } from './rekordboxCompare'
 import { addTracksToPlaylist, applyRekordboxImport, createPlaylistNode } from './playlists'
 import { createGenre, createSubgenre, addGenresToTracks, addSubgenresToTracks } from './tags'
+import { setHotCue } from './cues'
 import type { RekordboxCollection, RekordboxTrack } from './rekordboxXml'
 
 const C = '/music'
@@ -79,7 +80,10 @@ describe('compareWithRekordbox', () => {
     expect(kind('only-in-mco').rows.map((r) => r.song).sort()).toEqual(['Amber – Iron Gate', 'Some File.aiff', 'X – Only Here'])
   })
 
-  it("carries Rekordbox's cue points for songs MCO has, in time order with their colours", () => {
+  it('compares cue points: only in Rekordbox, only in MCO, different; the same ones left out', () => {
+    // MCO: dub has none; jungle has A (default colour); untitled has A at 9 s; onlyMco… isn't in Rekordbox.
+    setHotCue(db, ids.jungle, 0, 30)
+    setHotCue(db, ids.untitled, 0, 9)
     const report = compareWithRekordbox(
       'x.xml',
       rb([
@@ -90,25 +94,36 @@ describe('compareWithRekordbox', () => {
             { num: -1, type: 4, start: 60, end: 64, color: null },
           ],
         }),
+        // Same slot and colour (the default), 4 ms apart: the same cue.
+        rbTrack('2', `${C}/jungle.aiff`, { cues: [{ num: 0, type: 0, start: 30.004, color: [255, 55, 111] }] }),
+        // Same slot, moved by a second: different.
+        rbTrack('3', `${C}/Some File.aiff`, { cues: [{ num: 0, type: 0, start: 10, color: [255, 55, 111] }] }),
+        rbTrack('4', `${C}/mco-only.aiff`),
       ]),
       loadMcoSide(db, C),
       exists
     )
-    expect(report.cues).toEqual({
-      count: 3,
-      songs: 1,
-      rows: [
-        {
-          trackId: ids.dub,
-          song: 'Low Tide – Deep Water',
-          marks: [
-            { slot: 0, kind: 'hot', start: 12.5, color: '#ff376f' },
-            { slot: 1, kind: 'hot', start: 40, color: '#45acdb' },
-            { slot: -1, kind: 'loop', start: 60, end: 64, color: null },
-          ],
-        },
+    expect(report.cues.onlyRekordbox).toBe(1)
+    expect(report.cues.different).toBe(1)
+    expect(report.cues.onlyMco).toBe(0)
+    const dub = report.cues.rows.find((r) => r.trackId === ids.dub)!
+    expect(dub).toEqual({
+      trackId: ids.dub,
+      song: 'Low Tide – Deep Water',
+      status: 'only-rekordbox',
+      rekordbox: [
+        { slot: 0, kind: 'hot', start: 12.5, color: '#ff376f' },
+        { slot: 1, kind: 'hot', start: 40, color: '#45acdb' },
+        { slot: -1, kind: 'loop', start: 60, end: 64, color: null },
       ],
+      mco: [],
     })
+    expect(report.cues.rows.find((r) => r.trackId === ids.untitled)?.status).toBe('different')
+    expect(report.cues.rows.some((r) => r.trackId === ids.jungle)).toBe(false)
+
+    setHotCue(db, ids.onlyMco, 3, 5)
+    const again = compareWithRekordbox('x.xml', rb([rbTrack('4', `${C}/mco-only.aiff`)]), loadMcoSide(db, C), exists)
+    expect(again.cues.rows.map((r) => [r.status, r.mco.map((m) => m.slot)])).toEqual([['only-mco', [3]]])
   })
 
   it('compares playlists by their path, imported ones by where they came from', () => {
