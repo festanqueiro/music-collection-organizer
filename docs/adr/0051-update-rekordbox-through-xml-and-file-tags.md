@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: proposed — the one-way part superseded by 0052
 date: 2026-10-01
 ---
 # 0051. Update Rekordbox through its XML import and the files' own tags

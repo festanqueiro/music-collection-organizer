@@ -33,11 +33,13 @@ Per-release detail is in the [changelog](../log/changelog.md).
    number keys and MIDI pads, a zoomable waveform, loops later; in the Rekordbox export, and the
    user's 111 Rekordbox hot cues imported from its collection XML
    ([research](../research/rekordbox-collection.md)).
-4. **Rekordbox sync (M–L)** — update Rekordbox with what changed in MCO: a repeatable collection
-   XML export (a remembered file Rekordbox reads, changed-only option, MCO Tags as Genre, Subtags as
-   Grouping), MCO Tags written into the files' Genre for Rekordbox's Reload Tag, and cue points once
-   #3 exists. Starts with a probe of what Rekordbox 7 overwrites on import.
-   [Spec](../features/rekordbox-sync.md), [ADR 0051](../adr/0051-update-rekordbox-through-xml-and-file-tags.md).
+4. **Two-way Rekordbox sync (L)** — Rekordbox's collection export compared with MCO against the
+   last sync's snapshot (a three-way diff); one-sided changes carried over, conflicts resolved in a
+   wizard of findings: playlists, music info (titles, artists, genre ↔ Tags…), cue points, files
+   (missing, moved, outside the collection). MCO's side applied with undo; Rekordbox's written to
+   the XML it reads, plus a checklist. Starts with a probe of what Rekordbox 7 overwrites on import,
+   then a read-only report. [Spec](../features/rekordbox-sync.md),
+   [ADR 0052](../adr/0052-two-way-rekordbox-sync-with-a-merge-wizard.md).
 5. **TV visualizer quality (M)** — make more themes run on the Chromecast HD
    ([research](../research/cast-devices.md#chromecast-hd-gpu)).
 6. **Tag writing for FLAC and ID3v2.2 (S–M)**, and a reviewed bulk flow for filename suggestions

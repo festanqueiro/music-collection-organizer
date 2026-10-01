@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: proposed — the one-way part superseded by 0052
 date: 2026-10-01
 ---
 # 0050. Keep playlists in MCO's database and import them from Rekordbox's XML export

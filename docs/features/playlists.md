@@ -186,5 +186,6 @@ export.
 - Songs whose file is missing can't be dragged to reorder (the rows' drag is a file drag).
 - Should *Play playlist* also be offered on the row menu when viewing a playlist ("Play from
   here")? Not built yet.
-- Two-way sync with Rekordbox is out of scope; playlists go there as m3u8 files or in the XML
-  export.
+- Two-way sync with Rekordbox (playlists, music info, cue points, files) is planned separately:
+  [Rekordbox sync](rekordbox-sync.md), [ADR 0052](../adr/0052-two-way-rekordbox-sync-with-a-merge-wizard.md).
+  Until then playlists go there as m3u8 files or in the XML export.
