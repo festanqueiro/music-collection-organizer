@@ -31,6 +31,12 @@ installed copies update themselves.
   (m3u8)…** saves it as an .m3u8 with each song's file, which Rekordbox
   imports (File → Import → Import Playlist). Right-click a folder to export
   every playlist in it, one file each.
+- **Playlists — editing songs**: while a playlist shows in its own order,
+  drag rows up and down to reorder it (checked rows move together). **⌫**
+  removes the selected song, or every checked one, from the playlist — with
+  an *Undo* that puts them back in place; elsewhere ⌫ does nothing. Songs
+  whose file is missing can now be removed too (right-click → *Remove
+  from…*).
 
 ## 1.0.52 — 2026-10-01
 
