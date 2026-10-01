@@ -14,6 +14,8 @@ const LAYOUT_KEY = 'playlistsBox'
 const MIN_HEIGHT = 80
 const DEFAULT_HEIGHT = 240
 const HEADER_HEIGHT = 34
+// Recently added-to playlists shown above the full list in Add to playlist.
+const RECENT_IN_MENU = 3
 
 interface Layout {
   height: number
@@ -32,6 +34,17 @@ function loadLayout(): Layout {
     }
   } catch {
     return { height: DEFAULT_HEIGHT, collapsed: false, closed: [] }
+  }
+}
+
+// The collapsed sidebar's playlist icon: the box opens expanded when the
+// sidebar comes back (it isn't mounted while collapsed, and reads its
+// layout on mount).
+export function expandPlaylistsBoxOnNextOpen(): void {
+  try {
+    localStorage.setItem(LAYOUT_KEY, JSON.stringify({ ...loadLayout(), collapsed: false }))
+  } catch {
+    // The box keeps its last state.
   }
 }
 
@@ -110,6 +123,26 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
       showToast(err instanceof Error ? err.message : String(err))
     }
   }
+
+  // F2 renames the selected playlist, outside text fields.
+  const modalOpen = useCollectionStore((s) => s.modalOpen)
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'F2' || modalOpen || selectedId === null) return
+      const target = e.target as HTMLElement
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable) return
+      e.preventDefault()
+      // The name field shows in the tree, so open the folders around it.
+      const parents = new Set<number>()
+      for (let p = nodes.find((n) => n.id === selectedId)?.parentId ?? null; p !== null; p = nodes.find((n) => n.id === p)?.parentId ?? null) {
+        parents.add(p)
+      }
+      setLayout((l) => ({ ...l, collapsed: false, closed: l.closed.filter((id) => !parents.has(id)) }))
+      setEditing({ kind: 'rename', id: selectedId })
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [modalOpen, selectedId, nodes])
 
   useEffect(() => {
     if (!menu) return
@@ -600,6 +633,7 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
     return () => window.removeEventListener('click', close)
   }, [onClose])
 
+  const recentIds = useCollectionStore((s) => s.recentPlaylistIds)
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
   const pathOf = (node: PlaylistNode): string => {
     const parts: string[] = []
@@ -607,6 +641,27 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
     return parts.join(' / ')
   }
   const playlists = nodes.filter((n) => n.kind === 'playlist')
+  // The ones last added to, first; then the whole tree.
+  const recent = recentIds
+    .map((id) => byId.get(id))
+    .filter((n): n is PlaylistNode => n?.kind === 'playlist')
+    .slice(0, RECENT_IN_MENU)
+  const item = (node: PlaylistNode, key: string) => (
+    <button
+      key={key}
+      onClick={() => {
+        onClose()
+        void addTracks(node.id, trackIds)
+      }}
+      style={contextMenuItemStyle}
+    >
+      <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+        queue_music
+      </span>
+      <span>{node.name}</span>
+      {node.parentId !== null && <span style={{ color: 'var(--color-text-dim)', fontSize: '11px' }}>{pathOf(node)}</span>}
+    </button>
+  )
 
   return (
     <div
@@ -616,22 +671,13 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
       <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
         Add {songs(trackIds.length)} to…
       </div>
-      {playlists.map((node) => (
-        <button
-          key={node.id}
-          onClick={() => {
-            onClose()
-            void addTracks(node.id, trackIds)
-          }}
-          style={contextMenuItemStyle}
-        >
-          <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-            queue_music
-          </span>
-          <span>{node.name}</span>
-          {node.parentId !== null && <span style={{ color: 'var(--color-text-dim)', fontSize: '11px' }}>{pathOf(node)}</span>}
-        </button>
-      ))}
+      {recent.length > 0 && playlists.length > recent.length && (
+        <>
+          {recent.map((node) => item(node, `recent-${node.id}`))}
+          <div style={{ height: '1px', background: 'var(--color-border)', margin: '4px 0' }} />
+        </>
+      )}
+      {playlists.map((node) => item(node, String(node.id)))}
       {naming ? (
         <input
           autoFocus

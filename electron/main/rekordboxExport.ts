@@ -1,4 +1,6 @@
 import type { AppDatabase } from './db'
+import { getPlaylistNodes, getPlaylistTrackIds } from './playlists'
+import type { PlaylistNode } from '../../src/types'
 import { shortKeyName } from '../../src/state/harmonic'
 
 // Builds a Rekordbox "DJ_PLAYLISTS" XML file (the format behind Rekordbox's
@@ -11,6 +13,10 @@ import { shortKeyName } from '../../src/state/harmonic'
 //   - a genre with no sub-genres        → one playlist
 //   - a genre with sub-genres           → a folder holding "<genre> (all)"
 //                                         plus one playlist per sub-genre
+// and MCO's playlists (docs/features/playlists.md) go under "MCO Playlists"
+// in their own folders and order. Playlists that came from Rekordbox are
+// left out (Rekordbox has them already) unless kept as the user's own, and
+// so are folders with nothing of MCO's in them.
 // No beat grids or cue points are written — Rekordbox analyses those
 // itself on import.
 
@@ -176,11 +182,32 @@ export function buildRekordboxXml(db: AppDatabase, appVersion: string): Rekordbo
     ])
   }
 
+  // MCO's playlists, nested as in the Playlists box.
+  const nodes = getPlaylistNodes(db)
+  const childrenOf = new Map<number | null, PlaylistNode[]>()
+  for (const node of nodes) childrenOf.set(node.parentId, [...(childrenOf.get(node.parentId) ?? []), node])
+  const renderNodes = (parentId: number | null, indent: string): string[][] =>
+    (childrenOf.get(parentId) ?? []).flatMap((node): string[][] => {
+      if (node.kind === 'playlist') {
+        if (node.source === 'rekordbox') return []
+        return [playlist(node.name, getPlaylistTrackIds(db, node.id).filter((id) => exportedIds.has(id)), indent)]
+      }
+      const inner = renderNodes(node.id, indent + '  ')
+      if (inner.length === 0 && node.source === 'rekordbox') return []
+      return [[`${indent}<NODE Type="0" Name="${xmlAttr(node.name)}" Count="${inner.length}">`, ...inner.flat(), `${indent}</NODE>`]]
+    })
+  const playlistNodes = renderNodes(null, '        ')
+
   lines.push('  <PLAYLISTS>')
-  lines.push('    <NODE Type="0" Name="ROOT" Count="1">')
+  lines.push(`    <NODE Type="0" Name="ROOT" Count="${playlistNodes.length > 0 ? 2 : 1}">`)
   lines.push(`      <NODE Type="0" Name="MCO" Count="${genreNodes.length}">`)
   for (const node of genreNodes) lines.push(...node)
   lines.push('      </NODE>')
+  if (playlistNodes.length > 0) {
+    lines.push(`      <NODE Type="0" Name="MCO Playlists" Count="${playlistNodes.length}">`)
+    for (const node of playlistNodes) lines.push(...node)
+    lines.push('      </NODE>')
+  }
   lines.push('    </NODE>')
   lines.push('  </PLAYLISTS>')
   lines.push('</DJ_PLAYLISTS>')

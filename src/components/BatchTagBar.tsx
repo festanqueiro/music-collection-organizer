@@ -1,5 +1,7 @@
 // src/components/BatchTagBar.tsx
+import { useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { AddToPlaylistMenu } from './PlaylistsBox'
 
 // The selection half of TrackTable's always-visible toolbar — only
 // renders when tracks are checked. `visibleTrackIds` is the table's
@@ -14,8 +16,17 @@ export function BatchTagBar({ visibleTrackIds }: { visibleTrackIds: number[] }) 
   const runAnalysis = useCollectionStore((s) => s.runAnalysis)
   const showToast = useCollectionStore((s) => s.showToast)
   const requestAddManyToQueue = useCollectionStore((s) => s.requestAddManyToQueue)
+  const [playlistMenu, setPlaylistMenu] = useState<{ x: number; y: number } | null>(null)
 
   if (checkedTrackIds.size === 0) return null
+
+  // Checked tracks hidden by the current filter still count, after the
+  // visible ones.
+  function checkedInTableOrder(): number[] {
+    const visibleChecked = visibleTrackIds.filter((id) => checkedTrackIds.has(id))
+    const visibleSet = new Set(visibleChecked)
+    return [...visibleChecked, ...Array.from(checkedTrackIds).filter((id) => !visibleSet.has(id))]
+  }
 
   return (
     <>
@@ -68,18 +79,20 @@ export function BatchTagBar({ visibleTrackIds }: { visibleTrackIds: number[] }) 
       >
         Analyse
       </button>
+      <button onClick={() => requestAddManyToQueue(checkedInTableOrder())}>Add to queue</button>
       <button
-        onClick={() => {
-          // Checked tracks hidden by the current filter still get queued,
-          // after the visible ones.
-          const visibleChecked = visibleTrackIds.filter((id) => checkedTrackIds.has(id))
-          const visibleSet = new Set(visibleChecked)
-          const ids = [...visibleChecked, ...Array.from(checkedTrackIds).filter((id) => !visibleSet.has(id))]
-          requestAddManyToQueue(ids)
+        onClick={(e) => {
+          // Below the button; the menu closes on the next click anywhere.
+          e.stopPropagation()
+          const rect = e.currentTarget.getBoundingClientRect()
+          setPlaylistMenu(playlistMenu ? null : { x: rect.left, y: rect.bottom + 4 })
         }}
       >
-        Add to queue
+        Add to playlist
       </button>
+      {playlistMenu && (
+        <AddToPlaylistMenu {...playlistMenu} trackIds={checkedInTableOrder()} onClose={() => setPlaylistMenu(null)} />
+      )}
       <button onClick={clearCheckedTracks}>Clear selection</button>
     </>
   )

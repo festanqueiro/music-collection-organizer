@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-10-01
 adrs: []
 ---
 # DJ tools
@@ -64,7 +64,10 @@ file Rekordbox can read:
   added), with your MCO tags in the Comments field;
 - an **MCO** playlist folder with one playlist per genre. A genre with
   sub-genres becomes a folder holding "*Genre* (all)" plus one playlist
-  per sub-genre.
+  per sub-genre;
+- an **MCO Playlists** folder with your playlists, in their folders and
+  order (playlists imported from Rekordbox are left out — see
+  [Playlists](playlists.md)).
 
 To use it in Rekordbox, go to **Preferences → Advanced → Database →
 rekordbox xml** and choose the file. It then appears under "rekordbox

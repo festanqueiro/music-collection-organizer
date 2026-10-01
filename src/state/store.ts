@@ -71,6 +71,26 @@ let toastTimeout: ReturnType<typeof setTimeout> | null = null
 let queueUndoTimeout: ReturnType<typeof setTimeout> | null = null
 let playlistUndoTimeout: ReturnType<typeof setTimeout> | null = null
 
+// Playlists songs were last added to, newest first — Add to playlist lists
+// them on top. Per-viewer convenience, so localStorage (may be missing in
+// tests, or throw).
+const RECENT_PLAYLISTS_KEY = 'recentPlaylists'
+function loadRecentPlaylistIds(): number[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem(RECENT_PLAYLISTS_KEY) ?? '[]')
+    return Array.isArray(stored) ? stored.filter((id): id is number => typeof id === 'number') : []
+  } catch {
+    return []
+  }
+}
+function saveRecentPlaylistIds(ids: number[]): void {
+  try {
+    localStorage.setItem(RECENT_PLAYLISTS_KEY, JSON.stringify(ids))
+  } catch {
+    // Not remembered; the menu still works.
+  }
+}
+
 // Coalesces rapid MIDI CC bursts to at most one store update per animation
 // frame, per control — a touch-sensitive hardware knob/fader can send
 // hundreds of CC messages a second, and applying every single one
@@ -444,6 +464,7 @@ export interface CollectionState {
   playlistNodes: PlaylistNode[]
   selectedPlaylistId: number | null
   selectedPlaylistTrackIds: number[]
+  recentPlaylistIds: number[]
   loadPlaylists: () => Promise<void>
   selectPlaylist: (id: number | null) => Promise<void>
   createPlaylistNode: (kind: 'folder' | 'playlist', name: string, parentId: number | null) => Promise<number>
@@ -883,6 +904,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   playlistNodes: [],
   selectedPlaylistId: null,
   selectedPlaylistTrackIds: [],
+  recentPlaylistIds: loadRecentPlaylistIds(),
   loadPlaylists: async () => set({ playlistNodes: await window.api.getPlaylistNodes() }),
   selectPlaylist: async (id) => {
     if (id === null) return set({ selectedPlaylistId: null, selectedPlaylistTrackIds: [] })
@@ -906,7 +928,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   addTracksToSavedPlaylist: async (playlistId, trackIds) => {
     if (trackIds.length === 0) return
     const result = await window.api.addTracksToPlaylist(playlistId, trackIds)
-    set({ playlistNodes: result.nodes })
+    const recentPlaylistIds = [playlistId, ...get().recentPlaylistIds.filter((id) => id !== playlistId)].slice(0, 10)
+    saveRecentPlaylistIds(recentPlaylistIds)
+    set({ playlistNodes: result.nodes, recentPlaylistIds })
     if (get().selectedPlaylistId === playlistId) set({ selectedPlaylistTrackIds: result.trackIds })
     const name = result.nodes.find((n) => n.id === playlistId)?.name ?? 'the playlist'
     const songs = (n: number) => `${n} song${n === 1 ? '' : 's'}`

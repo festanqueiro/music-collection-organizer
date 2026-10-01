@@ -20,7 +20,7 @@ import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { StatsView } from './components/StatsView'
-import { PlaylistsBox } from './components/PlaylistsBox'
+import { PlaylistsBox, expandPlaylistsBoxOnNextOpen } from './components/PlaylistsBox'
 import { UndoToast } from './components/UndoToast'
 import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
@@ -503,6 +503,19 @@ export default function App() {
                   {view.key === 'filters' && activeFilterCount > 0 && <FilterCountBadge count={activeFilterCount} />}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  expandPlaylistsBoxOnNextOpen()
+                  setLeftCollapsed(false)
+                }}
+                title="Playlists"
+                aria-label="Playlists"
+                style={{ display: 'flex', padding: '6px', border: '1px solid var(--color-border)' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                  queue_music
+                </span>
+              </button>
             </div>
           )}
           {/* Hidden rather than unmounted while collapsed, so the trees keep

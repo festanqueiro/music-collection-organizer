@@ -37,6 +37,14 @@ installed copies update themselves.
   an *Undo* that puts them back in place; elsewhere ⌫ does nothing. Songs
   whose file is missing can now be removed too (right-click → *Remove
   from…*).
+- **Playlists — finishing touches**: an **Add to playlist** button in the
+  bar that appears when songs are checked; the playlists you added to last
+  come first in *Add to playlist*; **F2** renames the selected playlist; a
+  playlist icon in the collapsed sidebar opens it on the Playlists box;
+  *Import from Rekordbox…* opens in the folder you last imported from.
+- **Export to Rekordbox** (Settings → Import & export) now includes your
+  playlists, in an **MCO Playlists** folder next to the tags' **MCO**
+  folder.
 
 ## 1.0.52 — 2026-10-01
 

@@ -1,5 +1,5 @@
 import { app, ipcMain, dialog, shell, BrowserWindow, powerSaveBlocker, type IpcMainInvokeEvent, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
-import { basename, join, relative, isAbsolute } from 'node:path'
+import { basename, dirname, join, relative, isAbsolute } from 'node:path'
 import { writeFileSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { applyMoves, planMove, type MovedTrack } from './moveTracks'
 import { listScreenDisplays, watchScreenDisplays } from './screenWindow'
@@ -36,6 +36,8 @@ import {
   getAutoAnalyseNewTracks,
   setAutoAnalyseNewTracks,
   setAppThemeId,
+  getPlaylistImportFolder,
+  setPlaylistImportFolder,
 } from './config'
 import { getAppTheme, isAppThemeId } from '../../src/appThemes'
 import { FolderWatcher } from './folderWatcher'
@@ -711,11 +713,15 @@ export function registerIpcHandlers(
       const window = BrowserWindow.fromWebContents(event.sender)
       const options = {
         title: 'Import from Rekordbox',
+        // Opens where the last import came from (Rekordbox's exports
+        // usually go to the same folder).
+        defaultPath: getPlaylistImportFolder() ?? undefined,
         properties: ['openFile' as const, 'multiSelections' as const],
         filters: [{ name: 'Rekordbox export', extensions: ['m3u8', 'm3u', 'txt', 'xml'] }],
       }
       const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
       if (result.canceled || result.filePaths.length === 0) return null
+      setPlaylistImportFolder(dirname(result.filePaths[0]))
       try {
         return { filePaths: result.filePaths, plan: planRekordboxImport(db, readRekordboxFiles(result.filePaths)) }
       } catch (err) {

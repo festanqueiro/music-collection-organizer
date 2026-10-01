@@ -24,7 +24,7 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   move into a folder); new ones go to the end of their folder. Rekordbox imports keep
   Rekordbox's order.
 - Empty state: "No playlists yet" with *New playlist* and *Import from Rekordbox…* links.
-- When the sidebar is collapsed to its icon strip, the box collapses to a playlist icon that
+- When the sidebar is collapsed to its icon strip, a playlist icon under the view icons
   reopens the sidebar with the box expanded.
 
 ### Viewing a playlist
@@ -42,15 +42,16 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   stay in your collection."). Deleting never touches files or tracks.
 - **Folder**: **Play folder** (every playlist in it, in order), **New playlist here**, **New folder
   here**, **Rename**, **Delete folder…** (a confirmation naming how many playlists go with it).
-- Rename is inline (F2 or the menu); names don't have to be unique, but siblings with the same
+- Rename is inline (F2 on the selected playlist, a double-click, or the menu); names don't have to be unique, but siblings with the same
   name get a warning when importing (see below).
 
 ### Adding and removing songs
 - Drag rows (one or the checked batch) onto a playlist in the box; it lights up on hover. A
-  toast says "Added N songs to *name*" (songs already in it are added again only if the user holds
-  ⌥ — by default duplicates are skipped and the toast says how many).
-- Row right-click → **Add to playlist ▸** (recent playlists first, then the tree, then *New
-  playlist…*). The batch bar gets the same **Add to playlist** button.
+  toast says "Added N songs to *name*"; songs already in it are skipped and the toast says how
+  many. A playlist holds each song once (see Limits).
+- Row right-click → **Add to playlist…** (the three playlists last added to first, then every
+  playlist, then *New playlist…*; the recent ones are remembered per computer in localStorage).
+  The batch bar has the same **Add to playlist** button for the checked songs, in table order.
 - While viewing a playlist: **Remove from playlist** in the row menu.
 - **⌫ (Delete) removes** the selected song, or every checked one, from the playlist being viewed,
   with an *Undo* toast ("Removed N songs from *name*") that puts them back in the same places.
@@ -72,7 +73,8 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   inside itself.
 
 ### Import from Rekordbox
-- *Import from Rekordbox…* opens a file picker (several files at once) for any of Rekordbox's
+- *Import from Rekordbox…* opens a file picker (several files at once, opening in the folder the
+  last import came from) for any of Rekordbox's
   exports — MCO never reads or writes Rekordbox's own database
   ([ADR 0050](../adr/0050-playlists-in-mco-imported-from-rekordbox-xml.md)):
   - **m3u8** (right-click a playlist → *Export a playlist to a file* → m3u8): file paths, exact
@@ -133,6 +135,11 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   `#EXTINF` (length, "Artist - Title") and each song's file path, in playlist order; missing files
   are left out. Right-click a folder → one .m3u8 per playlist in a chosen folder, named by its path
   in the folder ("2026 - Bassin.m3u8"). In Rekordbox: **File → Import → Import Playlist**.
+- MCO's **Rekordbox XML export** (Settings → Import & export, [DJ tools](dj-tools.md)) also
+  carries the playlists, under an **MCO Playlists** folder next to the tags' **MCO** folder, in
+  their folders and order, without missing or cloud-only songs. Playlists imported from Rekordbox
+  are left out (Rekordbox has them) unless kept as one's own, and so are imported folders with
+  nothing of MCO's left in them.
 
 ## Phases
 1. **Playlists in MCO** — DB, the box, create/rename/delete (with confirmation)/folders, viewing a
@@ -143,12 +150,14 @@ Phases 1–2 are built in #99, plus m3u8 and text imports, moving playlists/fold
 export.
 
 3. **Editing a playlist's songs** — reorder rows by drag, ⌫ to remove with *Undo*, remove
-   songs whose file is missing. Built (stacked on #99). (S–M)
-4. **Polish** — ⌥ to add a duplicate, recent playlists first and a batch-bar button for *Add to
-   playlist*, F2 to rename, the collapsed-sidebar icon, the import dialog remembering its folder,
-   playlists in MCO's Rekordbox XML export (it exports tags as playlists today). (S–M)
+   songs whose file is missing. Built in #99. (S–M)
+4. **Polish** — recent playlists first and a batch-bar button for *Add to playlist*, F2 to
+   rename, the collapsed-sidebar icon, the import dialog remembering its folder, playlists in
+   MCO's Rekordbox XML export. Built in #99. ⌥ to add a duplicate was dropped (see Limits). (S–M)
 
 ## Tests
+- `rekordboxExport.test.ts`: the MCO Playlists folder — nesting, order, empty folders, missing
+  songs and Rekordbox imports left out.
 - `rekordboxXml.test.ts`: folders/playlists tree, both KeyTypes, URL-decoding of `Location`
   (spaces, `%20`, non-ASCII, NFD), empty folders, smart playlists.
 - `savedPlaylist.test.ts`: moving one or several songs up/down/to the ends, dropping on a moved
@@ -167,7 +176,11 @@ export.
   and `node:sqlite` can't open it — see the ADR.
 - Absolute paths: a collection moved to another path breaks matches (roadmap Next #2), as it does
   for tags.
+- **Each song once per playlist.** Reorder, ⌫ and Undo identify a playlist's songs by track id,
+  so the planned ⌥-drag to add a song twice was dropped; it would need songs identified by
+  position instead. Rekordbox playlists with a song twice come in with it once.
+- Songs whose file is missing can't be dragged to reorder (the rows' drag is a file drag).
 - Should *Play playlist* also be offered on the row menu when viewing a playlist ("Play from
-  here")? Proposed for phase 3.
-- Export MCO playlists back to Rekordbox (via the existing XML export) is phase 3; two-way sync is
-  out of scope.
+  here")? Not built yet.
+- Two-way sync with Rekordbox is out of scope; playlists go there as m3u8 files or in the XML
+  export.
