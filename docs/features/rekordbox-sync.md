@@ -15,6 +15,10 @@ database is never opened or written
 ([ADR 0050](../adr/0050-playlists-in-mco-imported-from-rekordbox-xml.md),
 [ADR 0051](../adr/0051-update-rekordbox-through-xml-and-file-tags.md)).
 
+What the user's library actually holds (2,777 tracks, 111 hot cues, 24 playlists, Genre on only
+6% of tracks, store text in Comments on 86%) is in
+[research](../research/rekordbox-collection.md); the choices below follow it.
+
 Today's **Export to Rekordbox** ([DJ tools](dj-tools.md#export-to-rekordbox)) is the start of
 this: a one-way XML with every track, the file's genre, BPM, key, tags in Comments, tags as
 playlists under **MCO** and playlists under **MCO Playlists**. This feature turns it
@@ -41,14 +45,21 @@ measures it before anything is built on top.
 - **Settings → Import & export → Rekordbox** keeps **Export to Rekordbox…**, and gains:
   - **Export file**: chosen once and remembered. Rekordbox's *Preferences → Advanced → Database →
     rekordbox xml* points at that same file, so each export refreshes what Rekordbox shows (after
-    its refresh button in the "rekordbox xml" tree) — no dialog after the first time.
+    its refresh button in the "rekordbox xml" tree) — no dialog after the first time. MCO
+    suggests the file Rekordbox already reads: `bridgeImportedLibraryFile` in
+    `rekordbox3.settings` (plain XML; on this Mac `~/Library/rekordbox/rekordbox/rekordbox.xml`).
+    Only that key is read — the file also holds the account's login tokens. If Rekordbox hides
+    the tree (`showRbXml = 0`), the summary says how to show it (View → rekordbox xml).
   - **Update Rekordbox** (a button, and in the File menu): writes the XML to that file at once.
   - **What goes in**: *Everything* (default) or *Only songs changed since the last export* (with
     the date of that export). Changed = file tags written, MCO Tags/Subtags changed, analysis
     redone, cue points edited, or added to the collection. Playlists always go in whole.
   - **Genre in the XML**: *MCO Tags* (default when the song has any, else the file's genre) or
     *the file's genre* (today's behaviour). **Grouping**: *MCO Subtags* or nothing.
-    **Comments**: MCO Tags (today), plus energy as "Energy 7" (Rekordbox has no energy field).
+    **Comments**: the file's own comment **followed by** MCO's Tags (e.g. "Visit
+    https://….bandcamp.com · Tags: Dub, Steppers"), plus energy as "Energy 7" (Rekordbox has no
+    energy field). Never replaced: 86% of the user's tracks carry store text there. Today's export
+    writes only the Tags — changed in phase 1.
 - After writing, a summary: N songs (M changed), P playlists, C cue points, and the steps to take
   in Rekordbox (refresh the xml tree, select the changed songs under *All Tracks*, **Import to
   Collection**).
@@ -76,8 +87,13 @@ measures it before anything is built on top.
 ### Cue points (after Hot cues and loops)
 - Each MCO cue goes in the XML as a `POSITION_MARK`: hot cues `Num` 0–7 (A–H) with their colour
   (`Red`/`Green`/`Blue`) and name; memory cues `Num="-1"`; loops `Type="4"` with `End`. Times in
-  seconds, 3 decimals.
-- MP3s: other decoders can place a time 20–50 ms differently (encoder delay / LAME header
+  seconds, 3 decimals. Colours are Rekordbox's own hot-cue palette (the RGB values in the
+  research note), so a cue keeps its colour both ways.
+- **Bringing Rekordbox's cues into MCO**: importing a collection XML (the Playlists import already
+  reads it) also offers its `POSITION_MARK`s as MCO cues for matched songs that have none — the
+  user's 111 hot cues on 76 songs to start with. Songs that already have MCO cues are left alone;
+  the summary counts both.
+- MP3s (8 of the user's 2,777 tracks): other decoders can place a time 20–50 ms differently (encoder delay / LAME header
   handling). Phase 0 measures Rekordbox against MCO on real MP3s; if they differ, MCO corrects the
   times on export.
 - No beat grid (`TEMPO`) is written: Rekordbox analyses its own, and a cue doesn't need one.
@@ -88,6 +104,10 @@ measures it before anything is built on top.
 - Change tracking: a `tracks.changed_at` column, set by every write that matters to Rekordbox
   (`tracks:writeTags`, tag add/remove/rename for the songs affected, analysis done, cue edits,
   scan adding a song). Config remembers `rekordboxExportFile` and `rekordboxExportedAt`.
+- Comments: `rekordboxExport.ts` reads the file's comment from the tags MCO already reads
+  (`tagReader.ts`, a new `comment` field) and appends the Tags.
+- Cue import: `rekordboxXml.ts` also returns each track's `POSITION_MARK`s by path; applied to
+  `track_cues` with the playlists import.
 - Bulk Genre write: a main-process loop over `tagWriter.ts` (one file at a time, cancellable,
   progress over IPC), returning the post-write tags so the store patches locally (the repo's
   convention).
@@ -103,11 +123,12 @@ measures it before anything is built on top.
    options, changed-only export with `changed_at`, the summary with the Rekordbox steps.
 2. **Tags into the files' Genre (M)** — the batch write with confirmation, progress, summary.
    Wider format support comes with roadmap *Tag writing for FLAC and ID3v2.2*.
-3. **Cue points (S, after Hot cues and loops)** — `POSITION_MARK`s, MP3 offset correction if phase
-   0 needs it.
+3. **Cue points (S, after Hot cues and loops)** — `POSITION_MARK`s out, Rekordbox's cues in
+   (collection XML import), MP3 offset correction if phase 0 needs it.
 
 ## Tests (planned)
-- `rekordboxExport.test.ts`: Genre from Tags / from the file, Grouping, Energy in Comments,
+- `rekordboxExport.test.ts`: Genre from Tags / from the file, Grouping, Tags and Energy appended
+  to the file's comment,
   changed-only (unchanged songs out, playlists whole), `POSITION_MARK` for hot cues, memory cues
   and loops (colours, numbering, decimals).
 - Change tracking: each write that matters sets `changed_at`; ones that don't (play count,
@@ -126,6 +147,8 @@ measures it before anything is built on top.
   MCO; playlists do, through the import ([Playlists](playlists.md)).
 - Absolute paths: songs are matched by path, so a moved collection loses the link (roadmap
   *Portable library*).
+- Genre today: 32 different, inconsistent values on 166 tracks. MCO's Tags would replace them in
+  Rekordbox; a song with no MCO Tags keeps Rekordbox's.
 - Genre text: comma-separated like *Use tags*. Should Subtags go in Genre too, or only in
   Grouping when that option is on?
 - Ratings, colours and labels: MCO doesn't keep them, so the XML leaves them out and Rekordbox's

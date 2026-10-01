@@ -168,8 +168,12 @@ export.
   skipped), duplicates skipped.
 - Store: selecting a playlist clears folder/tag selection; Play playlist replaces the queue and
   undo restores it.
-- In BETA: import this Mac's Rekordbox 7.2.7 export (`DJ_COLLECTION_RECORDBOX`), check counts
-  against Rekordbox.
+- The user's real Rekordbox 7.2.7 collection XML (2,777 tracks, 2026-10-01) through
+  `parseRekordboxXml`: the same 24 playlists and the 2026 folder, in order, every song's path
+  decoded. By path, 15 playlists are wholly inside the collection folder and 8 point mostly at
+  songs outside it (copied from a USB stick) — those will import nearly empty
+  ([research](../research/rekordbox-collection.md)).
+- In BETA: import that export through the app and check the counts against Rekordbox.
 
 ## Limits & open questions
 - Reading Rekordbox's `master.db` directly (no export step) is left out: it's SQLCipher-encrypted

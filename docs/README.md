@@ -22,7 +22,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [product/](product/) | vision, roadmap, glossary, release install notes | topic |
 | [features/](features/) | what each feature does, how it works, how it's tested, its limits | feature |
 | [adr/](adr/) | architecture decision records: context, decision, alternatives, consequences | decision |
-| [research/](research/) | measured and sourced findings (Cast devices, file tags, performance) | subject |
+| [research/](research/) | measured and sourced findings (Cast devices, file tags, performance, the Rekordbox library) | subject |
 | [log/](log/) | changelog pointer, session write-ups, history, the original design specs and plans | session / document |
 
 ## Conventions

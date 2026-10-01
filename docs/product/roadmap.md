@@ -30,7 +30,9 @@ Per-release detail is in the [changelog](../log/changelog.md).
    once, resolve everywhere a path is used (media protocol, analysis, drag, reveal, tag export). Today
    a collection moved to a different path loses its tags ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
 3. **Hot cues and loops (L)** — up to 8 cue points per track (`track_cues`), waveform markers,
-   number keys and MIDI pads, a zoomable waveform, loops later; in the Rekordbox export.
+   number keys and MIDI pads, a zoomable waveform, loops later; in the Rekordbox export, and the
+   user's 111 Rekordbox hot cues imported from its collection XML
+   ([research](../research/rekordbox-collection.md)).
 4. **Rekordbox sync (M–L)** — update Rekordbox with what changed in MCO: a repeatable collection
    XML export (a remembered file Rekordbox reads, changed-only option, MCO Tags as Genre, Subtags as
    Grouping), MCO Tags written into the files' Genre for Rekordbox's Reload Tag, and cue points once
