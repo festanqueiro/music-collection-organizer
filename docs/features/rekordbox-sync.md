@@ -195,7 +195,9 @@ Rekordbox" is automatic. Phase 0 measures it; until then the spec assumes:
 0. **Probe Rekordbox 7.2.7 (S)** — on a copy of the library: re-importing a song it has (changed
    title, genre, BPM, key, two hot cues: overwritten, skipped or asked?), re-importing a playlist
    with the same name, `TrackID` across two exports and after *Relocate*, Reload Tag on a file
-   whose Genre MCO wrote, MP3 cue offsets. Written up in `docs/research/`. Adjusts everything
+   whose Genre MCO wrote, MP3 cue offsets. **Ready to run:** `npm run rekordbox:probe` makes the
+   test XML from your export; the checklist and results table are in
+   [research/rekordbox-xml-import.md](../research/rekordbox-xml-import.md). Adjusts everything
    below.
 1. **Read-only report (M)** — the full reader, the matching, the diff engine, and the wizard
    showing findings without applying anything (first sync = everything as conflicts). Already

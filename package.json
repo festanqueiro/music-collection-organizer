@@ -14,7 +14,8 @@
     "dist:release": "electron-vite build && electron-builder --mac dmg zip --arm64 --publish never",
     "dist:release:win": "electron-vite build && electron-builder --win nsis --x64 --publish never",
     "build:receiver": "vite build --config vite.receiver.config.ts",
-    "site:capture": "electron-vite build && node website/capture/capture.mjs"
+    "site:capture": "electron-vite build && node website/capture/capture.mjs",
+    "rekordbox:probe": "node --experimental-strip-types --no-warnings scripts/rekordbox-probe.ts"
   },
   "keywords": [],
   "author": "Francisco Estanqueiro",
