@@ -58,6 +58,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [Playlists](features/playlists.md) (planned) ·
 [Rekordbox sync](features/rekordbox-sync.md) (planned) ·
 [Home](features/home.md) (planned) ·
+[Website](features/website.md) (the marketing page, captured from the app) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
@@ -117,6 +118,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0051](adr/0051-update-rekordbox-through-xml-and-file-tags.md) | Update Rekordbox through its XML import and the files' own tags, never its database | proposed (one-way part superseded by 0052) |
 | [0052](adr/0052-two-way-rekordbox-sync-with-a-merge-wizard.md) | Sync with Rekordbox both ways: a three-way diff of its XML export, resolved in a wizard | proposed |
 | [0053](adr/0053-mixes-are-temporary-lists.md) | Home's mixes are temporary lists, never saved playlists | proposed |
+| [0054](adr/0054-website-captured-from-the-real-app.md) | A static website whose screenshots and clips are captured from the real app | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

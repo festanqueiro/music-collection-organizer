@@ -11,3 +11,6 @@ release/
 .superpowers/
 *.tsbuildinfo
 dist-pages
+
+# website capture scratch (demo library data, raw recordings)
+website/capture/.work/

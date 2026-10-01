@@ -17,6 +17,8 @@ never changes your audio files: tags and analysis results are kept in
 MCO's own database.
 
 > **Platform:** macOS on Apple silicon (M1 or newer).
+>
+> **Website:** [festanqueiro.github.io/music-collection-organizer](https://festanqueiro.github.io/music-collection-organizer/) — features, clips and download.
 
 ## Features
 
