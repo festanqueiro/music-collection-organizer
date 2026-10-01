@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { findDuplicates } from '../state/duplicates'
-import { isMissingId3Metadata, matchesMcoTagsFilter } from '../state/trackFilters'
+import { isMissingId3Metadata, matchesEnergy, matchesMcoTagsFilter } from '../state/trackFilters'
+import { formatGain, formatLufs, gainToMatch, medianLoudness } from '../state/loudness'
 import { useCollectionStore } from '../state/store'
+import { REVEAL_IN_FILE_MANAGER } from '../platform'
 import { BatchTagBar } from './BatchTagBar'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
@@ -23,6 +25,9 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   subtags: 160,
   bpm: 70,
   musicalKey: 70,
+  energy: 80,
+  loudness: 70,
+  gain: 100,
   format: 80,
   bitrate: 90,
   duration: 90,
@@ -61,6 +66,29 @@ function loadColumnWidths(): Record<TrackTableColumnKey, number> {
   } catch {
     return { ...DEFAULT_COLUMN_WIDTHS }
   }
+}
+
+// What a column means, where its name doesn't say (header tooltip).
+const COLUMN_HINTS: Partial<Record<TrackTableColumnKey, (target: number | null) => string>> = {
+  energy: () => 'Energy: how driving the track is, 1 (calm) to 10 (peak)',
+  loudness: () => 'LUFS: integrated loudness (EBU R128) — closer to 0 is louder',
+  gain: (target) =>
+    target === null
+      ? 'Volume Score: the gain that would bring the track to the collection’s median loudness (analyse tracks first)'
+      : `Volume Score: the gain that would bring the track to the collection’s median loudness, ${formatLufs(target)} LUFS — + turn it up, − turn it down`,
+}
+
+// The 1–10 energy rating as a number and a small bar, cool to hot.
+export function EnergyMeter({ energy }: { energy: number }) {
+  const hue = 200 - (energy - 1) * 22
+  return (
+    <span title={`Energy ${energy} of 10`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+      <span style={{ width: '14px', textAlign: 'right' }}>{energy}</span>
+      <span style={{ width: '36px', height: '4px', borderRadius: '2px', background: 'var(--color-border)', overflow: 'hidden' }}>
+        <span style={{ display: 'block', width: `${energy * 10}%`, height: '100%', background: `hsl(${hue} 75% 55%)` }} />
+      </span>
+    </span>
+  )
 }
 
 function FilterChip({ icon, label, title, onClear }: { icon: string; label: string; title?: string; onClear: () => void }) {
@@ -156,6 +184,10 @@ export function TrackTable({
   const setCompatibleFilter = useCollectionStore((s) => s.setCompatibleFilter)
   const analysedFilter = useCollectionStore((s) => s.analysedFilter)
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
+  // The Volume Score column's reference: the collection's median loudness.
+  const loudnessTarget = useMemo(() => medianLoudness(tracks.map((t) => t.loudness)), [tracks])
+  const energyFilter = useCollectionStore((s) => s.energyFilter)
+  const setEnergyFilter = useCollectionStore((s) => s.setEnergyFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
   const mcoTagsFilter = useCollectionStore((s) => s.mcoTagsFilter)
@@ -323,6 +355,11 @@ export function TrackTable({
     if (key === 'dateAdded') return track.birthtime ?? 0
     if (key === 'dateModified') return track.mtime ?? 0
     if (key === 'musicalKey') return keySortValue(track.musicalKey)
+    // Not rated yet sorts below 1.
+    if (key === 'energy') return track.energy ?? 0
+    // Not analysed sorts as the quietest / the biggest boost.
+    if (key === 'loudness') return track.loudness ?? -Infinity
+    if (key === 'gain') return gainToMatch(track.loudness, loudnessTarget) ?? Infinity
     return track[key] ?? ''
   }
 
@@ -354,6 +391,7 @@ export function TrackTable({
             ? t.analysisStatus === 'done'
             : t.analysisStatus !== 'done'
       )
+      .filter((t) => matchesEnergy(t.energy, energyFilter))
       .filter((t) => !duplicates || duplicates.has(t.id))
       .filter((t) => !missingMetadataFilter || isMissingId3Metadata(t))
       .filter((t) => !cloudOnlyFilter || t.cloudStatus === 'cloud_only')
@@ -392,6 +430,7 @@ export function TrackTable({
     canFilterCompatible,
     currentTrack,
     analysedFilter,
+    energyFilter,
     duplicates,
     missingMetadataFilter,
     mcoTagsFilter,
@@ -509,6 +548,9 @@ export function TrackTable({
     subtags: 'Subtags',
     bpm: 'BPM',
     musicalKey: 'Key',
+    energy: 'Energy',
+    loudness: 'LUFS',
+    gain: 'Volume Score',
     format: 'Format',
     bitrate: 'Bitrate',
     duration: 'Duration',
@@ -708,6 +750,24 @@ export function TrackTable({
           </span>
         )
       }
+      case 'loudness':
+        return track.loudness === null ? '—' : formatLufs(track.loudness)
+      case 'gain': {
+        const gain = gainToMatch(track.loudness, loudnessTarget)
+        if (gain === null) return '—'
+        // 3 dB or more off is worth a look before mixing it in.
+        const far = Math.abs(gain) >= 3
+        return (
+          <span
+            title={`${gain > 0 ? 'Turn up' : gain < 0 ? 'Turn down' : 'Already at'} ${gain !== 0 ? formatGain(gain).replace(/^[+−±]/, '') + ' ' : ''}to match the collection (${formatLufs(loudnessTarget!)} LUFS)`}
+            style={far ? { color: gain > 0 ? 'var(--color-accent)' : 'var(--color-secondary)' } : undefined}
+          >
+            {formatGain(gain)}
+          </span>
+        )
+      }
+      case 'energy':
+        return track.energy === null ? '—' : <EnergyMeter energy={track.energy} />
       case 'format':
         return track.format
       case 'bitrate': {
@@ -830,6 +890,13 @@ export function TrackTable({
             onClear={() => setCompatibleFilter(false)}
           />
         )}
+        {energyFilter && (
+          <FilterChip
+            icon="bolt"
+            label={energyFilter[0] === energyFilter[1] ? `Energy ${energyFilter[0]}` : `Energy ${energyFilter[0]}–${energyFilter[1]}`}
+            onClear={() => setEnergyFilter(null)}
+          />
+        )}
         {analysedFilter !== 'all' && (
           <FilterChip
             icon="graphic_eq"
@@ -908,7 +975,7 @@ export function TrackTable({
                     e.preventDefault()
                     handleColumnDrop(col.key)
                   }}
-                  title="Click to sort, drag to reorder, right-click to choose columns"
+                  title={`${COLUMN_HINTS[col.key] ? COLUMN_HINTS[col.key]!(loudnessTarget) + '\n' : ''}Click to sort, drag to reorder, right-click to choose columns`}
                   style={{
                     ...cellStyle,
                     ...stickyHeaderStyle,
@@ -1046,7 +1113,7 @@ export function TrackTable({
                     <span
                       className="material-symbols-outlined"
                       style={{ fontSize: '16px', color: 'var(--color-error)' }}
-                      title="Analysis failed"
+                      title={`Analysis failed: ${track.analysisError ?? 'no reason recorded'}\nSelect the track to try again`}
                     >
                       error
                     </span>
@@ -1294,7 +1361,7 @@ export function TrackTable({
               <span className="material-symbols-outlined" style={contextMenuIconStyle}>
                 folder_open
               </span>
-              Show in File Explorer
+              {REVEAL_IN_FILE_MANAGER}
             </button>
             <button
               onClick={() => {

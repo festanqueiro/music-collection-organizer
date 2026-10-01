@@ -43,6 +43,7 @@ function track(id: number): Track {
     lastPlayedAt: null,
     cloudStatus: 'local',
     analysisStatus: 'done',
+    analysisError: null,
     tagsRead: true,
   }
 }

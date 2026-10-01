@@ -49,7 +49,8 @@ Per-release detail is in the [changelog](../log/changelog.md).
    ([research](../research/cast-devices.md#chromecast-hd-gpu)).
 7. **Tag writing for FLAC and ID3v2.2 (S–M)**, and a reviewed bulk flow for filename suggestions
    (still one explicit confirmation — [ADR 0028](../adr/0028-suggest-never-auto-write-file-tags.md)).
-8. **Energy in the desktop app (S)** — a column, the details panel, a filter (today only the TV shows it).
+8. ~~**Energy in the desktop app (S)**~~ — done in PR #99: Energy, LUFS and Volume Score columns,
+   the details panel, an Energy filter.
 
 ## Known issues
 - **`npm run dev` + React StrictMode**: Player's mount effect runs twice, so
@@ -58,15 +59,12 @@ Per-release detail is in the [changelog](../log/changelog.md).
 - Genre names are unique case-sensitively in SQLite but matched case-insensitively in the UI.
 - Undoing a genre deletion keys sub-genre associations by name, so two same-named sub-genres under
   one genre merge.
-- The track context menu says "Show in File Explorer" on a macOS-only app ("Show in Finder" is
-  native).
 - The external-disk backup hasn't been run against a real external disk yet.
 
 ## UX improvements
 - Discoverable context menus: a "⋮" button on hovered rows in the folder tree, tag trees and table.
 - Column visibility: hide columns, not just reorder.
 - Undo countdown on the tag-deletion toast.
-- Why did analysis fail? Persist the error and show it.
 
 ## Watch list
 - `node:sqlite` is still experimental ([ADR 0003](../adr/0003-node-sqlite.md)).

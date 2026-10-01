@@ -26,6 +26,22 @@ describe('analyzeTrack', () => {
     db.close()
   })
 
+  it('records why analysis failed, and clears it when it later succeeds', async () => {
+    const missing = join(dir, 'gone.wav')
+    const id = db
+      .prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES (?, 'gone.wav', ?, 'wav', 1, 1)`)
+      .run(missing, dir).lastInsertRowid as number
+    await analyzeTrack(db, { id, path: missing }, dir)
+    let row = db.prepare('SELECT analysis_status, analysis_error FROM tracks WHERE id = ?').get(id) as any
+    expect(row.analysis_status).toBe('error')
+    expect(row.analysis_error).toMatch(/isn't there any more|couldn't read|ffmpeg/i)
+
+    const filePath = createTestToneWav(dir)
+    await analyzeTrack(db, { id, path: filePath }, dir)
+    row = db.prepare('SELECT analysis_status, analysis_error FROM tracks WHERE id = ?').get(id) as any
+    expect(row).toEqual({ analysis_status: 'done', analysis_error: null })
+  })
+
   it('analyzes a track and marks it done', async () => {
     const filePath = createTestToneWav(dir)
     const id = db

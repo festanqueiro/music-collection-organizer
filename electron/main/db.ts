@@ -153,6 +153,10 @@ function migrate(db: AppDatabase): void {
   if (!trackColumnNames.has('energy')) {
     db.exec('ALTER TABLE tracks ADD COLUMN energy INTEGER')
   }
+  // Why the last analysis failed (analysis/errorMessage.ts); null otherwise.
+  if (!trackColumnNames.has('analysis_error')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN analysis_error TEXT')
+  }
 
   if (!trackColumnNames.has('play_count')) {
     db.exec('ALTER TABLE tracks ADD COLUMN play_count INTEGER NOT NULL DEFAULT 0')

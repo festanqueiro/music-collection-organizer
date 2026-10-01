@@ -51,6 +51,8 @@ import type { ReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import type { ScanResult } from '../main/scan'
 
 const api = {
+  // 'darwin' or 'win32' (ADR 0049): for wording like Finder vs File Explorer.
+  platform: process.platform,
   getCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:getCollectionFolder'),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
   getEffectsSettings: (): Promise<EffectsSettings> => ipcRenderer.invoke('config:getEffectsSettings'),

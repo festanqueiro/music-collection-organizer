@@ -56,6 +56,7 @@ import {
 } from './playlist'
 import { baseName } from '../paths'
 import { moveTracksInPlaylist, restoreRemovedTracks } from './savedPlaylist'
+import type { EnergyRange } from './trackFilters'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
 // onChange continuously, and writing to electron-store on every tick would
@@ -348,6 +349,9 @@ export interface CollectionState {
   // folder/tag selection and search.
   analysedFilter: AnalysedFilter
   setAnalysedFilter: (filter: AnalysedFilter) => void
+  // A 1–10 energy range, or null for any.
+  energyFilter: EnergyRange | null
+  setEnergyFilter: (range: EnergyRange | null) => void
   duplicatesFilter: boolean
   setDuplicatesFilter: (on: boolean) => void
   mcoTagsFilter: McoTagsFilter
@@ -813,6 +817,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   appTheme: loadAppTheme(),
   compatibleFilter: false,
   analysedFilter: 'all',
+  energyFilter: null,
   duplicatesFilter: false,
   missingMetadataFilter: false,
   missingTracks: [],
@@ -1801,6 +1806,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setCompatibleFilter: (on) => set({ compatibleFilter: on, checkedTrackIds: new Set() }),
   setAnalysedFilter: (filter) => set({ analysedFilter: filter, checkedTrackIds: new Set() }),
+  setEnergyFilter: (range) => set({ energyFilter: range, checkedTrackIds: new Set() }),
   setDuplicatesFilter: (on) => set({ duplicatesFilter: on, checkedTrackIds: new Set() }),
   setMcoTagsFilter: (filter) => set({ mcoTagsFilter: filter, checkedTrackIds: new Set() }),
   setMissingMetadataFilter: (on) => set({ missingMetadataFilter: on, checkedTrackIds: new Set() }),

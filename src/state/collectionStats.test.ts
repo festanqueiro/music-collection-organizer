@@ -30,6 +30,7 @@ function track(id: number, over: Partial<Track> = {}): Track {
     lastPlayedAt: null,
     cloudStatus: 'local',
     analysisStatus: 'done',
+    analysisError: null,
     tagsRead: true,
     ...over,
   }

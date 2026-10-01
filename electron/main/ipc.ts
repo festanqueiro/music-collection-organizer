@@ -155,6 +155,7 @@ interface TrackRow {
   last_played_at: number | null
   cloud_status: 'local' | 'cloud_only'
   analysis_status: 'pending' | 'analyzing' | 'done' | 'error'
+  analysis_error: string | null
   tags_read_at: number | null
 }
 
@@ -197,6 +198,7 @@ function rowToTrack(row: TrackRow): Track {
     lastPlayedAt: row.last_played_at,
     cloudStatus: row.cloud_status,
     analysisStatus: row.analysis_status,
+    analysisError: row.analysis_error ?? null,
     tagsRead: row.tags_read_at !== null,
   }
 }

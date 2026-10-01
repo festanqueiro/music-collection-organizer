@@ -33,6 +33,8 @@ export interface Track {
   // found in the last scan (the row and its tags are kept).
   missing?: boolean
   analysisStatus: 'pending' | 'analyzing' | 'done' | 'error'
+  // Why the last analysis failed, in plain words; null unless 'error'.
+  analysisError: string | null
   // Whether the file's own tags have been read (title/artist… are then
   // what the file says, not just unknown).
   tagsRead: boolean
@@ -52,6 +54,9 @@ export type TrackTableColumnKey =
   | 'subtags'
   | 'bpm'
   | 'musicalKey'
+  | 'energy'
+  | 'loudness'
+  | 'gain'
   | 'format'
   | 'bitrate'
   | 'duration'
@@ -66,6 +71,9 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
   'subtags',
   'bpm',
   'musicalKey',
+  'energy',
+  'loudness',
+  'gain',
   'format',
   'bitrate',
   'duration',

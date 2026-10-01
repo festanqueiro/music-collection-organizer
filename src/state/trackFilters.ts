@@ -11,6 +11,14 @@ export function isMissingId3Metadata(track: Pick<Track, 'tagsRead' | 'artist' | 
   return track.tagsRead && (!track.artist?.trim() || !track.title?.trim())
 }
 
+// The Energy filter: a 1–10 range, both ends included. Tracks without an
+// energy rating yet (not analysed) don't match while it's on.
+export type EnergyRange = [number, number]
+export function matchesEnergy(energy: number | null, range: EnergyRange | null): boolean {
+  if (!range) return true
+  return energy !== null && energy >= range[0] && energy <= range[1]
+}
+
 // The "MCO tags" filter: no Tags at all (so no Subtags either), or no
 // Subtag whether or not the track has Tags.
 export function matchesMcoTagsFilter(tags: TrackTagIds | undefined, filter: McoTagsFilter): boolean {

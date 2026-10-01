@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { RECORDING_LEVEL_MAX_DB, RECORDING_LEVEL_MIN_DB, useCollectionStore } from '../state/store'
 import { getAudioEngine } from '../audio/audioEngine'
+import { REVEAL_IN_FILE_MANAGER } from '../platform'
 import { Knob } from './Knob'
 import { isCastActive } from '../cast/castSession'
 import { getActiveRecorder, startRecording, stopRecording } from '../audio/recordingSession'
@@ -325,7 +326,7 @@ export function RecordButton() {
                   <span title={lastPath} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '12px' }}>
                     {fileName(lastPath)}
                   </span>
-                  <button onClick={() => void window.api.revealRecording(lastPath)}>Show in Finder</button>
+                  <button onClick={() => void window.api.revealRecording(lastPath)}>{REVEAL_IN_FILE_MANAGER}</button>
                 </div>
               )}
               <div style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>

@@ -51,6 +51,20 @@ installed copies update themselves.
 - **Export to Rekordbox** (Settings → Import & export) now includes your
   playlists, in an **MCO Playlists** folder next to the tags' **MCO**
   folder.
+- **Energy, LUFS and Volume Score columns**: each track's 1–10 energy
+  (with a small bar), its loudness in LUFS, and its *Volume Score* — how
+  many dB to turn it up or down to match the rest of your collection (its
+  median loudness). Also in the track's details. Turn them on or off from
+  the columns menu.
+- **Energy filter** (Filters): pick a range — *Warm-up 1–4*, *Build 5–7*,
+  *Peak 8–10*, or any from–to.
+- **Why analysis failed**: a track whose analysis failed now says why (the
+  file is gone, damaged, not fully downloaded…) in its red icon's tooltip
+  and in its details, with **Try again**.
+
+### Fixed
+- The track menu said "Show in File Explorer" on the Mac; it's **Show in
+  Finder** now (and *Show in File Explorer* on Windows), everywhere.
 
 ## 1.0.52 — 2026-10-01
 
