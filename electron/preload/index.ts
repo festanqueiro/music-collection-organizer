@@ -29,6 +29,7 @@ import type {
   ScreenDisplay,
   PlaylistNode,
   RekordboxImportPlan,
+  RekordboxReport,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -91,6 +92,8 @@ const api = {
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),
   getPlaylistNodes: (): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:getNodes'),
+  compareWithRekordbox: (pick: boolean): Promise<{ report: RekordboxReport } | { error: string } | null> =>
+    ipcRenderer.invoke('rekordbox:compare', pick),
   pickRekordboxImport: (): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> =>
     ipcRenderer.invoke('playlists:pickRekordbox'),
   importRekordbox: (filePaths: string[], relinks: { from: string; trackId: number }[]): Promise<PlaylistNode[]> =>

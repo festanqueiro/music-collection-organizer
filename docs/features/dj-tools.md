@@ -75,8 +75,9 @@ xml" in the sidebar, where you can import playlists. The export is
 one-way and never changes your files or your Rekordbox library. Beat
 grids and cue points aren't included: Rekordbox analyses those itself.
 
-Planned: two-way sync with Rekordbox (playlists, music info, cue points, files),
-resolved in a wizard — [Rekordbox sync](rekordbox-sync.md).
+**Compare with Rekordbox…** (same place) reads Rekordbox's collection export and lists what
+differs — playlists, music info, cue points, files — without changing anything. Applying them, both
+ways, is next: [Rekordbox sync](rekordbox-sync.md).
 
 Code: `electron/main/rekordboxExport.ts`.
 

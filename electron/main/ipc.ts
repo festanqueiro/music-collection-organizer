@@ -38,7 +38,10 @@ import {
   setAppThemeId,
   getPlaylistImportFolder,
   setPlaylistImportFolder,
+  getRekordboxCompareFile,
+  setRekordboxCompareFile,
 } from './config'
+import { compareWithRekordbox, loadMcoSide } from './rekordboxCompare'
 import { getAppTheme, isAppThemeId } from '../../src/appThemes'
 import { FolderWatcher } from './folderWatcher'
 import { isTrustedReleaseUrl, type Updater } from './updater'
@@ -103,7 +106,7 @@ import {
   playlistToM3u,
   folderPlaylists,
 } from './playlists'
-import { decodeRekordboxText, parseM3uEntries, parseRekordboxTxt, parseRekordboxXml, type RekordboxNode } from './rekordboxXml'
+import { decodeRekordboxText, parseM3uEntries, parseRekordboxTxt, readRekordboxCollection, parseRekordboxXml, type RekordboxNode } from './rekordboxXml'
 import type {
   Track,
   Genre,
@@ -127,6 +130,7 @@ import type {
   ExternalBackupResult,
   PlaylistNode,
   RekordboxImportPlan,
+  RekordboxReport,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 
@@ -729,6 +733,36 @@ export function registerIpcHandlers(
       setPlaylistImportFolder(dirname(result.filePaths[0]))
       try {
         return { filePaths: result.filePaths, plan: planRekordboxImport(db, readRekordboxFiles(result.filePaths)) }
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) }
+      }
+    }
+  )
+  // Rekordbox sync, phase 1: compare Rekordbox's collection export with MCO
+  // (read-only). `pick` asks for the file; otherwise the last one is used.
+  ipcMain.handle(
+    'rekordbox:compare',
+    async (event, pick: boolean): Promise<{ report: RekordboxReport } | { error: string } | null> => {
+      let file = pick ? null : getRekordboxCompareFile()
+      if (!file || !existsSync(file)) {
+        const window = BrowserWindow.fromWebContents(event.sender)
+        const last = getRekordboxCompareFile()
+        const options = {
+          title: 'Compare with Rekordbox',
+          message: 'Choose the collection Rekordbox exported (File → Export Collection in xml format)',
+          defaultPath: last ? dirname(last) : undefined,
+          properties: ['openFile' as const],
+          filters: [{ name: 'Rekordbox collection (xml)', extensions: ['xml'] }],
+        }
+        const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
+        if (result.canceled || result.filePaths.length === 0) return null
+        file = result.filePaths[0]
+      }
+      try {
+        const collection = readRekordboxCollection(decodeRekordboxText(readFileSync(file)))
+        if (collection.tracks.length === 0) return { error: "That file has no songs — it needs Rekordbox's whole-collection export." }
+        setRekordboxCompareFile(file)
+        return { report: compareWithRekordbox(file, collection, loadMcoSide(db, getCollectionFolder())) }
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) }
       }

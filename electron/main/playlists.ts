@@ -174,7 +174,7 @@ function flatten(nodes: RekordboxNode[], parent: string[] = []): { node: Rekordb
 
 // File paths → track ids: exact (NFC), then ignoring case, then a path the
 // user confirmed earlier is a collection song (playlist_path_aliases).
-function trackMatcher(db: AppDatabase): (path: string) => number | undefined {
+export function trackMatcher(db: AppDatabase): (path: string) => number | undefined {
   const rows = db.prepare('SELECT id, path FROM tracks').all() as { id: number; path: string }[]
   const exact = new Map<string, number>()
   const loose = new Map<string, number>()

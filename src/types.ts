@@ -139,6 +139,51 @@ export interface RekordboxImportPlan {
   gone: string[]
 }
 
+// Rekordbox sync, phase 1 (docs/features/rekordbox-sync.md): what differs
+// between Rekordbox's collection export and MCO — read-only, nothing applied.
+export type RekordboxInfoField = 'title' | 'artist' | 'album' | 'year' | 'genre' | 'bpm' | 'key'
+
+export interface RekordboxCueMark {
+  // 0–7 = hot cue A–H; -1 = memory cue.
+  slot: number
+  kind: 'hot' | 'memory' | 'loop'
+  start: number
+  end?: number
+  // "#rrggbb", or null when Rekordbox gave none.
+  color: string | null
+}
+
+export interface RekordboxReport {
+  file: string
+  rekordboxVersion: string | null
+  rekordboxTracks: number
+  // Rekordbox's songs found in MCO (by path).
+  matched: number
+  mcoTracks: number
+  playlists: {
+    kind: 'only-rekordbox' | 'only-mco' | 'different' | 'same'
+    name: string
+    rekordboxSongs: number | null
+    mcoSongs: number | null
+    onlyRekordbox: string[]
+    onlyMco: string[]
+    orderDiffers: boolean
+    // Songs the Rekordbox playlist lists that aren't in MCO's collection.
+    notInCollection: number
+    // An imported playlist that isn't in Rekordbox's export any more.
+    goneFromRekordbox: boolean
+  }[]
+  // Per field: how many songs differ, and the first rows.
+  info: { field: RekordboxInfoField; count: number; rows: { trackId: number; song: string; rekordbox: string; mco: string }[] }[]
+  // Rekordbox's cue points on songs MCO has (MCO keeps none yet).
+  cues: { count: number; songs: number; rows: { trackId: number; song: string; marks: RekordboxCueMark[] }[] }
+  files: {
+    kind: 'outside-collection' | 'not-scanned' | 'gone-from-disk' | 'only-in-mco' | 'missing-in-mco'
+    count: number
+    rows: { path: string; song: string }[]
+  }[]
+}
+
 // Auto-updater state, pushed from main (electron/main/updater.ts).
 //   disabled    — this build never updates itself (dev, BETA); see error
 //   available   — latestVersion is newer; canInstall says whether this

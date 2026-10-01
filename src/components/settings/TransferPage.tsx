@@ -1,12 +1,28 @@
 import { useState } from 'react'
 import { useCollectionStore } from '../../state/store'
 import { Message, Page, Section } from './ui'
+import { RekordboxReportView } from '../RekordboxReportView'
+import type { RekordboxReport } from '../../types'
 
 export function TransferPage() {
   const exportTagData = useCollectionStore((s) => s.exportTagData)
   const importTagData = useCollectionStore((s) => s.importTagData)
   const [tagDataMessage, setTagDataMessage] = useState<string | null>(null)
   const [rekordboxMessage, setRekordboxMessage] = useState<{ text: string; error: boolean } | null>(null)
+  const [report, setReport] = useState<RekordboxReport | null>(null)
+  const [comparing, setComparing] = useState(false)
+  async function compare(pick: boolean) {
+    setComparing(true)
+    setRekordboxMessage(null)
+    try {
+      const result = await window.api.compareWithRekordbox(pick)
+      if (!result) return
+      if ('error' in result) setRekordboxMessage({ text: result.error, error: true })
+      else setReport(result.report)
+    } finally {
+      setComparing(false)
+    }
+  }
 
   return (
     <Page title="Import & export" description="Move your tags between Macs, or take your library to Rekordbox.">
@@ -59,10 +75,25 @@ export function TransferPage() {
             }}
           >
             Export to Rekordbox…
+          </button>{' '}
+          <button
+            onClick={() => void compare(false)}
+            disabled={comparing}
+            title="Read Rekordbox's collection export (File → Export Collection in xml format) and list what differs — nothing is changed"
+          >
+            {comparing ? 'Comparing…' : 'Compare with Rekordbox…'}
           </button>
         </div>
         {rekordboxMessage && <Message error={rekordboxMessage.error}>{rekordboxMessage.text}</Message>}
       </Section>
+      {report && (
+        <RekordboxReportView
+          report={report}
+          onClose={() => setReport(null)}
+          onCompareAgain={() => void compare(false)}
+          onPickFile={() => void compare(true)}
+        />
+      )}
     </Page>
   )
 }

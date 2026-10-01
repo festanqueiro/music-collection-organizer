@@ -183,3 +183,82 @@ export function parseM3uEntries(text: string): { path: string; hint: SongHint }[
   }
   return entries
 }
+
+// ---- The whole collection, for comparing with MCO (Rekordbox sync, phase 1) ----
+
+export interface RekordboxCue {
+  // 0–7 = hot cue A–H; -1 = memory cue or loop.
+  num: number
+  // 0 cue, 4 loop (Rekordbox's Type).
+  type: number
+  start: number
+  end?: number
+  color: [number, number, number] | null
+}
+
+export interface RekordboxTrack {
+  trackId: string
+  path: string
+  name: string
+  artist: string
+  album: string
+  genre: string
+  comments: string
+  year: number | null
+  bpm: number | null
+  tonality: string
+  seconds: number | null
+  cues: RekordboxCue[]
+}
+
+export interface RekordboxCollection {
+  version: string | null
+  tracks: RekordboxTrack[]
+  tree: RekordboxNode[]
+}
+
+// COLLECTION's tracks with their fields and cue marks, plus the playlist tree.
+export function readRekordboxCollection(xml: string): RekordboxCollection {
+  const tree = parseRekordboxXml(xml)
+  const product = /<PRODUCT\b([^>]*)>/.exec(xml)
+  const version = product ? (attributes(product[1]).Version ?? null) : null
+  const start = xml.indexOf('<COLLECTION')
+  const end = xml.indexOf('</COLLECTION>')
+  const tracks: RekordboxTrack[] = []
+  if (start >= 0 && end > start) {
+    const body = xml.slice(start, end)
+    const num = (v: string | undefined) => (v !== undefined && v !== '' && Number.isFinite(Number(v)) ? Number(v) : null)
+    for (const m of body.matchAll(/<TRACK\b([^>]*?)(\/>|>([\s\S]*?)<\/TRACK>)/g)) {
+      const a = attributes(m[1])
+      if (!a.TrackID || !a.Location) continue
+      const cues = [...(m[3] ?? '').matchAll(/<POSITION_MARK\b([^>]*?)\/?>/g)].map((p): RekordboxCue => {
+        const c = attributes(p[1])
+        const rgb = c.Red !== undefined ? ([Number(c.Red), Number(c.Green ?? 0), Number(c.Blue ?? 0)] as [number, number, number]) : null
+        return {
+          num: Number(c.Num ?? -1),
+          type: Number(c.Type ?? 0),
+          start: Number(c.Start ?? 0),
+          ...(c.End !== undefined ? { end: Number(c.End) } : {}),
+          color: rgb,
+        }
+      })
+      const year = num(a.Year)
+      const bpm = num(a.AverageBpm)
+      tracks.push({
+        trackId: a.TrackID,
+        path: locationToPath(a.Location),
+        name: a.Name ?? '',
+        artist: a.Artist ?? '',
+        album: a.Album ?? '',
+        genre: a.Genre ?? '',
+        comments: a.Comments ?? '',
+        year: year && year > 0 ? year : null,
+        bpm: bpm && bpm > 0 ? bpm : null,
+        tonality: a.Tonality ?? '',
+        seconds: num(a.TotalTime),
+        cues,
+      })
+    }
+  }
+  return { version, tracks, tree }
+}

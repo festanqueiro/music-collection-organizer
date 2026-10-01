@@ -61,6 +61,12 @@ installed copies update themselves.
 - **Why analysis failed**: a track whose analysis failed now says why (the
   file is gone, damaged, not fully downloaded…) in its red icon's tooltip
   and in its details, with **Try again**.
+- **Compare with Rekordbox** (Settings → Import & export): reads the
+  collection Rekordbox exports (File → Export Collection in xml format) and
+  lists what differs from MCO — playlists (only in one, or different songs
+  or order), titles, artists, albums, years, genres against your Tags, BPM
+  and keys, Rekordbox's cue points, and files that are only in one or
+  missing. Nothing is changed; applying differences comes next.
 
 ### Fixed
 - The track menu said "Show in File Explorer" on the Mac; it's **Show in

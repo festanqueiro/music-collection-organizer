@@ -1,5 +1,5 @@
 ---
-status: planned
+status: in-progress
 updated: 2026-10-01
 adrs: [0052, 0051, 0050, 0028, 0026, 0008, 0004]
 ---
@@ -202,6 +202,24 @@ Rekordbox" is automatic. Phase 0 measures it; until then the spec assumes:
 1. **Read-only report (M)** — the full reader, the matching, the diff engine, and the wizard
    showing findings without applying anything (first sync = everything as conflicts). Already
    useful: what differs, what's missing where.
+   **Built (PR #99):** Settings → Import & export → **Compare with Rekordbox…** reads the export
+   (`readRekordboxCollection` in `rekordboxXml.ts`), compares it with MCO
+   (`electron/main/rekordboxCompare.ts`: `compareWithRekordbox`, `loadMcoSide`; IPC
+   `rekordbox:compare`, the file remembered as `rekordboxCompareFile`) and shows the four groups in
+   `src/components/RekordboxReportView.tsx`, read-only:
+   - *Playlists*: different (songs only on each side, order), only in Rekordbox, only in MCO (and
+     imported ones gone from Rekordbox), the same — matched by name path, imported ones by
+     `source_path`; songs not in the collection counted.
+   - *Music info*: per field, how many songs differ and the first 400 rows (Song / Rekordbox / MCO).
+     Title falls back to the file name as Rekordbox does; Genre is compared with MCO's Tags then
+     Subtags as a set of names (case, order and `,` `/` `;` ignored); BPM differs only beyond ±0.5,
+     also at half/double time; keys compared as Camelot codes in any notation.
+   - *Cue points*: Rekordbox's cues on songs MCO has, with slot, time and colour (MCO keeps none
+     yet).
+   - *Files*: outside the collection folder, in it but not scanned, gone from disk, only in MCO,
+     missing in MCO.
+   Still to do for phase 1: no snapshot yet (every difference is two-sided), and no paging past
+   400 rows per group.
 2. **Apply to MCO (M)** — playlists in and merged, music info into the DB and files, genre ↔ tags
    mapping, relinks, `track_cues` with cues on the waveform; backup, journal, Undo last sync; the
    snapshot.
