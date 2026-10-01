@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 updated: 2026-10-01
 adrs: [0055, 0052]
 ---

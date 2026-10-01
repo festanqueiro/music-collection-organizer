@@ -4,7 +4,7 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
-## Unreleased
+## 1.0.53 — 2026-10-01
 
 ### Added
 - **Hot cues A–H**: eight cue points per track, saved with it. Pads in the
@@ -16,11 +16,6 @@ installed copies update themselves.
 - **Your Rekordbox cues in MCO**: *Compare with Rekordbox* now compares cue
   points too, and **Bring Rekordbox's cues into MCO** copies them (hot cues,
   memory cues and loops, with their colours) for songs that have none in MCO.
-- **Export to Rekordbox** now includes your cue points.
-
-## 1.0.53 — 2026-10-01
-
-### Added
 - **Playlists** (first part): a **Playlists** box at the bottom of the
   sidebar, under Folders / Tags / Subtags / Filters. Make playlists and
   folders with **+**; click one to see its songs in the table, in the
@@ -64,7 +59,7 @@ installed copies update themselves.
   confirm. Confirmed songs are remembered for the next import.
 - **Export to Rekordbox** (Settings → Import & export) now includes your
   playlists, in an **MCO Playlists** folder next to the tags' **MCO**
-  folder.
+  folder, and your cue points.
 - **Energy, LUFS and Volume Score columns**: each track's 1–10 energy
   (with a small bar), its loudness in LUFS, and its *Volume Score* — how
   many dB to turn it up or down to match the rest of your collection (its
