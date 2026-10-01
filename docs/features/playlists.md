@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 updated: 2026-10-01
 adrs: [0050]
 ---
@@ -160,8 +160,8 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
    playlist in order, Play playlist / Add to queue, add songs by drag and menu, remove. (M)
 2. **Rekordbox import** — XML parser, match, summary dialog, refresh, Keep as my own. (M)
 
-Phases 1–2 are built in #99, plus m3u8 and text imports, moving playlists/folders and the m3u8
-export.
+Shipped in **1.0.53** (PR #99): phases 1–4, plus m3u8 and text imports, moving playlists/folders,
+the m3u8 export and songs found at a different path.
 
 3. **Editing a playlist's songs** — reorder rows by drag, ⌫ to remove with *Undo*, remove
    songs whose file is missing. Built in #99. (S–M)

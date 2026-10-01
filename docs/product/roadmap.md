@@ -19,13 +19,12 @@ Per-release detail is in the [changelog](../log/changelog.md).
 | **1.0.47 Record mode (podcast)** | shipped (2026-09-27, PR #84) | One audio engine ([ADR 0041](../adr/0041-one-audio-engine.md)); recording the output to WAV/FLAC/MP3 with a level meter and Level knob (ADR 0042/0043); the Mic (player-bar popover, noise suppression) with its own effects incl. Pitch, ducking and Talk (ADR 0044); Live screen; FX screen in Music FX / Mic FX / Instruments groups; visualizer frame-rate cap (30 fps default, ADR 0045). No casting while recording; video later. [Feature](../features/recording.md). |
 | **1.0.50 Show on a screen** | shipped (2026-09-28) | The visualizer, or the Cast receiver's Now playing screen, full screen on a second display (Apple TV as an AirPlay display, projector, monitor) or in a window, drawn by the Mac (ADRs 0046/0048; Now playing shipped in 1.0.51); Visual delay to match late audio (ADR 0047); Audio button with main and headphones outputs. The Apple TV itself still to test. [Feature](../features/second-screen.md). |
 | **1.0.51 Windows installer** | shipped (2026-09-28) | An unsigned NSIS installer built on a Windows runner with every release; no auto-update on Windows; paths, cloud detection, mic prompt and Rekordbox locations made portable ([ADR 0049](../adr/0049-windows-installer-on-release.md)). Not yet tried on a Windows PC. [Releasing](../features/releases-and-updates.md#windows-adr-0049). |
+| **1.0.53 Playlists** | shipped (2026-10-01, PR #99) | Playlists in folders (play, add, remove, drag to reorder, ⌫ with Undo), import from Rekordbox (XML, m3u8, text — songs at a different path on old USB sticks found and confirmed) and export (m3u8, and in the Rekordbox XML); Compare with Rekordbox (read-only report); Energy, LUFS and Volume Score columns and an Energy filter; why analysis failed; the website. [Feature](../features/playlists.md). |
 | **1.0.52 Stats** | shipped (2026-10-01) | The collection in numbers (tiles, quality, tempo, keys, top genres/artists, years, added per month) for the whole collection or a folder; Add to queue on every row; threejs-visualisers 0.3.0 (Origins, Liquid renamed); Show on a screen fixed (visualizers were black, Now playing unstyled). [Feature](../features/stats.md). |
 
 ## Next (roughly in priority order; S ≤ a day, M = a few days, L = a week+)
-1. **Playlists (M–L)** — named, ordered lists in folders, in a Playlists box under the sidebar
-   views; Play / Delete from the right-click menu; imported (and refreshed) from Rekordbox's XML
-   export. [Spec](../features/playlists.md), [ADR 0050](../adr/0050-playlists-in-mco-imported-from-rekordbox-xml.md).
-   Smart crates (saved filter rules: tags AND/OR, BPM range, key, format, date added) come after.
+1. **Smart crates (M)** — saved filter rules (tags AND/OR, BPM range, key, energy, format, date
+   added) shown like playlists, after [Playlists](../features/playlists.md) (shipped in 1.0.53).
 2. **Portable library: relative paths (M)** — store paths relative to the collection folder, migrate
    once, resolve everywhere a path is used (media protocol, analysis, drag, reveal, tag export). Today
    a collection moved to a different path loses its tags ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
@@ -49,8 +48,6 @@ Per-release detail is in the [changelog](../log/changelog.md).
    ([research](../research/cast-devices.md#chromecast-hd-gpu)).
 7. **Tag writing for FLAC and ID3v2.2 (S–M)**, and a reviewed bulk flow for filename suggestions
    (still one explicit confirmation — [ADR 0028](../adr/0028-suggest-never-auto-write-file-tags.md)).
-8. ~~**Energy in the desktop app (S)**~~ — done in PR #99: Energy, LUFS and Volume Score columns,
-   the details panel, an Energy filter.
 
 ## Known issues
 - **`npm run dev` + React StrictMode**: Player's mount effect runs twice, so

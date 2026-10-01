@@ -46,7 +46,7 @@ export function freshDataFolder() {
       collectionFolder: COLLECTION,
       // Columns worth showing off; Filename etc. hidden.
       columnOrder: ['title', 'artist', 'tags', 'subtags', 'bpm', 'musicalKey', 'duration', 'format', 'album', 'filename', 'bitrate', 'dateAdded', 'dateModified'],
-      hiddenColumns: ['filename', 'bitrate', 'dateModified', 'album', 'duration'],
+      hiddenColumns: ['filename', 'bitrate', 'dateModified', 'album', 'duration', 'dateAdded', 'format'],
       autoCheckUpdates: false,
     })
   )
@@ -90,7 +90,7 @@ export async function launch({ video } = {}) {
   await win.evaluate(() =>
     localStorage.setItem(
       'mco-track-table-column-widths',
-      JSON.stringify({ title: 250, artist: 170, tags: 130, subtags: 130, bpm: 70, musicalKey: 80, duration: 80, format: 70 })
+      JSON.stringify({ title: 190, artist: 130, tags: 110, subtags: 110, bpm: 56, musicalKey: 78, energy: 78, loudness: 64, gain: 104 })
     )
   )
   return { app, win }

@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: shipped
 updated: 2026-10-01
 adrs: [0054]
 ---
@@ -36,8 +36,7 @@ with the download button going to the latest GitHub release.
 
 ## Limits & open questions
 - **One-time setup**: Settings → Pages → Source: *GitHub Actions*, before the first deploy.
-- The page describes Playlists features from PR #99 (import from USB sticks, editing a playlist's songs); merge it before publishing, or the page
-  promises more than the released app.
 - Clips need Linux (x11grab); on a Mac only the screenshots are redone.
-- The demo tracks are 48 s loops; the Duration column is hidden in captures for that reason.
+- The demo tracks are 48 s loops; Duration (and the identical Date Added, and Format) are hidden in
+  captures, and column widths set so Energy, LUFS and Volume Score fit.
 - A custom domain, analytics and a light theme are not set up.
