@@ -12,7 +12,15 @@ installed copies update themselves.
   and play; **Shift-1–8** deletes one. Right-click a pad to name it, pick a
   colour or delete it. They're drawn on the waveform in their colours, can
   be mapped to your MIDI controller's pads (lit while set), and a **Cues**
-  column shows how many a track has.
+  column shows how many a track has. Each of the eight pads has its own
+  colour.
+- **Suggested hot cues**: next to the pads, buttons for bars **16, 32, 48
+  and 64** from the first beat (where most dance tracks change phrase),
+  also shown as dashed lines on the waveform. Click one to put it on the
+  first empty pad (or jump to it once it's set); right-click to choose the
+  pad, A–H. Analysis now finds where the first beat is; songs analysed
+  before get it the next time they play (until then the suggestions are
+  marked ≈).
 - **Your Rekordbox cues in MCO**: *Compare with Rekordbox* now compares cue
   points too, and **Bring Rekordbox's cues into MCO** copies them (hot cues,
   memory cues and loops, with their colours) for songs that have none in MCO.

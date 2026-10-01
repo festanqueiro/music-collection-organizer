@@ -17,12 +17,20 @@ export.
   keep their room; the empty player has the same row, disabled. An empty pad (outlined)
   **sets** a hot cue where the track is now — playing or paused; a set pad (filled with its colour)
   **jumps** there and plays.
+- **Suggested** (after the pads): bars **16, 32, 48, 64** from the first beat — 4 beats a bar at
+  the track's BPM — where most dance music changes phrase; past the end of the track they're left
+  out. Each is also a dashed line on the waveform. Click one to put it on the **first empty pad**
+  (with all eight set, it asks which); once a pad holds it (within half a beat) the button shows
+  that pad's letter and colour (*D·16*) and jumps there like the pad. **Right-click** one to pick
+  the pad, A–H: an empty pad takes it, a set pad is replaced, and a suggestion already on a pad
+  moves (the old pad is cleared). Marked **≈** while the first beat is only a guess (below).
 - **Keys 1–8** do the same as the pads; **Shift-1–8** deletes that cue. Not while typing, not with
   a dialog open, and not while the visualizer is open (it keeps 1–8 for its themes).
 - **Right-click** (or Shift-click) a set pad: **Name…** (e.g. "Drop", shown in the pad's tooltip),
   a colour from Rekordbox's hot-cue palette, **Delete hot cue**.
 - **Colours**: new cues take their slot's default — the ones the user's Rekordbox uses for A–D (pink,
-  blue, green, purple), then magenta, cyan, green, rose for E–H — so a cue looks the same in both apps.
+  blue, green, purple), then orange, cyan, yellow, magenta for E–H from its palette — eight
+  clearly different colours, so no two pads look alike, and a cue looks the same in both apps.
 - **Waveform**: each hot cue is a line in its colour with its letter on top; Rekordbox's memory cues
   (thin lines) and loops (a light band) show too, from an import.
 - **MIDI**: learnt like the other controls — each pad has a learn badge, shown only while
@@ -50,7 +58,13 @@ export.
   and name), `updateHotCue`, `deleteHotCue`, `getHotCueCounts`, `importRekordboxCues`; IPC `cues:*`
   returns the track's cues after each write; `rekordboxExport.ts` writes them; `rekordboxCompare.ts`
   compares them.
-- **Renderer**: `src/state/hotCues.ts` (letters, default colours, palette, hex↔RGB);
+- **First beat**: analysis (`analysis/bpmKey.ts`) keeps where the beat grid starts in
+  `tracks.first_beat` — the first of essentia's beat ticks at the first sound (`firstBeatFrom`;
+  the tracker extrapolates ticks into a silent intro, which would put every suggestion a beat or
+  two early). Tracks analysed before it existed are re-analysed when played or queued (like
+  energy); until then the first beat is guessed from the waveform (`firstSoundTime`, ≈).
+- **Renderer**: `src/state/hotCues.ts` (letters, default colours, palette, hex↔RGB,
+  `suggestedCues`, `firstEmptySlot`);
   `trackCues` / `hotCueCounts` in the store, loaded per track when the player mounts;
   `src/components/HotCuePads.tsx` (pads, menu, `CueMarkers` on the waveform); `Player.tsx` adds
   `hotCue(slot)` to `playbackControls`, which MIDI (`player.hotCue1`–`8`) and the keys call.
@@ -62,6 +76,10 @@ export.
 - `rekordboxExport.test.ts`: `POSITION_MARK`s with default and chosen colours and names, read back.
 - `rekordboxCompare.test.ts`: only in Rekordbox, only in MCO, different, the same (±10 ms) left out.
 - `store.midi.test.ts`: pads 1 and 8 on press only.
+- `src/state/hotCues.test.ts`: eight distinct default colours; suggestions at bars 16–64, cut at the
+  end, which pad holds one, none without a BPM, the waveform guess; the first empty pad.
+- `analysis/bpmKey.test.ts`: the first beat of a 120 BPM click track after 1.5 s of silence;
+  ticks in a silent intro skipped.
 - In the real app (Linux/xvfb): keys 1/2 set A/B, 1 jumps back, the pad menu, markers, the import
   from a Rekordbox export.
 
@@ -69,6 +87,8 @@ export.
 - **Loops** (set, active, exit) aren't playable yet — imported loops show on the waveform only;
   memory cues likewise (roadmap: loops later).
 - No zoomed waveform yet: on a long track, cues placed by ear land within the waveform's precision.
+- Suggestions assume 4/4 and a steady tempo from the first beat; a track whose first beat isn't a
+  downbeat (a pickup) has them off by that much — move the cue by ear.
 - **Quantize** (snapping a cue to the beat grid) needs MCO's own grid; not done.
 - MP3 cue times may differ from Rekordbox's by 20–50 ms (decoder offsets) — the probe measures it.
 - The pads aren't on the Live screen yet.

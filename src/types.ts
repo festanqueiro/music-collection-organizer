@@ -19,6 +19,9 @@ export interface Track {
   genreTag: string | null
   year: number | null
   bpm: number | null
+  // Seconds to the first beat (the beat grid's start), from analysis; null
+  // for tracks analysed before it existed.
+  firstBeat: number | null
   musicalKey: string | null
   waveformPeaks: number[] | null
   // Integrated loudness (LUFS) and a 1–10 energy rating, from analysis;

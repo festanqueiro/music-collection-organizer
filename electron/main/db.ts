@@ -168,6 +168,11 @@ function migrate(db: AppDatabase): void {
   if (!trackColumnNames.has('energy')) {
     db.exec('ALTER TABLE tracks ADD COLUMN energy INTEGER')
   }
+  // Where the first beat is (seconds), from analysis — the start of the
+  // beat grid for suggested hot cues; null until (re)analysed.
+  if (!trackColumnNames.has('first_beat')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN first_beat REAL')
+  }
   // Why the last analysis failed (analysis/errorMessage.ts); null otherwise.
   if (!trackColumnNames.has('analysis_error')) {
     db.exec('ALTER TABLE tracks ADD COLUMN analysis_error TEXT')

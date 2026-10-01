@@ -186,7 +186,8 @@ function tracksNeedingAnalysis(tracks: Track[], trackIds: number[]): number[] {
     return track && track.cloudStatus === 'local' && (track.analysisStatus === 'pending' || track.analysisStatus === 'error')
   })
 }
-// Also re-analyses tracks analysed before loudness/energy existed, so they
+// Also re-analyses tracks analysed before loudness/energy (or the first
+// beat, for suggested hot cues) existed, so they
 // fill in as they're played or queued rather than all at once. Deliberately
 // not part of tracksNeedingAnalysis, which the queue dialog counts as
 // "unanalysed".
@@ -194,7 +195,7 @@ function tracksMissingEnergy(tracks: Track[], trackIds: number[]): number[] {
   const byId = new Map(tracks.map((t) => [t.id, t]))
   return trackIds.filter((id) => {
     const track = byId.get(id)
-    return track && track.cloudStatus === 'local' && track.analysisStatus === 'done' && track.energy === null
+    return track && track.cloudStatus === 'local' && track.analysisStatus === 'done' && (track.energy === null || track.firstBeat == null)
   })
 }
 function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>['getState'], trackIds: number[]): void {

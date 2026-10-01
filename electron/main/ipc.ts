@@ -155,6 +155,7 @@ interface TrackRow {
   genre_tag: string | null
   year: number | null
   bpm: number | null
+  first_beat: number | null
   musical_key: string | null
   waveform_peaks: string | null
   loudness: number | null
@@ -198,6 +199,7 @@ function rowToTrack(row: TrackRow): Track {
     genreTag: row.genre_tag,
     year: row.year,
     bpm: row.bpm,
+    firstBeat: row.first_beat ?? null,
     musicalKey: row.musical_key,
     waveformPeaks: row.waveform_peaks ? JSON.parse(row.waveform_peaks) : null,
     loudness: row.loudness,

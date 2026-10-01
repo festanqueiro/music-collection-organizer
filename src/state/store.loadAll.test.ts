@@ -36,6 +36,7 @@ function track(id: number): Track {
     genreTag: null,
     year: null,
     bpm: null,
+    firstBeat: null,
     musicalKey: null,
     waveformPeaks: null,
     loudness: null,

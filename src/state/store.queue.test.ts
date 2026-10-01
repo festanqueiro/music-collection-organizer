@@ -28,6 +28,7 @@ function track(id: number, overrides: Partial<Track> = {}): Track {
     genreTag: null,
     year: null,
     bpm: null,
+    firstBeat: 0.5,
     musicalKey: null,
     waveformPeaks: null,
     // Analysed since loudness/energy were added.

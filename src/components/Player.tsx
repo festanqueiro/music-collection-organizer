@@ -1,5 +1,5 @@
 // src/components/Player.tsx
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
 import { listenedSeconds, playedThreshold } from '../state/playCount'
@@ -13,7 +13,7 @@ import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { PlayerScreenButtons } from './PlayerScreenButtons'
 import { HotCuePads, CueMarkers } from './HotCuePads'
-import { hotCueSlots } from '../state/hotCues'
+import { hotCueSlots, suggestedCues } from '../state/hotCues'
 
 const NO_CUES: never[] = []
 
@@ -72,6 +72,8 @@ export function Player({
   const recordPlay = useCollectionStore((s) => s.recordPlay)
   // Hot cues (docs/features/hot-cues.md), loaded once per track.
   const cues = useCollectionStore((s) => s.trackCues.get(track.id)) ?? NO_CUES
+  // Bars 16/32/48/64 from the first beat (src/state/hotCues.ts).
+  const suggestions = useMemo(() => suggestedCues(track, duration || track.duration || 0, cues), [track, duration, cues])
   const cuesRef = useRef(cues)
   cuesRef.current = cues
   useEffect(() => {
@@ -580,7 +582,7 @@ export function Player({
         <MidiLearnBadge control="player.playNext" />
 
         <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-          <CueMarkers cues={cues} duration={duration || track.duration || 0} />
+          <CueMarkers cues={cues} duration={duration || track.duration || 0} suggestions={suggestions} />
           {peaks && peaks.length > 0 ? (
             <svg
               width="100%"
@@ -687,6 +689,13 @@ export function Player({
         onPad={hotCue}
         onDelete={(slot) => void useCollectionStore.getState().deleteHotCue(track.id, slot)}
         onChange={(slot, changes) => void useCollectionStore.getState().updateHotCue(track.id, slot, changes)}
+        suggestions={suggestions}
+        approximate={track.firstBeat == null}
+        onSuggest={async (slot, time, from) => {
+          const store = useCollectionStore.getState()
+          await store.setHotCue(track.id, slot, time)
+          if (from !== undefined && from !== slot) await store.deleteHotCue(track.id, from)
+        }}
       />
     </div>
   )

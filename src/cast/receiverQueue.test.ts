@@ -20,6 +20,7 @@ function track(id: number, over: Partial<Track> = {}): Track {
     genreTag: null,
     year: null,
     bpm: null,
+    firstBeat: null,
     musicalKey: null,
     waveformPeaks: null,
     loudness: null,
