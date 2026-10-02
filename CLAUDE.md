@@ -83,6 +83,13 @@ macOS first; releases also ship an untested, unsigned Windows installer
   which track is loaded) lives in the zustand store, not component-local
   state, since the player is independent of row selection/details.
 
+## Website
+
+- `website/` is the GitHub Pages marketing page (`.github/workflows/pages.yml`
+  deploys it from `main`). Its screenshots and clips come from the real app:
+  `npm run site:capture` (Linux + xvfb; see `website/capture/README.md`).
+  After a visible UI change, re-run it and commit `website/assets/`.
+
 ## Packaging
 
 - `npm run dist` — builds and packages the production app (unsigned,

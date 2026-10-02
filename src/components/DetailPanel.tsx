@@ -1,10 +1,12 @@
 // src/components/DetailPanel.tsx
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
+import { REVEAL_IN_FILE_MANAGER } from '../platform'
 import { ConfirmDialog } from './ConfirmDialog'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { formatKey } from '../state/harmonic'
+import { formatGain, formatLufs, gainToMatch, medianLoudness } from '../state/loudness'
 import { guessTagsFromFilename } from '../state/filenameTags'
 
 // Formats whose tags MCO can write (see electron/main/tagWriter.ts).
@@ -38,6 +40,10 @@ const EDIT_FIELDS: { key: keyof TagDraft; label: string }[] = [
 // which writes them into the file itself.
 function FullId3Section({ track }: { track: Track }) {
   const [open, setOpen] = useState(true)
+  // Volume Score: the gain to the collection's median loudness.
+  const allTracks = useCollectionStore((s) => s.tracks)
+  const loudnessTarget = useMemo(() => medianLoudness(allTracks.map((t) => t.loudness)), [allTracks])
+  const gain = gainToMatch(track.loudness, loudnessTarget)
   const [draft, setDraft] = useState<TagDraft | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -117,6 +123,9 @@ function FullId3Section({ track }: { track: Track }) {
     ['Year', track.year],
     ['BPM', track.bpm ? Math.round(track.bpm) : null],
     ['Key', formatKey(track.musicalKey, keyNotation)],
+    ['Energy', track.energy !== null ? `${track.energy} / 10` : null],
+    ['Loudness', track.loudness !== null ? `${formatLufs(track.loudness)} LUFS` : null],
+    ['Volume Score', gain !== null ? formatGain(gain) : null],
     ['Format', track.format],
     ['Duration', track.duration ? formatDuration(track.duration) : null],
   ]
@@ -596,6 +605,33 @@ export function DetailPanel({
       </div>
       <p>{track.artist ? decodeHtmlEntities(track.artist) : null}</p>
 
+      {track.analysisStatus === 'error' && (
+        // Why there's no BPM, key or waveform — and another go.
+        <div
+          role="status"
+          style={{
+            marginTop: '8px',
+            padding: '8px 10px',
+            border: '1px solid var(--color-error)',
+            borderRadius: '6px',
+            fontSize: '12px',
+            display: 'flex',
+            gap: '8px',
+            alignItems: 'flex-start',
+          }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: '16px', color: 'var(--color-error)' }}>
+            error
+          </span>
+          <span style={{ flex: 1 }}>
+            <strong>Analysis failed.</strong> {track.analysisError ?? 'No reason was recorded (analysed before MCO kept one).'}
+          </span>
+          <button onClick={() => void useCollectionStore.getState().runAnalysis([track.id])} style={{ fontSize: '12px', flexShrink: 0 }}>
+            Try again
+          </button>
+        </div>
+      )}
+
       <div style={{ marginTop: '16px' }}>
         {suggestedGenreName && !suggestedGenreAlreadyApplied && (
           <div style={{ marginBottom: '4px' }}>
@@ -695,7 +731,7 @@ function FilePathSection({ track, onTrashed }: { track: Track; onTrashed: () => 
           <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
             folder_open
           </span>
-          Show in Finder
+          {REVEAL_IN_FILE_MANAGER}
         </button>
         <button
           onClick={() => setConfirmingTrash(true)}

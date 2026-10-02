@@ -32,6 +32,10 @@ interface ConfigSchema {
   appTheme?: string
   externalBackupFolder?: string
   recordingFolder?: string
+  // Where the last Rekordbox playlist export was picked from.
+  playlistImportFolder?: string
+  // The Rekordbox collection export last compared with (Rekordbox sync).
+  rekordboxCompareFile?: string
   micSettings?: MicSettings
   lastExternalBackup?: ExternalBackupResult
 }
@@ -259,6 +263,22 @@ export function getMicSettings(): MicSettings {
 
 export function setMicSettings(settings: MicSettings): void {
   getStore().set('micSettings', settings)
+}
+
+export function getRekordboxCompareFile(): string | null {
+  return getStore().get('rekordboxCompareFile') ?? null
+}
+
+export function setRekordboxCompareFile(path: string): void {
+  getStore().set('rekordboxCompareFile', path)
+}
+
+export function getPlaylistImportFolder(): string | null {
+  return getStore().get('playlistImportFolder') ?? null
+}
+
+export function setPlaylistImportFolder(folder: string): void {
+  getStore().set('playlistImportFolder', folder)
 }
 
 export function getRecordingFolder(): string | null {

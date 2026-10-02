@@ -20,6 +20,7 @@ import { QueueDialog } from './components/QueueDialog'
 import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { StatsView } from './components/StatsView'
+import { PlaylistsBox, expandPlaylistsBoxOnNextOpen } from './components/PlaylistsBox'
 import { UndoToast } from './components/UndoToast'
 import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
@@ -143,7 +144,7 @@ export default function App() {
   const [treeView, setTreeView] = useState<TreeView>(() => loadSidebarState().treeView)
   const activeFilterCount = useCollectionStore(
     (s) =>
-      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.duplicatesFilter) + Number(s.missingMetadataFilter) + Number(s.missingTracksFilter) + Number(s.cloudOnlyFilter) + Number(s.mcoTagsFilter !== 'all')
+      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.energyFilter !== null) + Number(s.duplicatesFilter) + Number(s.missingMetadataFilter) + Number(s.missingTracksFilter) + Number(s.cloudOnlyFilter) + Number(s.mcoTagsFilter !== 'all')
   )
   const [leftCollapsed, setLeftCollapsedState] = useState(() => {
     try {
@@ -186,6 +187,13 @@ export default function App() {
   const [tagClearSignal, setTagClearSignal] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
+  const selectPlaylist = useCollectionStore((s) => s.selectPlaylist)
+  const queueUndo = useCollectionStore((s) => s.queueUndo)
+  const undoQueueReplace = useCollectionStore((s) => s.undoQueueReplace)
+  const dismissQueueUndo = useCollectionStore((s) => s.dismissQueueUndo)
+  const playlistUndo = useCollectionStore((s) => s.playlistUndo)
+  const undoPlaylistRemove = useCollectionStore((s) => s.undoPlaylistRemove)
+  const dismissPlaylistUndo = useCollectionStore((s) => s.dismissPlaylistUndo)
   const [scrollToTrack, setScrollToTrack] = useState<{ trackId: number; nonce: number } | null>(null)
 
   // Tags/Subtags' checkbox selection is local component state that resets
@@ -413,6 +421,10 @@ export default function App() {
           }}
         />
       )}
+      {queueUndo && <UndoToast message={queueUndo.message} onUndo={undoQueueReplace} onDismiss={dismissQueueUndo} />}
+      {playlistUndo && (
+        <UndoToast message={playlistUndo.message} onUndo={() => void undoPlaylistRemove()} onDismiss={dismissPlaylistUndo} />
+      )}
       {pendingGenreDeletion && (
         <UndoToast
           message={`Deleted "${pendingGenreDeletion.snapshot.genreName}"`}
@@ -456,7 +468,9 @@ export default function App() {
           />
         </div>
 
-        <div className="pane" style={{ gridArea: 'left', padding: leftCollapsed ? '12px 0' : '12px', overflowX: 'hidden' }}>
+        <div className="pane" style={{ gridArea: 'left', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* The views scroll on their own above the Playlists box. */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: leftCollapsed ? '12px 0' : '12px' }}>
           {leftCollapsed && collectionFolder && (
             // Collapsed: a thin strip of the view icons — any of them
             // reopens the sidebar on that view.
@@ -489,6 +503,19 @@ export default function App() {
                   {view.key === 'filters' && activeFilterCount > 0 && <FilterCountBadge count={activeFilterCount} />}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  expandPlaylistsBoxOnNextOpen()
+                  setLeftCollapsed(false)
+                }}
+                title="Playlists"
+                aria-label="Playlists"
+                style={{ display: 'flex', padding: '6px', border: '1px solid var(--color-border)' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+                  queue_music
+                </span>
+              </button>
             </div>
           )}
           {/* Hidden rather than unmounted while collapsed, so the trees keep
@@ -551,6 +578,7 @@ export default function App() {
                       selectedFolder={selectedFolder}
                       onSelect={(folder) => {
                         setSelectedFolder(folder)
+                        void selectPlaylist(null)
                         clearCheckedTracks()
                       }}
                     />
@@ -563,6 +591,7 @@ export default function App() {
                       onFilterChange={(filter, label) => {
                         setTagFilter(() => filter)
                         setTagFilterLabel(label)
+                        if (label) void selectPlaylist(null)
                         clearCheckedTracks()
                       }}
                     />
@@ -575,6 +604,7 @@ export default function App() {
                       onFilterChange={(filter, label) => {
                         setTagFilter(() => filter)
                         setTagFilterLabel(label)
+                        if (label) void selectPlaylist(null)
                         clearCheckedTracks()
                       }}
                     />
@@ -583,6 +613,18 @@ export default function App() {
               </>
             )}
           </div>
+          </div>
+          {collectionFolder && !leftCollapsed && (
+            <PlaylistsBox
+              onSelectPlaylist={(id) => {
+                // A playlist replaces the folder or tag selection.
+                setSelectedFolder(null)
+                if (tagFilterLabel) setTagClearSignal((n) => n + 1)
+                clearCheckedTracks()
+                void selectPlaylist(id)
+              }}
+            />
+          )}
         </div>
 
         <div className="pane" style={{ gridArea: 'center', display: 'flex', flexDirection: 'column' }}>

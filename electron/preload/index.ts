@@ -27,6 +27,12 @@ import type {
   MicSettings,
   RecordingResult,
   ScreenDisplay,
+  PlaylistNode,
+  RekordboxImportPlan,
+  RekordboxReport,
+  RekordboxDuplicateAction,
+  TrackCue,
+  WaveformSection,
 } from '../../src/types'
 import type { TrackTagIds } from '../../src/state/tagFilter'
 import { APP_THEME_ARG, DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appThemes'
@@ -49,6 +55,8 @@ import type { ReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import type { ScanResult } from '../main/scan'
 
 const api = {
+  // 'darwin' or 'win32' (ADR 0049): for wording like Finder vs File Explorer.
+  platform: process.platform,
   getCollectionFolder: (): Promise<string | null> => ipcRenderer.invoke('config:getCollectionFolder'),
   getAppVersion: (): Promise<string> => ipcRenderer.invoke('app:getVersion'),
   getEffectsSettings: (): Promise<EffectsSettings> => ipcRenderer.invoke('config:getEffectsSettings'),
@@ -86,6 +94,45 @@ const api = {
   getGenres: (): Promise<Genre[]> => ipcRenderer.invoke('tags:getGenres'),
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),
+  getPlaylistNodes: (): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:getNodes'),
+  getTrackCues: (trackId: number): Promise<TrackCue[]> => ipcRenderer.invoke('cues:get', trackId),
+  getWaveformSection: (trackId: number, start: number, length: number): Promise<WaveformSection | null> =>
+    ipcRenderer.invoke('waveform:section', trackId, start, length),
+  getHotCueCounts: (): Promise<Record<number, number>> => ipcRenderer.invoke('cues:counts'),
+  setHotCue: (trackId: number, slot: number, start: number): Promise<TrackCue[]> => ipcRenderer.invoke('cues:set', trackId, slot, start),
+  updateHotCue: (trackId: number, slot: number, changes: { color?: string | null; name?: string }): Promise<TrackCue[]> =>
+    ipcRenderer.invoke('cues:update', trackId, slot, changes),
+  deleteHotCue: (trackId: number, slot: number): Promise<TrackCue[]> => ipcRenderer.invoke('cues:delete', trackId, slot),
+  importRekordboxCues: (): Promise<{ songs: number; cues: number; skipped: number } | { error: string }> =>
+    ipcRenderer.invoke('cues:importRekordbox'),
+  compareWithRekordbox: (pick: boolean): Promise<{ report: RekordboxReport } | { error: string } | null> =>
+    ipcRenderer.invoke('rekordbox:compare', pick),
+  pickRekordboxImport: (): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> =>
+    ipcRenderer.invoke('playlists:pickRekordbox'),
+  importRekordbox: (
+    filePaths: string[],
+    relinks: { from: string; trackId: number }[],
+    duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>
+  ): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:importRekordbox', filePaths, relinks, duplicates),
+  movePlaylistNode: (id: number, targetId: number | null, where: 'before' | 'after' | 'into'): Promise<PlaylistNode[]> =>
+    ipcRenderer.invoke('playlists:move', id, targetId, where),
+  exportPlaylistM3u: (id: number): Promise<{ files: number; songs: number } | null> => ipcRenderer.invoke('playlists:exportM3u', id),
+  detachPlaylistNode: (id: number): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:detach', id),
+  createPlaylistNode: (kind: 'folder' | 'playlist', name: string, parentId: number | null): Promise<{ id: number; nodes: PlaylistNode[] }> =>
+    ipcRenderer.invoke('playlists:create', kind, name, parentId),
+  renamePlaylistNode: (id: number, name: string): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:rename', id, name),
+  deletePlaylistNode: (id: number): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:delete', id),
+  getPlaylistTrackIds: (playlistId: number): Promise<number[]> => ipcRenderer.invoke('playlists:getTrackIds', playlistId),
+  getPlaylistNodeTrackIds: (id: number): Promise<number[]> => ipcRenderer.invoke('playlists:getNodeTrackIds', id),
+  addTracksToPlaylist: (
+    playlistId: number,
+    trackIds: number[]
+  ): Promise<{ added: number; skipped: number; trackIds: number[]; nodes: PlaylistNode[] }> =>
+    ipcRenderer.invoke('playlists:addTracks', playlistId, trackIds),
+  removeTracksFromPlaylist: (playlistId: number, trackIds: number[]): Promise<{ trackIds: number[]; nodes: PlaylistNode[] }> =>
+    ipcRenderer.invoke('playlists:removeTracks', playlistId, trackIds),
+  setPlaylistTrackIds: (playlistId: number, trackIds: number[]): Promise<{ trackIds: number[]; nodes: PlaylistNode[] }> =>
+    ipcRenderer.invoke('playlists:setTracks', playlistId, trackIds),
   createGenre: (name: string): Promise<number> => ipcRenderer.invoke('tags:createGenre', name),
   createSubgenre: (name: string, genreId: number): Promise<number> =>
     ipcRenderer.invoke('tags:createSubgenre', name, genreId),

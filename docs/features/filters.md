@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-27
+updated: 2026-10-01
 adrs: [0030, 0032, 0027]
 ---
 # Filters
@@ -17,6 +17,9 @@ with the folder or tag selection and the search.
   ruled out. Needs an analysed track playing ([DJ tools](dj-tools.md#harmonic-mixing)).
 - **Analysed** — All / Analysed / Not analysed (failed analyses count as not analysed). Shows how
   many aren't analysed.
+- **Energy** — a 1–10 range: *Any*, quick picks *Warm-up 1–4*, *Build 5–7*, *Peak 8–10*, or exact
+  *From … to …*. Tracks not rated yet (not analysed) are left out while it's on. Shows how many tracks
+  are rated and how many fall in the range; the chip reads *Energy 5–7*.
 - **Duplicates** — the same song more than once, in any folder or format: same artist and title, or
   the same filename when either tag is missing; case, accents and punctuation ignored. Copies are
   listed next to each other ([ADR 0032](../adr/0032-duplicates-by-normalised-names.md)).
@@ -42,8 +45,8 @@ with the folder or tag selection and the search.
 
 ## How it works
 - `src/components/FiltersPanel.tsx`; state `compatibleFilter`, `analysedFilter`, `duplicatesFilter`,
-  `mcoTagsFilter`, `missingMetadataFilter` in `src/state/store.ts`; applied in `TrackTable.tsx`'s
-  `visibleTracks`; rules in `src/state/trackFilters.ts` (`isMissingId3Metadata`, `matchesMcoTagsFilter`).
+  `mcoTagsFilter`, `missingMetadataFilter`, `energyFilter` in `src/state/store.ts`; applied in `TrackTable.tsx`'s
+  `visibleTracks`; rules in `src/state/trackFilters.ts` (`isMissingId3Metadata`, `matchesMcoTagsFilter`, `matchesEnergy`).
 - Duplicates: `src/state/duplicates.ts` (over the whole collection).
 - The folder watcher's "N missing" notice counts only tracks that went missing in that scan (it used
   to count every already-missing track, so the same number came back on each rescan).
@@ -57,4 +60,3 @@ with the folder or tag selection and the search.
 ## Limits & open questions
 - Duplicates don't use audio fingerprints: different masters of a song match, and different songs with
   the same name could.
-- Energy isn't a filter yet (roadmap).

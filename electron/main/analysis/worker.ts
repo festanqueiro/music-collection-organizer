@@ -1,6 +1,7 @@
 import { parentPort } from 'node:worker_threads'
 import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
+import { describeAnalysisError } from './errorMessage'
 
 export interface WorkerTask {
   id: number
@@ -15,7 +16,7 @@ export interface WorkerTask {
 
 export type WorkerResult =
   | { id: number; status: 'done'; result: Awaited<ReturnType<typeof runAnalysisPipeline>> }
-  | { id: number; status: 'error' }
+  | { id: number; status: 'error'; message: string }
   // Part-way through a track (see runAnalysisPipeline's onStep).
   | { id: number; status: 'progress'; fraction: number }
 
@@ -30,7 +31,7 @@ parentPort.on('message', async (task: WorkerTask) => {
       parentPort!.postMessage({ id: task.id, status: 'progress', fraction } satisfies WorkerResult)
     )
     parentPort!.postMessage({ id: task.id, status: 'done', result } satisfies WorkerResult)
-  } catch {
-    parentPort!.postMessage({ id: task.id, status: 'error' } satisfies WorkerResult)
+  } catch (err) {
+    parentPort!.postMessage({ id: task.id, status: 'error', message: describeAnalysisError(err) } satisfies WorkerResult)
   }
 })

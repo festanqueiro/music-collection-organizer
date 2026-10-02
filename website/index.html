@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCO — Music Collection Organizer</title>
+  <meta name="description" content="A free Mac app for DJs who keep their music as files: analyse BPM and key, tag your own way, build playlists, mix harmonically, add effects, record, visualise — all on your machine." />
+  <meta property="og:title" content="MCO — Music Collection Organizer" />
+  <meta property="og:description" content="Your music, organised. Tag, play, mix and take it to Rekordbox — all on your Mac." />
+  <meta property="og:image" content="assets/shots/library.png" />
+  <meta name="theme-color" content="#12151a" />
+  <link rel="icon" href="assets/favicon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top"><img src="assets/icon-256.png" alt="" width="28" height="28" /> MCO</a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#all">Everything</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/festanqueiro/music-collection-organizer">GitHub</a>
+      </nav>
+      <a class="btn btn-small" href="https://github.com/festanqueiro/music-collection-organizer/releases/latest">Download</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="wrap">
+        <p class="eyebrow">Free · for macOS on Apple silicon · Windows beta</p>
+        <h1>Your music, <span class="accent">organised</span>.</h1>
+        <p class="lede">
+          MCO is a desktop app for DJs who keep their music as files. Point it at your folder: it works out every
+          track's BPM, key and waveform, lets you tag it your own way, build playlists, mix harmonically, add
+          effects and record — and takes it all to Rekordbox. Nothing leaves your machine.
+        </p>
+        <div class="cta">
+          <a class="btn" href="https://github.com/festanqueiro/music-collection-organizer/releases/latest">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3a1 1 0 0 1 1 1v9.6l3.3-3.3a1 1 0 1 1 1.4 1.4l-5 5a1 1 0 0 1-1.4 0l-5-5a1 1 0 1 1 1.4-1.4L11 13.6V4a1 1 0 0 1 1-1Zm-7 15a1 1 0 0 1 1 1v1h12v-1a1 1 0 1 1 2 0v2a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-2a1 1 0 0 1 1-1Z"/></svg>
+            Download for Mac
+          </a>
+          <a class="btn btn-ghost" href="#features">See it in action</a>
+        </div>
+        <figure class="hero-shot">
+          <div class="window"><span></span><span></span><span></span></div>
+          <img src="assets/shots/library.png" alt="MCO's library: tracks with their tags, subtags, BPM and Camelot key, a playlist box, the details panel and the player's waveform" width="1600" height="1000" />
+        </figure>
+      </div>
+    </section>
+
+    <section class="why">
+      <div class="wrap grid4">
+        <div class="why-card">
+          <div class="icon">🔒</div>
+          <h3>Local, and yours</h3>
+          <p>Your music never gets uploaded, and MCO never rewrites your audio files behind your back. Tags and analysis live in MCO's own database, backed up daily.</p>
+        </div>
+        <div class="why-card">
+          <div class="icon">🏷️</div>
+          <h3>Your tags, your way</h3>
+          <p>Two levels — Tags and Subtags — with colours, AND/OR filters and bulk tagging. Organise by vibe, set or venue, not just by genre.</p>
+        </div>
+        <div class="why-card">
+          <div class="icon">🎧</div>
+          <h3>Made for DJs</h3>
+          <p>BPM, key in Camelot, energy and waveform for every track; a Compatible filter for harmonic mixing; headphone pre-listen; MIDI with LED feedback.</p>
+        </div>
+        <div class="why-card">
+          <div class="icon">🔁</div>
+          <h3>Plays well with Rekordbox</h3>
+          <p>Bring your Rekordbox playlists in — even from old USB sticks — send your tags and playlists back, and see at a glance what differs between Rekordbox and MCO.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features">
+      <div class="wrap">
+        <article class="feature">
+          <div class="feature-text">
+            <p class="eyebrow">Tags &amp; search</p>
+            <h2>Find the right track in seconds</h2>
+            <p>Tick a Tag or two, switch between <em>any</em> and <em>all</em>, then type to narrow it down. Every Tag and Subtag has its own colour, so a list reads at a glance.</p>
+            <ul class="ticks">
+              <li>Tags and Subtags, filterable with OR / AND</li>
+              <li>Search across title, artist, album and tags</li>
+              <li>Tag one track or a hundred at once, with undo</li>
+            </ul>
+          </div>
+          <figure class="clip"><video src="assets/clips/tags.mp4" poster="assets/clips/tags.jpg" autoplay muted loop playsinline preload="metadata"></video></figure>
+        </article>
+
+        <article class="feature flip">
+          <div class="feature-text">
+            <p class="eyebrow">Playlists</p>
+            <h2>Build sets, keep them in folders</h2>
+            <p>Check a few songs and add them to a playlist, drag rows to put them in order, and play the whole thing — or a whole folder of playlists. ⌫ takes a song out, with Undo.</p>
+            <ul class="ticks">
+              <li>Playlists in folders, in a box under the sidebar</li>
+              <li>Drag to reorder; Play playlist replaces the queue (with Undo)</li>
+              <li>Import from Rekordbox (XML, m3u8 or text) and export back</li>
+              <li>Old USB-stick playlists: songs found in your collection even when the paths are wrong</li>
+            </ul>
+          </div>
+          <figure class="clip"><video src="assets/clips/playlists.mp4" poster="assets/clips/playlists.jpg" autoplay muted loop playsinline preload="metadata"></video></figure>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <p class="eyebrow">Harmonic mixing</p>
+            <h2>Only what mixes with what's playing</h2>
+            <p>Every key is shown on the Camelot wheel. Turn on <em>Compatible</em> and the list shrinks to the tracks that mix with the one playing: the same key, one step round the wheel, or the relative major/minor — at a tempo that matches.</p>
+            <ul class="ticks">
+              <li>BPM, key, energy and waveform, analysed on your Mac</li>
+              <li>Loudness in LUFS, and a Volume Score: how many dB to turn a track up or down to match the rest</li>
+              <li>An Energy filter — warm-up, build or peak</li>
+              <li>Camelot or classic key notation</li>
+              <li>Pre-listen in your headphones on a second output</li>
+            </ul>
+          </div>
+          <figure class="clip"><video src="assets/clips/compatible.mp4" poster="assets/clips/compatible.jpg" autoplay muted loop playsinline preload="metadata"></video></figure>
+        </article>
+
+        <article class="feature flip">
+          <div class="feature-text">
+            <p class="eyebrow">Hot cues</p>
+            <h2>Jump straight to the drop</h2>
+            <p>Eight hot cues per track, A to H, on pads under the player, keys 1–8 or your MIDI controller. MCO suggests cues every 16 bars from the first beat, and you drag a cue along the waveform with a zoom of the bars around it to put it exactly on the beat.</p>
+            <ul class="ticks">
+              <li>Pads that set a cue, or jump to it and play; name and colour each one</li>
+              <li>Suggested cues at bars 16, 32, 48 and 64 — one click puts one on a pad</li>
+              <li>Drag with a zoom: bar and beat lines, the exact time; ⌥ for fine, Shift snaps to the beat</li>
+              <li>Your Rekordbox cues brought in, and MCO's sent back in its Rekordbox export</li>
+            </ul>
+          </div>
+          <figure class="clip"><video src="assets/clips/hotcues.mp4" poster="assets/clips/hotcues.jpg" autoplay muted loop playsinline preload="metadata"></video></figure>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <p class="eyebrow">Visualizer</p>
+            <h2>Put the music on the big screen</h2>
+            <p>Nine audio-reactive themes, full screen — on your Mac, on a second display or projector, or cast to a TV with MCO's own Cast app showing what's playing and what's next.</p>
+            <ul class="ticks">
+              <li>Nebula, Warp, Horizon, Sound System, Smoke and more</li>
+              <li>Show on a screen (Apple TV, projector) with a visual delay</li>
+              <li>Cast to Chromecast, Google TV or a Nest speaker</li>
+            </ul>
+          </div>
+          <figure class="clip"><video src="assets/clips/visualizer.mp4" poster="assets/clips/visualizer.jpg" autoplay muted loop playsinline preload="metadata"></video></figure>
+        </article>
+
+        <article class="feature flip">
+          <div class="feature-text">
+            <p class="eyebrow">Effects, mic &amp; recording</p>
+            <h2>Run a show — or a podcast</h2>
+            <p>Rotary-knob effects on the music, your voice through its own chain, a dub siren on top, and everything recorded to WAV, FLAC or MP3. The Live screen puts the queue and every effect on one page.</p>
+            <ul class="ticks">
+              <li>EQ, filter, tempo-synced delay, reverb</li>
+              <li>Mic with noise gate, compressor, pitch, echo throws, radio voice and ducking</li>
+              <li>Map any knob or button to your MIDI controller in two clicks</li>
+            </ul>
+          </div>
+          <figure class="clip still"><img src="assets/shots/live.png" alt="The Live screen: the queue next to the music and mic effects" loading="lazy" width="1600" height="1000" /></figure>
+        </article>
+
+        <article class="feature">
+          <div class="feature-text">
+            <p class="eyebrow">Stats</p>
+            <h2>Your collection, in numbers</h2>
+            <p>How much you have, how good the files are, your tempos and keys round the wheel, your top tags and artists, and what you added when — for everything or one folder.</p>
+          </div>
+          <figure class="clip"><video src="assets/clips/stats.mp4" poster="assets/clips/stats.jpg" autoplay muted loop playsinline preload="metadata"></video></figure>
+        </article>
+      </div>
+    </section>
+
+    <section class="gallery">
+      <div class="wrap">
+        <h2 class="center">A closer look</h2>
+        <div class="gallery-grid">
+          <figure><img src="assets/shots/tags.png" alt="Filtering by two Tags" loading="lazy" /><figcaption>Two Tags ticked: Dub or Dubstep</figcaption></figure>
+          <figure><img src="assets/shots/playlists.png" alt="A playlist open in the table" loading="lazy" /><figcaption>A playlist, in its own order</figcaption></figure>
+          <figure><img src="assets/shots/hotcues.png" alt="A hot cue being dragged on the waveform, with a zoom of the bars around it" loading="lazy" /><figcaption>Dragging a hot cue, with the zoom</figcaption></figure>
+          <figure><img src="assets/shots/fx.png" alt="The effects screen" loading="lazy" /><figcaption>Music FX, Mic FX and the dub siren</figcaption></figure>
+          <figure><img src="assets/shots/visualizer.png" alt="The visualizer" loading="lazy" /><figcaption>The visualizer, full screen</figcaption></figure>
+          <figure><img src="assets/shots/stats.png" alt="The Stats view" loading="lazy" /><figcaption>Stats: the collection in numbers</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="all" class="all">
+      <div class="wrap">
+        <h2 class="center">Everything in the box</h2>
+        <div class="grid3">
+          <div><h3>Library</h3><p>WAV, AIFF, FLAC, MP3, M4A/AAC, OGG/Opus. Watches your folder for new downloads. Missing files are hidden, not forgotten. Google Drive cloud-only files download when played.</p></div>
+          <div><h3>Analysis</h3><p>BPM, key, loudness (LUFS), a 1–10 energy rating and the waveform — in the background, while you keep working. If a file can't be analysed, MCO says why.</p></div>
+          <div><h3>File tags</h3><p>Edit title, artist, album, genre and year inside the file, byte for byte; suggestions from the filename, never saved without you.</p></div>
+          <div><h3>Queue &amp; player</h3><p>Play now, play next, add to queue; shuffle; continuous play; a clickable waveform, CDJ-style cue, hot cues A–H, media keys and output choice.</p></div>
+          <div><h3>Filters</h3><p>Compatible, analysed, duplicates, untagged, missing metadata, missing files — combined with folders and tags.</p></div>
+          <div><h3>Rekordbox</h3><p>Export tags and playlists as Rekordbox XML or m3u8; import playlists from XML, m3u8 or text, and refresh them later; compare your Rekordbox library with MCO — playlists, song info, cue points, files.</p></div>
+          <div><h3>MIDI</h3><p>Learn any knob, toggle or transport button; LED feedback on controllers that support it.</p></div>
+          <div><h3>Themes</h3><p>Three dark and three light colour themes.</p></div>
+          <div><h3>Backups &amp; updates</h3><p>Daily backups with one-click restore, a copy to an external disk, and one-click updates.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="install" class="install">
+      <div class="wrap narrow">
+        <h2 class="center">Install</h2>
+        <ol class="steps">
+          <li>Download the latest <code>MCO-…-arm64.dmg</code> from the <a href="https://github.com/festanqueiro/music-collection-organizer/releases/latest">releases page</a>, open it and drag <strong>MCO</strong> into Applications.</li>
+          <li>The first time, macOS says it <em>“could not verify”</em> MCO — it isn't registered with Apple's paid developer programme. Click <strong>Done</strong>, then <strong>System Settings → Privacy &amp; Security → Open Anyway</strong>.</li>
+          <li>Pick your music folder. From then on MCO updates itself with one click.</li>
+        </ol>
+        <p class="note">Needs a Mac with Apple silicon (M1 or newer). A Windows installer is published with every release but hasn't been tested on a Windows PC yet.</p>
+        <div class="cta center">
+          <a class="btn" href="https://github.com/festanqueiro/music-collection-organizer/releases/latest">Download MCO</a>
+          <a class="btn btn-ghost" href="https://github.com/festanqueiro/music-collection-organizer">Source on GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-inner">
+      <span><img src="assets/icon-256.png" alt="" width="20" height="20" /> MCO — Music Collection Organizer</span>
+      <span>ISC licence · <a href="https://github.com/festanqueiro/music-collection-organizer/blob/main/CHANGELOG.md">What's new</a> · Screens and clips show a made-up demo collection.</span>
+    </div>
+  </footer>
+</body>
+</html>

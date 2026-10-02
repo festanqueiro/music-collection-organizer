@@ -5,6 +5,11 @@ import type { AppDatabase } from '../db'
 import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
 import type { WorkerResult, WorkerTask } from './worker'
+import { describeAnalysisError } from './errorMessage'
+
+function markFailed(db: AppDatabase, trackId: number, reason: string): void {
+  db.prepare("UPDATE tracks SET analysis_status = 'error', analysis_error = ? WHERE id = ?").run(reason, trackId)
+}
 
 function writeAnalysisResult(
   db: AppDatabase,
@@ -14,9 +19,9 @@ function writeAnalysisResult(
   db.prepare(
     `UPDATE tracks SET
       title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate,
-      bpm = @bpm, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
+      bpm = @bpm, first_beat = @first_beat, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
       loudness = @loudness, energy = @energy,
-      analysis_status = 'done', analyzed_at = @analyzed_at, tags_read_at = @analyzed_at
+      analysis_status = 'done', analysis_error = NULL, analyzed_at = @analyzed_at, tags_read_at = @analyzed_at
     WHERE id = @id`
   ).run({
     id: track.id,
@@ -28,6 +33,7 @@ function writeAnalysisResult(
     duration: result.duration,
     bitrate: result.bitrate,
     bpm: result.bpm,
+    first_beat: result.firstBeat,
     musical_key: result.musicalKey,
     waveform_peaks: JSON.stringify(result.waveformPeaks),
     loudness: result.loudness,
@@ -58,8 +64,8 @@ export async function analyzeTrack(
     const playablePath = await getPlayableFilePath(track.path, cacheDir)
     const result = await runAnalysisPipeline(playablePath, track.path)
     writeAnalysisResult(db, track, result)
-  } catch {
-    db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
+  } catch (err) {
+    markFailed(db, track.id, describeAnalysisError(err))
   }
 }
 
@@ -157,9 +163,9 @@ export async function runAnalysisQueue(
       if (settled) return
       settled = true
       if (err || cancelled) {
-        const resetStatus = cancelled ? 'pending' : 'error'
         for (const id of inFlightTrackIds) {
-          db.prepare('UPDATE tracks SET analysis_status = ? WHERE id = ?').run(resetStatus, id)
+          if (cancelled) db.prepare("UPDATE tracks SET analysis_status = 'pending' WHERE id = ?").run(id)
+          else markFailed(db, id, `The analysis stopped: ${describeAnalysisError(err)}`)
         }
         inFlightTrackIds.clear()
       }
@@ -210,12 +216,12 @@ export async function runAnalysisQueue(
           if (msg.status === 'done') {
             writeAnalysisResult(db, track, msg.result)
           } else {
-            db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
+            markFailed(db, track.id, msg.message)
           }
         } catch (writeErr) {
           console.error('failed to write analysis result', writeErr)
           try {
-            db.prepare("UPDATE tracks SET analysis_status = 'error' WHERE id = ?").run(track.id)
+            markFailed(db, track.id, `Couldn't save the result: ${describeAnalysisError(writeErr)}`)
           } catch {
             // Best effort — if even this fails, inFlightTrackIds below
             // still hasn't been cleared for this track, so a later

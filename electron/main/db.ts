@@ -68,6 +68,52 @@ CREATE TABLE IF NOT EXISTS track_moods (
   mood_id INTEGER NOT NULL REFERENCES moods(id) ON DELETE CASCADE,
   PRIMARY KEY (track_id, mood_id)
 );
+
+-- Playlists and their folders, one tree (docs/features/playlists.md,
+-- ADR 0050). source_path: the node's name path in Rekordbox, for refreshing
+-- imported ones.
+CREATE TABLE IF NOT EXISTS playlist_nodes (
+  id INTEGER PRIMARY KEY,
+  parent_id INTEGER REFERENCES playlist_nodes(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('folder', 'playlist')),
+  name TEXT NOT NULL,
+  position INTEGER NOT NULL,
+  source TEXT NOT NULL DEFAULT 'mco',
+  source_path TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- A playlist's songs in order (gaps in position are fine).
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+  playlist_id INTEGER NOT NULL REFERENCES playlist_nodes(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+  PRIMARY KEY (playlist_id, position)
+);
+CREATE INDEX IF NOT EXISTS playlist_tracks_track ON playlist_tracks(track_id);
+
+-- Cue points (docs/features/hot-cues.md): hot cues A–H (slot 0–7), and
+-- memory cues and loops (slot -1) as Rekordbox has them. Times in seconds.
+CREATE TABLE IF NOT EXISTS track_cues (
+  id INTEGER PRIMARY KEY,
+  track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('hot', 'memory', 'loop')),
+  slot INTEGER NOT NULL,
+  start REAL NOT NULL,
+  end REAL,
+  color TEXT,
+  name TEXT NOT NULL DEFAULT ''
+);
+CREATE UNIQUE INDEX IF NOT EXISTS track_cues_hot ON track_cues(track_id, slot) WHERE kind = 'hot';
+CREATE INDEX IF NOT EXISTS track_cues_track ON track_cues(track_id);
+
+-- A path in an imported playlist (an old USB stick's, say) the user confirmed
+-- is this collection song, so importing it again needs no asking.
+CREATE TABLE IF NOT EXISTS playlist_path_aliases (
+  path TEXT PRIMARY KEY,
+  track_id INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE
+);
 `
 
 export function openDatabase(path: string): AppDatabase {
@@ -121,6 +167,15 @@ function migrate(db: AppDatabase): void {
   }
   if (!trackColumnNames.has('energy')) {
     db.exec('ALTER TABLE tracks ADD COLUMN energy INTEGER')
+  }
+  // Where the first beat is (seconds), from analysis — the start of the
+  // beat grid for suggested hot cues; null until (re)analysed.
+  if (!trackColumnNames.has('first_beat')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN first_beat REAL')
+  }
+  // Why the last analysis failed (analysis/errorMessage.ts); null otherwise.
+  if (!trackColumnNames.has('analysis_error')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN analysis_error TEXT')
   }
 
   if (!trackColumnNames.has('play_count')) {

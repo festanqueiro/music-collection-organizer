@@ -67,6 +67,12 @@ Collection popup, or automatically for a track you play or queue. A progress bar
 concurrent runs, moving as each track gets through its steps) can be stopped; stopped tracks go back
 to *pending*, failed ones show a red icon.
 
+**Why it failed** is kept (`tracks.analysis_error`, in plain words by
+`electron/main/analysis/errorMessage.ts`: the file is gone, can't be read, is damaged or not audio, or
+— for cloud files — not fully downloaded; otherwise the last line of ffmpeg's log). It shows in the red
+icon's tooltip and as a note in the track's details with **Try again**; a later successful analysis
+clears it. Failures from before this was kept say no reason was recorded.
+
 A track's **play count** and **last played** go up once it has played 30 s (or half of a track under a
 minute); seeking doesn't count.
 
@@ -93,8 +99,15 @@ Every active narrowing shows as a chip with an × to clear it: the **search** ("
 and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sidebar-views.md)).
 
 ### Track table
-- Columns: Title, Filename, Artist, Album, **Tags**, **Subtags**, BPM, Key, Format, Bitrate, Duration, Date
-  added, Date modified. Drag headers to reorder, drag edges to resize, click to sort (again to
+- Columns: Title, Filename, Artist, Album, **Tags**, **Subtags**, BPM, Key, **Energy**, **LUFS**,
+  **Volume Score**, Format, Bitrate, Duration, Date added, Date modified.
+  - **Energy**: the 1–10 rating as a number and a small cool-to-hot bar.
+  - **LUFS**: integrated loudness (EBU R128) from analysis, e.g. −8.4; closer to 0 is louder.
+  - **Volume Score**: the gain that would bring the track to the **collection's median loudness**
+    (`src/state/loudness.ts`), e.g. *+2.5 dB* (turn it up) or *−1.8 dB* (down) — for matching levels
+    between tracks. 3 dB or more off is coloured. The header's tooltip names the median; it moves as
+    tracks are added. Unanalysed tracks show —.
+  The three are in the details panel too. Header tooltips explain them. Drag headers to reorder, drag edges to resize, click to sort (again to
   reverse); order, widths and sort are saved. A column added in a newer version slots in after the
   column it belongs with.
 - **Choose columns**: the columns icon at the top of the play column, or right-click any column
@@ -110,7 +123,7 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 - Only the rows on screen are drawn, at a fixed height, so it stays at ~120 fps with thousands of
   tracks ([ADR 0024](../adr/0024-virtualised-track-table.md)).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of the queue**, **Pre-listen
-  in headphones**, **Analyse/Re-analyse track**, **Show in File Explorer** (Finder), **Show in Folder
+  in headphones**, **Analyse/Re-analyse track**, **Show in Finder** (*Show in File Explorer* on Windows), **Show in Folder
   Tree View**.
 - **Add all to queue** queues everything visible ([Queue](queue.md)).
 
@@ -123,7 +136,8 @@ to queue**, **Add all to top of the queue**, **Analyse all**, **Clear selection*
 
 ### Track details
 Cover art, analysis, your tags, **Full ID3 tags** (editable — [ID3 tags](id3-tags.md)), and at the
-bottom the file's **full path** with **Copy path**, **Show in Finder** and **Delete** (moves the file to
+bottom the file's **full path** with **Copy path**, **Show in Finder** (*Show in File Explorer* on
+Windows, as in the row menu and after a recording) and **Delete** (moves the file to
 the Trash after a confirmation; restoring it brings the track back with its tags —
 [ADR 0031](../adr/0031-delete-moves-to-trash.md)).
 
@@ -154,5 +168,4 @@ Drag rows straight to Finder, a DAW or any app — a normal file drag of the ori
 
 ## Limits & open questions
 - Tracks are keyed by absolute path (roadmap: portable library).
-- "Show in File Explorer" should say "Show in Finder".
 - Delete hasn't been exercised on a real file you meant to remove (only the dialog and Cancel).

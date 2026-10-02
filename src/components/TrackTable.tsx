@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { findDuplicates } from '../state/duplicates'
-import { isMissingId3Metadata, matchesMcoTagsFilter } from '../state/trackFilters'
+import { isMissingId3Metadata, matchesEnergy, matchesMcoTagsFilter } from '../state/trackFilters'
+import { formatGain, formatLufs, gainToMatch, medianLoudness } from '../state/loudness'
 import { useCollectionStore } from '../state/store'
+import { REVEAL_IN_FILE_MANAGER } from '../platform'
 import { BatchTagBar } from './BatchTagBar'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
 import { baseName, isInFolder } from '../paths'
+import { AddToPlaylistMenu } from './PlaylistsBox'
 // Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 
@@ -22,6 +25,10 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   subtags: 160,
   bpm: 70,
   musicalKey: 70,
+  energy: 80,
+  loudness: 70,
+  gain: 100,
+  cues: 64,
   format: 80,
   bitrate: 90,
   duration: 90,
@@ -46,6 +53,12 @@ const OVERSCAN_ROWS = 15
 // config synced through the main process.
 const COLUMN_WIDTHS_STORAGE_KEY = 'mco-track-table-column-widths'
 
+// Top half of a row: the dragged rows go before it; bottom half: after.
+function rowDropWhere(e: React.DragEvent<HTMLElement>): 'before' | 'after' {
+  const rect = e.currentTarget.getBoundingClientRect()
+  return e.clientY < rect.top + rect.height / 2 ? 'before' : 'after'
+}
+
 function loadColumnWidths(): Record<TrackTableColumnKey, number> {
   try {
     const stored = localStorage.getItem(COLUMN_WIDTHS_STORAGE_KEY)
@@ -54,6 +67,30 @@ function loadColumnWidths(): Record<TrackTableColumnKey, number> {
   } catch {
     return { ...DEFAULT_COLUMN_WIDTHS }
   }
+}
+
+// What a column means, where its name doesn't say (header tooltip).
+const COLUMN_HINTS: Partial<Record<TrackTableColumnKey, (target: number | null) => string>> = {
+  energy: () => 'Energy: how driving the track is, 1 (calm) to 10 (peak)',
+  loudness: () => 'LUFS: integrated loudness (EBU R128) — closer to 0 is louder',
+  cues: () => 'Cues: how many hot cues (A–H) the track has',
+  gain: (target) =>
+    target === null
+      ? 'Volume Score: the gain that would bring the track to the collection’s median loudness (analyse tracks first)'
+      : `Volume Score: the gain that would bring the track to the collection’s median loudness, ${formatLufs(target)} LUFS — + turn it up, − turn it down`,
+}
+
+// The 1–10 energy rating as a number and a small bar, cool to hot.
+export function EnergyMeter({ energy }: { energy: number }) {
+  const hue = 200 - (energy - 1) * 22
+  return (
+    <span title={`Energy ${energy} of 10`} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+      <span style={{ width: '14px', textAlign: 'right' }}>{energy}</span>
+      <span style={{ width: '36px', height: '4px', borderRadius: '2px', background: 'var(--color-border)', overflow: 'hidden' }}>
+        <span style={{ display: 'block', width: `${energy * 10}%`, height: '100%', background: `hsl(${hue} 75% 55%)` }} />
+      </span>
+    </span>
+  )
 }
 
 function FilterChip({ icon, label, title, onClear }: { icon: string; label: string; title?: string; onClear: () => void }) {
@@ -149,6 +186,11 @@ export function TrackTable({
   const setCompatibleFilter = useCollectionStore((s) => s.setCompatibleFilter)
   const analysedFilter = useCollectionStore((s) => s.analysedFilter)
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
+  const hotCueCounts = useCollectionStore((s) => s.hotCueCounts)
+  // The Volume Score column's reference: the collection's median loudness.
+  const loudnessTarget = useMemo(() => medianLoudness(tracks.map((t) => t.loudness)), [tracks])
+  const energyFilter = useCollectionStore((s) => s.energyFilter)
+  const setEnergyFilter = useCollectionStore((s) => s.setEnergyFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
   const mcoTagsFilter = useCollectionStore((s) => s.mcoTagsFilter)
@@ -173,6 +215,21 @@ export function TrackTable({
   const sortKey = sortState.key
   const sortDir = sortState.direction
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
+  const [addToPlaylistMenu, setAddToPlaylistMenu] = useState<{ trackIds: number[]; x: number; y: number } | null>(null)
+  // The selected playlist (docs/features/playlists.md): its songs, in its
+  // order until a column header is clicked.
+  const selectedPlaylistId = useCollectionStore((s) => s.selectedPlaylistId)
+  const selectedPlaylistTrackIds = useCollectionStore((s) => s.selectedPlaylistTrackIds)
+  const selectedPlaylistName = useCollectionStore(
+    (s) => s.playlistNodes.find((n) => n.id === s.selectedPlaylistId)?.name ?? null
+  )
+  const selectPlaylist = useCollectionStore((s) => s.selectPlaylist)
+  const removeTracksFromSelectedPlaylist = useCollectionStore((s) => s.removeTracksFromSelectedPlaylist)
+  const moveTracksInSelectedPlaylist = useCollectionStore((s) => s.moveTracksInSelectedPlaylist)
+  // Where dragged rows will land while reordering a playlist.
+  const [rowDrop, setRowDrop] = useState<{ id: number; where: 'before' | 'after' } | null>(null)
+  const [playlistOrder, setPlaylistOrder] = useState(true)
+  useEffect(() => setPlaylistOrder(true), [selectedPlaylistId])
   // Show/hide columns: from the columns button or a right-click on any header.
   const [columnsMenu, setColumnsMenu] = useState<{ x: number; y: number } | null>(null)
   // Anchor for shift-click range checking — the last row whose checkbox
@@ -259,6 +316,12 @@ export function TrackTable({
   }
 
   function handleSort(key: SortKey) {
+    if (selectedPlaylistId !== null && playlistOrder) {
+      // The first click leaves the playlist's order for this column.
+      setPlaylistOrder(false)
+      setSortState({ key, direction: key === sortKey ? sortDir : 'asc' })
+      return
+    }
     if (key === sortKey) {
       setSortState({ key, direction: sortDir === 'asc' ? 'desc' : 'asc' })
     } else {
@@ -295,13 +358,26 @@ export function TrackTable({
     if (key === 'dateAdded') return track.birthtime ?? 0
     if (key === 'dateModified') return track.mtime ?? 0
     if (key === 'musicalKey') return keySortValue(track.musicalKey)
+    // Not rated yet sorts below 1.
+    if (key === 'energy') return track.energy ?? 0
+    // Not analysed sorts as the quietest / the biggest boost.
+    if (key === 'loudness') return track.loudness ?? -Infinity
+    if (key === 'gain') return gainToMatch(track.loudness, loudnessTarget) ?? Infinity
+    if (key === 'cues') return hotCueCounts[track.id] ?? 0
     return track[key] ?? ''
   }
 
   const visibleTracks = useMemo(() => {
     const query = searchText.trim().toLowerCase()
-    // Missing Tracks lists the files that are gone instead of the collection.
-    return (missingTracksFilter ? missingTracks : tracks)
+    // Missing Tracks lists the files that are gone instead of the
+    // collection; a playlist lists its songs (missing ones too, greyed).
+    let source = missingTracksFilter ? missingTracks : tracks
+    if (selectedPlaylistId !== null && !missingTracksFilter) {
+      const byId = new Map([...tracks, ...missingTracks.map((t) => ({ ...t, missing: true }))].map((t) => [t.id, t]))
+      source = [...new Set(selectedPlaylistTrackIds)].map((id) => byId.get(id)).filter((t): t is Track => !!t)
+    }
+    const inPlaylistOrder = selectedPlaylistId !== null && playlistOrder && !duplicates
+    return source
       .filter((t) => (selectedFolder ? isInFolder(t.folder, selectedFolder) : true))
       .filter(activeFilter)
       .filter((t) => {
@@ -319,6 +395,7 @@ export function TrackTable({
             ? t.analysisStatus === 'done'
             : t.analysisStatus !== 'done'
       )
+      .filter((t) => matchesEnergy(t.energy, energyFilter))
       .filter((t) => !duplicates || duplicates.has(t.id))
       .filter((t) => !missingMetadataFilter || isMissingId3Metadata(t))
       .filter((t) => !cloudOnlyFilter || t.cloudStatus === 'cloud_only')
@@ -330,6 +407,7 @@ export function TrackTable({
           : true
       )
       .sort((a, b) => {
+        if (inPlaylistOrder) return 0
         // Duplicates: copies of the same song sit together, each group in
         // the chosen sort order.
         if (duplicates) {
@@ -356,14 +434,25 @@ export function TrackTable({
     canFilterCompatible,
     currentTrack,
     analysedFilter,
+    energyFilter,
+    hotCueCounts,
     duplicates,
     missingMetadataFilter,
     mcoTagsFilter,
     missingTracksFilter,
     missingTracks,
     cloudOnlyFilter,
+    selectedPlaylistId,
+    selectedPlaylistTrackIds,
+    playlistOrder,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
+  // Rows can be dragged up and down while a playlist shows in its own order.
+  const canReorder = selectedPlaylistId !== null && playlistOrder && !duplicates && !missingTracksFilter
+  const trackIdsByPath = useMemo(() => new Map(tracks.map((t) => [t.path, t.id])), [tracks])
+  useEffect(() => {
+    if (!canReorder) setRowDrop(null)
+  }, [canReorder])
 
   // Only the rows in (and just around) the viewport are rendered — the
   // rest are two spacer rows of the same total height. A whole collection
@@ -411,6 +500,18 @@ export function TrackTable({
         }
         return
       }
+      // ⌫ in a playlist: remove the checked songs, or the selected one, from
+      // it (Undo puts them back). Elsewhere it does nothing — never a delete.
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (selectedPlaylistId === null) return
+        const inPlaylist = new Set(selectedPlaylistTrackIds)
+        const checked = visibleTracks.filter((t) => checkedTrackIds.has(t.id)).map((t) => t.id)
+        const ids = checked.length > 0 ? checked : selectedTrackId != null && inPlaylist.has(selectedTrackId) ? [selectedTrackId] : []
+        if (ids.length === 0) return
+        e.preventDefault()
+        void removeTracksFromSelectedPlaylist(ids)
+        return
+      }
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) return
       if (visibleTracks.length === 0) return
       e.preventDefault()
@@ -431,7 +532,17 @@ export function TrackTable({
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [visibleTracks, selectedTrackId, onSelect, modalOpen, previewTrack])
+  }, [
+    visibleTracks,
+    selectedTrackId,
+    onSelect,
+    modalOpen,
+    previewTrack,
+    selectedPlaylistId,
+    selectedPlaylistTrackIds,
+    checkedTrackIds,
+    removeTracksFromSelectedPlaylist,
+  ])
 
   const columnLabels: Record<TrackTableColumnKey, string> = {
     title: 'Title',
@@ -442,6 +553,10 @@ export function TrackTable({
     subtags: 'Subtags',
     bpm: 'BPM',
     musicalKey: 'Key',
+    energy: 'Energy',
+    loudness: 'LUFS',
+    gain: 'Volume Score',
+    cues: 'Cues',
     format: 'Format',
     bitrate: 'Bitrate',
     duration: 'Duration',
@@ -641,6 +756,37 @@ export function TrackTable({
           </span>
         )
       }
+      case 'loudness':
+        return track.loudness === null ? '—' : formatLufs(track.loudness)
+      case 'gain': {
+        const gain = gainToMatch(track.loudness, loudnessTarget)
+        if (gain === null) return '—'
+        // 3 dB or more off is worth a look before mixing it in.
+        const far = Math.abs(gain) >= 3
+        return (
+          <span
+            title={`${gain > 0 ? 'Turn up' : gain < 0 ? 'Turn down' : 'Already at'} ${gain !== 0 ? formatGain(gain).replace(/^[+−±]/, '') + ' ' : ''}to match the collection (${formatLufs(loudnessTarget!)} LUFS)`}
+            style={far ? { color: gain > 0 ? 'var(--color-accent)' : 'var(--color-secondary)' } : undefined}
+          >
+            {formatGain(gain)}
+          </span>
+        )
+      }
+      case 'cues': {
+        const n = hotCueCounts[track.id]
+        return n ? (
+          <span title={`${n} hot cue${n === 1 ? '' : 's'}`} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '14px', color: 'var(--color-cue)' }}>
+              bookmark
+            </span>
+            {n}
+          </span>
+        ) : (
+          '—'
+        )
+      }
+      case 'energy':
+        return track.energy === null ? '—' : <EnergyMeter energy={track.energy} />
       case 'format':
         return track.format
       case 'bitrate': {
@@ -674,6 +820,10 @@ export function TrackTable({
     const elsewhere = [...checkedTrackIds].filter((id) => !inTable.includes(id))
     return [...inTable, ...elsewhere]
   }, [contextMenu, checkedTrackIds, visibleTracks])
+  const menuOnMissing = useMemo(
+    () => !!contextMenu && !!visibleTracks.find((t) => t.id === contextMenu.trackId)?.missing,
+    [contextMenu, visibleTracks]
+  )
 
   function cellStyleFor(key: TrackTableColumnKey) {
     const width = columnWidths[key]
@@ -736,12 +886,34 @@ export function TrackTable({
           />
         )}
         {tagFilterChip && <FilterChip icon={tagFilterChip.icon} label={tagFilterChip.label} onClear={onClearTagFilter} />}
+        {selectedPlaylistId !== null && selectedPlaylistName && (
+          <FilterChip icon="queue_music" label={selectedPlaylistName} onClear={() => void selectPlaylist(null)} />
+        )}
+        {selectedPlaylistId !== null && !playlistOrder && (
+          <button
+            onClick={() => setPlaylistOrder(true)}
+            title="Back to the playlist's own order"
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              format_list_numbered
+            </span>
+            Playlist order
+          </button>
+        )}
         {/* The Filters view's active filters, each with a quick way off. */}
         {compatibleFilter && (
           <FilterChip
             icon="join"
             label={canFilterCompatible ? `Compatible with ${formatKey(currentTrack?.musicalKey, 'both')}` : 'Compatible (nothing playing)'}
             onClear={() => setCompatibleFilter(false)}
+          />
+        )}
+        {energyFilter && (
+          <FilterChip
+            icon="bolt"
+            label={energyFilter[0] === energyFilter[1] ? `Energy ${energyFilter[0]}` : `Energy ${energyFilter[0]}–${energyFilter[1]}`}
+            onClear={() => setEnergyFilter(null)}
           />
         )}
         {analysedFilter !== 'all' && (
@@ -822,7 +994,7 @@ export function TrackTable({
                     e.preventDefault()
                     handleColumnDrop(col.key)
                   }}
-                  title="Click to sort, drag to reorder, right-click to choose columns"
+                  title={`${COLUMN_HINTS[col.key] ? COLUMN_HINTS[col.key]!(loudnessTarget) + '\n' : ''}Click to sort, drag to reorder, right-click to choose columns`}
                   style={{
                     ...cellStyle,
                     ...stickyHeaderStyle,
@@ -835,7 +1007,7 @@ export function TrackTable({
                   }}
                 >
                   {col.label}
-                  {sortKey === col.key ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+                  {sortKey === col.key && !(selectedPlaylistId !== null && playlistOrder) ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
                   <div
                     onMouseDown={(e) => handleResizeStart(col.key, e)}
                     onClick={(e) => e.stopPropagation()}
@@ -855,14 +1027,20 @@ export function TrackTable({
               <th style={{ ...cellStyle, width: CLOUD_COL_WIDTH, ...stickyHeaderStyle }}>Cloud</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setRowDrop(null)
+            }}
+          >
             {tracks.length > 0 && visibleTracks.length === 0 && (
               <tr>
                 <td
                   colSpan={orderedColumns.length + 4}
                   style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-dim)' }}
                 >
-                  No tracks match your search/filter.
+                  {selectedPlaylistId !== null && selectedPlaylistTrackIds.length === 0
+                    ? 'This playlist is empty — drag songs onto it, or right-click a song → Add to playlist.'
+                    : 'No tracks match your search/filter.'}
                 </td>
               </tr>
             )}
@@ -882,7 +1060,8 @@ export function TrackTable({
                 onContextMenu={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
-                  if (track.missing) return
+                  // A missing song can still be removed from the playlist.
+                  if (track.missing && selectedPlaylistId === null) return
                   setContextMenu({ trackId: track.id, x: e.clientX, y: e.clientY })
                 }}
                 draggable={!track.missing}
@@ -900,7 +1079,33 @@ export function TrackTable({
                       : [track.id]
                   window.api.startTrackDrag(ids)
                 }}
-                style={{ cursor: 'pointer', height: ROW_HEIGHT, ...(track.missing ? { opacity: 0.6 } : {}) }}
+                // Reordering a playlist: the rows' native drag comes back as
+                // files, matched to tracks by path like the Playlists box does.
+                onDragOver={(e) => {
+                  if (!canReorder || !e.dataTransfer.types.includes('Files')) return
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                  const where = rowDropWhere(e)
+                  if (rowDrop?.id !== track.id || rowDrop.where !== where) setRowDrop({ id: track.id, where })
+                }}
+                onDrop={(e) => {
+                  if (!canReorder) return
+                  e.preventDefault()
+                  setRowDrop(null)
+                  const ids = [...e.dataTransfer.files]
+                    .map((file) => trackIdsByPath.get(window.api.pathForFile(file)))
+                    .filter((id): id is number => id !== undefined)
+                  if (ids.length > 0) void moveTracksInSelectedPlaylist(ids, track.id, rowDropWhere(e))
+                }}
+                style={{
+                  cursor: 'pointer',
+                  height: ROW_HEIGHT,
+                  ...(track.missing ? { opacity: 0.6 } : {}),
+                  // A line where the dragged rows will land.
+                  ...(rowDrop?.id === track.id
+                    ? { boxShadow: `inset 0 ${rowDrop.where === 'before' ? '2px' : '-2px'} 0 var(--color-accent)` }
+                    : {}),
+                }}
               >
                 <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
                   <input
@@ -927,7 +1132,7 @@ export function TrackTable({
                     <span
                       className="material-symbols-outlined"
                       style={{ fontSize: '16px', color: 'var(--color-error)' }}
-                      title="Analysis failed"
+                      title={`Analysis failed: ${track.analysisError ?? 'no reason recorded'}\nSelect the track to try again`}
                     >
                       error
                     </span>
@@ -975,7 +1180,21 @@ export function TrackTable({
             onClick={(e) => e.stopPropagation()}
             style={{ ...contextMenuStyle, top: contextMenu.y, left: contextMenu.x }}
           >
-            {menuTrackIds.length > 1 ? (
+            {menuOnMissing && selectedPlaylistId !== null ? (
+              // A song whose file is gone: all it can do is leave the playlist.
+              <button
+                onClick={() => {
+                  void removeTracksFromSelectedPlaylist(menuTrackIds)
+                  setContextMenu(null)
+                }}
+                style={contextMenuItemStyle}
+              >
+                <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                  playlist_remove
+                </span>
+                {menuTrackIds.length > 1 ? `Remove ${menuTrackIds.length} songs from` : 'Remove from'} {selectedPlaylistName}
+              </button>
+            ) : menuTrackIds.length > 1 ? (
               // Right-click on one of several checked tracks: act on all of
               // them, in table order.
               <>
@@ -1008,6 +1227,32 @@ export function TrackTable({
                   </span>
                   Add all to top of the queue
                 </button>
+                <button
+                  onClick={() => {
+                    setAddToPlaylistMenu({ trackIds: menuTrackIds, x: contextMenu.x, y: contextMenu.y })
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    queue_music
+                  </span>
+                  Add all to playlist…
+                </button>
+                {selectedPlaylistId !== null && (
+                  <button
+                    onClick={() => {
+                      void removeTracksFromSelectedPlaylist(menuTrackIds)
+                      setContextMenu(null)
+                    }}
+                    style={contextMenuItemStyle}
+                  >
+                    <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                      playlist_remove
+                    </span>
+                    Remove all from {selectedPlaylistName}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     runAnalysis(menuTrackIds)
@@ -1075,6 +1320,32 @@ export function TrackTable({
             </button>
             <button
               onClick={() => {
+                setAddToPlaylistMenu({ trackIds: [contextMenu.trackId], x: contextMenu.x, y: contextMenu.y })
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                queue_music
+              </span>
+              Add to playlist…
+            </button>
+            {selectedPlaylistId !== null && (
+              <button
+                onClick={() => {
+                  void removeTracksFromSelectedPlaylist([contextMenu.trackId])
+                  setContextMenu(null)
+                }}
+                style={contextMenuItemStyle}
+              >
+                <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                  playlist_remove
+                </span>
+                Remove from {selectedPlaylistName}
+              </button>
+            )}
+            <button
+              onClick={() => {
                 previewTrack(contextMenu.trackId)
                 setContextMenu(null)
               }}
@@ -1109,7 +1380,7 @@ export function TrackTable({
               <span className="material-symbols-outlined" style={contextMenuIconStyle}>
                 folder_open
               </span>
-              Show in File Explorer
+              {REVEAL_IN_FILE_MANAGER}
             </button>
             <button
               onClick={() => {
@@ -1127,6 +1398,9 @@ export function TrackTable({
               </>
             )}
           </div>
+        )}
+        {addToPlaylistMenu && (
+          <AddToPlaylistMenu {...addToPlaylistMenu} onClose={() => setAddToPlaylistMenu(null)} />
         )}
       </div>
     </>

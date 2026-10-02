@@ -22,7 +22,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [product/](product/) | vision, roadmap, glossary, release install notes | topic |
 | [features/](features/) | what each feature does, how it works, how it's tested, its limits | feature |
 | [adr/](adr/) | architecture decision records: context, decision, alternatives, consequences | decision |
-| [research/](research/) | measured and sourced findings (Cast devices, file tags, performance) | subject |
+| [research/](research/) | measured and sourced findings (Cast devices, file tags, performance, the Rekordbox library) | subject |
 | [log/](log/) | changelog pointer, session write-ups, history, the original design specs and plans | session / document |
 
 ## Conventions
@@ -55,6 +55,11 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [Recording](features/recording.md) ·
 [Show on a screen](features/second-screen.md) ·
 [Stats](features/stats.md) ·
+[Playlists](features/playlists.md) (planned) ·
+[Rekordbox sync](features/rekordbox-sync.md) (planned) ·
+[Home](features/home.md) (planned) ·
+[Hot cues](features/hot-cues.md) (A–H, with Rekordbox) ·
+[Website](features/website.md) (the marketing page, captured from the app) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
@@ -110,6 +115,13 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0047](adr/0047-visual-delay-in-the-audio-graph.md) | Delay the visuals with a DelayNode on the music bus | accepted |
 | [0048](adr/0048-shared-now-playing-screen.md) | One now-playing screen, shared by the Cast receiver and the second screen | accepted |
 | [0049](adr/0049-windows-installer-on-release.md) | Build an unsigned Windows installer with every release, without auto-update | accepted |
+| [0050](adr/0050-playlists-in-mco-imported-from-rekordbox-xml.md) | Keep playlists in MCO's database and import them from Rekordbox's XML export | proposed (one-way part superseded by 0052) |
+| [0051](adr/0051-update-rekordbox-through-xml-and-file-tags.md) | Update Rekordbox through its XML import and the files' own tags, never its database | proposed (one-way part superseded by 0052) |
+| [0052](adr/0052-two-way-rekordbox-sync-with-a-merge-wizard.md) | Sync with Rekordbox both ways: a three-way diff of its XML export, resolved in a wizard | proposed |
+| [0053](adr/0053-mixes-are-temporary-lists.md) | Home's mixes are temporary lists, never saved playlists | proposed |
+| [0054](adr/0054-website-captured-from-the-real-app.md) | A static website whose screenshots and clips are captured from the real app | accepted |
+| [0055](adr/0055-cue-points-in-mco-kept-rekordbox-compatible.md) | Cue points live in MCO's database, shaped like Rekordbox's | accepted |
+| [0056](adr/0056-website-clips-recorded-on-a-mac-too.md) | Record the website's clips on a Mac too, with Playwright's video | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |
@@ -117,6 +129,8 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | Space | anywhere (not while typing) | Play/pause |
 | → | anywhere (not while typing) | Play the next queued track |
 | C (hold) | anywhere | CUE |
+| 1–8 | anywhere (a track loaded; not in the visualizer) | Hot cue A–H: set it here if empty, else jump and play |
+| Shift-1–8 | anywhere (a track loaded) | Delete hot cue A–H |
 | ↑ / ↓ | track table | Move the selected row |
 | Home / End | track table | First / last visible row |
 | Page Up / Page Down | track table | Jump a page of rows |

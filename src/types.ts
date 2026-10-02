@@ -19,6 +19,9 @@ export interface Track {
   genreTag: string | null
   year: number | null
   bpm: number | null
+  // Seconds to the first beat (the beat grid's start), from analysis; null
+  // for tracks analysed before it existed.
+  firstBeat: number | null
   musicalKey: string | null
   waveformPeaks: number[] | null
   // Integrated loudness (LUFS) and a 1–10 energy rating, from analysis;
@@ -33,6 +36,8 @@ export interface Track {
   // found in the last scan (the row and its tags are kept).
   missing?: boolean
   analysisStatus: 'pending' | 'analyzing' | 'done' | 'error'
+  // Why the last analysis failed, in plain words; null unless 'error'.
+  analysisError: string | null
   // Whether the file's own tags have been read (title/artist… are then
   // what the file says, not just unknown).
   tagsRead: boolean
@@ -52,6 +57,10 @@ export type TrackTableColumnKey =
   | 'subtags'
   | 'bpm'
   | 'musicalKey'
+  | 'energy'
+  | 'loudness'
+  | 'gain'
+  | 'cues'
   | 'format'
   | 'bitrate'
   | 'duration'
@@ -66,6 +75,10 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
   'subtags',
   'bpm',
   'musicalKey',
+  'energy',
+  'loudness',
+  'gain',
+  'cues',
   'format',
   'bitrate',
   'duration',
@@ -95,6 +108,135 @@ export interface Subgenre {
   // Its own colour, shown as the outline of its badges (genres' badges are
   // filled). New sub-genres get one automatically; null for none.
   color: string | null
+}
+
+// A playlist or a folder of them (docs/features/playlists.md). Siblings
+// are ordered by position; trackCount is 0 for folders.
+export interface PlaylistNode {
+  id: number
+  parentId: number | null
+  kind: 'folder' | 'playlist'
+  name: string
+  position: number
+  source: 'mco' | 'rekordbox'
+  trackCount: number
+}
+
+// A song an import lists at a path that isn't in the collection, which
+// looks like this collection song (`to`) — used only once confirmed.
+export interface RekordboxRelink {
+  from: string
+  trackId: number
+  to: string
+  label: string
+  reason: string
+}
+
+export interface RekordboxDuplicate {
+  id: number
+  // Where it is in MCO's Playlists box ("Sets / Sunday").
+  name: string
+  sameName: boolean
+  // 'same': exactly the same songs; 'most': at least 80% shared.
+  songs: 'same' | 'most' | 'different'
+  shared: number
+  mcoSongs: number
+}
+
+// What to do with an incoming playlist that MCO already seems to have.
+export type RekordboxDuplicateAction = 'skip' | 'new' | 'update'
+
+// What a Rekordbox import will do, shown before anything is written.
+export interface RekordboxImportPlan {
+  folders: number
+  // matched: found by path; relinked: found elsewhere, to confirm.
+  playlists: {
+    // Its name path in Rekordbox's tree (JSON) — what an import decision refers to.
+    key: string
+    name: string
+    songs: number
+    matched: number
+    relinked: number
+    refresh: boolean
+    // A playlist MCO already has with the same name or the same songs.
+    duplicate: RekordboxDuplicate | null
+  }[]
+  songs: number
+  matched: number
+  relinks: RekordboxRelink[]
+  // Imported playlists that aren't in this export any more (kept).
+  gone: string[]
+}
+
+// A cue point on a track (docs/features/hot-cues.md): a hot cue A–H
+// (slot 0–7), or a memory cue / loop (slot -1, from Rekordbox).
+export interface TrackCue {
+  id: number
+  kind: 'hot' | 'memory' | 'loop'
+  slot: number
+  // Seconds from the start; `end` only for loops.
+  start: number
+  end: number | null
+  // "#rrggbb", or null for the slot's default colour.
+  color: string | null
+  name: string
+}
+
+// Rekordbox sync, phase 1 (docs/features/rekordbox-sync.md): what differs
+// between Rekordbox's collection export and MCO — read-only, nothing applied.
+export type RekordboxInfoField = 'title' | 'artist' | 'album' | 'year' | 'genre' | 'bpm' | 'key'
+
+export interface RekordboxCueMark {
+  // 0–7 = hot cue A–H; -1 = memory cue.
+  slot: number
+  kind: 'hot' | 'memory' | 'loop'
+  start: number
+  end?: number
+  // "#rrggbb", or null when Rekordbox gave none.
+  color: string | null
+}
+
+export interface RekordboxReport {
+  file: string
+  rekordboxVersion: string | null
+  rekordboxTracks: number
+  // Rekordbox's songs found in MCO (by path).
+  matched: number
+  mcoTracks: number
+  playlists: {
+    kind: 'only-rekordbox' | 'only-mco' | 'different' | 'same'
+    name: string
+    rekordboxSongs: number | null
+    mcoSongs: number | null
+    onlyRekordbox: string[]
+    onlyMco: string[]
+    orderDiffers: boolean
+    // Songs the Rekordbox playlist lists that aren't in MCO's collection.
+    notInCollection: number
+    // An imported playlist that isn't in Rekordbox's export any more.
+    goneFromRekordbox: boolean
+  }[]
+  // Per field: how many songs differ, and the first rows.
+  info: { field: RekordboxInfoField; count: number; rows: { trackId: number; song: string; rekordbox: string; mco: string }[] }[]
+  // Cue points on songs both have, where they differ: only Rekordbox has
+  // cues, only MCO has, or both but not the same (slot, time ±10 ms, colour).
+  cues: {
+    onlyRekordbox: number
+    onlyMco: number
+    different: number
+    rows: {
+      trackId: number
+      song: string
+      status: 'only-rekordbox' | 'only-mco' | 'different'
+      rekordbox: RekordboxCueMark[]
+      mco: RekordboxCueMark[]
+    }[]
+  }
+  files: {
+    kind: 'outside-collection' | 'not-scanned' | 'gone-from-disk' | 'only-in-mco' | 'missing-in-mco'
+    count: number
+    rows: { path: string; song: string }[]
+  }[]
 }
 
 // Auto-updater state, pushed from main (electron/main/updater.ts).
@@ -332,6 +474,15 @@ export const MIDI_CONTROL_KEYS = [
   'player.playPause',
   'player.playNext',
   'player.cue',
+  // Hot cue pads A–H (docs/features/hot-cues.md).
+  'player.hotCue1',
+  'player.hotCue2',
+  'player.hotCue3',
+  'player.hotCue4',
+  'player.hotCue5',
+  'player.hotCue6',
+  'player.hotCue7',
+  'player.hotCue8',
   'mic.enabled',
   'mic.talk',
   'mic.gainDb',
@@ -492,4 +643,12 @@ export interface RecordingResult {
   // The saved file, or null if nothing was recorded.
   path: string | null
   error: string | null
+}
+
+// A detailed waveform of part of a track: `peaks[i]` covers the time
+// start + i / perSecond (electron/main/waveformSection.ts).
+export interface WaveformSection {
+  start: number
+  perSecond: number
+  peaks: number[]
 }

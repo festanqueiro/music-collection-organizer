@@ -5,7 +5,7 @@ import { useMemo, type ReactNode } from 'react'
 import { useCollectionStore, type AnalysedFilter, type McoTagsFilter } from '../state/store'
 import { toCamelot, formatKey } from '../state/harmonic'
 import { findDuplicates } from '../state/duplicates'
-import { isMissingId3Metadata, matchesMcoTagsFilter } from '../state/trackFilters'
+import { isMissingId3Metadata, matchesEnergy, matchesMcoTagsFilter, type EnergyRange } from '../state/trackFilters'
 
 function Section({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
   return (
@@ -63,6 +63,54 @@ function Choice<T extends string>({
   )
 }
 
+// Quick picks for the Energy filter, then the exact range.
+const ENERGY_PRESETS: { label: string; range: EnergyRange | null }[] = [
+  { label: 'Any', range: null },
+  { label: 'Warm-up 1–4', range: [1, 4] },
+  { label: 'Build 5–7', range: [5, 7] },
+  { label: 'Peak 8–10', range: [8, 10] },
+]
+
+function EnergyRangePicker({ value, onChange }: { value: EnergyRange | null; onChange: (range: EnergyRange | null) => void }) {
+  const same = (r: EnergyRange | null) => (r === null ? value === null : value !== null && r[0] === value[0] && r[1] === value[1])
+  const levels = Array.from({ length: 10 }, (_, i) => i + 1)
+  const [from, to] = value ?? [1, 10]
+  const select = (current: number, set: (n: number) => void, label: string) => (
+    <select aria-label={label} value={current} onChange={(e) => set(Number(e.target.value))} style={{ fontSize: '12px' }}>
+      {levels.map((n) => (
+        <option key={n} value={n}>
+          {n}
+        </option>
+      ))}
+    </select>
+  )
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        {ENERGY_PRESETS.map((preset) => (
+          <button
+            key={preset.label}
+            onClick={() => onChange(preset.range)}
+            aria-pressed={same(preset.range)}
+            style={{
+              fontSize: '12px',
+              padding: '4px 8px',
+              border: same(preset.range) ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+              color: same(preset.range) ? 'var(--color-accent)' : undefined,
+            }}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--color-text-dim)' }}>
+        From {select(from, (n) => onChange([n, Math.max(n, to)]), 'Lowest energy')} to{' '}
+        {select(to, (n) => onChange([Math.min(from, n), n]), 'Highest energy')}
+      </div>
+    </div>
+  )
+}
+
 const ANALYSED_OPTIONS: { value: AnalysedFilter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'analysed', label: 'Analysed' },
@@ -77,6 +125,8 @@ export function FiltersPanel() {
   const setCompatibleFilter = useCollectionStore((s) => s.setCompatibleFilter)
   const analysedFilter = useCollectionStore((s) => s.analysedFilter)
   const setAnalysedFilter = useCollectionStore((s) => s.setAnalysedFilter)
+  const energyFilter = useCollectionStore((s) => s.energyFilter)
+  const setEnergyFilter = useCollectionStore((s) => s.setEnergyFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
   const trackTags = useCollectionStore((s) => s.trackTags)
@@ -105,6 +155,11 @@ export function FiltersPanel() {
     [tracks, trackTags]
   )
   const missingMetadataCount = useMemo(() => tracks.filter(isMissingId3Metadata).length, [tracks])
+  const ratedCount = useMemo(() => tracks.filter((t) => t.energy !== null).length, [tracks])
+  const inEnergyRange = useMemo(
+    () => (energyFilter ? tracks.filter((t) => matchesEnergy(t.energy, energyFilter)).length : null),
+    [tracks, energyFilter]
+  )
 
   return (
     <div>
@@ -126,6 +181,13 @@ export function FiltersPanel() {
 
       <Section title="Analysed" hint={`${unanalysedCount} of ${tracks.length} tracks aren't analysed yet (no BPM, key or waveform).`}>
         <Choice options={ANALYSED_OPTIONS} value={analysedFilter} onChange={setAnalysedFilter} />
+      </Section>
+
+      <Section
+        title="Energy"
+        hint={`How driving a track is, 1 (calm) to 10 (peak), from its loudness and how busy it is. ${ratedCount} of ${tracks.length} tracks are rated${inEnergyRange !== null ? `; ${inEnergyRange} in this range` : ''}.`}
+      >
+        <EnergyRangePicker value={energyFilter} onChange={setEnergyFilter} />
       </Section>
 
       <Section

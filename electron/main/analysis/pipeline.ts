@@ -13,6 +13,7 @@ export interface AnalysisPipelineResult {
   duration: number | null
   bitrate: number | null
   bpm: number
+  firstBeat: number
   musicalKey: string
   waveformPeaks: number[]
   loudness: number
@@ -38,7 +39,7 @@ export async function runAnalysisPipeline(
 ): Promise<AnalysisPipelineResult> {
   const [metadata, pcm] = await Promise.all([extractMetadata(metadataPath), decodeToPcm(path)])
   onStep?.(0.4)
-  const { bpm, key, scale } = detectBpmAndKey(pcm)
+  const { bpm, firstBeat, key, scale } = detectBpmAndKey(pcm)
   onStep?.(0.8)
   const peaks = computeWaveformPeaks(pcm)
   onStep?.(0.9)
@@ -53,6 +54,7 @@ export async function runAnalysisPipeline(
     duration: metadata.duration,
     bitrate: metadata.bitrate,
     bpm,
+    firstBeat,
     musicalKey: `${key} ${scale}`,
     waveformPeaks: peaks,
     loudness,

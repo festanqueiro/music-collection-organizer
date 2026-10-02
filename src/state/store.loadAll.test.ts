@@ -11,6 +11,8 @@ let tracks: Track[] = []
     getSubgenres: vi.fn(async () => []),
     getAllTagIds: vi.fn(async () => []),
     getMissingTracks: vi.fn(async () => []),
+    getPlaylistNodes: vi.fn(async () => []),
+    getHotCueCounts: vi.fn(async () => ({})),
   },
 }
 
@@ -34,6 +36,7 @@ function track(id: number): Track {
     genreTag: null,
     year: null,
     bpm: null,
+    firstBeat: null,
     musicalKey: null,
     waveformPeaks: null,
     loudness: null,
@@ -42,6 +45,7 @@ function track(id: number): Track {
     lastPlayedAt: null,
     cloudStatus: 'local',
     analysisStatus: 'done',
+    analysisError: null,
     tagsRead: true,
   }
 }

@@ -1,5 +1,5 @@
 // src/components/Player.tsx
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
 import { useCollectionStore } from '../state/store'
 import { listenedSeconds, playedThreshold } from '../state/playCount'
@@ -12,6 +12,10 @@ import { sendMidiFeedback } from '../audio/midi'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { PlayerScreenButtons } from './PlayerScreenButtons'
+import { HotCuePads, CueMarkers } from './HotCuePads'
+import { gridStart, hotCueSlots, suggestedCues } from '../state/hotCues'
+
+const NO_CUES: never[] = []
 
 // How close (in px) to the waveform's left edge a click counts as "seek to
 // the start".
@@ -66,6 +70,16 @@ export function Player({
   const setPlaybackControls = useCollectionStore((s) => s.setPlaybackControls)
   const midiMappings = useCollectionStore((s) => s.midiMappings)
   const recordPlay = useCollectionStore((s) => s.recordPlay)
+  // Hot cues (docs/features/hot-cues.md), loaded once per track.
+  const cues = useCollectionStore((s) => s.trackCues.get(track.id)) ?? NO_CUES
+  // Bars 16/32/48/64 from the first beat (src/state/hotCues.ts).
+  const suggestions = useMemo(() => suggestedCues(track, duration || track.duration || 0, cues), [track, duration, cues])
+  const cuesRef = useRef(cues)
+  cuesRef.current = cues
+  useEffect(() => {
+    void useCollectionStore.getState().loadTrackCues(track.id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Listening time on this track, for its play count (see playCount.ts).
   // Player remounts per track, so these start fresh for each one.
   const listenedRef = useRef(0)
@@ -136,6 +150,29 @@ export function Player({
     audio.play().catch(() => {})
   }
 
+  // A hot cue pad: empty → a cue here; set → jump there and play.
+  function hotCue(slot: number) {
+    const audio = audioRef.current
+    if (!audio) return
+    const cue = hotCueSlots(cuesRef.current)[slot]
+    if (!cue) {
+      void useCollectionStore.getState().setHotCue(track.id, slot, audio.currentTime)
+      return
+    }
+    cuePreviewingRef.current = false
+    setCueHeld(false)
+    audio.currentTime = cue.start
+    setCurrentTime(cue.start)
+    if (audio.duration && isFinite(audio.duration)) {
+      setProgress(cue.start / audio.duration)
+      setPlaybackProgress(cue.start / audio.duration)
+    }
+    if (audio.paused) {
+      effectsChainRef.current?.resume()
+      audio.play().catch(() => {})
+    }
+  }
+
   function cueUp() {
     setCueHeld(false)
     if (!cuePreviewingRef.current) return
@@ -176,11 +213,14 @@ export function Player({
   cueDownRef.current = cueDown
   const cueUpRef = useRef(cueUp)
   cueUpRef.current = cueUp
+  const hotCueRef = useRef(hotCue)
+  hotCueRef.current = hotCue
   useEffect(() => {
     setPlaybackControls({
       toggle: () => toggleRef.current(),
       cueDown: () => cueDownRef.current(),
       cueUp: () => cueUpRef.current(),
+      hotCue: (slot) => hotCueRef.current(slot),
     })
     return () => setPlaybackControls(null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -198,6 +238,14 @@ export function Player({
     const binding = midiMappings['player.playPause']
     if (binding) sendMidiFeedback(binding, playing)
   }, [playing, midiMappings])
+
+  // Bound hot cue pads light up when their cue is set.
+  useEffect(() => {
+    hotCueSlots(cues).forEach((cue, slot) => {
+      const binding = midiMappings[`player.hotCue${slot + 1}` as keyof typeof midiMappings]
+      if (binding) sendMidiFeedback(binding, !!cue)
+    })
+  }, [cues, midiMappings])
 
   // Player remounts fresh per track (keyed by track id in App.tsx), so
   // this runs once per track — matches createMediaElementSource's
@@ -294,6 +342,14 @@ export function Player({
       } else if ((e.key === 'c' || e.key === 'C') && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault()
         cueDownRef.current()
+      } else if (/^Digit[1-8]$/.test(e.code) && !e.repeat && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // 1–8: hot cues A–H; Shift deletes one. The visualizer keeps 1–8
+        // for its themes while it's open.
+        if (useCollectionStore.getState().visualizerOpen) return
+        e.preventDefault()
+        const slot = Number(e.code.slice(5)) - 1
+        if (e.shiftKey) void useCollectionStore.getState().deleteHotCue(track.id, slot)
+        else hotCueRef.current(slot)
       }
     }
     // Release isn't guarded by modal/focus: a C held down before a modal
@@ -525,7 +581,19 @@ export function Player({
         </button>
         <MidiLearnBadge control="player.playNext" />
 
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+          <CueMarkers
+            cues={cues}
+            duration={duration || track.duration || 0}
+            suggestions={suggestions}
+            drag={{
+              trackId: track.id,
+              bpm: track.bpm,
+              gridStart: gridStart(track, duration || track.duration || 0),
+              onMove: (slot, time) => void useCollectionStore.getState().setHotCue(track.id, slot, time),
+              onJump: hotCue,
+            }}
+          />
           {peaks && peaks.length > 0 ? (
             <svg
               width="100%"
@@ -626,6 +694,20 @@ export function Player({
           <MidiLearnBadge control="volume" />
         </label>
       </div>
+
+      <HotCuePads
+        cues={cues}
+        onPad={hotCue}
+        onDelete={(slot) => void useCollectionStore.getState().deleteHotCue(track.id, slot)}
+        onChange={(slot, changes) => void useCollectionStore.getState().updateHotCue(track.id, slot, changes)}
+        suggestions={suggestions}
+        approximate={track.firstBeat == null}
+        onSuggest={async (slot, time, from) => {
+          const store = useCollectionStore.getState()
+          await store.setHotCue(track.id, slot, time)
+          if (from !== undefined && from !== slot) await store.deleteHotCue(track.id, from)
+        }}
+      />
     </div>
   )
 }
@@ -697,6 +779,9 @@ export function EmptyPlayer() {
           <MidiLearnBadge control="volume" />
         </label>
       </div>
+
+      {/* The same row as with a track, so the footer doesn't jump. */}
+      <HotCuePads cues={[]} onPad={() => {}} onDelete={() => {}} onChange={() => {}} disabled />
     </div>
   )
 }

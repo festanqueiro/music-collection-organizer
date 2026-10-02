@@ -4,6 +4,101 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.53 — 2026-10-02
+
+### Added
+- **Hot cues A–H**: eight cue points per track, saved with it. Pads on a
+  row under the player (and keys **1–8**) set a cue where the track is, or jump to it
+  and play; **Shift-1–8** deletes one. Right-click a pad to name it, pick a
+  colour or delete it. They're drawn on the waveform in their colours, can
+  be mapped to your MIDI controller's pads (lit while set), and a **Cues**
+  column shows how many a track has. Each of the eight pads has its own
+  colour.
+- **Drag hot cues** along the player's waveform to move them. While you
+  drag, a zoom opens above with a detailed waveform of the bars around the
+  cue, the bar and beat lines, the exact time, which bar and beat it's on,
+  and how far it has moved. Hold **⌥** to move it finely, **Shift** to snap
+  it to the beat, **Esc** to put it back; a click on a cue jumps there.
+- **Suggested hot cues**: next to the pads, buttons for bars **16, 32, 48
+  and 64** from the first beat (where most dance tracks change phrase),
+  also shown as dashed lines on the waveform. Click one to put it on the
+  first empty pad (or jump to it once it's set); right-click to choose the
+  pad, A–H. Analysis now finds where the first beat is; songs analysed
+  before get it the next time they play (until then the suggestions are
+  marked ≈).
+- **Your Rekordbox cues in MCO**: *Compare with Rekordbox* now compares cue
+  points too, and **Bring Rekordbox's cues into MCO** copies them (hot cues,
+  memory cues and loops, with their colours) for songs that have none in MCO.
+- **Playlists** (first part): a **Playlists** box at the bottom of the
+  sidebar, under Folders / Tags / Subtags / Filters. Make playlists and
+  folders with **+**; click one to see its songs in the table, in the
+  playlist's order (click a column to sort, *Playlist order* to go back).
+  Add songs by dragging rows onto a playlist or with right-click → **Add to
+  playlist…**; remove them with right-click → **Remove from…**. Right-click
+  a playlist to **Play playlist** (replaces the queue — *Undo* brings the
+  old one back), add it to the queue, rename it or **Delete** it (after a
+  confirmation; the songs stay in your collection).
+- **Playlists you already have**: importing from Rekordbox checks each
+  playlist against MCO's — same name, or the same (or mostly the same)
+  songs — and asks: skip it, import it as a new playlist, or update yours
+  with Rekordbox's songs (it stays where it is, and later imports refresh
+  it). Identical ones are skipped unless you say otherwise.
+- **Import playlists from Rekordbox** (Playlists **+** → *Import from
+  Rekordbox…*): pick one or more playlists exported from Rekordbox
+  (right-click a playlist → *Export a playlist to a file* → **m3u8** is
+  best, **Text** works too), or the whole collection exported from
+  Rekordbox's **File → Export Collection in xml format** with all its
+  folders. A summary shows how many songs were found before anything
+  changes. They go in a **Rekordbox** folder; importing the same export
+  again refreshes them. *Keep as my own* stops a playlist being refreshed.
+- **Playlists**: drag playlists and folders inside the Playlists box — onto
+  a folder to put them in it, onto the top or bottom edge of a row to place
+  them before or after it, or below the tree to bring them to the top level.
+- **Playlists → Rekordbox**: right-click a playlist → **Export for Rekordbox
+  (m3u8)…** saves it as an .m3u8 with each song's file, which Rekordbox
+  imports (File → Import → Import Playlist). Right-click a folder to export
+  every playlist in it, one file each.
+- **Playlists — editing songs**: while a playlist shows in its own order,
+  drag rows up and down to reorder it (checked rows move together). **⌫**
+  removes the selected song, or every checked one, from the playlist — with
+  an *Undo* that puts them back in place; elsewhere ⌫ does nothing. Songs
+  whose file is missing can now be removed too (right-click → *Remove
+  from…*).
+- **Playlists — finishing touches**: an **Add to playlist** button in the
+  bar that appears when songs are checked; the playlists you added to last
+  come first in *Add to playlist*; **F2** renames the selected playlist; a
+  playlist icon in the collapsed sidebar opens it on the Playlists box;
+  *Import from Rekordbox…* opens in the folder you last imported from.
+- **Playlists from old Rekordbox USB sticks**: when an imported playlist
+  lists a song at a path that isn't in your collection (the stick's, or a
+  moved file), MCO looks for the same song in your collection — same file
+  size, same title and artist, or the same (or shortened) file name — and
+  lists each one under *Found at a different path* in the import summary to
+  confirm. Confirmed songs are remembered for the next import.
+- **Export to Rekordbox** (Settings → Import & export) now includes your
+  playlists, in an **MCO Playlists** folder next to the tags' **MCO**
+  folder, and your cue points.
+- **Energy, LUFS and Volume Score columns**: each track's 1–10 energy
+  (with a small bar), its loudness in LUFS, and its *Volume Score* — how
+  many dB to turn it up or down to match the rest of your collection (its
+  median loudness). Also in the track's details. Turn them on or off from
+  the columns menu.
+- **Energy filter** (Filters): pick a range — *Warm-up 1–4*, *Build 5–7*,
+  *Peak 8–10*, or any from–to.
+- **Why analysis failed**: a track whose analysis failed now says why (the
+  file is gone, damaged, not fully downloaded…) in its red icon's tooltip
+  and in its details, with **Try again**.
+- **Compare with Rekordbox** (Settings → Import & export): reads the
+  collection Rekordbox exports (File → Export Collection in xml format) and
+  lists what differs from MCO — playlists (only in one, or different songs
+  or order), titles, artists, albums, years, genres against your Tags, BPM
+  and keys, Rekordbox's cue points, and files that are only in one or
+  missing. Nothing is changed; applying differences comes next.
+
+### Fixed
+- The track menu said "Show in File Explorer" on the Mac; it's **Show in
+  Finder** now (and *Show in File Explorer* on Windows), everywhere.
+
 ## 1.0.52 — 2026-10-01
 
 ### Added

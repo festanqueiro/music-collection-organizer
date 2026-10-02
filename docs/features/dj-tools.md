@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-10-01
 adrs: []
 ---
 # DJ tools
@@ -64,13 +64,20 @@ file Rekordbox can read:
   added), with your MCO tags in the Comments field;
 - an **MCO** playlist folder with one playlist per genre. A genre with
   sub-genres becomes a folder holding "*Genre* (all)" plus one playlist
-  per sub-genre.
+  per sub-genre;
+- an **MCO Playlists** folder with your playlists, in their folders and
+  order (playlists imported from Rekordbox are left out — see
+  [Playlists](playlists.md)).
 
 To use it in Rekordbox, go to **Preferences → Advanced → Database →
 rekordbox xml** and choose the file. It then appears under "rekordbox
 xml" in the sidebar, where you can import playlists. The export is
 one-way and never changes your files or your Rekordbox library. Beat
 grids and cue points aren't included: Rekordbox analyses those itself.
+
+**Compare with Rekordbox…** (same place) reads Rekordbox's collection export and lists what
+differs — playlists, music info, cue points, files — without changing anything. Applying them, both
+ways, is next: [Rekordbox sync](rekordbox-sync.md).
 
 Code: `electron/main/rekordboxExport.ts`.
 

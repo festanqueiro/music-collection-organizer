@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isMissingId3Metadata, matchesMcoTagsFilter } from './trackFilters'
+import { isMissingId3Metadata, matchesMcoTagsFilter, matchesEnergy } from './trackFilters'
 
 describe('isMissingId3Metadata', () => {
   it('is true when the file has no artist or no title', () => {
@@ -28,5 +28,17 @@ describe('matchesMcoTagsFilter', () => {
 
   it('All lets everything through', () => {
     expect(matchesMcoTagsFilter(both, 'all')).toBe(true)
+  })
+})
+
+describe('matchesEnergy', () => {
+  it('keeps tracks inside the range, both ends included; unrated ones only when the filter is off', () => {
+    expect(matchesEnergy(5, null)).toBe(true)
+    expect(matchesEnergy(null, null)).toBe(true)
+    expect(matchesEnergy(5, [5, 7])).toBe(true)
+    expect(matchesEnergy(7, [5, 7])).toBe(true)
+    expect(matchesEnergy(8, [5, 7])).toBe(false)
+    expect(matchesEnergy(4, [5, 7])).toBe(false)
+    expect(matchesEnergy(null, [1, 10])).toBe(false)
   })
 })

@@ -13,7 +13,9 @@
     "dist:beta": "electron-vite build && electron-builder --mac --dir -c.mac.identity=null -c.appId=com.local.music-collection-organizer.beta -c.productName=\"MCO - Music Collection Organizer BETA\" -c.mac.icon=resources/icon-beta.png -c.extraMetadata.name=v1-library-organizer-beta && scripts/install-beta.sh",
     "dist:release": "electron-vite build && electron-builder --mac dmg zip --arm64 --publish never",
     "dist:release:win": "electron-vite build && electron-builder --win nsis --x64 --publish never",
-    "build:receiver": "vite build --config vite.receiver.config.ts"
+    "build:receiver": "vite build --config vite.receiver.config.ts",
+    "site:capture": "electron-vite build && node website/capture/capture.mjs",
+    "rekordbox:probe": "node --experimental-strip-types --no-warnings scripts/rekordbox-probe.ts"
   },
   "keywords": [],
   "author": "Francisco Estanqueiro",
@@ -25,6 +27,10 @@
     "directories": {
       "output": "release"
     },
+    "files": [
+      "**/*",
+      "!website${/*}"
+    ],
     "asarUnpack": [
       "**/node_modules/ffmpeg-static/**"
     ],
