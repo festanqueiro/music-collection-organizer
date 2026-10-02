@@ -4,7 +4,7 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
-## 1.0.53 — 2026-10-01
+## 1.0.53 — 2026-10-02
 
 ### Added
 - **Hot cues A–H**: eight cue points per track, saved with it. Pads on a

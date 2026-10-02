@@ -1,7 +1,7 @@
 ---
 status: shipped
-updated: 2026-10-01
-adrs: [0054]
+updated: 2026-10-02
+adrs: [0054, 0056]
 ---
 # Website
 
@@ -12,8 +12,8 @@ with the download button going to the latest GitHub release.
 
 ## Behaviour
 - Sections: hero (download, the library screenshot), four advantages (local, your own tags, made
-  for DJs, Rekordbox), six features each with a clip or screenshot (Tags & search, Playlists,
-  Harmonic mixing, Visualizer, Effects/mic/recording, Stats), a gallery, *Everything in the box*,
+  for DJs, Rekordbox), seven features each with a clip or screenshot (Tags & search, Playlists,
+  Harmonic mixing, Hot cues, Visualizer, Effects/mic/recording, Stats), a gallery, *Everything in the box*,
   Install (the "could not verify" → *Open Anyway* step), footer.
 - Clips are mp4s that play muted, looped and inline, with a jpg poster; the same clips also exist
   as gifs for READMEs and posts.
@@ -24,8 +24,9 @@ with the download button going to the latest GitHub release.
 - `website/index.html` and `style.css`, no build step and no JavaScript; Inter from Google Fonts.
 - **Screenshots and clips are made from the real app** by `npm run site:capture`
   (`website/capture/`, see its README): a synthesized demo collection, a library set up through
-  the app's API, Playwright driving the built app, ffmpeg recording the virtual screen
-  ([ADR 0054](../adr/0054-website-captured-from-the-real-app.md)). Re-run after UI changes and
+  the app's API, Playwright driving the built app, ffmpeg recording the virtual screen on Linux
+  ([ADR 0054](../adr/0054-website-captured-from-the-real-app.md)) or Playwright's video of the
+  page on a Mac ([ADR 0056](../adr/0056-website-clips-recorded-on-a-mac-too.md)). Re-run after UI changes and
   commit `website/assets/`.
 - Deployed by `.github/workflows/pages.yml` on pushes to `main` that touch `website/` (the
   capture tooling is left out). The app's package leaves `website/` out (`build.files`).
@@ -36,7 +37,8 @@ with the download button going to the latest GitHub release.
 
 ## Limits & open questions
 - **One-time setup**: Settings → Pages → Source: *GitHub Actions*, before the first deploy.
-- Clips need Linux (x11grab); on a Mac only the screenshots are redone.
+- Mac clips (Playwright's video) are a little softer than Linux's, and fonts differ between the
+  two: redo everything on one OS. The 1.0.53 set was captured on a Mac.
 - The demo tracks are 48 s loops; Duration (and the identical Date Added, and Format) are hidden in
   captures, and column widths set so Energy, LUFS and Volume Score fit.
 - A custom domain, analytics and a light theme are not set up.

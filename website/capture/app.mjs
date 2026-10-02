@@ -12,7 +12,9 @@ export const WORK = process.env.MCO_CAPTURE_DIR ?? path.join(REPO, 'website/capt
 // else ~/Music. Override with MCO_DEMO_COLLECTION.
 function collectionPath() {
   if (process.env.MCO_DEMO_COLLECTION) return process.env.MCO_DEMO_COLLECTION
-  for (const base of ['/Users/demo/Music', path.join(process.env.HOME ?? WORK, 'Music')]) {
+  // macOS can't make /Users/demo without sudo; /Users/Shared keeps your
+  // user name out of the screenshots.
+  for (const base of ['/Users/demo/Music', '/Users/Shared/Music', path.join(process.env.HOME ?? WORK, 'Music')]) {
     try {
       fs.mkdirSync(base, { recursive: true })
       fs.accessSync(base, fs.constants.W_OK)
@@ -70,10 +72,15 @@ export const HEIGHT = 1000
 
 export async function launch({ video } = {}) {
   const { _electron } = playwright()
+  const mac = process.platform === 'darwin'
   const app = await _electron.launch({
-    executablePath: path.join(REPO, 'node_modules/electron/dist/electron'),
-    // Software WebGL so the visualizer draws without a GPU (CI, xvfb).
-    args: ['.', '--no-sandbox', '--autoplay-policy=no-user-gesture-required', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+    // The electron package's main export is the binary's path, on any OS.
+    executablePath: createRequire(path.join(REPO, 'x.js'))('electron'),
+    // Software WebGL so the visualizer draws without a GPU (CI, xvfb). On a
+    // Mac the GPU is there, and 1× pixels keep shots the same size as Linux's.
+    args: ['.', '--no-sandbox', '--autoplay-policy=no-user-gesture-required',
+      // XDG_CONFIG_HOME means nothing to a Mac app: point userData there.
+      ...(mac ? ['--force-device-scale-factor=1', `--user-data-dir=${path.join(DATA, 'music-collection-organizer')}`] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'])],
     cwd: REPO,
     env: { ...process.env, XDG_CONFIG_HOME: DATA },
     ...(video ? { recordVideo: { dir: video, size: { width: WIDTH, height: HEIGHT } } } : {}),
@@ -87,11 +94,13 @@ export async function launch({ video } = {}) {
     b.center()
   }, [WIDTH, HEIGHT])
   await win.waitForLoadState('domcontentloaded')
-  await win.evaluate(() =>
+  await win.evaluate(() => {
     localStorage.setItem(
       'mco-track-table-column-widths',
       JSON.stringify({ title: 190, artist: 130, tags: 110, subtags: 110, bpm: 56, musicalKey: 78, energy: 78, loudness: 64, gain: 104 })
     )
-  )
+    // No MIDI learn badge next to every button.
+    localStorage.setItem('showMidiControls', 'false')
+  })
   return { app, win }
 }

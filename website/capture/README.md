@@ -27,10 +27,11 @@ commit `website/assets/`.
    colours and a few playlists through the app's own API. That state is kept
    and restored before every session, so runs are repeatable.
 3. **Screenshots and clips** (`capture.mjs`): `app.mjs` launches the built
-   app (`out/`) at 1600×1000 with the columns worth showing. Clips are
-   recorded straight from the virtual screen with ffmpeg (x11grab), with a
-   drawn mouse pointer, then encoded as an mp4 (1280 wide, for the site), a
-   gif (for READMEs and posts) and a jpg poster.
+   app (`out/`) at 1600×1000 with the columns worth showing (and no MIDI
+   learn badges). Clips are recorded straight from the virtual screen with
+   ffmpeg (x11grab) on Linux, or by Playwright's own video of the page on a
+   Mac, with a drawn mouse pointer, then encoded as an mp4 (1280 wide, for
+   the site), a gif (for READMEs and posts) and a jpg poster.
 
 To add a shot or a clip, add a step to `screenshots()` or a `clip(name, …)`
 in `capture.mjs` and use it in `website/index.html`.
@@ -42,7 +43,12 @@ in `capture.mjs` and use it in `website/index.html`.
   (`cd node_modules/electron && node install.js`). The script re-runs
   itself under `xvfb-run` on a 1600×1000 screen, and turns on software WebGL
   so the visualizer draws without a GPU.
-- **macOS**: screenshots work; clips are skipped (no x11grab).
+- **macOS**: Python 3, ffmpeg (`brew install ffmpeg`) and Playwright. The page
+  is sized to 1600×1000 at 1× whatever the screen, the app's data goes to
+  `.work/` through `--user-data-dir`, and the demo collection to
+  `/Users/Shared/Music` (so your user name isn't in the shots). A window
+  opens while it runs; leave it be. The GPU draws the visualizer, so it
+  looks better than on Linux's software WebGL.
 
 Audio plays into the void (no sound device) but the player, waveform and
 visualizer behave as they do on a Mac.

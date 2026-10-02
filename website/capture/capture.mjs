@@ -6,7 +6,8 @@
 //   npm run site:capture -- clips     only clips
 //
 // Linux: runs itself under xvfb-run (a 1600×1000 virtual screen) and records
-// clips with ffmpeg's x11grab. macOS: screenshots work; clips are skipped.
+// clips with ffmpeg's x11grab. macOS: the page is sized to 1600×1000 whatever
+// the screen, and clips are recorded by Playwright (its own video of the page).
 import { spawn, spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -100,10 +101,12 @@ function helpers(win) {
   }
 }
 
-async function open() {
+async function open({ video } = {}) {
   restoreLibrary()
-  const { app, win } = await launch()
+  const { app, win } = await launch({ video })
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setPosition(0, 0))
+  // A Mac screen is usually smaller than the window: size the page itself.
+  if (process.platform === 'darwin') await win.setViewportSize({ width: WIDTH, height: HEIGHT })
   await win.reload()
   await win.waitForLoadState('domcontentloaded')
   await sleep(2500)
@@ -167,6 +170,20 @@ async function screenshots() {
   await win.locator('[title="Close Live"]').first().click()
   await sleep(500)
 
+  // Hot cues: a cue being dragged, with the zoom open above the waveform.
+  await h.row('Deep Water').locator('button[title="Play track now"]').click()
+  await sleep(1500)
+  const marker = win.locator('[title^="Hot cue C: drag"]').first()
+  const box = await marker.boundingBox()
+  await win.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await win.mouse.down()
+  await win.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 10 })
+  await sleep(1500)
+  await shot(win, 'hotcues')
+  await win.keyboard.press('Escape')
+  await win.mouse.up()
+  await sleep(300)
+
   await h.row('Harbour Lights').locator('button[title="Play track now"]').click()
   await sleep(800)
   await h.btn(/\bVisualizer$/).click()
@@ -176,23 +193,38 @@ async function screenshots() {
 }
 
 // ---- clips ----
-// Records the virtual screen while `run` drives the app, then makes an mp4
+// Records the screen (Linux) or the page (macOS) while `run` drives the app, then makes an mp4
 // (for the site) and a small gif (for READMEs and posts).
-async function clip(name, run, { gifWidth = 800 } = {}) {
-  if (process.platform !== 'linux') return log(`clip ${name}: skipped (needs Linux + xvfb)`)
+async function clip(name, run, { gifWidth = 800, crf = 24 } = {}) {
   fs.mkdirSync(CLIPS, { recursive: true })
-  const { app, win, h } = await open()
+  const linux = process.platform === 'linux'
+  const videoDir = path.join(WORK, 'video')
+  fs.rmSync(videoDir, { recursive: true, force: true })
+  const started = Date.now()
+  const { app, win, h } = await open(linux ? {} : { video: videoDir })
   const raw = path.join(WORK, `${name}.mkv`)
-  const rec = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'x11grab', '-draw_mouse', '0', '-framerate', '30',
-    '-video_size', `${WIDTH}x${HEIGHT}`, '-i', process.env.DISPLAY, '-c:v', 'libx264', '-preset', 'ultrafast', '-qp', '0', raw], { stdio: ['pipe', 'inherit', 'inherit'] })
+  // Playwright's video starts at launch: skip to where `run` begins.
+  const skip = ((Date.now() - started) / 1000 + 0.6).toFixed(2)
+  const rec = linux
+    ? spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'x11grab', '-draw_mouse', '0', '-framerate', '30',
+        '-video_size', `${WIDTH}x${HEIGHT}`, '-i', process.env.DISPLAY, '-c:v', 'libx264', '-preset', 'ultrafast', '-qp', '0', raw], { stdio: ['pipe', 'inherit', 'inherit'] })
+    : null
   await sleep(600)
   try {
     await run(win, h)
   } finally {
     await sleep(800)
-    rec.stdin.write('q')
-    await new Promise((r) => rec.on('close', r))
+    if (rec) {
+      rec.stdin.write('q')
+      await new Promise((r) => rec.on('close', r))
+    }
     await app.close()
+  }
+  if (!linux) {
+    const webm = await win.video().path()
+    const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', skip, '-i', webm, '-r', '30', '-c:v', 'libx264', '-preset', 'ultrafast', '-qp', '0', raw], { stdio: 'inherit' })
+    if (r.status !== 0) throw new Error('ffmpeg failed on ' + webm)
+    fs.rmSync(videoDir, { recursive: true, force: true })
   }
   const mp4 = path.join(CLIPS, `${name}.mp4`)
   const gif = path.join(CLIPS, `${name}.gif`)
@@ -201,7 +233,7 @@ async function clip(name, run, { gifWidth = 800 } = {}) {
     const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', ...args], { stdio: 'inherit' })
     if (r.status !== 0) throw new Error('ffmpeg failed: ' + args.join(' '))
   }
-  ff('-i', raw, '-vf', 'scale=1280:-2:flags=lanczos', '-c:v', 'libx264', '-crf', '24', '-preset', 'slow', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', mp4)
+  ff('-i', raw, '-vf', 'scale=1280:-2:flags=lanczos', '-c:v', 'libx264', '-crf', String(crf), '-preset', 'slow', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', mp4)
   ff('-sseof', '-1.2', '-i', raw, '-frames:v', '1', '-vf', 'scale=1280:-2:flags=lanczos', '-q:v', '4', poster)
   ff('-i', raw, '-vf', `fps=12,scale=${gifWidth}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128:stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle`, gif)
   fs.rmSync(raw)
@@ -247,6 +279,30 @@ async function clips() {
     await sleep(2500)
   })
 
+  // Hot cues: jump between pads, take a suggested cue, drag one with the zoom.
+  await clip('hotcues', async (win, h) => {
+    await sleep(500)
+    await h.click(h.row('Deep Water').locator('button[title="Play track now"]'))
+    await sleep(1500)
+    for (const pad of ['A', 'B', 'C']) {
+      await h.click(win.getByRole('button', { name: `Hot cue ${pad} (set)` }))
+      await sleep(1100)
+    }
+    await h.click(win.locator('button[aria-label^="Suggested cue at bar"]').first())
+    await sleep(1400)
+    const marker = win.locator('[title^="Hot cue C: drag"]').first()
+    await h.moveTo(marker)
+    const box = await marker.boundingBox()
+    const y = box.y + box.height / 2
+    await win.mouse.down()
+    for (const dx of [30, 70, 50]) {
+      await win.mouse.move(box.x + box.width / 2 + dx, y, { steps: 25 })
+      await sleep(700)
+    }
+    await win.mouse.up()
+    await sleep(1500)
+  })
+
   // The visualizer, full screen, flicking through a few themes.
   await clip('visualizer', async (win, h) => {
     await h.click(h.row('Harbour Lights').locator('button[title="Play track now"]'))
@@ -257,7 +313,7 @@ async function clips() {
       await win.keyboard.press(key)
       await sleep(3000)
     }
-  }, { gifWidth: 640 })
+  }, { gifWidth: 480, crf: 30 })
 
   // Stats: open it and scroll through.
   await clip('stats', async (win, h) => {

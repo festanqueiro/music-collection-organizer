@@ -121,6 +121,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0053](adr/0053-mixes-are-temporary-lists.md) | Home's mixes are temporary lists, never saved playlists | proposed |
 | [0054](adr/0054-website-captured-from-the-real-app.md) | A static website whose screenshots and clips are captured from the real app | accepted |
 | [0055](adr/0055-cue-points-in-mco-kept-rekordbox-compatible.md) | Cue points live in MCO's database, shaped like Rekordbox's | accepted |
+| [0056](adr/0056-website-clips-recorded-on-a-mac-too.md) | Record the website's clips on a Mac too, with Playwright's video | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

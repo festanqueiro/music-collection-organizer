@@ -7,10 +7,10 @@
 MCO is a desktop app for DJs who keep their music as files on disk. Point
 it at your collection folder and it finds every track, works out its BPM,
 musical key, energy, and waveform, and lets you browse, search, tag, and
-play the whole collection in one place. It also has a play queue, DJ-style
-effects, a microphone with its own effects, recording of your sets and
+play the whole collection in one place. It also has playlists, hot cues,
+a play queue, DJ-style effects, a microphone with its own effects, recording of your sets and
 podcasts, MIDI controller support, a full-screen music visualizer, and
-casting to your TV.
+casting to your TV — and it works alongside Rekordbox.
 
 Everything stays on your machine. MCO never uploads your music, and it
 never changes your audio files: tags and analysis results are kept in
@@ -24,8 +24,11 @@ MCO's own database.
 
 - **Your collection, organized** — scans a folder of WAV, AIFF, FLAC, MP3,
   M4A/AAC, and OGG/Opus files, picks up new downloads on its own, reads
-  their tags and cover art, and measures BPM, key, loudness, a 1–10
-  energy rating, and waveform. Keeps a play count and when each track was
+  their tags and cover art, and measures BPM, key, loudness (LUFS), a 1–10
+  energy rating, and waveform. A Volume Score column says how many dB to
+  turn a track up or down to match the rest, and an Energy filter picks
+  warm-up, build or peak tracks. If a file can't be analysed, MCO says
+  why, with Try again. Keeps a play count and when each track was
   last played. Sort, search, and filter by folder or tag. Files that go
   missing are hidden, not forgotten, so their tags come back when the
   drive does.
@@ -34,6 +37,16 @@ MCO's own database.
   export/import. Every tag and subtag gets its own colour automatically
   (change it any time): tag badges are filled with it, subtag badges
   outlined in theirs.
+- **Playlists** — playlists and folders in a box under the sidebar. Add
+  songs by dragging rows onto a playlist, from the right-click menu, or
+  from the bar that appears when songs are checked; drag rows to reorder,
+  ⌫ to remove (with Undo). Play a playlist or a whole folder (it replaces
+  the queue, with Undo), or export it as an m3u8 for Rekordbox.
+- **Hot cues** — eight per track, A–H, on pads under the player, keys 1–8
+  (Shift-1–8 deletes) or your MIDI controller's pads, drawn on the waveform
+  in their colours; name and recolour them. MCO suggests cues at bars 16,
+  32, 48 and 64 from the first beat, and you drag a cue along the waveform
+  with a zoom of the bars around it (⌥ for fine, Shift snaps to the beat).
 - **Play queue** — "play now", "add to queue", or "play next" from any
   track, then reorder, shuffle, and play through the queue continuously,
   on its own full screen.
@@ -60,7 +73,14 @@ MCO's own database.
 - **DJ tools** — keys in Camelot notation with a "Compatible" filter for
   harmonic mixing (same key, one step round the [Camelot wheel](https://mixedinkey.com/wp-content/uploads/2024/09/CamelotWheel-Official.webp), or
   the relative major/minor, at a BPM that matches), headphone pre-listen
-  on a second output, and export of your tags as Rekordbox playlists.
+  on a second output.
+- **Rekordbox** — import playlists from Rekordbox (its collection XML,
+  m3u8 or text exports), including old USB-stick playlists whose paths no
+  longer match: MCO finds the songs in your collection. Playlists you
+  already have are spotted, and you choose to skip, add or update them.
+  **Compare with Rekordbox** lists what differs — playlists, song info,
+  BPM and key, cue points, files — and brings Rekordbox's cues into MCO.
+  MCO's Rekordbox XML export carries your tags, playlists and cues back.
 - **MIDI** — map any knob, toggle, or playback button to your controller
   in two clicks, with LED feedback where your controller supports it.
 - **Visualizer** — a full-screen, audio-reactive visualizer with nine
