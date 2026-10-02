@@ -1,7 +1,7 @@
 ---
 status: shipped
-updated: 2026-09-27
-adrs: [0015, 0016, 0017, 0019, 0020, 0021, 0022, 0036, 0037, 0043, 0045]
+updated: 2026-10-02
+adrs: [0015, 0016, 0017, 0019, 0020, 0021, 0022, 0036, 0037, 0043, 0045, 0057]
 ---
 # Casting
 
@@ -93,7 +93,7 @@ converts AIFF to for its own playback.
 
 ## How it works
 - MCO's Cast app is `cast-receiver/`, published to GitHub Pages on every merge to `main`
-  (`.github/workflows/cast-receiver.yml`) and registered in the Google Cast SDK Developer Console as
+  (`.github/workflows/pages.yml`, together with the website: [ADR 0057](../adr/0057-one-pages-deploy-for-website-and-receiver.md)) and registered in the Google Cast SDK Developer Console as
   application `E056A69A`. Its now-playing screen (markup, styles, rendering) is
   `cast-receiver/nowPlaying.ts` + `nowPlaying.css`, shared with the second screen's "Now playing"
   ([Show on a screen](second-screen.md)); `main.ts` adds the audio, the TV visualizers and the Cast
