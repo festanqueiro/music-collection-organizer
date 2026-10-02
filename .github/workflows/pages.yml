@@ -1,13 +1,22 @@
-name: Website
+# Publishes the one GitHub Pages site, which holds two things:
+#   /                the website (website/: the marketing page, its
+#                    screenshots and clips — made with `npm run site:capture`)
+#   /cast-receiver/  MCO's Cast receiver page, at the URL registered for
+#                    MCO's Cast application (src/cast/receiverProtocol.ts)
+# A Pages deploy replaces the whole site, so both must go up together: when
+# they had a workflow each, the website's deploy wiped the receiver (and the
+# shared concurrency group cancelled the receiver's run).
+#
+# Runs on every push to main, not just changes under cast-receiver/: the
+# receiver bundles code from all over the app (the effects chain and siren,
+# default settings, the play-count rule, the threejs-visualisers package…),
+# and a paths list kept missing some of it, leaving the TV on stale code.
+# The version-bump commits are [skip ci], so they don't deploy again.
+name: Pages (website + Cast receiver)
 
-# Publishes website/ (the marketing page, its screenshots and clips) to
-# GitHub Pages whenever it changes on main. One-time setup: Settings →
-# Pages → Source: GitHub Actions. The screenshots and clips are made with
-# `npm run site:capture` (website/capture/README.md) and committed.
 on:
   push:
     branches: [main]
-    paths: ['website/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
 permissions:
@@ -20,18 +29,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # The receiver needs none of the desktop app's binaries.
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+      - run: npm run build:receiver
+      - name: The website at the root, without its capture tooling
+        run: |
+          rsync -a --exclude capture website/ dist-pages/
+          test -f dist-pages/index.html
+          test -f dist-pages/cast-receiver/index.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-pages
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Leave the capture tooling out of the site
-        run: rm -rf website/capture
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: website
       - id: deployment
         uses: actions/deploy-pages@v4

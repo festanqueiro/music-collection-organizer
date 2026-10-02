@@ -1,7 +1,7 @@
 ---
 status: shipped
 updated: 2026-10-02
-adrs: [0054, 0056]
+adrs: [0054, 0056, 0057]
 ---
 # Website
 
@@ -28,8 +28,10 @@ with the download button going to the latest GitHub release.
   ([ADR 0054](../adr/0054-website-captured-from-the-real-app.md)) or Playwright's video of the
   page on a Mac ([ADR 0056](../adr/0056-website-clips-recorded-on-a-mac-too.md)). Re-run after UI changes and
   commit `website/assets/`.
-- Deployed by `.github/workflows/pages.yml` on pushes to `main` that touch `website/` (the
-  capture tooling is left out). The app's package leaves `website/` out (`build.files`).
+- Deployed by `.github/workflows/pages.yml` on every push to `main`, at the site's root, in the same
+  deploy as the Cast receiver (`/cast-receiver/`) — a Pages deploy replaces the whole site
+  ([ADR 0057](../adr/0057-one-pages-deploy-for-website-and-receiver.md)). The capture tooling is
+  left out. The app's package leaves `website/` out (`build.files`).
 
 ## Tests
 - The capture run itself is the check: it fails when a step's button or row isn't found.

@@ -85,9 +85,12 @@ macOS first; releases also ship an untested, unsigned Windows installer
 
 ## Website
 
-- `website/` is the GitHub Pages marketing page (`.github/workflows/pages.yml`
-  deploys it from `main`). Its screenshots and clips come from the real app:
-  `npm run site:capture` (Linux + xvfb; see `website/capture/README.md`).
+- `website/` is the GitHub Pages marketing page. `.github/workflows/pages.yml`
+  deploys it from `main` **together with the Cast receiver** (at
+  `/cast-receiver/`): a Pages deploy replaces the whole site, so never give
+  either its own Pages workflow (ADR 0057). Its screenshots and clips come
+  from the real app: `npm run site:capture` (Linux or macOS; see
+  `website/capture/README.md`).
   After a visible UI change, re-run it and commit `website/assets/`.
 
 ## Packaging
