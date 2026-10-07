@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { OutputSelect, sameOutput, useAudioOutputs } from './audioOutputs'
-import { barButtonStyle } from './playerBarStyles'
+import { barIconButtonStyle } from './playerBarStyles'
 
 const POPOVER_WIDTH = 320
 
@@ -84,13 +84,13 @@ export function AudioButton() {
       <button
         ref={buttonRef}
         onClick={toggleOpen}
-        title={`Main: ${nameOf(mainId)} · Headphones: ${nameOf(cueId)}`}
-        style={barButtonStyle(open)}
+        title={`Audio output — Main: ${nameOf(mainId)} · Headphones: ${nameOf(cueId)}`}
+        aria-label="Audio output"
+        style={barIconButtonStyle(open)}
       >
         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
           speaker
         </span>
-        Audio
       </button>
       {open && anchor && (
         <div

@@ -15,3 +15,13 @@ export function barButtonStyle(open: boolean, lit = false): CSSProperties {
     color: open || lit ? 'var(--color-accent)' : 'var(--color-text)',
   }
 }
+
+// A button in one of the player bar's joined groups (`.bar-group` in
+// theme.css gives the shape): an icon, its name in the tooltip. Only what
+// changes with its state is set here.
+export function barIconButtonStyle(open: boolean, lit = false): CSSProperties {
+  return {
+    color: open || lit ? 'var(--color-accent)' : undefined,
+    background: open ? 'var(--color-selected)' : undefined,
+  }
+}

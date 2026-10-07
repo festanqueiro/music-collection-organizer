@@ -13,7 +13,11 @@ import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { PlayerScreenButtons } from './PlayerScreenButtons'
 import { HotCuePads, CueMarkers } from './HotCuePads'
-import { gridStart, hotCueSlots, suggestedCues } from '../state/hotCues'
+import { BarCounter } from './BarCounter'
+import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
+
+const preciseTime = (s: number) => `${formatDuration(Math.floor(s))}.${String(Math.floor((s % 1) * 10))}`
+import { START_SLOT, detectedStart, gridStart, hotCueSlots, suggestedCues } from '../state/hotCues'
 
 const NO_CUES: never[] = []
 
@@ -72,8 +76,34 @@ export function Player({
   const recordPlay = useCollectionStore((s) => s.recordPlay)
   // Hot cues (docs/features/hot-cues.md), loaded once per track.
   const cues = useCollectionStore((s) => s.trackCues.get(track.id)) ?? NO_CUES
-  // Bars 16/32/48/64 from the first beat (src/state/hotCues.ts).
-  const suggestions = useMemo(() => suggestedCues(track, duration || track.duration || 0, cues), [track, duration, cues])
+  // Bars 8/16/32/48/64 from the start of the tune (src/state/hotCues.ts).
+  // The waveform isn't in the track list (ADR 0058): read when the track
+  // loads, and again once an analysis of it finishes.
+  const peaks = useCollectionStore((s) => s.trackWaveforms.get(track.id)) ?? null
+  useEffect(() => {
+    useCollectionStore.getState().loadTrackWaveform(track.id).catch((err) => console.error('reading the waveform failed', err))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track.analyzedAt])
+  // What the beat grid is counted from: the start of the tune (bar 0) —
+  // 0:00 until the user moves it.
+  const grid = useMemo(
+    () => ({ bpm: track.bpm, firstBeat: track.firstBeat, gridStart: track.gridStart, waveformPeaks: peaks }),
+    [track.bpm, track.firstBeat, track.gridStart, peaks]
+  )
+  // The waveform's right-click menu (the start of the tune).
+  const [startMenu, setStartMenu] = useState<{ x: number; y: number; time: number } | null>(null)
+  useEffect(() => {
+    if (!startMenu) return
+    const close = () => setStartMenu(null)
+    window.addEventListener('click', close)
+    window.addEventListener('blur', close)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('blur', close)
+    }
+  }, [startMenu])
+  useEffect(() => setStartMenu(null), [track.id])
+  const suggestions = useMemo(() => suggestedCues(grid, duration || track.duration || 0, cues), [grid, duration, cues])
   const cuesRef = useRef(cues)
   cuesRef.current = cues
   useEffect(() => {
@@ -166,6 +196,24 @@ export function Player({
     if (audio.duration && isFinite(audio.duration)) {
       setProgress(cue.start / audio.duration)
       setPlaybackProgress(cue.start / audio.duration)
+    }
+    if (audio.paused) {
+      effectsChainRef.current?.resume()
+      audio.play().catch(() => {})
+    }
+  }
+
+  // To the start of the tune, playing — like a set hot cue pad.
+  function jumpTo(time: number) {
+    const audio = audioRef.current
+    if (!audio) return
+    cuePreviewingRef.current = false
+    setCueHeld(false)
+    audio.currentTime = time
+    setCurrentTime(time)
+    if (audio.duration && isFinite(audio.duration)) {
+      setProgress(time / audio.duration)
+      setPlaybackProgress(time / audio.duration)
     }
     if (audio.paused) {
       effectsChainRef.current?.resume()
@@ -277,6 +325,13 @@ export function Player({
     const audio = audioRef.current
     if (!audio) return
     effectsChainRef.current?.resume()
+    // A start the user moved is where the tune begins playing (ADR 0060),
+    // and where the CUE button returns to.
+    if (track.gridStart !== null && track.gridStart > 0) {
+      audio.currentTime = track.gridStart
+      cuePointRef.current = track.gridStart
+      setCuePoint(track.gridStart)
+    }
     audio.play().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -416,8 +471,6 @@ export function Player({
     setPlaybackProgress(ratio)
   }
 
-  const peaks = track.waveformPeaks
-
   return (
     <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
       <audio
@@ -512,6 +565,11 @@ export function Player({
         <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px', flexShrink: 0 }}>
           {track.bpm ? `${Math.round(track.bpm)} BPM` : '— BPM'}
         </span>
+        <BarCounter
+          audioRef={audioRef}
+          bpm={track.bpm}
+          start={gridStart(grid)}
+        />
         {(duration || track.duration) && (
           <span
             onClick={() => setShowTimeLeft((v) => !v)}
@@ -581,7 +639,50 @@ export function Player({
         </button>
         <MidiLearnBadge control="player.playNext" />
 
-        <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+        <div
+          // Right-click: the start of the tune (bar 0) goes where the
+          // pointer is — the only place it's set, besides dragging its
+          // marker once it's there.
+          onContextMenu={(e) => {
+            const total = duration || track.duration || 0
+            if (!(total > 0)) return
+            e.preventDefault()
+            const rect = e.currentTarget.getBoundingClientRect()
+            const x = e.clientX - rect.left
+            const time = x <= SEEK_START_SNAP_PX ? 0 : Math.min(total, (x / rect.width) * total)
+            setStartMenu({ x: e.clientX, y: e.clientY, time: Math.round(time * 1000) / 1000 })
+          }}
+          style={{ flex: 1, minWidth: 0, position: 'relative' }}
+        >
+          {startMenu && (
+            <div onClick={(e) => e.stopPropagation()} style={{ ...contextMenuStyle, left: startMenu.x, top: startMenu.y - 8, transform: 'translateY(-100%)', minWidth: '240px' }}>
+              <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
+                Start of the tune — bar 0 · {track.gridStart === null ? '0:00 (the beginning)' : preciseTime(track.gridStart)}
+              </div>
+              {(
+                [
+                  ['flag', `Set the start here (${preciseTime(startMenu.time)})`, startMenu.time],
+                  ['my_location', `Set it where the track is now (${preciseTime(audioRef.current?.currentTime ?? 0)})`, audioRef.current?.currentTime ?? 0],
+                  ['graphic_eq', `Set it on the detected first beat (${preciseTime(detectedStart(grid, duration || track.duration || 0))})`, detectedStart(grid, duration || track.duration || 0)],
+                  ...(track.gridStart !== null ? ([['first_page', 'Put it back at 0:00', null]] as const) : []),
+                ] as const
+              ).map(([icon, label, value]) => (
+                <button
+                  key={icon}
+                  onClick={() => {
+                    void useCollectionStore.getState().setTrackGridStart(track.id, value)
+                    setStartMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    {icon}
+                  </span>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
           <CueMarkers
             cues={cues}
             duration={duration || track.duration || 0}
@@ -589,10 +690,15 @@ export function Player({
             drag={{
               trackId: track.id,
               bpm: track.bpm,
-              gridStart: gridStart(track, duration || track.duration || 0),
-              onMove: (slot, time) => void useCollectionStore.getState().setHotCue(track.id, slot, time),
-              onJump: hotCue,
+              gridStart: gridStart(grid),
+              onMove: (slot, time) =>
+                void (slot === START_SLOT
+                  ? useCollectionStore.getState().setTrackGridStart(track.id, time)
+                  : useCollectionStore.getState().setHotCue(track.id, slot, time)),
+              onJump: (slot) => (slot === START_SLOT ? jumpTo(track.gridStart ?? 0) : hotCue(slot)),
             }}
+            start={track.gridStart}
+            audioRef={audioRef}
           />
           {peaks && peaks.length > 0 ? (
             <svg
@@ -701,7 +807,6 @@ export function Player({
         onDelete={(slot) => void useCollectionStore.getState().deleteHotCue(track.id, slot)}
         onChange={(slot, changes) => void useCollectionStore.getState().updateHotCue(track.id, slot, changes)}
         suggestions={suggestions}
-        approximate={track.firstBeat == null}
         onSuggest={async (slot, time, from) => {
           const store = useCollectionStore.getState()
           await store.setHotCue(track.id, slot, time)

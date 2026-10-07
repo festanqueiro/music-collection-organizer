@@ -11,7 +11,7 @@ import { RecordButton } from './RecordButton'
 import { MicButton } from './MicButton'
 import { AudioButton } from './AudioButton'
 import { SecondScreenButton } from './SecondScreenButton'
-import { barButtonStyle } from './playerBarStyles'
+import { barIconButtonStyle } from './playerBarStyles'
 
 function ScreenButton({
   screen,
@@ -32,13 +32,13 @@ function ScreenButton({
     <button
       onClick={() => togglePlayerScreen(screen)}
       title={open ? `Close ${label}` : `Open ${label}`}
+      aria-label={label}
       aria-pressed={open}
-      style={barButtonStyle(open, lit)}
+      style={barIconButtonStyle(open, lit)}
     >
       <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
         {icon}
       </span>
-      {label}
       {badge && <span style={{ color: 'var(--color-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{badge}</span>}
     </button>
   )
@@ -59,13 +59,17 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
   // The TV's picture is picked in the Cast menu instead.
   const castingToScreen = useCollectionStore((s) => castingToAScreen(s.castStatus))
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-      <AudioButton />
-      <RecordButton />
-      <MicButton />
-      <CastButton />
-      <SecondScreenButton />
-      <span style={{ width: '1px', height: '20px', background: 'var(--color-border)', margin: '0 4px' }} />
+    // Two joined groups of icon buttons (names in the tooltips): where the
+    // sound and picture go, then the views.
+    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+      <div className="bar-group" role="group" aria-label="Sound and picture">
+        <AudioButton />
+        <RecordButton />
+        <MicButton />
+        <CastButton />
+        <SecondScreenButton />
+      </div>
+      <div className="bar-group" role="group" aria-label="Views">
       <button
         onClick={(e) => {
           if (castingToScreen) showToast('Go to the Cast menu to pick a visualizer')
@@ -83,17 +87,18 @@ export function PlayerScreenButtons({ hasTrack }: { hasTrack: boolean }) {
               ? 'Open the visualizer (full screen)'
               : 'Play a track to open the visualizer'
         }
+        aria-label="Visualizer"
         // Looks off while casting, but still clicks, to say where it went.
-        style={{ ...barButtonStyle(false), ...(castingToScreen ? { opacity: 0.45 } : {}) }}
+        style={castingToScreen ? { opacity: 0.45 } : undefined}
       >
         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
           graphic_eq
         </span>
-        Visualizer
       </button>
       <ScreenButton screen="fx" icon="tune" label="FX" lit={fxActive} />
       <ScreenButton screen="queue" icon="queue_music" label="Queue" badge={queued > 0 ? String(queued) : undefined} />
       <ScreenButton screen="live" icon="dashboard" label="Live" lit={micOn} />
+      </div>
     </div>
   )
 }

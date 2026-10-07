@@ -1,10 +1,12 @@
-import { app, BrowserWindow, net, protocol, session } from 'electron'
+import { app, BrowserWindow, Menu, net, protocol, session, shell } from 'electron'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createReadStream, statSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { openDatabase } from './db'
+import { resetInterruptedAnalysis } from './analysis/queue'
 import { registerIpcHandlers } from './ipc'
+import { buildAppMenuTemplate } from './appMenu'
 import {
   getCollectionFolder,
   getConfigFilePath,
@@ -267,6 +269,7 @@ app.whenReady().then(() => {
   }
 
   const db = openDatabase(getDbFilePath())
+  resetInterruptedAnalysis(db)
   setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
 
   const updater = new Updater({
@@ -289,6 +292,28 @@ app.whenReady().then(() => {
   }, UPDATE_CHECK_INTERVAL_MS)
 
   registerIpcHandlers(db, () => currentWindow, getBackupFolder(app.getPath('userData')), updater)
+
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate(
+      buildAppMenuTemplate({
+        isMac: process.platform === 'darwin',
+        isDev: !app.isPackaged,
+        appName: app.name,
+        send: (command) => {
+          // With every window closed (macOS), the menu is still there:
+          // nothing to act on until one is reopened.
+          if (!currentWindow || currentWindow.isDestroyed()) return
+          currentWindow.show()
+          currentWindow.webContents.send('menu:command', command)
+        },
+        openUrl: (url) => void shell.openExternal(url),
+        showCollectionFolder: () => {
+          const folder = getCollectionFolder()
+          if (folder) void shell.openPath(folder)
+        },
+      })
+    )
+  )
 
   createWindow(() => performBackupCheck(db))
 

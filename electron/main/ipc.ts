@@ -97,6 +97,7 @@ import {
   getNodeTrackIds,
   getPlaylistNodes,
   getPlaylistTrackIds,
+  getTrackPlaylistIds,
   removeTracksFromPlaylist,
   renamePlaylistNode,
   setPlaylistTrackIds,
@@ -158,8 +159,9 @@ interface TrackRow {
   year: number | null
   bpm: number | null
   first_beat: number | null
+  grid_start: number | null
   musical_key: string | null
-  waveform_peaks: string | null
+  analyzed_at: number | null
   loudness: number | null
   energy: number | null
   play_count: number
@@ -202,8 +204,9 @@ function rowToTrack(row: TrackRow): Track {
     year: row.year,
     bpm: row.bpm,
     firstBeat: row.first_beat ?? null,
+    gridStart: row.grid_start ?? null,
     musicalKey: row.musical_key,
-    waveformPeaks: row.waveform_peaks ? JSON.parse(row.waveform_peaks) : null,
+    analyzedAt: row.analyzed_at ?? null,
     loudness: row.loudness,
     energy: row.energy,
     playCount: row.play_count,
@@ -247,6 +250,13 @@ export function registerIpcHandlers(
     const win = getMainWindow()
     if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
   }
+
+  // The track list leaves the waveforms out (ADR 0058): 15 kB a track, read
+  // by the player only, and they made every reload of the list slow.
+  const trackListColumns = (db.prepare('PRAGMA table_info(tracks)').all() as { name: string }[])
+    .map((c) => c.name)
+    .filter((name) => name !== 'waveform_peaks')
+    .join(', ')
 
   // Guards scan:run against overlapping runs.
   let scanInProgress = false
@@ -660,13 +670,19 @@ export function registerIpcHandlers(
     // present = 0 tracks are ones runScan couldn't find on disk in the most
     // recent scan (moved, temporarily unmounted, or the collection folder
     // changed) — hidden here, but never deleted, so their tags survive.
-    return (db.prepare('SELECT * FROM tracks WHERE present = 1').all() as unknown as TrackRow[]).map(rowToTrack)
+    return (db.prepare(`SELECT ${trackListColumns} FROM tracks WHERE present = 1`).all() as unknown as TrackRow[]).map(rowToTrack)
+  })
+
+  // One track's whole-track waveform, for the player (ADR 0058).
+  ipcMain.handle('tracks:getWaveform', (_e, trackId: number): number[] | null => {
+    const row = db.prepare('SELECT waveform_peaks FROM tracks WHERE id = ?').get(trackId) as { waveform_peaks: string | null } | undefined
+    return row?.waveform_peaks ? JSON.parse(row.waveform_peaks) : null
   })
 
   // The hidden ones, for the Missing Tracks filter: files the last scan
   // couldn't find. Marked missing so the table can say so.
   ipcMain.handle('tracks:getMissing', (): Track[] =>
-    (db.prepare('SELECT * FROM tracks WHERE present = 0').all() as unknown as TrackRow[]).map((row) => ({
+    (db.prepare(`SELECT ${trackListColumns} FROM tracks WHERE present = 0`).all() as unknown as TrackRow[]).map((row) => ({
       ...rowToTrack(row),
       missing: true,
     }))
@@ -865,6 +881,7 @@ export function registerIpcHandlers(
   })
   ipcMain.handle('playlists:getTrackIds', (_e, playlistId: number): number[] => getPlaylistTrackIds(db, playlistId))
   ipcMain.handle('playlists:getNodeTrackIds', (_e, id: number): number[] => getNodeTrackIds(db, id))
+  ipcMain.handle('playlists:forTrack', (_e, trackId: number): number[] => getTrackPlaylistIds(db, trackId))
   ipcMain.handle(
     'playlists:addTracks',
     (_e, playlistId: number, trackIds: number[]): { added: number; skipped: number; trackIds: number[]; nodes: PlaylistNode[] } => ({
@@ -1037,6 +1054,15 @@ export function registerIpcHandlers(
 
   // On-demand cover art for the detail panel — see extractArtwork's own
   // comment for why this isn't bulk-loaded with the rest of getTracks().
+  // The start of the tune (bar 0 of the beat grid), or null to clear it;
+  // returns the track as it is now, for the renderer to patch in.
+  ipcMain.handle('tracks:setGridStart', (_e, trackId: number, start: number | null): Track | null => {
+    const value = typeof start === 'number' && Number.isFinite(start) ? Math.max(0, Math.round(start * 1000) / 1000) : null
+    db.prepare('UPDATE tracks SET grid_start = ? WHERE id = ?').run(value, trackId)
+    const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as unknown as TrackRow | undefined
+    return row ? rowToTrack(row) : null
+  })
+
   // One play of a track: bumps its count and returns the new totals, for
   // the renderer to patch into its copy of the track.
   ipcMain.handle('tracks:recordPlay', (_e, trackId: number): { playCount: number; lastPlayedAt: number } | null => {

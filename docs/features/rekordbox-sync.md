@@ -1,6 +1,6 @@
 ---
 status: in-progress
-updated: 2026-10-01
+updated: 2026-10-08
 adrs: [0052, 0051, 0050, 0028, 0026, 0008, 0004]
 ---
 # Rekordbox sync (two-way, through XML)
@@ -249,7 +249,10 @@ appended, a batch "write Tags to the files' Genre" for Reload Tag) fold into pha
 - Everything about "to Rekordbox" on things Rekordbox already has depends on phase 0.
 - My Tags, ratings, colours and Rekordbox's play history aren't synced (MCO doesn't keep them;
   My Tags aren't in the XML).
-- Beat grids stay Rekordbox's: MCO reads them (for cue display) but never sends one.
+- Beat grids: MCO sends one only for a track whose start the user moved in MCO (not for the
+  default 0:00)
+  ([ADR 0059](../adr/0059-the-start-of-the-tune-is-its-own-setting.md)); it doesn't read
+  Rekordbox's yet.
 - Absolute paths: songs are matched by path first, so moving the whole collection needs the
   likely-same-file pass until roadmap *Portable library*.
 - Should a song's Subtags go into Genre too, or into Grouping (unused in the user's library)?

@@ -37,6 +37,7 @@ interface ExportTrackRow {
   year: number | null
   bpm: number | null
   musical_key: string | null
+  grid_start: number | null
 }
 
 export interface RekordboxExportResult {
@@ -89,7 +90,7 @@ function formatDate(ms: number | null): string {
 export function buildRekordboxXml(db: AppDatabase, appVersion: string): RekordboxExportResult {
   const tracks = db
     .prepare(
-      `SELECT id, path, filename, format, size, birthtime, duration, bitrate, title, artist, album, genre_tag, year, bpm, musical_key
+      `SELECT id, path, filename, format, size, birthtime, duration, bitrate, title, artist, album, genre_tag, year, bpm, musical_key, grid_start
        FROM tracks WHERE present = 1 AND cloud_status = 'local' ORDER BY id`
     )
     .all() as unknown as ExportTrackRow[]
@@ -165,13 +166,21 @@ export function buildRekordboxXml(db: AppDatabase, appVersion: string): Rekordbo
       .map(([k, v]) => `${k}="${xmlAttr(v)}"`)
       .join(' ')
     const marks = cuesByTrack.get(t.id) ?? []
-    if (marks.length === 0) {
+    // The beat grid, only where the user set the start of the tune (ADR
+    // 0059): one anchor on it, beat 1 of a 4/4 bar, at MCO's tempo. Other
+    // tracks carry none, and Rekordbox keeps or analyses its own.
+    const tempo =
+      t.grid_start !== null && t.bpm && t.bpm > 0
+        ? `      <TEMPO Inizio="${t.grid_start.toFixed(3)}" Bpm="${t.bpm.toFixed(2)}" Metro="4/4" Battito="1"/>`
+        : null
+    if (marks.length === 0 && !tempo) {
       lines.push(`    <TRACK ${rendered}/>`)
       continue
     }
     // Cue points (docs/features/hot-cues.md): hot cues Num 0–7 with their
-    // colour, memory cues and loops Num -1; Rekordbox analyses its own grid.
+    // colour, memory cues and loops Num -1.
     lines.push(`    <TRACK ${rendered}>`)
+    if (tempo) lines.push(tempo)
     for (const c of marks) {
       const rgb = hexToRgb(c.color ?? (c.kind === 'hot' ? HOT_CUE_DEFAULT_COLORS[c.slot] : '') ?? '')
       const color = rgb ? ` Red="${rgb[0]}" Green="${rgb[1]}" Blue="${rgb[2]}"` : ''

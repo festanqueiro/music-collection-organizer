@@ -498,6 +498,10 @@ export interface CollectionState {
   trackCues: Map<number, TrackCue[]>
   hotCueCounts: Record<number, number>
   loadTrackCues: (trackId: number) => Promise<TrackCue[]>
+  // Whole-track waveforms, read per track when the player loads it (they're
+  // not in `tracks`, ADR 0058).
+  trackWaveforms: Map<number, number[]>
+  loadTrackWaveform: (trackId: number) => Promise<void>
   refreshHotCueCounts: () => Promise<void>
   setHotCue: (trackId: number, slot: number, start: number) => Promise<void>
   updateHotCue: (trackId: number, slot: number, changes: { color?: string | null; name?: string }) => Promise<void>
@@ -589,6 +593,8 @@ export interface CollectionState {
   // (Update Collection only — ADR 0040).
   runScan: (opts?: { analyseNew?: boolean; removeMissing?: boolean }) => Promise<void>
   runAnalysis: (trackIds?: number[]) => Promise<void>
+  // The start of the tune — bar 0 of the beat grid — or null to clear it.
+  setTrackGridStart: (trackId: number, start: number | null) => Promise<void>
   // One play of a track (see Player.tsx): bumps its play count.
   recordPlay: (trackId: number) => Promise<void>
   // Moves a track's file to the Trash and drops it from the collection,
@@ -941,6 +947,14 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     return cues
   },
   refreshHotCueCounts: async () => set({ hotCueCounts: await window.api.getHotCueCounts() }),
+  trackWaveforms: new Map(),
+  loadTrackWaveform: async (trackId) => {
+    const peaks = await window.api.getTrackWaveform(trackId)
+    const trackWaveforms = new Map(get().trackWaveforms)
+    if (peaks) trackWaveforms.set(trackId, peaks)
+    else if (!trackWaveforms.delete(trackId)) return
+    set({ trackWaveforms })
+  },
   setHotCue: async (trackId, slot, start) => patchCues(set, get, trackId, await window.api.setHotCue(trackId, slot, start)),
   updateHotCue: async (trackId, slot, changes) => patchCues(set, get, trackId, await window.api.updateHotCue(trackId, slot, changes)),
   deleteHotCue: async (trackId, slot) => patchCues(set, get, trackId, await window.api.deleteHotCue(trackId, slot)),
@@ -1948,6 +1962,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // polling needed here.
   runAnalysis: async (trackIds) => {
     await window.api.analyzeCollection(trackIds)
+  },
+
+  setTrackGridStart: async (trackId, start) => {
+    const track = await window.api.setTrackGridStart(trackId, start)
+    if (track) set({ tracks: get().tracks.map((t) => (t.id === trackId ? track : t)) })
   },
 
   recordPlay: async (trackId) => {

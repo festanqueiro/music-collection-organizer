@@ -84,6 +84,13 @@ export function getPlaylistTrackIds(db: AppDatabase, playlistId: number): number
   ).map((r) => r.track_id)
 }
 
+// The playlists a song is in — the detail panel lists them.
+export function getTrackPlaylistIds(db: AppDatabase, trackId: number): number[] {
+  return (
+    db.prepare('SELECT DISTINCT playlist_id FROM playlist_tracks WHERE track_id = ?').all(trackId) as { playlist_id: number }[]
+  ).map((r) => r.playlist_id)
+}
+
 // A playlist's songs, or for a folder every playlist under it in tree
 // order — what "Play" queues.
 export function getNodeTrackIds(db: AppDatabase, id: number): number[] {

@@ -2,18 +2,18 @@
 // sets a cue where the track is; a set pad jumps there and plays. Right-click
 // (or Shift-click) a set pad to name, recolour or delete it. Keys 1–8 and
 // MIDI pads do the same as clicking. After the pads, suggested cues at bars
-// 16/32/48/64: click one to put it in the first empty pad (or jump to it
+// 8/16/32/48/64: click one to put it in the first empty pad (or jump to it
 // once set); right-click to pick which pad, A–H.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { TrackCue } from '../types'
-import { HOT_CUE_DEFAULT_COLORS, HOT_CUE_LETTERS, HOT_CUE_PALETTE, HOT_CUE_SLOTS, cueColor, firstEmptySlot, hotCueSlots, snapToBeat, type SuggestedCue } from '../state/hotCues'
+import { HOT_CUE_DEFAULT_COLORS, HOT_CUE_LETTERS, HOT_CUE_PALETTE, HOT_CUE_SLOTS, cueColor, firstEmptySlot, hotCueSlots, snapToBeat, type SuggestedCue, START_COLOR, START_SLOT } from '../state/hotCues'
 import { CueZoom, zoomSpan } from './CueZoom'
 import { formatDuration } from '../format'
 import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import type { MidiControlKey } from '../types'
 
-const cueTime = (s: number) => `${formatDuration(s)}.${String(Math.floor((s % 1) * 10))}`
+const cueTime = (s: number) => `${formatDuration(Math.floor(s))}.${String(Math.floor((s % 1) * 10))}`
 
 export function HotCuePads({
   cues,
@@ -22,7 +22,6 @@ export function HotCuePads({
   onChange,
   disabled,
   suggestions = [],
-  approximate = false,
   onSuggest,
 }: {
   cues: TrackCue[]
@@ -31,8 +30,6 @@ export function HotCuePads({
   onChange: (slot: number, changes: { color?: string | null; name?: string }) => void
   disabled?: boolean
   suggestions?: SuggestedCue[]
-  // The first beat is a guess (track analysed before MCO kept it).
-  approximate?: boolean
   // Puts a suggestion on `slot`; `from` is the pad it was on, which is cleared.
   onSuggest?: (slot: number, time: number, from?: number) => void
 }) {
@@ -110,16 +107,14 @@ export function HotCuePads({
         )
       })}
 
+
       {suggestions.length > 0 && (
         <>
           <span
             style={{ fontSize: '11px', color: 'var(--color-text-dim)', margin: '0 2px 0 10px' }}
-            title={
-              'Suggested hot cues every 16 bars from the first beat' +
-              (approximate ? ' — approximate: the first beat is a guess until the track is analysed again (it is, next time it plays).' : '.')
-            }
+            title="Suggested hot cues every 16 bars from the start of the tune."
           >
-            Suggested{approximate ? ' ≈' : ''}
+            Suggested
           </span>
           {suggestions.map((sug) => {
             const setColor = sug.slot !== null ? cueColor(slots[sug.slot]!) : undefined
@@ -146,8 +141,8 @@ export function HotCuePads({
                 onMouseDown={(e) => e.preventDefault()}
                 title={
                   sug.slot !== null
-                    ? `Bar ${sug.bar} (${cueTime(sug.time)}) is hot cue ${HOT_CUE_LETTERS[sug.slot]}: jump and play. Right-click to put it on another pad.`
-                    : `Bar ${sug.bar} (${cueTime(sug.time)}): click to set it on ${empty === null ? 'a pad' : `pad ${HOT_CUE_LETTERS[empty]}`}; right-click to pick the pad.`
+                    ? `Bar ${sug.bar} from the start (${cueTime(sug.time)}) is hot cue ${HOT_CUE_LETTERS[sug.slot]}: jump and play. Right-click to put it on another pad.`
+                    : `Bar ${sug.bar} from the start (${cueTime(sug.time)}): click to set it on ${empty === null ? 'a pad' : `pad ${HOT_CUE_LETTERS[empty]}`}; right-click to pick the pad.`
                 }
                 aria-label={`Suggested cue at bar ${sug.bar}${sug.slot !== null ? ` (set on ${HOT_CUE_LETTERS[sug.slot]})` : ''}`}
                 style={{
@@ -285,8 +280,9 @@ export function HotCuePads({
 export interface CueDragOptions {
   trackId: number
   bpm: number | null
-  // Where the beat grid starts (the first beat).
+  // Where the beat grid starts (bar 0).
   gridStart: number
+  // `slot` is START_SLOT for the start marker.
   onMove: (slot: number, time: number) => void
   onJump: (slot: number) => void
 }
@@ -304,15 +300,58 @@ export function CueMarkers({
   duration,
   suggestions = [],
   drag: dragOptions,
+  start = null,
+  audioRef,
 }: {
   cues: TrackCue[]
   duration: number
+  // With it, a marker pulses as the track plays through it.
+  audioRef?: RefObject<HTMLAudioElement | null>
   suggestions?: SuggestedCue[]
   drag?: CueDragOptions
+  // The start of the tune (bar 0), once the user has moved it off 0:00: a
+  // marker like a hot cue's, dragged the same way, as slot START_SLOT.
+  start?: number | null
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
   const dragRef = useRef<(DragState & { startX: number; lastX: number; moved: boolean; pointerId: number }) | null>(null)
+
+  // A marker swells for a moment as the track plays through it (or starts
+  // from it, after a jump). Outside React (ADR 0023): one loop reads the
+  // audio's time and animates the marker's own element — no render.
+  useEffect(() => {
+    if (!audioRef || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let raf = 0
+    let last = audioRef.current?.currentTime ?? 0
+    const tick = () => {
+      const audio = audioRef.current
+      const root = rootRef.current
+      if (audio && root) {
+        const now = audio.currentTime
+        // Playing through only: a seek moves further than this in a frame.
+        if (!audio.paused && now > last && now - last < 0.5) {
+          for (const el of root.querySelectorAll<HTMLElement>('[data-cue-time]')) {
+            const t = Number(el.dataset.cueTime)
+            if (t >= last && t < now) {
+              el.animate(
+                [
+                  { transform: 'scale(1)', filter: 'brightness(1)' },
+                  { transform: 'scale(3, 1.2)', filter: 'brightness(1.6)', offset: 0.25 },
+                  { transform: 'scale(1)', filter: 'brightness(1)' },
+                ],
+                { duration: 500, easing: 'ease-out' }
+              )
+            }
+          }
+        }
+        last = now
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [audioRef])
 
   useEffect(() => {
     if (!drag) return
@@ -337,12 +376,76 @@ export function CueMarkers({
     let t = fine
       ? d.time + ((e.clientX - d.lastX) * zoomSpan(dragOptions!.bpm)) / rect.width
       : ((e.clientX - rect.left) / rect.width) * duration
-    const snapping = e.shiftKey && !!dragOptions!.bpm
+    // The start is what the beats are counted from: nothing to snap it to.
+    const snapping = e.shiftKey && !!dragOptions!.bpm && d.slot !== START_SLOT
     if (snapping) t = snapToBeat(t, dragOptions!.bpm!, dragOptions!.gridStart)
     t = Math.min(Math.max(0, duration - 0.01), Math.max(0, t))
     d.fine = fine
     d.snapping = snapping
     return Math.round(t * 1000) / 1000
+  }
+
+  // A marker that can be dragged along the waveform: a hot cue, or the start.
+  function draggable(key: number | string, slot: number, origin: number, at: number, dragging: boolean, title: string, line: React.ReactNode) {
+    const options = dragOptions!
+    return (
+      <div
+        key={key}
+        title={title}
+        onPointerDown={(e) => {
+          if (e.button !== 0) return
+          e.preventDefault()
+          e.stopPropagation()
+          e.currentTarget.setPointerCapture(e.pointerId)
+          dragRef.current = { slot, origin, time: origin, fine: false, snapping: false, startX: e.clientX, lastX: e.clientX, moved: false, pointerId: e.pointerId }
+        }}
+        onPointerMove={(e) => {
+          const d = dragRef.current
+          if (!d || d.pointerId !== e.pointerId) return
+          if (!d.moved && Math.abs(e.clientX - d.startX) < 3) return
+          if (!d.moved) {
+            // Grabbing a line a few pixels off shouldn't make it jump.
+            d.moved = true
+            d.lastX = e.clientX
+            setDrag({ slot: d.slot, origin: d.origin, time: d.time, fine: false, snapping: false })
+            return
+          }
+          d.time = timeAt(e)
+          d.lastX = e.clientX
+          setDrag({ slot: d.slot, origin: d.origin, time: d.time, fine: d.fine, snapping: d.snapping })
+        }}
+        onPointerUp={(e) => {
+          const d = dragRef.current
+          dragRef.current = null
+          setDrag(null)
+          if (!d) return
+          if (!d.moved) options.onJump(d.slot)
+          else if (Math.abs(d.time - d.origin) > 0.0005) options.onMove(d.slot, d.time)
+          e.stopPropagation()
+        }}
+        onPointerCancel={() => {
+          dragRef.current = null
+          setDrag(null)
+        }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: pct(at),
+          width: '12px',
+          marginLeft: '-5px',
+          paddingLeft: '5px',
+          boxSizing: 'border-box',
+          pointerEvents: 'auto',
+          cursor: dragging ? 'grabbing' : 'ew-resize',
+          touchAction: 'none',
+          zIndex: dragging ? 2 : 1,
+        }}
+      >
+        <div style={{ position: 'relative', height: '100%' }}>{line}</div>
+      </div>
+    )
   }
 
   return (
@@ -353,6 +456,35 @@ export function CueMarkers({
         .map((s) => (
           <div key={`s${s.bar}`} style={{ position: 'absolute', top: 0, bottom: 0, left: pct(s.time), borderLeft: '1px dashed var(--color-text-dim)', opacity: 0.6 }} />
         ))}
+      {start !== null &&
+        (() => {
+          const dragging = drag?.slot === START_SLOT
+          // Its label goes under a hot cue's when one sits on the start.
+          const shared = cues.some((c) => c.kind === 'hot' && Math.abs(c.start - start) < duration * 0.012)
+          const line = (
+            <div data-cue-time={start} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '2px', background: START_COLOR, transformOrigin: 'left center' }}>
+              <span
+                style={{
+                  position: 'absolute',
+                  ...(shared ? { bottom: '-1px' } : { top: '-1px' }),
+                  left: 0,
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  lineHeight: '11px',
+                  padding: '0 2px',
+                  background: START_COLOR,
+                  color: '#0d0f12',
+                  borderRadius: '0 2px 2px 0',
+                }}
+              >
+                0
+              </span>
+            </div>
+          )
+          const at = dragging ? drag.time : start
+          if (!dragOptions) return <div style={{ position: 'absolute', top: 0, bottom: 0, left: pct(at), width: 0 }}>{line}</div>
+          return draggable('start', START_SLOT, start, at, !!dragging, 'Start of the tune — bar 0: drag to move it (⌥ fine, Esc cancels); click to jump there; right-click to put it back at 0:00', line)
+        })()}
       {cues.map((c) => {
         if (c.kind === 'loop' && c.end !== null) {
           return (
@@ -365,7 +497,7 @@ export function CueMarkers({
         const dragging = drag && c.kind === 'hot' && drag.slot === c.slot
         const at = dragging ? drag.time : c.start
         const line = (
-          <div style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '2px', background: c.kind === 'hot' ? cueColor(c) : 'var(--color-cue)', opacity: c.kind === 'hot' ? 1 : 0.6 }}>
+          <div data-cue-time={c.start} style={{ position: 'absolute', top: 0, bottom: 0, left: 0, width: '2px', background: c.kind === 'hot' ? cueColor(c) : 'var(--color-cue)', opacity: c.kind === 'hot' ? 1 : 0.6, transformOrigin: 'left center' }}>
             {c.kind === 'hot' && (
               <span
                 style={{
@@ -393,64 +525,7 @@ export function CueMarkers({
             </div>
           )
         }
-        return (
-          <div
-            key={c.id}
-            title={`Hot cue ${HOT_CUE_LETTERS[c.slot]}: drag to move it (⌥ fine, Shift snaps to the beat, Esc cancels); click to jump there`}
-            onPointerDown={(e) => {
-              if (e.button !== 0) return
-              e.preventDefault()
-              e.stopPropagation()
-              e.currentTarget.setPointerCapture(e.pointerId)
-              dragRef.current = { slot: c.slot, origin: c.start, time: c.start, fine: false, snapping: false, startX: e.clientX, lastX: e.clientX, moved: false, pointerId: e.pointerId }
-            }}
-            onPointerMove={(e) => {
-              const d = dragRef.current
-              if (!d || d.pointerId !== e.pointerId) return
-              if (!d.moved && Math.abs(e.clientX - d.startX) < 3) return
-              if (!d.moved) {
-                // Grabbing a line a few pixels off shouldn't make it jump.
-                d.moved = true
-                d.lastX = e.clientX
-                setDrag({ slot: d.slot, origin: d.origin, time: d.time, fine: false, snapping: false })
-                return
-              }
-              d.time = timeAt(e)
-              d.lastX = e.clientX
-              setDrag({ slot: d.slot, origin: d.origin, time: d.time, fine: d.fine, snapping: d.snapping })
-            }}
-            onPointerUp={(e) => {
-              const d = dragRef.current
-              dragRef.current = null
-              setDrag(null)
-              if (!d) return
-              if (!d.moved) dragOptions.onJump(d.slot)
-              else if (Math.abs(d.time - d.origin) > 0.0005) dragOptions.onMove(d.slot, d.time)
-              e.stopPropagation()
-            }}
-            onPointerCancel={() => {
-              dragRef.current = null
-              setDrag(null)
-            }}
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'absolute',
-              top: 0,
-              bottom: 0,
-              left: pct(at),
-              width: '12px',
-              marginLeft: '-5px',
-              paddingLeft: '5px',
-              boxSizing: 'border-box',
-              pointerEvents: 'auto',
-              cursor: dragging ? 'grabbing' : 'ew-resize',
-              touchAction: 'none',
-              zIndex: dragging ? 2 : 1,
-            }}
-          >
-            <div style={{ position: 'relative', height: '100%' }}>{line}</div>
-          </div>
-        )
+        return draggable(c.id, c.slot, c.start, at, !!dragging, `Hot cue ${HOT_CUE_LETTERS[c.slot]}: drag to move it (⌥ fine, Shift snaps to the beat, Esc cancels); click to jump there`, line)
       })}
       {drag && dragOptions && (
         <CueZoom
@@ -460,7 +535,8 @@ export function CueMarkers({
           origin={drag.origin}
           duration={duration}
           bpm={dragOptions.bpm}
-          start={dragOptions.gridStart}
+          // Dragging the start: the grid is drawn from where it is held.
+          start={drag.slot === START_SLOT ? drag.time : dragOptions.gridStart}
           cues={cues}
           fine={drag.fine}
           snapping={drag.snapping}

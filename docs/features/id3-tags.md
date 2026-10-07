@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-26
+updated: 2026-10-08
 adrs: [0026, 0027, 0028, 0008]
 ---
 # ID3 tags (file tags)
@@ -11,7 +11,7 @@ written into the file itself, without touching anything else in it. For files mi
 suggests them from the filename; nothing is written until you press **Save to file**.
 
 ## Behaviour
-- **Full ID3 tags** in the track details lists Title, Artist, Album, Genre (ID3), Year, BPM, Key,
+- **ID3 tags** in the track details lists Title, Artist, Album, Genre (ID3), Year, BPM, Key,
   Format, Duration. It reads the file's current tags when you select the track.
 - **Edit** turns the five text fields into inputs; **Save to file** writes them, **Cancel** / Esc
   discards. An empty field removes that tag from the file. Year takes up to 4 digits.

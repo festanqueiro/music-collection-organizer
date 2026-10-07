@@ -22,8 +22,14 @@ export interface Track {
   // Seconds to the first beat (the beat grid's start), from analysis; null
   // for tracks analysed before it existed.
   firstBeat: number | null
+  // The start of the tune (seconds), set by the user: bar 0 of the beat
+  // grid (docs/features/hot-cues.md, ADR 0059). Null until set — the grid
+  // then starts at firstBeat, unconfirmed.
+  gridStart: number | null
   musicalKey: string | null
-  waveformPeaks: number[] | null
+  // When it was last analysed (ms); the waveform is read per track
+  // (tracks:getWaveform, ADR 0058) and read again when this changes.
+  analyzedAt: number | null
   // Integrated loudness (LUFS) and a 1–10 energy rating, from analysis;
   // null until (re)analysed. See electron/main/analysis/energy.ts.
   loudness: number | null
@@ -245,6 +251,29 @@ export interface RekordboxReport {
 //                 copy can replace itself (else installBlocker says why)
 //   downloading — progress 0..1
 //   installing  — verifying, then the app quits and relaunches
+// An action picked in the application menu (electron/main/appMenu.ts).
+export type MenuCommand =
+  | 'settings'
+  | 'check-for-updates'
+  | 'new-playlist'
+  | 'import-rekordbox'
+  | 'export-rekordbox'
+  | 'update-collection'
+  | 'analyse-collection'
+  | 'stop-analysis'
+  | 'find'
+  | 'play-pause'
+  | 'next-track'
+  | 'shuffle-queue'
+  | 'clear-queue'
+  | 'show-collection'
+  | 'show-queue'
+  | 'show-fx'
+  | 'show-live'
+  | 'show-visualizer'
+  | 'stats'
+  | 'toggle-sidebar'
+
 export interface UpdateState {
   status: 'disabled' | 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'installing' | 'error'
   currentVersion: string
@@ -593,7 +622,7 @@ export interface CastStatus {
   error?: string
 }
 
-// The ID3 fields the user can edit (DetailPanel's Full ID3 tags). null or
+// The ID3 fields the user can edit (DetailPanel's ID3 tags). null or
 // '' clears the field in the file.
 export interface EditableTags {
   title: string | null

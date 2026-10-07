@@ -189,3 +189,43 @@ h6 {
     opacity: 0.35;
   }
 }
+
+/* The player bar's button groups (PlayerScreenButtons): icon buttons joined
+   into one pill, thin lines between them. */
+.bar-group {
+  display: flex;
+  flex-shrink: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface-raised);
+}
+
+.bar-group > button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 28px;
+  min-width: 34px;
+  padding: 0 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 0;
+  background: none;
+}
+
+.bar-group > button:not(:first-child) {
+  border-left: 1px solid var(--color-border);
+}
+
+.bar-group > button:first-child {
+  border-radius: 7px 0 0 7px;
+}
+
+.bar-group > button:last-of-type {
+  border-radius: 0 7px 7px 0;
+}
+
+.bar-group > button:hover:not(:disabled) {
+  background: var(--color-selected);
+}

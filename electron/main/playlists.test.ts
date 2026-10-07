@@ -7,6 +7,7 @@ import {
   getNodeTrackIds,
   getPlaylistNodes,
   getPlaylistTrackIds,
+  getTrackPlaylistIds,
   removeTracksFromPlaylist,
   renamePlaylistNode,
   setPlaylistTrackIds,
@@ -99,6 +100,19 @@ describe('playlists', () => {
     addTracksToPlaylist(db, p, [t[0], t[1]])
     db.prepare('DELETE FROM tracks WHERE id = ?').run(t[0])
     expect(getPlaylistTrackIds(db, p)).toEqual([t[1]])
+  })
+
+  it('lists the playlists a song is in', () => {
+    const a = createPlaylistNode(db, 'playlist', 'A', null)
+    const b = createPlaylistNode(db, 'playlist', 'B', null)
+    createPlaylistNode(db, 'playlist', 'Empty', null)
+    addTracksToPlaylist(db, a, [t[0], t[1]])
+    addTracksToPlaylist(db, b, [t[0]])
+    expect(getTrackPlaylistIds(db, t[0]).sort()).toEqual([a, b].sort())
+    expect(getTrackPlaylistIds(db, t[1])).toEqual([a])
+    expect(getTrackPlaylistIds(db, t[2])).toEqual([])
+    removeTracksFromPlaylist(db, a, [t[0]])
+    expect(getTrackPlaylistIds(db, t[0])).toEqual([b])
   })
 
   it("plays a folder's playlists in tree order", () => {

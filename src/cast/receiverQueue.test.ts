@@ -21,8 +21,9 @@ function track(id: number, over: Partial<Track> = {}): Track {
     year: null,
     bpm: null,
     firstBeat: null,
+    gridStart: null,
     musicalKey: null,
-    waveformPeaks: null,
+    analyzedAt: null,
     loudness: null,
     energy: null,
     playCount: 0,
@@ -35,7 +36,7 @@ function track(id: number, over: Partial<Track> = {}): Track {
   }
 }
 
-const base = { genres: [], subgenres: [], trackTags: new Map(), keyNotation: 'camelot' as const }
+const base = { genres: [], subgenres: [], trackTags: new Map(), trackWaveforms: new Map<number, number[]>(), keyNotation: 'camelot' as const }
 
 describe('buildReceiverQueue', () => {
   it('describes the head as current and summarises the rest of the queue', () => {
@@ -97,6 +98,15 @@ describe('bpmChange', () => {
     expect(bpmChange(140, 70)).toBe('half-time')
     expect(bpmChange(70, 141)).toBe('double-time')
     expect(bpmChange(null, 120)).toBeNull()
+  })
+})
+
+describe('the waveform', () => {
+  it("is the current track's, read from the per-track waveforms", () => {
+    const tracks = [track(1), track(2)]
+    const trackWaveforms = new Map([[2, [0.9, 0.1]], [1, [0.2, 0.4]]])
+    expect(buildReceiverQueue({ ...base, tracks, playlist: [1, 2], trackWaveforms }).waveform).toEqual([0.2, 0.4])
+    expect(buildReceiverQueue({ ...base, tracks, playlist: [1, 2] }).waveform).toBeNull()
   })
 })
 

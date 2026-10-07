@@ -7,6 +7,13 @@ import { getPlayableFilePath } from '../audioTranscode'
 import type { WorkerResult, WorkerTask } from './worker'
 import { describeAnalysisError } from './errorMessage'
 
+// Tracks an analysis run was part-way through when the app last closed are
+// still marked 'analyzing': nothing is analysing them, and a bulk run only
+// picks 'pending' and 'error'. Called once at startup; returns how many.
+export function resetInterruptedAnalysis(db: AppDatabase): number {
+  return Number(db.prepare("UPDATE tracks SET analysis_status = 'pending' WHERE analysis_status = 'analyzing'").run().changes)
+}
+
 function markFailed(db: AppDatabase, trackId: number, reason: string): void {
   db.prepare("UPDATE tracks SET analysis_status = 'error', analysis_error = ? WHERE id = ?").run(reason, trackId)
 }

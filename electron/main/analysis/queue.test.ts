@@ -10,7 +10,7 @@ import {
   createTestToneOgg,
   createTestToneAiff,
 } from '../../../tests/fixtures/audioFixture'
-import { analyzeTrack, runAnalysisQueue } from './queue'
+import { analyzeTrack, resetInterruptedAnalysis, runAnalysisQueue } from './queue'
 
 describe('analyzeTrack', () => {
   let dir: string
@@ -40,6 +40,17 @@ describe('analyzeTrack', () => {
     await analyzeTrack(db, { id, path: filePath }, dir)
     row = db.prepare('SELECT analysis_status, analysis_error FROM tracks WHERE id = ?').get(id) as any
     expect(row).toEqual({ analysis_status: 'done', analysis_error: null })
+  })
+
+  it('puts tracks left "analyzing" by a run that never finished back to pending', () => {
+    const insert = db.prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime, analysis_status) VALUES (?, 'a.wav', '/', 'wav', 1, 1, ?)`)
+    const stuck = insert.run('/a.wav', 'analyzing').lastInsertRowid
+    const done = insert.run('/b.wav', 'done').lastInsertRowid
+    const failed = insert.run('/c.wav', 'error').lastInsertRowid
+    expect(resetInterruptedAnalysis(db)).toBe(1)
+    const status = (id: number | bigint) => (db.prepare('SELECT analysis_status FROM tracks WHERE id = ?').get(id) as any).analysis_status
+    expect([status(stuck), status(done), status(failed)]).toEqual(['pending', 'done', 'error'])
+    expect(resetInterruptedAnalysis(db)).toBe(0)
   })
 
   it('analyzes a track and marks it done', async () => {

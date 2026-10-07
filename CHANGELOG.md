@@ -4,6 +4,59 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.55 — 2026-10-08
+
+### Added
+- **Playlists in the track details**: the details panel lists every playlist
+  the selected track is in (with its folder); click one to open it on that
+  track, scrolled into view.
+- **Similar tracks in the track details**: tracks in the same or a
+  compatible key, or sharing a Tag or Subtag with the selected one, best
+  matches first (a matching tempo breaks ties). Each can be played, queued,
+  pre-listened or added to a playlist from there; click its title to see
+  its details. **Key** and **Tags** switches choose what counts.
+- **A menu bar of MCO's own**: Settings (**⌘,**) and Check for Updates
+  under the app's name; **File** — New Playlist (**⌘N**), Import from Rekordbox (xml), Export
+  Collection to Rekordbox (xml), Update Collection (**⌘U**), Analyse Collection, Stop
+  Analysis, Show Collection Folder; **Edit** — Find (**⌘F**);
+  **Playback** — Play / Pause, Next Track (**⌥⌘→**), Shuffle Queue, Clear
+  Queue; **View** — Collection, Queue, FX, Live (**⌘1–4**), Visualizer
+  (**⇧⌘V**), Stats (**⌘I**), Show / Hide Sidebar (**⌘B**); **Help** — the
+  website and the release notes.
+- **Export Collection to Rekordbox (xml)** is now also in the **File** menu
+  and the Playlists box's **+** menu, next to the import.
+- **A bar 8 suggestion** joins 16, 32, 48 and 64 next to the hot cue pads.
+- **Cue markers pulse** on the waveform as the track plays through them.
+- **Bar counter** in the player: bars since the start of the tune (bar 0),
+  four dots for the beat, and a line filling up through each 16-bar phrase.
+
+### Changed
+- **Track details in sections**: **Cover**, **ID3 tags**, **Tags**,
+  **Playlists**, **Similar tracks** and **File**, each with a header that
+  opens and closes it. MCO remembers which ones you closed.
+- **The start of the tune** is now a setting of each track — bar 0 of its
+  beat grid — and pad A is an ordinary hot cue again. It is 0:00 until you
+  move it: right-click the waveform and choose **Set the start here** (or
+  where the track is, or the detected first beat). A moved start shows as
+  a marker (**0**) like a hot cue's, which you can drag, and the track
+  begins playing from it. The 8 / 16 / 32 / 48 / 64 suggestions and the
+  bar counter count from it. **Export to Rekordbox** sends a start you
+  moved as the track's beat grid.
+- **A tidier player bar**: Audio, Rec, Mic, Cast and Screen, and
+  Visualizer, FX, Queue and Live, are now two compact groups of icons (their
+  names show when you point at them) instead of nine labelled buttons. The
+  queue's count and the recording time still show.
+- **Faster with an analysed collection**: the track list no longer carries
+  every track's waveform (the player reads the one it needs), so starting
+  up, editing tags and analysing reload it much faster.
+
+### Fixed
+- **Hot cue and suggestion times** in tooltips and the zoom no longer show
+  the next second for the last half of each one (44.6 s read 00:45.6).
+- Tracks left showing **Analyzing…** forever after MCO was closed in the
+  middle of an analysis: they go back to waiting at the next start, and
+  *Analyse Collection* picks them up again.
+
 ## 1.0.53 — 2026-10-02
 
 ### Added

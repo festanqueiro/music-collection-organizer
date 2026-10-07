@@ -33,6 +33,8 @@ import { initCast } from './cast/castSession'
 import { initReceiverSync } from './cast/receiverSync'
 import type { Track } from './types'
 import { isInFolder } from './paths'
+import { onMenuCommand, runMenuCommand } from './menuCommands'
+import type { MenuCommand } from './types'
 
 type LeftView = 'folders' | 'tags' | 'subtags' | 'filters'
 type TreeView = Exclude<LeftView, 'filters'>
@@ -195,6 +197,118 @@ export default function App() {
   const undoPlaylistRemove = useCollectionStore((s) => s.undoPlaylistRemove)
   const dismissPlaylistUndo = useCollectionStore((s) => s.dismissPlaylistUndo)
   const [scrollToTrack, setScrollToTrack] = useState<{ trackId: number; nonce: number } | null>(null)
+
+  // The menu bar's actions (electron/main/appMenu.ts). The ones that open
+  // a dialog of the Toolbar's or the Playlists box's are handled there.
+  const leftCollapsedRef = useRef(leftCollapsed)
+  leftCollapsedRef.current = leftCollapsed
+  useEffect(() => {
+    const store = () => useCollectionStore.getState()
+    const closeScreens = () => {
+      store().setVisualizerOpen(false)
+      store().setPlayerScreen(null)
+    }
+    const showScreen = (screen: 'queue' | 'fx' | 'live') => () => {
+      store().setVisualizerOpen(false)
+      store().setPlayerScreen(screen)
+    }
+    // The Playlists box isn't mounted while the sidebar is collapsed: open
+    // it, then hand the command over again.
+    const inPlaylistsBox = (command: MenuCommand) => () => {
+      closeScreens()
+      if (!leftCollapsedRef.current) return
+      expandPlaylistsBoxOnNextOpen()
+      leftCollapsedRef.current = false
+      setLeftCollapsed(false)
+      setTimeout(() => runMenuCommand(command), 50)
+    }
+    const handlers: Partial<Record<MenuCommand, () => void>> = {
+      settings: () => {
+        setStatsOpen(false)
+        setSettingsOpen(true)
+        setModalOpen(true)
+      },
+      stats: () => {
+        setSettingsOpen(false)
+        setStatsOpen(true)
+        setModalOpen(true)
+      },
+      'check-for-updates': () => {
+        store().showToast('Checking for updates…')
+        store()
+          .checkForUpdates()
+          .then(() => {
+            const state = store().updateState
+            if (state?.status === 'up-to-date') store().showToast(`MCO ${state.currentVersion} is up to date`)
+            else if (state?.status === 'disabled') store().showToast("This build doesn't update itself")
+            else if (state?.status === 'error') store().showToast(state.error ?? "Couldn't check for updates")
+            // An available update shows its banner.
+          })
+          .catch((err) => console.error('checking for updates failed', err))
+      },
+      'analyse-collection': () => {
+        const waiting = store().tracks.filter(
+          (t) => t.cloudStatus === 'local' && (t.analysisStatus === 'pending' || t.analysisStatus === 'error')
+        ).length
+        if (waiting === 0) return store().showToast('Every local track is analysed')
+        if (!window.confirm(`Analyse ${waiting} track${waiting === 1 ? '' : 's'} now? It can take a while and can be stopped.`)) return
+        store().runAnalysis().catch((err) => console.error('analysing the collection failed', err))
+      },
+      'stop-analysis': () => void store().stopAnalysis(),
+      'play-pause': () => store().playbackControls?.toggle(),
+      'next-track': () => void store().advanceToNext(),
+      'shuffle-queue': () => store().shufflePlaylist(),
+      'clear-queue': () => store().clearPlaylist(),
+      'show-collection': closeScreens,
+      'show-queue': showScreen('queue'),
+      'show-fx': showScreen('fx'),
+      'show-live': showScreen('live'),
+      'show-visualizer': () => {
+        if (store().playlist.length === 0) return store().showToast('Play a track to open the visualizer')
+        store().setVisualizerOpen(true)
+      },
+      'toggle-sidebar': () => setLeftCollapsed(!leftCollapsedRef.current),
+      'new-playlist': inPlaylistsBox('new-playlist'),
+      'import-rekordbox': inPlaylistsBox('import-rekordbox'),
+      // The same file as Settings → Import & export → Export to Rekordbox.
+      'export-rekordbox': () => {
+        window.api
+          .exportRekordbox()
+          .then((result) => {
+            if (result) store().showToast(`Exported ${result.trackCount} tracks and ${result.playlistCount} playlists — in Rekordbox: Preferences → Advanced → Database → rekordbox xml`)
+          })
+          .catch((err) => store().showToast(`Export failed: ${err instanceof Error ? err.message : String(err)}`))
+      },
+      find: closeScreens,
+      'update-collection': closeScreens,
+    }
+    const unsubscribes = (Object.entries(handlers) as [MenuCommand, () => void][]).map(([command, handler]) => onMenuCommand(command, handler))
+    // A dialog that's open keeps the screen: nothing from the menu acts
+    // behind it (Settings and Stats swap with each other).
+    const offIpc = window.api.onMenuCommand((command) => {
+      if (store().modalOpen && command !== 'settings' && command !== 'stats') return
+      runMenuCommand(command)
+    })
+    return () => {
+      offIpc()
+      for (const off of unsubscribes) off()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // Shows a playlist in the table (the Playlists box, or one of the detail
+  // panel's): it replaces the folder or tag selection.
+  function openPlaylist(id: number): Promise<void> {
+    setSelectedFolder(null)
+    if (tagFilterLabel) setTagClearSignal((n) => n + 1)
+    clearCheckedTracks()
+    return selectPlaylist(id)
+  }
+  // From the detail panel: the playlist opens on the track it was opened
+  // from — still selected, and scrolled into view once its songs are in.
+  async function openPlaylistAtTrack(id: number, trackId: number) {
+    await openPlaylist(id)
+    requestAnimationFrame(() => setScrollToTrack({ trackId, nonce: Date.now() }))
+  }
 
   // Tags/Subtags' checkbox selection is local component state that resets
   // (visually) whenever that view unmounts on a switch — but the
@@ -615,15 +729,7 @@ export default function App() {
           </div>
           </div>
           {collectionFolder && !leftCollapsed && (
-            <PlaylistsBox
-              onSelectPlaylist={(id) => {
-                // A playlist replaces the folder or tag selection.
-                setSelectedFolder(null)
-                if (tagFilterLabel) setTagClearSignal((n) => n + 1)
-                clearCheckedTracks()
-                void selectPlaylist(id)
-              }}
-            />
+            <PlaylistsBox onSelectPlaylist={(id) => void openPlaylist(id)} />
           )}
         </div>
 
@@ -652,6 +758,10 @@ export default function App() {
             track={showDetails ? selectedTrack : null}
             onClose={() => setSelectedTrack(null)}
             onLocateInTable={(trackId) => setScrollToTrack({ trackId, nonce: Date.now() })}
+            onSelectPlaylist={(id) => {
+              if (selectedTrack) void openPlaylistAtTrack(id, selectedTrack.id)
+            }}
+            onSelectTrack={setSelectedTrack}
           />
         </div>
 

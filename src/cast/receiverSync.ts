@@ -84,6 +84,7 @@ export function initReceiverSync(): () => void {
       state.playlist !== previous.playlist ||
       state.tracks !== previous.tracks ||
       state.trackTags !== previous.trackTags ||
+      state.trackWaveforms !== previous.trackWaveforms ||
       state.genres !== previous.genres ||
       state.subgenres !== previous.subgenres ||
       state.keyNotation !== previous.keyNotation

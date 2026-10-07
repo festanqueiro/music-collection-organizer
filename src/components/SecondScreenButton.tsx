@@ -11,7 +11,7 @@ import { useCollectionStore } from '../state/store'
 import { ToggleSwitch } from './ToggleSwitch'
 import { VisualDelayControl } from './VisualDelayControl'
 import { contextMenuIconStyle, contextMenuItemStyle } from './contextMenuStyles'
-import { barButtonStyle } from './playerBarStyles'
+import { barIconButtonStyle } from './playerBarStyles'
 import type { ScreenTarget } from '../types'
 
 const POPOVER_WIDTH = 320
@@ -80,12 +80,12 @@ export function SecondScreenButton() {
         ref={buttonRef}
         onClick={toggleOpen}
         title={showingOn ? `Showing ${showingOn}` : 'Show the visualizer on another screen (Apple TV, projector, monitor)'}
-        style={barButtonStyle(open, target !== null)}
+        aria-label="Show on a screen"
+        style={barIconButtonStyle(open, target !== null)}
       >
         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
           {target !== null ? 'connected_tv' : 'tv'}
         </span>
-        Screen
       </button>
       {open && anchor && (
         <div

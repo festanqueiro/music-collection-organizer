@@ -141,6 +141,22 @@ describe('buildRekordboxXml', () => {
     expect(playlistCount).toBe(1)
   })
 
+  it("writes the beat grid only for tracks whose start the user set, before their cues", () => {
+    const t1 = insertTrack(db, '/music/1.mp3')
+    const t2 = insertTrack(db, '/music/2.mp3')
+    const t3 = insertTrack(db, '/music/3.mp3')
+    db.prepare('UPDATE tracks SET bpm = 140.004, grid_start = 1.2346 WHERE id = ?').run(t1)
+    db.prepare('UPDATE tracks SET bpm = 128, first_beat = 0.4 WHERE id = ?').run(t2)
+    // A start without a tempo is no grid.
+    db.prepare('UPDATE tracks SET grid_start = 2 WHERE id = ?').run(t3)
+    setHotCue(db, t1, 0, 12.5)
+    const { xml } = buildRekordboxXml(db, '1')
+    expect(xml).toMatch(/TrackID="1"[^>]*>\s*<TEMPO Inizio="1.235" Bpm="140.00" Metro="4\/4" Battito="1"\/>\s*<POSITION_MARK /)
+    expect(xml.match(/<TEMPO /g)).toHaveLength(1)
+    expect(xml).toMatch(/TrackID="2"[^>]*\/>/)
+    expect(xml).toMatch(/TrackID="3"[^>]*\/>/)
+  })
+
   it('writes cue points as POSITION_MARKs, hot cues with their colour, and reads back', () => {
     const t1 = insertTrack(db, '/music/1.mp3')
     insertTrack(db, '/music/2.mp3')
