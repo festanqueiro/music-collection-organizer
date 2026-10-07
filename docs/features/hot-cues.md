@@ -22,6 +22,9 @@ export.
   It is **0:00 until you move it** ([ADR 0060](../adr/0060-the-start-is-the-beginning-until-moved.md)).
   The bar counter in the player, the suggestions and the zoom's bar lines count from it and move
   with it.
+  - A moved start is also **where the track begins playing** when it is loaded (and where the
+    CUE button returns to until you place the cue point elsewhere). On a Cast device the track
+    still plays from 0:00.
   - There is no button for it. **Right-click the waveform**: *Set the start here* (where the
     pointer is), *Set it where the track is now*, *Set it on the detected first beat* (MCO
     offers that, never applies it on its own), and — once moved — *Put it back at 0:00*.

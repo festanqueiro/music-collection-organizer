@@ -19,6 +19,8 @@ it suggested anything.
 - The bar counter, the suggestions and the zoom's bar lines always count from it; no `~`, no
   unset state. There is no Start button: the waveform's right-click menu sets it, and its
   marker (like a hot cue's, labelled **0**) shows only once it has been moved.
+- A moved start is where the track begins playing when it is loaded in the player (the CUE
+  point starts there too). Cast receivers still play from 0:00.
 - The analysed first beat is only an offer (*Set it on the detected first beat*); it is never
   applied on its own.
 - **Export to Rekordbox** still writes a `TEMPO` only for tracks whose start was moved

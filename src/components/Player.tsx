@@ -325,6 +325,13 @@ export function Player({
     const audio = audioRef.current
     if (!audio) return
     effectsChainRef.current?.resume()
+    // A start the user moved is where the tune begins playing (ADR 0060),
+    // and where the CUE button returns to.
+    if (track.gridStart !== null && track.gridStart > 0) {
+      audio.currentTime = track.gridStart
+      cuePointRef.current = track.gridStart
+      setCuePoint(track.gridStart)
+    }
     audio.play().catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

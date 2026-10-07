@@ -38,7 +38,8 @@ installed copies update themselves.
   beat grid — and pad A is an ordinary hot cue again. It is 0:00 until you
   move it: right-click the waveform and choose **Set the start here** (or
   where the track is, or the detected first beat). A moved start shows as
-  a marker (**0**) like a hot cue's, which you can drag. The 8 / 16 / 32 / 48 / 64 suggestions and the
+  a marker (**0**) like a hot cue's, which you can drag, and the track
+  begins playing from it. The 8 / 16 / 32 / 48 / 64 suggestions and the
   bar counter count from it. **Export to Rekordbox** sends a start you
   moved as the track's beat grid.
 - **A tidier player bar**: Audio, Rec, Mic, Cast and Screen, and
