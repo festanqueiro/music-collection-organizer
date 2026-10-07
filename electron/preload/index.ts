@@ -28,6 +28,7 @@ import type {
   RecordingResult,
   ScreenDisplay,
   PlaylistNode,
+  MenuCommand,
   RekordboxImportPlan,
   RekordboxReport,
   RekordboxDuplicateAction,
@@ -91,6 +92,8 @@ const api = {
   stopAnalysis: (): Promise<void> => ipcRenderer.invoke('analysis:stop'),
   getTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getAll'),
   getMissingTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getMissing'),
+  setTrackGridStart: (trackId: number, start: number | null): Promise<Track | null> => ipcRenderer.invoke('tracks:setGridStart', trackId, start),
+  getTrackWaveform: (trackId: number): Promise<number[] | null> => ipcRenderer.invoke('tracks:getWaveform', trackId),
   getGenres: (): Promise<Genre[]> => ipcRenderer.invoke('tags:getGenres'),
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),
@@ -124,6 +127,7 @@ const api = {
   deletePlaylistNode: (id: number): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:delete', id),
   getPlaylistTrackIds: (playlistId: number): Promise<number[]> => ipcRenderer.invoke('playlists:getTrackIds', playlistId),
   getPlaylistNodeTrackIds: (id: number): Promise<number[]> => ipcRenderer.invoke('playlists:getNodeTrackIds', id),
+  getTrackPlaylistIds: (trackId: number): Promise<number[]> => ipcRenderer.invoke('playlists:forTrack', trackId),
   addTracksToPlaylist: (
     playlistId: number,
     trackIds: number[]
@@ -283,6 +287,13 @@ const api = {
   sendRecordingChunk: (pcm: Uint8Array): void => ipcRenderer.send('recording:chunk', pcm),
   stopRecording: (format: RecordingFormat): Promise<RecordingResult> => ipcRenderer.invoke('recording:stop', format),
   revealRecording: (path: string): Promise<void> => ipcRenderer.invoke('recording:reveal', path),
+  onMenuCommand: (cb: (command: MenuCommand) => void): (() => void) => {
+    const listener = (_e: unknown, command: MenuCommand) => cb(command)
+    ipcRenderer.on('menu:command', listener)
+    return () => {
+      ipcRenderer.removeListener('menu:command', listener)
+    }
+  },
   onRecordingFull: (cb: () => void): (() => void) => {
     const listener = () => cb()
     ipcRenderer.on('recording:full', listener)

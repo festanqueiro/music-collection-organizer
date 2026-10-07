@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-01
+updated: 2026-10-07
 adrs: []
 ---
 # DJ tools
@@ -35,6 +35,28 @@ chip above the table (× switches it off).
 Code: `src/state/harmonic.ts`, `src/components/TrackTable.tsx`. The
 tests in `src/state/harmonic.test.ts` check every key's position and
 compatible neighbours against Mixed In Key's official wheel.
+
+### Similar tracks
+
+The detail panel has a **Similar tracks** section for the selected track (playing or not):
+
+- **Key**: tracks in the same key, or a compatible one (the same rule as the Compatible filter).
+- **Tags**: tracks sharing a Tag or a Subtag with it.
+- Two switches in the section's header, **Key** and **Tags**, choose what counts (both on by
+  default, remembered); one is greyed out when the track has no key or no tags yet. A track is
+  listed when it matches on at least one of the two that are on.
+- Best first: 3 points per shared Subtag, 2 per shared Tag, 3 for the same key, 2 for a
+  compatible one, 1 for a tempo that mixes (within 6 %, or half/double time). Ties go to the
+  closer tempo, then the title.
+- Each row: title and artist (click to show that track's details), then the table row's
+  actions — **play now** (play/pause on the loaded track), **add to queue**, **pre-listen**
+  in the headphones, **add to playlist…** — and under it the key badge (coloured when it
+  mixes), the BPM (bright when the tempo mixes) and the tags it shares.
+- Eight rows, then **Show more**. The section collapses with the arrow by its name (remembered).
+
+How it works: `findSimilarTracks` (`src/state/similarTracks.ts`) is one pass over the tracks
+already in the store — no index, no database query — memoised on the selected track, the track
+list and the tags, and skipped while the section is collapsed. Only the rows shown are rendered.
 
 ## Headphone pre-listen (cue)
 
@@ -82,5 +104,7 @@ ways, is next: [Rekordbox sync](rekordbox-sync.md).
 Code: `electron/main/rekordboxExport.ts`.
 
 ## Tests
+- `similarTracks.test.ts`: key matches and nothing else, shared Tags/Subtags, the ranking and its
+  tempo tie-break, key-only / tags-only, a track with nothing to go on.
 - `src/state/harmonic.test.ts` (every key against Mixed In Key's wheel),
   `electron/main/rekordboxExport.test.ts`.

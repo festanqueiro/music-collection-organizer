@@ -17,6 +17,7 @@ export interface ReceiverQueueSource {
   genres: Genre[]
   subgenres: Subgenre[]
   trackTags: Map<number, TrackTagIds>
+  trackWaveforms: Map<number, number[]>
   playlist: number[]
   keyNotation: KeyNotation
 }
@@ -95,10 +96,11 @@ export function buildReceiverQueue(source: ReceiverQueueSource): Extract<Receive
 
   const queue = source.playlist.map((id) => byId.get(id)).filter((t): t is Track => !!t)
   const [current, ...rest] = queue
+  const currentPeaks = current ? source.trackWaveforms.get(current.id) : undefined
   return {
     type: 'queue',
     current: current ? info(current, null) : null,
-    waveform: current?.waveformPeaks ? downsamplePeaks(current.waveformPeaks, WAVEFORM_BARS) : null,
+    waveform: currentPeaks ? downsamplePeaks(currentPeaks, WAVEFORM_BARS) : null,
     upNext: rest.slice(0, UP_NEXT_COUNT).map((track, i) => info(track, queue[i])),
     queuedCount: rest.length,
     queuedDuration: rest.reduce((sum, t) => sum + (t.duration ?? 0), 0),

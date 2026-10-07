@@ -5,7 +5,7 @@ import { castingToAScreen, isCastActive, startCasting, stopCasting } from '../ca
 import { TV_VISUALIZERS, type CastScreen } from '../cast/tvVisualizers'
 import { ToggleSwitch } from './ToggleSwitch'
 import { contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
-import { barButtonStyle } from './playerBarStyles'
+import { barIconButtonStyle } from './playerBarStyles'
 
 const POPOVER_WIDTH = 300
 
@@ -86,13 +86,13 @@ export function CastButton() {
         ref={buttonRef}
         onClick={toggleOpen}
         title={active ? (statusText ?? 'Casting') : recording ? 'Stop recording to cast' : 'Cast to a TV or speaker'}
+        aria-label="Cast"
         // Looks off while recording, but still clicks, to say why.
-        style={{ ...barButtonStyle(open, status.state === 'casting'), ...(recording && !active ? { opacity: 0.45 } : {}) }}
+        style={{ ...barIconButtonStyle(open, status.state === 'casting'), ...(recording && !active ? { opacity: 0.45 } : {}) }}
       >
         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
           {active ? 'cast_connected' : 'cast'}
         </span>
-        Cast
       </button>
       {open && anchor && (
         <div

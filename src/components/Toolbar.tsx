@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import logo from '../../resources/icon.png'
 import { baseName, isInFolder } from '../paths'
+import { onMenuCommand } from '../menuCommands'
 
 // One row, everything the same height: brand on the left, search in the
 // middle, then the collection folder, Update Collection, Stats and Settings.
@@ -24,6 +25,22 @@ export function Toolbar({ onOpenSettings, onOpenStats }: { onOpenSettings: () =>
     (s) => s.missingTracks.filter((t) => collectionFolder && isInFolder(t.path, collectionFolder)).length
   )
   const folderName = collectionFolder ? baseName(collectionFolder) : collectionFolder
+  // Edit → Find and File → Update Collection… in the menu bar.
+  const searchRef = useRef<HTMLInputElement>(null)
+  const canScan = !!collectionFolder && !scanning
+  useEffect(() => {
+    const offFind = onMenuCommand('find', () => {
+      searchRef.current?.focus()
+      searchRef.current?.select()
+    })
+    const offScan = onMenuCommand('update-collection', () => {
+      if (canScan) setConfirmingScan(true)
+    })
+    return () => {
+      offFind()
+      offScan()
+    }
+  }, [canScan])
 
   return (
     <div
@@ -72,6 +89,7 @@ export function Toolbar({ onOpenSettings, onOpenStats }: { onOpenSettings: () =>
             search
           </span>
           <input
+            ref={searchRef}
             type="text"
             placeholder="Search title, artist, album, tags..."
             value={searchText}

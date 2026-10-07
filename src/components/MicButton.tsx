@@ -8,7 +8,7 @@ import { useCollectionStore } from '../state/store'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import { ToggleSwitch } from './ToggleSwitch'
 import { HoldButton, LevelMeter, useInputDevices } from './MicWidgets'
-import { barButtonStyle } from './playerBarStyles'
+import { barIconButtonStyle } from './playerBarStyles'
 
 const POPOVER_WIDTH = 320
 
@@ -60,13 +60,13 @@ export function MicButton() {
         ref={buttonRef}
         onClick={toggleOpen}
         title={title}
+        aria-label="Microphone"
         // Lit while the mic is live; on but muted shows the muted icon.
-        style={barButtonStyle(open, mic.enabled && live)}
+        style={barIconButtonStyle(open, mic.enabled && live)}
       >
         <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
           {mic.enabled && !live ? 'mic_off' : 'mic'}
         </span>
-        Mic
       </button>
       {open && anchor && (
         <div

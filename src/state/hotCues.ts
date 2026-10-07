@@ -40,17 +40,33 @@ export function rgbToHex(rgb: [number, number, number]): string {
   return '#' + rgb.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('')
 }
 
-// Suggested hot cues: every 16 bars from the first beat (bars 16, 32, 48,
-// 64 — where phrases change in most dance music), at 4 beats a bar. The
-// first beat comes from analysis; for a track analysed before that existed,
-// it's where the waveform first gets loud (approximate until re-analysed).
-export const SUGGESTED_CUE_BARS = [16, 32, 48, 64]
+// The start of the tune is bar 0 of the beat grid: a setting of the track
+// (Track.gridStart, ADR 0059), not a cue. It is 0:00 until the user moves
+// it (ADR 0060) — MCO never guesses it, though it offers where analysis
+// found the first beat (or, for a track analysed before that was kept,
+// where the waveform first gets loud). The suggestions are every 16 bars
+// from it, and bar 8 for a short intro (8, 16, 32, 48, 64 — where phrases
+// change in most dance music): "16"
+// is where the 17th bar begins, 16 × 4 × 60 / BPM seconds after the start.
+// They move with it.
+export const SUGGESTED_CUE_BARS = [8, 16, 32, 48, 64]
+
+// The start marker's colour and its "slot" while it's dragged like a cue.
+export const START_COLOR = '#9aa3b2'
+export const START_SLOT = -1
 
 export interface SuggestedCue {
   bar: number
   time: number
   // The hot cue already there (within half a beat), if any.
   slot: number | null
+}
+
+export interface GridSource {
+  bpm: number | null
+  firstBeat: number | null
+  gridStart: number | null
+  waveformPeaks: number[] | null
 }
 
 export function firstSoundTime(peaks: number[] | null, duration: number): number {
@@ -61,14 +77,15 @@ export function firstSoundTime(peaks: number[] | null, duration: number): number
   return (Math.max(0, i) / peaks.length) * duration
 }
 
-export function suggestedCues(
-  track: { bpm: number | null; firstBeat: number | null; waveformPeaks: number[] | null },
-  duration: number,
-  cues: TrackCue[]
-): SuggestedCue[] {
+// Where the tune seems to start — offered, never applied on its own.
+export function detectedStart(track: Pick<GridSource, 'firstBeat' | 'waveformPeaks'>, duration: number): number {
+  return Math.round((track.firstBeat ?? firstSoundTime(track.waveformPeaks, duration)) * 1000) / 1000
+}
+
+export function suggestedCues(track: GridSource, duration: number, cues: TrackCue[]): SuggestedCue[] {
   if (!track.bpm || !(track.bpm > 0) || !(duration > 0)) return []
   const beat = 60 / track.bpm
-  const start = gridStart(track, duration)
+  const start = gridStart(track)
   const hot = cues.filter((c) => c.kind === 'hot')
   return SUGGESTED_CUE_BARS.map((bar) => Math.round((start + bar * 4 * beat) * 1000) / 1000)
     .map((time, i) => ({
@@ -85,9 +102,10 @@ export function firstEmptySlot(cues: TrackCue[]): number | null {
   return i < 0 ? null : i
 }
 
-// Where the beat grid starts: the analysed first beat, or the waveform guess.
-export function gridStart(track: { firstBeat: number | null; waveformPeaks: number[] | null }, duration: number): number {
-  return track.firstBeat ?? firstSoundTime(track.waveformPeaks, duration)
+// Where the beat grid starts (bar 0): where the user put the start, else
+// the very beginning of the file.
+export function gridStart(track: Pick<GridSource, 'gridStart'>): number {
+  return track.gridStart ?? 0
 }
 
 // Where `time` is on the grid, counted like the suggestions: whole bars
@@ -97,6 +115,17 @@ export function gridPosition(time: number, bpm: number, start: number): { bars: 
   const beatsIn = Math.floor((time - start) / (60 / bpm) + 1e-6)
   const bars = Math.floor(beatsIn / 4)
   return { bars, beats: beatsIn - bars * 4 }
+}
+
+// The player's bar counter: whole bars since the start (bar 0 — so it
+// reads 16 at the "16" suggestion), the beat in the bar (0–3), and how far
+// through the current 16-bar phrase the track is (0–1). Null before the
+// start or without a tempo.
+export const PHRASE_BARS = 16
+export function barCounter(time: number, bpm: number | null, start: number): { bar: number; beat: number; phrase: number } | null {
+  if (!bpm || !(bpm > 0) || time < start) return null
+  const { bars, beats } = gridPosition(time, bpm, start)
+  return { bar: bars, beat: beats, phrase: ((bars % PHRASE_BARS) * 4 + beats) / (PHRASE_BARS * 4) }
 }
 
 // The nearest beat to `time`.

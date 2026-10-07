@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-01
+updated: 2026-10-07
 adrs: [0050]
 ---
 # Playlists
@@ -26,6 +26,19 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
 - Empty state: "No playlists yet" with *New playlist* and *Import from Rekordbox…* links.
 - When the sidebar is collapsed to its icon strip, a playlist icon under the view icons
   reopens the sidebar with the box expanded.
+
+### In the track details
+- The detail panel has a **Playlists** section listing every playlist the selected track is
+  in, in the box's order — the name in full (wrapping if long), its folders small and dimmed
+  underneath (`Folder / Sub`, cut with … if long) — and the count in the heading. *Not in any playlist* when there are none.
+- A click opens that playlist in the table, as a click in the box does (it replaces the folder
+  or tag selection), **on that track**: it stays selected and the table scrolls to bring it to
+  the middle (also when the playlist was already open). The one being viewed is in the accent
+  colour.
+- It follows changes at once: adding the track to a playlist, removing it, deleting or
+  renaming a playlist. Read per track when it's selected (`playlists:forTrack`) and again
+  whenever the playlist tree in the store is replaced — nothing is loaded for the whole
+  collection.
 
 ### Viewing a playlist
 - Clicking a playlist selects it: the table shows its songs **in playlist order** (a `#` column
@@ -178,6 +191,7 @@ the m3u8 export and songs found at a different path.
    MCO's Rekordbox XML export. Built in #99. ⌥ to add a duplicate was dropped (see Limits). (S–M)
 
 ## Tests
+- `playlists.test.ts`, a track's playlists: several, one, none, and after a removal.
 - `rekordboxExport.test.ts`: the MCO Playlists folder — nesting, order, empty folders, missing
   songs and Rekordbox imports left out.
 - `rekordboxXml.test.ts`: folders/playlists tree, both KeyTypes, URL-decoding of `Location`

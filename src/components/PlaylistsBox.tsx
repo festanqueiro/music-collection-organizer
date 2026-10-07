@@ -4,10 +4,11 @@
 // Folders/Tags/Subtags/Filters views, whichever is open. A tree of folders
 // and playlists; click a playlist to show its songs in the table, drop
 // rows on one to add them, right-click to play, rename or delete.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
+import { onMenuCommand, runMenuCommand } from '../menuCommands'
 import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportPlan } from '../types'
 import { baseName } from '../paths'
 
@@ -190,6 +191,20 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     setLayout((l) => ({ ...l, collapsed: false }))
     setEditing({ kind: 'create', nodeKind, parentId })
   }
+
+  // File → New Playlist / Import Playlists from Rekordbox… in the menu bar.
+  const startCreateRef = useRef(startCreate)
+  startCreateRef.current = startCreate
+  const pickImportRef = useRef(pickImport)
+  pickImportRef.current = pickImport
+  useEffect(() => {
+    const offNew = onMenuCommand('new-playlist', () => startCreateRef.current('playlist', null))
+    const offImport = onMenuCommand('import-rekordbox', () => void pickImportRef.current())
+    return () => {
+      offNew()
+      offImport()
+    }
+  }, [])
 
   // Enter and the blur that follows both commit; only the first counts.
   const editingRef = useRef<Editing | null>(null)
@@ -419,7 +434,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
             const rect = e.currentTarget.getBoundingClientRect()
             setMenu({ x: rect.left, y: rect.bottom + 4, node: null })
           }}
-          title="New playlist or folder"
+          title="New playlist or folder, Rekordbox import and export"
           aria-label="New playlist or folder"
           style={{ display: 'flex', background: 'none', border: 'none', padding: '2px', color: 'var(--color-text-dim)' }}
         >
@@ -474,7 +489,8 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
             <>
               {menuItem('queue_music', 'New playlist', () => startCreate('playlist', null))}
               {menuItem('create_new_folder', 'New folder', () => startCreate('folder', null))}
-              {menuItem('download', 'Import from Rekordbox…', () => void pickImport())}
+              {menuItem('download', 'Import from Rekordbox (xml, m3u8)…', () => void pickImport())}
+              {menuItem('ios_share', 'Export collection to Rekordbox (xml)…', () => runMenuCommand('export-rekordbox'))}
             </>
           ) : menu.node.kind === 'playlist' ? (
             <>
@@ -777,6 +793,17 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
   const createNode = useCollectionStore((s) => s.createPlaylistNode)
   const showToast = useCollectionStore((s) => s.showToast)
   const [naming, setNaming] = useState(false)
+  // Opens at the pointer, then moves back inside the window if it would
+  // run off the right or bottom edge (the detail panel is at the edge).
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ left: x, top: y })
+  useLayoutEffect(() => {
+    const rect = menuRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const left = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))
+    const top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))
+    setPosition((current) => (current.left === left && current.top === top ? current : { left, top }))
+  }, [x, y, naming])
 
   useEffect(() => {
     const close = () => onClose()
@@ -816,8 +843,9 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
 
   return (
     <div
+      ref={menuRef}
       onClick={(e) => e.stopPropagation()}
-      style={{ ...contextMenuStyle, top: y, left: x, maxHeight: '60vh', overflowY: 'auto', minWidth: '200px' }}
+      style={{ ...contextMenuStyle, ...position, maxHeight: '60vh', overflowY: 'auto', minWidth: '200px' }}
     >
       <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
         Add {songs(trackIds.length)} to…

@@ -7,7 +7,7 @@ import { Knob } from './Knob'
 import { isCastActive } from '../cast/castSession'
 import { getActiveRecorder, startRecording, stopRecording } from '../audio/recordingSession'
 import { formatDuration } from '../format'
-import { barButtonStyle } from './playerBarStyles'
+import { barButtonStyle, barIconButtonStyle } from './playerBarStyles'
 import type { RecordingFormat } from '../types'
 import { baseName } from '../paths'
 
@@ -200,9 +200,10 @@ export function RecordButton() {
         ref={buttonRef}
         onClick={toggleOpen}
         title={recording ? 'Recording — open to stop' : casting ? 'Stop casting to record' : 'Record what MCO plays to a file'}
+        aria-label="Record"
         style={{
-          ...barButtonStyle(open),
-          ...(recording ? { color: 'var(--color-error)', borderColor: 'var(--color-error)' } : {}),
+          ...barIconButtonStyle(open),
+          ...(recording ? { color: 'var(--color-error)' } : {}),
           ...(casting && !recording ? { opacity: 0.45 } : {}),
         }}
       >
@@ -212,7 +213,8 @@ export function RecordButton() {
         >
           {recording ? 'radio_button_checked' : 'fiber_manual_record'}
         </span>
-        {recording ? <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatDuration(Math.floor(stats.seconds))}</span> : 'Rec'}
+        {/* The running time is the one thing worth reading at a glance. */}
+        {recording && <span style={{ fontVariantNumeric: 'tabular-nums' }}>{formatDuration(Math.floor(stats.seconds))}</span>}
       </button>
       {open && anchor && (
         <div

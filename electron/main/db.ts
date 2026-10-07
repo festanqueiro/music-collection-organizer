@@ -173,6 +173,11 @@ function migrate(db: AppDatabase): void {
   if (!trackColumnNames.has('first_beat')) {
     db.exec('ALTER TABLE tracks ADD COLUMN first_beat REAL')
   }
+  // The start of the tune (seconds), set by the user: bar 0 of the beat
+  // grid (ADR 0059). Null until set; analysis never touches it.
+  if (!trackColumnNames.has('grid_start')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN grid_start REAL')
+  }
   // Why the last analysis failed (analysis/errorMessage.ts); null otherwise.
   if (!trackColumnNames.has('analysis_error')) {
     db.exec('ALTER TABLE tracks ADD COLUMN analysis_error TEXT')

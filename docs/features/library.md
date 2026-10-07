@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-01
+updated: 2026-10-08
 adrs: [0004, 0005, 0006, 0009, 0024, 0027, 0030, 0031]
 ---
 # Library
@@ -135,8 +135,16 @@ steps aside, and right-clicking a checked row acts on the whole selection in tab
 to queue**, **Add all to top of the queue**, **Analyse all**, **Clear selection**.
 
 ### Track details
-Cover art, analysis, your tags, **Full ID3 tags** (editable — [ID3 tags](id3-tags.md)), and at the
-bottom the file's **full path** with **Copy path**, **Show in Finder** (*Show in File Explorer* on
+Six sections, each with a header that opens and closes it (click anywhere on the header); which
+ones are closed is remembered between sessions (per section, in `localStorage` under
+`detailSection.<id>`; all start open):
+
+1. **Cover** — the cover embedded in the file.
+2. **ID3 tags** — the file's tags (editable — [ID3 tags](id3-tags.md)).
+3. **Tags** — your Tags and Subtags ([Tags](tags.md)); the header shows how many the track has.
+4. **Playlists** — the playlists the track is in ([Playlists](playlists.md)).
+5. **Similar tracks** — [DJ tools](dj-tools.md#similar-tracks); not ranked while closed.
+6. **File** — the file's **full path** with **Copy path**, **Show in Finder** (*Show in File Explorer* on
 Windows, as in the row menu and after a recording) and **Delete** (moves the file to
 the Trash after a confirmation; restoring it brings the track back with its tags —
 [ADR 0031](../adr/0031-delete-moves-to-trash.md)).
@@ -158,6 +166,10 @@ Drag rows straight to Finder, a DAW or any app — a normal file drag of the ori
   `src/App.tsx` (sidebar); `src/state/folderTree.ts`.
 - Delete: `tracks:trash` in `electron/main/ipc.ts` (`shell.trashItem`, row `present = 0`).
 - Drag-out: `tracks:startDrag`, `electron/main/dragIcon.ts`.
+
+- Analysis interrupted by quitting: tracks still marked `analyzing` at startup go back to
+  `pending` (`resetInterruptedAnalysis`, `analysis/queue.ts`), so they lose their spinner and the
+  next *Analyse Collection* includes them.
 
 ## Tests
 - `scan.test.ts`, `scanDiff.test.ts`, `folderWalk.test.ts`, `folderWatcher.test.ts`,

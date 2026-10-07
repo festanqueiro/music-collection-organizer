@@ -60,6 +60,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [Home](features/home.md) (planned) ·
 [Hot cues](features/hot-cues.md) (A–H, with Rekordbox) ·
 [Website](features/website.md) (the marketing page, captured from the app) ·
+[Menu bar](features/menu-bar.md) ·
 [Settings & data](features/settings-and-data.md) (data location, backups, external-disk backup, updates) ·
 [Releases & updates](features/releases-and-updates.md)
 
@@ -123,6 +124,9 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0055](adr/0055-cue-points-in-mco-kept-rekordbox-compatible.md) | Cue points live in MCO's database, shaped like Rekordbox's | accepted |
 | [0056](adr/0056-website-clips-recorded-on-a-mac-too.md) | Record the website's clips on a Mac too, with Playwright's video | accepted |
 | [0057](adr/0057-one-pages-deploy-for-website-and-receiver.md) | Deploy the website and the Cast receiver to Pages together | accepted |
+| [0058](adr/0058-waveforms-read-per-track.md) | Read waveforms per track, not with the track list | accepted |
+| [0059](adr/0059-the-start-of-the-tune-is-its-own-setting.md) | The start of the tune is its own setting, exported as Rekordbox's grid | accepted |
+| [0060](adr/0060-the-start-is-the-beginning-until-moved.md) | The start of the tune is 0:00 until the user moves it | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |
@@ -140,4 +144,13 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | S (hold) | anywhere | Fire the Dub Siren (when it's on and Beat is Off) |
 | T | anywhere (mic on) | Talk: tap to mute/unmute the mic, hold while muted to talk |
 | Esc | visualizer, dialogs, tag editor | Close / cancel |
+| ⌘, | menu bar | Settings |
+| ⌘F | menu bar | Find (the search box) |
+| ⌘N | menu bar | New playlist |
+| ⌘U | menu bar | Update Collection |
+| ⌘1 – ⌘4 | menu bar | Collection / Queue / FX / Live |
+| ⇧⌘V | menu bar | Visualizer |
+| ⌘I | menu bar | Stats |
+| ⌘B | menu bar | Show / hide the sidebar |
+| ⌥⌘→ | menu bar | Next track |
 | 1–8 | visualizer | Switch theme |

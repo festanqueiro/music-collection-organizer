@@ -6,14 +6,14 @@
 // the time, the bar and beat, and how far it has moved.
 import { useEffect, useRef, useState } from 'react'
 import type { TrackCue, WaveformSection } from '../types'
-import { HOT_CUE_LETTERS, SUGGESTED_CUE_BARS, cueColor, gridPosition } from '../state/hotCues'
+import { HOT_CUE_LETTERS, START_COLOR, START_SLOT, SUGGESTED_CUE_BARS, cueColor, gridPosition } from '../state/hotCues'
 import { formatDuration } from '../format'
 
 // How much is fetched around the cue at a time; refetched when the view
 // gets near the edge of what's there.
 const FETCH_SPAN = 80
 
-const preciseTime = (s: number) => `${formatDuration(s)}.${String(Math.floor((Math.max(0, s) % 1) * 1000)).padStart(3, '0')}`
+const preciseTime = (s: number) => `${formatDuration(Math.floor(Math.max(0, s)))}.${String(Math.floor((Math.max(0, s) % 1) * 1000)).padStart(3, '0')}`
 
 // Seconds the zoom shows: four bars either side, or 12 s without a BPM.
 export function zoomSpan(bpm: number | null): number {
@@ -48,7 +48,9 @@ export function CueZoom({
   const [section, setSection] = useState<WaveformSection | null>(null)
   const loading = useRef<number | null>(null)
   const span = zoomSpan(bpm)
-  const color = cueColor({ color: cues.find((c) => c.kind === 'hot' && c.slot === slot)?.color ?? null, slot })
+  // slot START_SLOT: the start of the tune is being dragged, not a hot cue.
+  const isStart = slot === START_SLOT
+  const color = isStart ? START_COLOR : cueColor({ color: cues.find((c) => c.kind === 'hot' && c.slot === slot)?.color ?? null, slot })
 
   // Fetch the section around the cue; again when the view nears its edge.
   useEffect(() => {
@@ -168,8 +170,8 @@ export function CueZoom({
     ctx.textBaseline = 'top'
     ctx.fillRect(cx - 1, top - 2, 13, 13)
     ctx.fillStyle = '#0d0f12'
-    ctx.fillText(HOT_CUE_LETTERS[slot], cx + 2, top)
-  }, [section, time, origin, span, bpm, start, cues, slot, color, duration])
+    ctx.fillText(isStart ? '0' : HOT_CUE_LETTERS[slot], cx + 2, top)
+  }, [section, time, origin, span, bpm, start, cues, slot, color, duration, isStart])
 
   const moved = time - origin
   const pos = bpm && bpm > 0 ? gridPosition(time, bpm, start) : null
@@ -190,9 +192,9 @@ export function CueZoom({
       }}
     >
       <div style={{ display: 'flex', gap: '14px', alignItems: 'baseline', fontSize: '12px', marginBottom: '4px', fontVariantNumeric: 'tabular-nums' }}>
-        <span style={{ fontWeight: 700, color }}>Hot cue {HOT_CUE_LETTERS[slot]}</span>
+        <span style={{ fontWeight: 700, color }}>{isStart ? 'Start — bar 0' : `Hot cue ${HOT_CUE_LETTERS[slot]}`}</span>
         <span>{preciseTime(time)}</span>
-        {pos && (
+        {pos && !isStart && (
           <span>
             bar <b>{pos.bars}</b>
             {pos.beats > 0 ? ` + ${pos.beats} beat${pos.beats === 1 ? '' : 's'}` : ''}
@@ -204,7 +206,9 @@ export function CueZoom({
           {preciseTime(origin)}
         </span>
         <span style={{ marginLeft: 'auto', color: 'var(--color-text-dim)', fontSize: '11px' }}>
-          {fine ? <b>Fine</b> : 'Hold ⌥ for fine'} · {snapping ? <b>Snapped to beat</b> : 'Shift snaps to beat'} · Esc cancels
+          {fine ? <b>Fine</b> : 'Hold ⌥ for fine'}
+          {/* The start has no beat to snap to: the beats are counted from it. */}
+          {!isStart && <> · {snapping ? <b>Snapped to beat</b> : 'Shift snaps to beat'}</>} · Esc cancels
         </span>
       </div>
       <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '96px' }} />

@@ -9,7 +9,7 @@ updated: 2026-09-26
 - **Tags / Subtags** — MCO's own two-level labels (genres and sub-genres in the code). Stored in the
   database, not in files. A subtag belongs to one tag.
 - **ID3 tags / file tags** — the tags inside the audio file (title, artist, album, genre, year),
-  shown under "Full ID3 tags" and editable there.
+  shown under "ID3 tags" and editable there.
 - **Genre (ID3)** — the file's own genre text; distinct from MCO's Tags.
 - **Missing ID3 Metadata** — a track whose file has no artist or no title in its own tags (called
   "Untagged" before 2026-09-27).
