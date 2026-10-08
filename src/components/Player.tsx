@@ -14,11 +14,12 @@ import type { Track } from '../types'
 import { PlayerScreenButtons } from './PlayerScreenButtons'
 import { HotCuePads, CueMarkers } from './HotCuePads'
 import { BarCounter } from './BarCounter'
-import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
+import { contextMenuIconStyle, contextMenuItemStyle } from './contextMenuStyles'
 
 const preciseTime = (s: number) => `${formatDuration(Math.floor(s))}.${String(Math.floor((s % 1) * 10))}`
 import { START_SLOT, detectedStart, gridStart, hotCueSlots, suggestedCues } from '../state/hotCues'
 import { PlayerWaveform } from './PlayerWaveform'
+import { ContextMenu } from './ContextMenu'
 
 const NO_CUES: never[] = []
 
@@ -688,7 +689,7 @@ export function Player({
           style={{ flex: 1, minWidth: 0, position: 'relative' }}
         >
           {startMenu && (
-            <div onClick={(e) => e.stopPropagation()} style={{ ...contextMenuStyle, left: startMenu.x, top: startMenu.y - 8, transform: 'translateY(-100%)', minWidth: '240px' }}>
+            <ContextMenu x={startMenu.x} y={startMenu.y} above onClose={() => setStartMenu(null)} style={{ minWidth: '240px' }}>
               <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
                 Start of the tune — bar 0 · {track.gridStart === null ? '0:00 (the beginning)' : preciseTime(track.gridStart)}
               </div>
@@ -714,7 +715,7 @@ export function Player({
                   {label}
                 </button>
               ))}
-            </div>
+            </ContextMenu>
           )}
           <CueMarkers
             cues={cues}

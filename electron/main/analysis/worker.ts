@@ -2,6 +2,18 @@ import { parentPort } from 'node:worker_threads'
 import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
 import { describeAnalysisError } from './errorMessage'
+import { decodeToPcm } from './decode'
+import { refineBpm } from './tempoRefine'
+
+// A tempo to sharpen on the audio near `target` (Refine BPM): the same
+// decode and measurement the analysis does, without the rest of it.
+export interface TempoTask {
+  kind: 'tempo'
+  id: number
+  path: string
+  cacheDir: string
+  target: number
+}
 
 export interface WorkerTask {
   id: number
@@ -19,12 +31,26 @@ export type WorkerResult =
   | { id: number; status: 'error'; message: string }
   // Part-way through a track (see runAnalysisPipeline's onStep).
   | { id: number; status: 'progress'; fraction: number }
+  // A TempoTask's answer: null when the audio says nothing clear.
+  | { id: number; status: 'tempo'; bpm: number | null }
 
 if (!parentPort) {
   throw new Error('analysis worker must be run inside a worker_threads Worker')
 }
 
-parentPort.on('message', async (task: WorkerTask) => {
+parentPort.on('message', async (task: WorkerTask | TempoTask) => {
+  if ('kind' in task) {
+    let bpm: number | null = null
+    try {
+      const pcm = await decodeToPcm(await getPlayableFilePath(task.path, task.cacheDir))
+      const refined = refineBpm(pcm, task.target, 44100, false)
+      bpm = refined === task.target ? null : refined
+    } catch (err) {
+      console.error('measuring the tempo failed', task.path, err)
+    }
+    parentPort!.postMessage({ id: task.id, status: 'tempo', bpm } satisfies WorkerResult)
+    return
+  }
   try {
     const playablePath = await getPlayableFilePath(task.path, task.cacheDir)
     const result = await runAnalysisPipeline(playablePath, task.path, (fraction) =>

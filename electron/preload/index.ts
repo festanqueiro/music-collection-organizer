@@ -103,6 +103,13 @@ const api = {
   getMissingTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getMissing'),
   changeTracksBpm: (trackIds: number[], change: BpmChange): Promise<{ tracks: Track[]; skipped: { trackId: number; reason: string }[] }> =>
     ipcRenderer.invoke('tracks:changeBpm', trackIds, change),
+  onBpmProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
+    const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
+    ipcRenderer.on('tracks:bpmProgress', listener)
+    return () => {
+      ipcRenderer.removeListener('tracks:bpmProgress', listener)
+    }
+  },
   setTrackGridStart: (trackId: number, start: number | null): Promise<Track | null> => ipcRenderer.invoke('tracks:setGridStart', trackId, start),
   getTrackWaveform: (trackId: number): Promise<number[] | null> => ipcRenderer.invoke('tracks:getWaveform', trackId),
   // The waveform in bass, mids and highs, for the coloured styles.

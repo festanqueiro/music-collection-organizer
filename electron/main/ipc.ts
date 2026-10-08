@@ -6,7 +6,6 @@ import { showOpenDialog, showSaveDialog } from './ipcDialogs'
 import { changeTrackBpm } from './bpmEdit'
 import { decodeToPcm } from './analysis/decode'
 import { computeWaveformBands, type WaveformBands } from './analysis/waveform'
-import { refineBpm } from './analysis/tempoRefine'
 import { registerTagIpc } from './ipcTags'
 import { registerPlaylistIpc } from './ipcPlaylists'
 import { registerConvertIpc } from './ipcConvert'
@@ -54,7 +53,7 @@ import { migrateDataFolder } from './dataMigration'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { getDragIcon } from './dragIcon'
-import { runAnalysisQueue } from './analysis/queue'
+import { createTempoMeasurer, runAnalysisQueue } from './analysis/queue'
 import { extractArtwork } from './analysis/metadata'
 import { writeTags, supportsTagEditing, TagWriteError } from './tagWriter'
 import { TagReader, readFileTags, saveFileTags } from './tagReader'
@@ -758,17 +757,20 @@ export function registerIpcHandlers(
   ipcMain.handle(
     'tracks:changeBpm',
     async (_e, trackIds: number[], change: BpmChange): Promise<{ tracks: Track[]; skipped: { trackId: number; reason: string }[] }> => {
-      const measure = async (path: string, target: number): Promise<number | null> => {
-        const pcm = await decodeToPcm(await getPlayableFilePath(path, getMediaCacheDir()))
-        const refined = refineBpm(pcm, target, 44100, false)
-        return refined === target ? null : refined
-      }
+      // Only a multiplied tempo is measured on the audio — in a worker, so a
+      // batch doesn't freeze the window — and the renderer is told how far it is.
+      const measurer = change.kind === 'factor' ? createTempoMeasurer(getMediaCacheDir()) : null
       const skipped: { trackId: number; reason: string }[] = []
       const changed: number[] = []
-      for (const trackId of trackIds) {
-        const result = await changeTrackBpm(db, trackId, change, measure)
-        if (result.ok) changed.push(trackId)
-        else skipped.push({ trackId, reason: result.reason })
+      try {
+        for (const [index, trackId] of trackIds.entries()) {
+          if (measurer && trackIds.length > 1) sendToRenderer('tracks:bpmProgress', { done: index, total: trackIds.length })
+          const result = await changeTrackBpm(db, trackId, change, measurer ? measurer.measure : async () => null)
+          if (result.ok) changed.push(trackId)
+          else skipped.push({ trackId, reason: result.reason })
+        }
+      } finally {
+        measurer?.close()
       }
       const tracks = changed
         .map((id) => db.prepare(`SELECT ${trackListColumns} FROM tracks WHERE id = ?`).get(id) as unknown as TrackRow | undefined)

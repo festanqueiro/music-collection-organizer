@@ -51,7 +51,7 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
   )
 
   return (
-    <ContextMenu x={x} y={y} style={{ maxHeight: '60vh', minWidth: '200px' }}>
+    <ContextMenu x={x} y={y} onClose={onClose} style={{ maxHeight: '60vh', minWidth: '200px' }}>
       <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
         Add {songs(trackIds.length)} to…
       </div>

@@ -17,6 +17,7 @@ import { RefineBpmMenu } from './RefineBpmMenu'
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 import { tracksById } from '../state/tracksById'
 import { ContextMenu } from './ContextMenu'
+import { writeStored } from '../state/stored'
 
 type SortKey = TrackTableColumnKey
 
@@ -269,12 +270,7 @@ export function TrackTable({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
       setColumnWidths((prev) => {
-        try {
-          localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
-        } catch {
-          // Best-effort persistence — losing a resize on a full/blocked
-          // localStorage isn't worth surfacing to the user.
-        }
+        writeStored(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
         return prev
       })
     }
@@ -1165,7 +1161,7 @@ export function TrackTable({
           </tbody>
         </table>
         {columnsMenu && (
-          <ContextMenu x={columnsMenu.x} y={columnsMenu.y}>
+          <ContextMenu x={columnsMenu.x} y={columnsMenu.y} onClose={() => setColumnsMenu(null)}>
             <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>Columns</div>
             {columnOrder.map((key) => (
               <label key={key} style={{ ...contextMenuItemStyle, cursor: key === 'title' ? 'default' : 'pointer' }}>
@@ -1181,7 +1177,7 @@ export function TrackTable({
           </ContextMenu>
         )}
         {contextMenu && (
-          <ContextMenu x={contextMenu.x} y={contextMenu.y}>
+          <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
             {menuOnMissing && selectedPlaylistId !== null ? (
               // A song whose file is gone: all it can do is leave the playlist.
               <button

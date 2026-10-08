@@ -286,7 +286,7 @@ export function PlaylistView({ embedded = false }: { embedded?: boolean } = {}) 
       </div>
 
       {contextMenu && (
-        <ContextMenu x={contextMenu.x} y={contextMenu.y}>
+        <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
           {/* Neither applies to the entry that's already playing. */}
           {contextMenu.index > 0 && (
             <>

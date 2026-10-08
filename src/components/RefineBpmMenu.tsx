@@ -47,7 +47,7 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
   )
 
   return (
-    <ContextMenu x={x} y={y} style={{ minWidth: '220px' }}>
+    <ContextMenu x={x} y={y} onClose={onClose} style={{ minWidth: '220px' }}>
       <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
         {single ? `BPM ${bpm ? show(bpm) : '—'}${single.bpmEdited ? ' · set by you' : ''}` : `BPM of ${trackIds.length} tracks`}
       </div>

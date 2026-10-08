@@ -356,6 +356,13 @@ export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[], size
   return plan
 }
 
+// Songs found at another path that the user confirmed are collection
+// songs: remembered, so trackMatcher finds them by that path from now on.
+export function rememberPathAliases(db: AppDatabase, relinks: { from: string; trackId: number }[]): void {
+  const remember = db.prepare('INSERT OR REPLACE INTO playlist_path_aliases (path, track_id) SELECT ?, id FROM tracks WHERE id = ?')
+  for (const r of relinks) remember.run(r.from.normalize('NFC'), r.trackId)
+}
+
 // `relinks`: the songs found at another path that the user confirmed —
 // remembered, so the next import of the same export needs no asking.
 // `duplicates`: for playlists MCO already seemed to have (by their key),
@@ -377,10 +384,7 @@ export function applyRekordboxImport(
       const row = db.prepare('SELECT kind FROM playlist_nodes WHERE id = ?').get(destination.id) as { kind: string } | undefined
       if (row?.kind !== 'folder') throw new Error("That folder isn't there any more — choose another")
     }
-    const remember = db.prepare(
-      'INSERT OR REPLACE INTO playlist_path_aliases (path, track_id) SELECT ?, id FROM tracks WHERE id = ?'
-    )
-    for (const r of relinks) remember.run(r.from.normalize('NFC'), r.trackId)
+    rememberPathAliases(db, relinks)
     const match = trackMatcher(db)
     const existing = importedNodes(db)
     const now = Date.now()

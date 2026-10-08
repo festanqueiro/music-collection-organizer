@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { rename } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase, type AppDatabase } from './db'
@@ -143,6 +144,7 @@ describe('convertTracks', () => {
         trashed.push(path)
         rmSync(path)
       },
+      rename: (from, to) => rename(from, to),
     }
   })
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
@@ -178,6 +180,27 @@ describe('convertTracks', () => {
     expect(trashed).toEqual([join(dir, 'Song.wav')])
     expect(readFileSync(join(dir, 'Song.wav'), 'utf8')).toBe('converted!')
     expect(row()).toMatchObject({ path: join(dir, 'Song.wav'), size: 10 })
+  })
+
+  it('keeps the converted file when it cannot take the name of an original already in the Trash', async () => {
+    deps.rename = async () => {
+      throw new Error('EPERM')
+    }
+    const [result] = await convertTracks(db, deps, [id], options({ format: 'wav', bitDepth: 16, replace: true }))
+    expect(result.status).toBe('failed')
+    expect(result.message).toMatch(/kept next to it as Song\.wav\.[0-9a-f]+\.mcotmp/)
+    expect(trashed).toEqual([join(dir, 'Song.wav')])
+    const left = readdirSync(dir)
+    expect(left).toHaveLength(1)
+    expect(readFileSync(join(dir, left[0]), 'utf8')).toBe('converted!')
+  })
+
+  it('leaves no half-made file when a copy cannot be put in place', async () => {
+    deps.rename = async () => {
+      throw new Error('EPERM')
+    }
+    expect((await convertTracks(db, deps, [id], options()))[0].status).toBe('failed')
+    expect(readdirSync(dir)).toEqual(['Song.wav'])
   })
 
   it('skips a replace that would change nothing, and refuses to overwrite another file', async () => {

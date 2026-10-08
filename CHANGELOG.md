@@ -4,6 +4,27 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## Unreleased
+
+### Fixed
+- **Convert → Replace the original, same file name** (only the bit depth
+  or sampling frequency changes): if the converted file couldn't be put in
+  place after the original went to the Trash, it was deleted. It is now
+  kept next to it, and the message says where.
+- **Refine BPM of all…** no longer freezes the window while it works
+  through the tracks, and says how far it is.
+- **Importing cues or BPM from a Rekordbox collection without its
+  playlists** skipped the songs found at a different path. They are now
+  included, and the list of them stays visible to confirm.
+
+### Changed
+- **Esc closes right-click menus.** The hot cue pads' menus and the
+  waveform's stay inside the window like the others.
+- **A Rekordbox collection export is read once per import** instead of
+  three or four times.
+- The Classic waveform does less work while a track plays.
+- Electron 43.7.9, React 19.3 and other updates within their versions.
+
 ## 1.0.60 — 2026-10-08
 
 ### Added

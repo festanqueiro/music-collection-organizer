@@ -1,6 +1,7 @@
 // src/components/detail/DetailSection.tsx
 // One section of the track details, and whether it's open.
 import { useState, type ReactNode } from 'react'
+import { writeStored } from '../../state/stored'
 
 // Whether a section of the details is open, remembered between sessions
 // (a per-viewer convenience, so localStorage). Every section starts open.
@@ -13,11 +14,7 @@ export function loadFlag(key: string, fallback: boolean): boolean {
   }
 }
 export function saveFlag(key: string, value: boolean): void {
-  try {
-    localStorage.setItem(key, String(value))
-  } catch {
-    // Non-essential preference — fine to lose.
-  }
+  writeStored(key, String(value))
 }
 type SectionId = 'cover' | 'tags' | 'id3' | 'playlists' | 'similar' | 'file'
 export function useSectionOpen(id: SectionId): [boolean, () => void] {

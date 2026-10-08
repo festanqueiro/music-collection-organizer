@@ -1,6 +1,7 @@
 // Editing a saved playlist's songs (docs/features/playlists.md, phase 3):
 // the order arithmetic, kept pure so it's tested on its own. A playlist
 // holds each song once, so songs are identified by track id.
+import { foldText } from '../text'
 
 // Moves `moving` (in the playlist's order, whatever order they're given in)
 // before or after `targetId`. Dropping onto one of the moving songs leaves
@@ -34,9 +35,6 @@ export function restoreRemovedTracks(current: number[], previous: number[], remo
   return out
 }
 
-// Lower case, without accents, so "cafe" finds "Café".
-const fold = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
-
 // The Playlists box's search: the ids of the nodes to show for `query`,
 // or null when there's nothing to filter by. A node shows when its name
 // has every word of the query, with the folders it sits in; a folder that
@@ -45,10 +43,10 @@ export function filterPlaylistNodes(
   nodes: { id: number; parentId: number | null; name: string }[],
   query: string
 ): Set<number> | null {
-  const words = fold(query).split(/\s+/).filter(Boolean)
+  const words = foldText(query).split(/\s+/).filter(Boolean)
   if (words.length === 0) return null
   const byId = new Map(nodes.map((n) => [n.id, n]))
-  const matches = new Set(nodes.filter((n) => words.every((w) => fold(n.name).includes(w))).map((n) => n.id))
+  const matches = new Set(nodes.filter((n) => words.every((w) => foldText(n.name).includes(w))).map((n) => n.id))
   const visible = new Set<number>()
   for (const node of nodes) {
     // Guarded against a parent loop, which the DB shouldn't hold.

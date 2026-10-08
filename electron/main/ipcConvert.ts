@@ -1,5 +1,5 @@
 // "Convert to…" over IPC (docs/features/convert.md). Registered from ipc.ts.
-import { ipcMain, dialog, shell } from 'electron'
+import { ipcMain, shell } from 'electron'
 import { sep } from 'node:path'
 import { convertTracks, defaultConvertDeps, probeAudio } from './convert'
 import { getCollectionFolder } from './config'

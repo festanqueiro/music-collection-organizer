@@ -4,7 +4,9 @@ import { existsSync } from 'node:fs'
 import type { AppDatabase } from '../db'
 import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
-import type { WorkerResult, WorkerTask } from './worker'
+import type { TempoTask, WorkerResult, WorkerTask } from './worker'
+import { decodeToPcm } from './decode'
+import { refineBpm } from './tempoRefine'
 import { describeAnalysisError } from './errorMessage'
 
 // Tracks an analysis run was part-way through when the app last closed are
@@ -81,6 +83,48 @@ export async function analyzeTrack(
 // index.ts's import graph), not into its own file — so this path is
 // relative to index.js's location, not to this source file's location.
 const WORKER_ENTRY = fileURLToPath(new URL('./analysis/worker.js', import.meta.url))
+
+// Refine BPM sharpens a tempo on the track's audio: a decode and a few
+// hundred milliseconds of arithmetic per track, which froze the window when
+// done in the main process for a batch. One worker, kept for the batch,
+// answers one track at a time; `close` ends it. Without the built worker
+// (under Vitest) it's measured in-process.
+export function createTempoMeasurer(cacheDir: string): { measure: (path: string, target: number) => Promise<number | null>; close: () => void } {
+  if (!existsSync(WORKER_ENTRY)) {
+    return {
+      measure: async (path, target) => {
+        const refined = refineBpm(await decodeToPcm(await getPlayableFilePath(path, cacheDir)), target, 44100, false)
+        return refined === target ? null : refined
+      },
+      close: () => {},
+    }
+  }
+  const worker = new Worker(WORKER_ENTRY)
+  const waiting = new Map<number, (bpm: number | null) => void>()
+  let nextId = 1
+  const giveUp = () => {
+    for (const resolve of waiting.values()) resolve(null)
+    waiting.clear()
+  }
+  worker.on('message', (msg: WorkerResult) => {
+    if (msg.status !== 'tempo') return
+    waiting.get(msg.id)?.(msg.bpm)
+    waiting.delete(msg.id)
+  })
+  // A tempo that couldn't be measured is just not sharpened.
+  worker.on('error', giveUp)
+  worker.on('exit', giveUp)
+  return {
+    measure: (path, target) =>
+      new Promise((resolve) => {
+        const id = nextId++
+        waiting.set(id, resolve)
+        const task: TempoTask = { kind: 'tempo', id, path, cacheDir, target }
+        worker.postMessage(task)
+      }),
+    close: () => void worker.terminate(),
+  }
+}
 
 // Sequential in-process fallback, used when the built worker chunk isn't
 // present (e.g. under Vitest, which runs this module's TS source directly
@@ -217,6 +261,8 @@ export async function runAnalysisQueue(
           reportProgress()
           return
         }
+        // An answer to a tempo question: not asked of these workers.
+        if (msg.status === 'tempo') return
         partial.delete(msg.id)
 
         const track = tracksById.get(msg.id)!

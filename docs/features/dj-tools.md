@@ -71,6 +71,8 @@ of all…**) ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)):
   (`≈ 159.87`). The result is then sharpened on the track's audio near that value, so 106.58 × 1.5
   becomes 160; if the audio doesn't agree within 3.5 % the plain product is kept.
 - **Set the BPM…** — type it (a comma works as the decimal point); taken as typed, to two decimals.
+- A batch is measured in a worker thread, one track at a time (`createTempoMeasurer` in
+  `analysis/queue.ts`), so the window stays usable; a toast counts *Refining the BPM: 3 of 40…*.
 - 30 to 300 BPM; anything else is refused with a message. A track with no BPM yet can only be set.
 - A BPM changed this way is **yours**: the menu's header says *set by you*, and analysing the
   track again updates everything else but keeps it. **Detect it again** (shown for such tracks)

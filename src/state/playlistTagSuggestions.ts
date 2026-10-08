@@ -4,6 +4,7 @@
 // a Tag or Subtag are suggested — nothing is made up from a playlist's
 // name — and nothing is applied until asked.
 import type { Genre, Subgenre } from '../types'
+import { foldText } from '../text'
 
 export interface PlaylistTagSuggestion {
   kind: 'tag' | 'subtag'
@@ -17,10 +18,7 @@ export interface PlaylistTagSuggestion {
 
 // Lower case, without accents, cut at anything that isn't a letter or a digit.
 const words = (text: string) =>
-  text
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
+  foldText(text)
     .split(/[^\p{L}\p{N}]+/u)
     .filter(Boolean)
 

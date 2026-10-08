@@ -9,9 +9,10 @@ import type { TrackCue } from '../types'
 import { HOT_CUE_DEFAULT_COLORS, HOT_CUE_LETTERS, HOT_CUE_PALETTE, HOT_CUE_SLOTS, cueColor, firstEmptySlot, hotCueSlots, snapToBeat, type SuggestedCue, START_COLOR, START_SLOT } from '../state/hotCues'
 import { CueZoom, zoomSpan } from './CueZoom'
 import { formatDuration } from '../format'
-import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
+import { contextMenuIconStyle, contextMenuItemStyle } from './contextMenuStyles'
 import { MidiLearnBadge } from './MidiLearnBadge'
 import type { MidiControlKey } from '../types'
+import { ContextMenu } from './ContextMenu'
 
 const cueTime = (s: number) => `${formatDuration(Math.floor(s))}.${String(Math.floor((s % 1) * 10))}`
 
@@ -209,7 +210,7 @@ export function HotCuePads({
       )}
 
       {assign && (
-        <div onClick={(e) => e.stopPropagation()} style={{ ...contextMenuStyle, left: assign.x, top: assign.y - 8, transform: 'translateY(-100%)', minWidth: '200px' }}>
+        <ContextMenu x={assign.x} y={assign.y} above onClose={() => setAssign(null)} style={{ minWidth: '200px' }}>
           <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
             Bar {assign.suggestion.bar} · {cueTime(assign.suggestion.time)} —{' '}
             {assign.suggestion.slot !== null ? `move it from ${HOT_CUE_LETTERS[assign.suggestion.slot]} to` : 'put it on'}
@@ -244,11 +245,11 @@ export function HotCuePads({
               </button>
             )
           })}
-        </div>
+        </ContextMenu>
       )}
 
       {menu && menuCue && (
-        <div onClick={(e) => e.stopPropagation()} style={{ ...contextMenuStyle, left: menu.x, top: menu.y - 8, transform: 'translateY(-100%)', minWidth: '200px' }}>
+        <ContextMenu x={menu.x} y={menu.y} above onClose={() => { setMenu(null); setNaming(false) }} style={{ minWidth: '200px' }}>
           <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
             Hot cue {HOT_CUE_LETTERS[menu.slot]} · {cueTime(menuCue.start)}
           </div>
@@ -309,7 +310,7 @@ export function HotCuePads({
             </span>
             Delete hot cue {HOT_CUE_LETTERS[menu.slot]}
           </button>
-        </div>
+        </ContextMenu>
       )}
     </div>
   )

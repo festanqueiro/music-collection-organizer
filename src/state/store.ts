@@ -62,6 +62,7 @@ import { baseName } from '../paths'
 import { moveTracksInPlaylist, restoreRemovedTracks } from './savedPlaylist'
 import type { EnergyRange } from './trackFilters'
 import { HOT_CUE_LETTERS } from './hotCues'
+import { writeStored, readStoredFlag } from './stored'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
 // onChange continuously, and writing to electron-store on every tick would
@@ -105,11 +106,7 @@ function loadRecentPlaylistIds(): number[] {
   }
 }
 function saveRecentPlaylistIds(ids: number[]): void {
-  try {
-    localStorage.setItem(RECENT_PLAYLISTS_KEY, JSON.stringify(ids))
-  } catch {
-    // Not remembered; the menu still works.
-  }
+  writeStored(RECENT_PLAYLISTS_KEY, JSON.stringify(ids))
 }
 
 // Coalesces rapid MIDI CC bursts to at most one store update per animation
@@ -721,13 +718,7 @@ function loadVisualizerThemeOptions(): Partial<Record<AnyVisualizerThemeId, Reco
 }
 
 const VISUALIZER_HIDE_TRACK_INFO_KEY = 'visualizerHideTrackInfo'
-function loadVisualizerHideTrackInfo(): boolean {
-  try {
-    return localStorage.getItem(VISUALIZER_HIDE_TRACK_INFO_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
+const loadVisualizerHideTrackInfo = (): boolean => readStoredFlag(VISUALIZER_HIDE_TRACK_INFO_KEY, false)
 
 const VISUAL_DELAY_KEY = 'visualDelayMs'
 export const MAX_VISUAL_DELAY_MS = 3000
@@ -794,32 +785,16 @@ function loadBooleanPreference(key: string, fallback: boolean): boolean {
   }
 }
 function saveBooleanPreference(key: string, value: boolean): void {
-  try {
-    localStorage.setItem(key, String(value))
-  } catch {
-    // Non-essential preference — fine to lose.
-  }
+  writeStored(key, String(value))
 }
 
 const SHOW_MIDI_CONTROLS_KEY = 'showMidiControls'
-function loadShowMidiControls(): boolean {
-  try {
-    return localStorage.getItem(SHOW_MIDI_CONTROLS_KEY) !== 'false'
-  } catch {
-    return true
-  }
-}
+const loadShowMidiControls = (): boolean => readStoredFlag(SHOW_MIDI_CONTROLS_KEY, true)
 
 // The player at twice its height, all of it for the waveform. A
 // per-computer view preference.
 const PLAYER_LARGE_KEY = 'playerLarge'
-function loadPlayerLarge(): boolean {
-  try {
-    return localStorage.getItem(PLAYER_LARGE_KEY) === 'true'
-  } catch {
-    return false
-  }
-}
+const loadPlayerLarge = (): boolean => readStoredFlag(PLAYER_LARGE_KEY, false)
 
 const CUE_VOLUME_KEY = 'cueVolume'
 function loadCueVolume(): number {
@@ -853,13 +828,7 @@ function loadWaveformStyle(): WaveformStyle {
   }
 }
 const WAVEFORM_GRID_KEY = 'waveformGrid'
-function loadWaveformGrid(): boolean {
-  try {
-    return localStorage.getItem(WAVEFORM_GRID_KEY) !== 'false'
-  } catch {
-    return true
-  }
-}
+const loadWaveformGrid = (): boolean => readStoredFlag(WAVEFORM_GRID_KEY, true)
 
 const KEY_NOTATION_KEY = 'keyNotation'
 function loadKeyNotation(): KeyNotation {
@@ -1016,20 +985,12 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   waveformStyle: loadWaveformStyle(),
   setWaveformStyle: (style) => {
     set({ waveformStyle: style })
-    try {
-      localStorage.setItem(WAVEFORM_STYLE_KEY, style)
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(WAVEFORM_STYLE_KEY, style)
   },
   waveformGrid: loadWaveformGrid(),
   setWaveformGrid: (show) => {
     set({ waveformGrid: show })
-    try {
-      localStorage.setItem(WAVEFORM_GRID_KEY, String(show))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(WAVEFORM_GRID_KEY, String(show))
   },
   loadTrackWaveform: async (trackId) => {
     const peaks = await window.api.getTrackWaveform(trackId)
@@ -1211,19 +1172,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setRecordingState: (state) => set({ recordingState: state }),
   setRecordingFormat: (format) => {
     set({ recordingFormat: format })
-    try {
-      localStorage.setItem(RECORDING_FORMAT_KEY, format)
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(RECORDING_FORMAT_KEY, format)
   },
   setRecordingLevelDb: (db) => {
     set({ recordingLevelDb: db })
-    try {
-      localStorage.setItem(RECORDING_LEVEL_KEY, String(db))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(RECORDING_LEVEL_KEY, String(db))
   },
   setLastRecordingPath: (path) => set({ lastRecordingPath: path }),
 
@@ -1382,11 +1335,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setCueVolume: (volume) => {
     set({ cueVolume: volume })
-    try {
-      localStorage.setItem(CUE_VOLUME_KEY, String(volume))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(CUE_VOLUME_KEY, String(volume))
   },
 
   setAudioOutputDeviceId: async (deviceId) => {
@@ -1906,21 +1855,13 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setVisualizerHideTrackInfo: (hide) => {
     set({ visualizerHideTrackInfo: hide })
-    try {
-      localStorage.setItem(VISUALIZER_HIDE_TRACK_INFO_KEY, String(hide))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(VISUALIZER_HIDE_TRACK_INFO_KEY, String(hide))
   },
 
   setVisualDelayMs: (ms) => {
     const value = Math.min(MAX_VISUAL_DELAY_MS, Math.max(0, Math.round(ms)))
     set({ visualDelayMs: value })
-    try {
-      localStorage.setItem(VISUAL_DELAY_KEY, String(value))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(VISUAL_DELAY_KEY, String(value))
   },
   setScreenTarget: (target) => set({ screenTarget: target }),
   setScreenNowPlaying: (nowPlaying) => {
@@ -1929,11 +1870,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
   setScreenTheme: (theme) => {
     set({ screenTheme: theme })
-    try {
-      localStorage.setItem(SCREEN_THEME_KEY, theme)
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(SCREEN_THEME_KEY, theme)
   },
   setScreenHideTrackInfo: (hide) => {
     set({ screenHideTrackInfo: hide })
@@ -1943,40 +1880,24 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   setVisualizerFps: (fps) => {
     set({ visualizerFps: fps })
-    try {
-      localStorage.setItem(VISUALIZER_FPS_KEY, String(fps))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(VISUALIZER_FPS_KEY, String(fps))
   },
 
   setPlayerLarge: (large) => {
     set({ playerLarge: large })
-    try {
-      localStorage.setItem(PLAYER_LARGE_KEY, String(large))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(PLAYER_LARGE_KEY, String(large))
   },
 
   setShowMidiControls: (show) => {
     // Hiding the badges mid-learn would leave an invisible listener that
     // silently binds the next knob moved.
     set(show ? { showMidiControls: true } : { showMidiControls: false, midiLearningControl: null })
-    try {
-      localStorage.setItem(SHOW_MIDI_CONTROLS_KEY, String(show))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(SHOW_MIDI_CONTROLS_KEY, String(show))
   },
 
   setKeyNotation: (notation) => {
     set({ keyNotation: notation })
-    try {
-      localStorage.setItem(KEY_NOTATION_KEY, notation)
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(KEY_NOTATION_KEY, notation)
   },
 
   setAppTheme: (theme) => {
@@ -2016,29 +1937,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const all = get().visualizerThemeOptions
     const options = { ...all, [theme]: { ...all[theme], [optionId]: valueId } }
     set({ visualizerThemeOptions: options })
-    try {
-      localStorage.setItem(VISUALIZER_THEME_OPTIONS_KEY, JSON.stringify(options))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(VISUALIZER_THEME_OPTIONS_KEY, JSON.stringify(options))
   },
 
   setCastScreen: (screen) => {
     set({ castScreen: screen })
-    try {
-      localStorage.setItem(CAST_SCREEN_KEY, screen)
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(CAST_SCREEN_KEY, screen)
   },
 
   setVisualizerTheme: (theme) => {
     set({ visualizerTheme: theme })
-    try {
-      localStorage.setItem(VISUALIZER_THEME_KEY, theme)
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(VISUALIZER_THEME_KEY, theme)
   },
 
   loadAppVersion: async () => {
@@ -2093,7 +2002,17 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   changeTracksBpm: async (trackIds, change) => {
-    const { tracks: changed, skipped } = await window.api.changeTracksBpm(trackIds, change)
+    // A batch takes about a second a track: say how far it is.
+    const many = trackIds.length > 1 && change.kind === 'factor'
+    const stopProgress = many ? window.api.onBpmProgress(({ done, total }) => get().showToast(`Refining the BPM: ${done + 1} of ${total}…`)) : null
+    let result: Awaited<ReturnType<typeof window.api.changeTracksBpm>>
+    try {
+      result = await window.api.changeTracksBpm(trackIds, change)
+    } finally {
+      stopProgress?.()
+    }
+    const { tracks: changed, skipped } = result
+    if (many && skipped.length === 0) get().showToast(`BPM refined on ${changed.length} tracks`)
     const byId = new Map(changed.map((t) => [t.id, t]))
     if (byId.size > 0) set({ tracks: get().tracks.map((t) => byId.get(t.id) ?? t) })
     if (skipped.length > 0) {

@@ -4,6 +4,7 @@ import { matchesTagFilter, type TagFilterMode, type TagFilterState } from '../st
 import type { Track } from '../types'
 import { TagColorPopover } from './TagColorPopover'
 import { ContextMenu } from './ContextMenu'
+import { writeStored } from '../state/stored'
 
 // Drops any id from `ids` that no longer exists in `existing` — e.g. after
 // deleteGenre removes a genre out from under a still-checked checkbox, so
@@ -54,11 +55,7 @@ function loadExpandedTags(): Set<number> {
   }
 }
 function saveExpandedTags(expanded: Set<number>): void {
-  try {
-    localStorage.setItem(EXPANDED_TAGS_KEY, JSON.stringify([...expanded]))
-  } catch {
-    // Non-essential preference — fine to lose.
-  }
+  writeStored(EXPANDED_TAGS_KEY, JSON.stringify([...expanded]))
 }
 
 type ContextMenuTarget = { kind: 'genre'; id: number; name: string } | { kind: 'subgenre'; id: number; name: string }
@@ -360,7 +357,7 @@ export function TagTree({
       })}
 
       {contextMenu && (
-        <ContextMenu x={contextMenu.x} y={contextMenu.y}>
+        <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
           <button
             onClick={() => {
               handleRename(contextMenu.target)

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { openDatabase, type AppDatabase } from './db'
 import { importRekordboxBpm } from './rekordboxBpm'
 import { importRekordboxCues } from './cues'
-import { trackMatcher } from './playlists'
+import { rememberPathAliases, trackMatcher } from './playlists'
 import type { RekordboxCollection, RekordboxTrack } from './rekordboxXml'
 
 const rb = (path: string, bpm: number | null, cues: RekordboxTrack['cues'] = []): RekordboxTrack => ({
@@ -35,6 +35,15 @@ describe('importRekordboxBpm', () => {
     ])
     // Again: nothing left to change.
     expect(importRekordboxBpm(db, export1, trackMatcher(db))).toEqual({ songs: 0 })
+  })
+
+  it('reaches a song confirmed at another path, playlists imported or not', () => {
+    const stick = collection(rb('/Volumes/USB/Contents/a.wav', 160))
+    expect(importRekordboxBpm(db, stick, trackMatcher(db))).toEqual({ songs: 0 })
+    const a = (db.prepare("SELECT id FROM tracks WHERE path = '/m/a.wav'").get() as { id: number }).id
+    rememberPathAliases(db, [{ from: '/Volumes/USB/Contents/a.wav', trackId: a }])
+    expect(importRekordboxBpm(db, stick, trackMatcher(db))).toEqual({ songs: 1 })
+    expect(bpms()[0]).toEqual({ path: '/m/a.wav', bpm: 160, bpm_edited: 1 })
   })
 
   it('only counts on a dry run', () => {

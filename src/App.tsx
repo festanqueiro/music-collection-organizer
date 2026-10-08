@@ -35,6 +35,7 @@ import type { Track } from './types'
 import { isInFolder } from './paths'
 import { onMenuCommand, runMenuCommand } from './menuCommands'
 import type { MenuCommand } from './types'
+import { writeStored } from './state/stored'
 
 type LeftView = 'folders' | 'tags' | 'subtags' | 'filters'
 type TreeView = Exclude<LeftView, 'filters'>
@@ -84,11 +85,7 @@ function loadSidebarState(): SidebarState {
 }
 
 function saveSidebarState(state: SidebarState): void {
-  try {
-    localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(state))
-  } catch {
-    // Non-essential — fine to lose.
-  }
+  writeStored(SIDEBAR_STATE_KEY, JSON.stringify(state))
 }
 
 const LEFT_COLLAPSED_KEY = 'leftSidebarCollapsed'
@@ -191,27 +188,15 @@ export default function App() {
   })
   function setLeftCollapsed(collapsed: boolean) {
     setLeftCollapsedState(collapsed)
-    try {
-      localStorage.setItem(LEFT_COLLAPSED_KEY, String(collapsed))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(LEFT_COLLAPSED_KEY, String(collapsed))
   }
   const [detailWidth, setDetailWidth] = useState(loadDetailWidth)
   useEffect(() => {
-    try {
-      localStorage.setItem(DETAIL_WIDTH_KEY, String(detailWidth))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(DETAIL_WIDTH_KEY, String(detailWidth))
   }, [detailWidth])
   const [leftWidth, setLeftWidth] = useState(loadLeftWidth)
   useEffect(() => {
-    try {
-      localStorage.setItem(LEFT_WIDTH_KEY, String(leftWidth))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(LEFT_WIDTH_KEY, String(leftWidth))
   }, [leftWidth])
   // The details are on the right, so dragging left makes them wider; the
   // sidebar is on the left, so dragging right does.
