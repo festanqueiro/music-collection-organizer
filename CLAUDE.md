@@ -114,3 +114,21 @@ macOS first; releases also ship an untested, unsigned Windows installer
   releases must keep that asset. Dev and BETA builds never update.
 - `.github/workflows/version-bump.yml` bumps `package.json`'s patch version
   and tags it on every push to `main`.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+Setup, once per machine ([ADR 0063](docs/adr/0063-graphify-as-an-optional-dev-tool.md)): install the
+`graphifyy` package (PyPI, double y) so `graphify` is on the PATH, then build the graph from the
+code only, with no AI calls:
+`graphify extract . --code-only --no-cluster && graphify cluster-only . --no-label`.
+`graphify-out/` is git-ignored. Without it, or without the tool, ignore the rules above and read
+the code as usual. Graphify's always-on hooks (`graphify claude install`) are not in the shared
+`.claude/settings.json` on purpose: they'd fail on a machine without the tool.
