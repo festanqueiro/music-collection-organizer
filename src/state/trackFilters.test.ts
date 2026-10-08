@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isMissingId3Metadata, matchesMcoTagsFilter, matchesEnergy } from './trackFilters'
+import { isMissingId3Metadata, matchesMcoTagsFilter, matchesEnergy, isSlowBpm } from './trackFilters'
 
 describe('isMissingId3Metadata', () => {
   it('is true when the file has no artist or no title', () => {
@@ -40,5 +40,19 @@ describe('matchesEnergy', () => {
     expect(matchesEnergy(8, [5, 7])).toBe(false)
     expect(matchesEnergy(4, [5, 7])).toBe(false)
     expect(matchesEnergy(null, [1, 10])).toBe(false)
+  })
+})
+
+describe('isSlowBpm', () => {
+  it('is a track analysed slower than the slowest tempo', () => {
+    expect(isSlowBpm({ bpm: 82.5 }, 90)).toBe(true)
+    expect(isSlowBpm({ bpm: 90 }, 90)).toBe(false)
+    expect(isSlowBpm({ bpm: 128 }, 90)).toBe(false)
+  })
+
+  it('is never one with no BPM, one set by hand, or any when there is no limit', () => {
+    expect(isSlowBpm({ bpm: null }, 90)).toBe(false)
+    expect(isSlowBpm({ bpm: 82.5, bpmEdited: true }, 90)).toBe(false)
+    expect(isSlowBpm({ bpm: 82.5 }, 0)).toBe(false)
   })
 })

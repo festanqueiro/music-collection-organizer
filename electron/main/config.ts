@@ -29,6 +29,7 @@ interface ConfigSchema {
   autoCheckUpdates?: boolean
   watchCollectionFolder?: boolean
   autoAnalyseNewTracks?: boolean
+  slowestBpm?: number
   appTheme?: string
   externalBackupFolder?: string
   recordingFolder?: string
@@ -295,6 +296,18 @@ export function getLastExternalBackup(): ExternalBackupResult | null {
 
 export function setLastExternalBackup(result: ExternalBackupResult): void {
   getStore().set('lastExternalBackup', result)
+}
+
+// The slowest tempo the user mixes at: analysis doubles a BPM below it
+// (half time — ADR 0066). 0 turns that off.
+export const DEFAULT_SLOWEST_BPM = 90
+export function getSlowestBpm(): number {
+  const value = getStore().get('slowestBpm')
+  return typeof value === 'number' && value >= 0 && value <= 120 ? value : DEFAULT_SLOWEST_BPM
+}
+
+export function setSlowestBpm(bpm: number): void {
+  getStore().set('slowestBpm', Number.isFinite(bpm) ? Math.max(0, Math.min(120, Math.round(bpm))) : DEFAULT_SLOWEST_BPM)
 }
 
 export function getAutoAnalyseNewTracks(): boolean {

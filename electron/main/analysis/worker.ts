@@ -3,7 +3,7 @@ import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
 import { describeAnalysisError } from './errorMessage'
 import { decodeToPcm } from './decode'
-import { refineBpm } from './tempoRefine'
+import { analysedBpm, refineBpm } from './tempoRefine'
 
 // A tempo to sharpen on the audio near `target` (Refine BPM): the same
 // decode and measurement the analysis does, without the rest of it.
@@ -13,6 +13,11 @@ export interface TempoTask {
   path: string
   cacheDir: string
   target: number
+  // 'near': only sharpened near `target` (a tempo the user multiplied).
+  // 'again': measured as analysis would, starting from `target` — 1.5× when
+  // two thirds was stored, doubled below `slowestBpm`.
+  mode: 'near' | 'again'
+  slowestBpm: number | null
 }
 
 export interface WorkerTask {
@@ -24,6 +29,8 @@ export interface WorkerTask {
   // opening its own independent read of the original source file. See
   // queue.ts's analyzeTrack for the full rationale.
   cacheDir: string
+  // Below it the tempo is doubled (half time); null leaves it.
+  slowestBpm: number | null
 }
 
 export type WorkerResult =
@@ -43,7 +50,7 @@ parentPort.on('message', async (task: WorkerTask | TempoTask) => {
     let bpm: number | null = null
     try {
       const pcm = await decodeToPcm(await getPlayableFilePath(task.path, task.cacheDir))
-      const refined = refineBpm(pcm, task.target, 44100, false)
+      const refined = task.mode === 'again' ? analysedBpm(pcm, task.target, task.slowestBpm) : refineBpm(pcm, task.target, 44100, false)
       bpm = refined === task.target ? null : refined
     } catch (err) {
       console.error('measuring the tempo failed', task.path, err)
@@ -53,8 +60,11 @@ parentPort.on('message', async (task: WorkerTask | TempoTask) => {
   }
   try {
     const playablePath = await getPlayableFilePath(task.path, task.cacheDir)
-    const result = await runAnalysisPipeline(playablePath, task.path, (fraction) =>
-      parentPort!.postMessage({ id: task.id, status: 'progress', fraction } satisfies WorkerResult)
+    const result = await runAnalysisPipeline(
+      playablePath,
+      task.path,
+      (fraction) => parentPort!.postMessage({ id: task.id, status: 'progress', fraction } satisfies WorkerResult),
+      task.slowestBpm
     )
     parentPort!.postMessage({ id: task.id, status: 'done', result } satisfies WorkerResult)
   } catch (err) {

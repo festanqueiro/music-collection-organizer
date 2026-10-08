@@ -183,6 +183,16 @@ function migrate(db: AppDatabase): void {
   if (!trackColumnNames.has('waveform_bands')) {
     db.exec('ALTER TABLE tracks ADD COLUMN waveform_bands TEXT')
   }
+  // Tag names are one name whatever the capitals (tags.ts checks before
+  // writing; these keep the database to it). A collection that already
+  // holds "House" and "house" keeps both — nothing is merged — and simply
+  // goes without the index.
+  try {
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS genres_name_nocase ON genres(name COLLATE NOCASE)')
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS subgenres_name_nocase ON subgenres(genre_id, name COLLATE NOCASE)')
+  } catch {
+    // Names that differ only by capitals are already there.
+  }
   // The BPM was set by the user (Refine BPM, ADR 0064): analysis keeps it.
   if (!trackColumnNames.has('bpm_edited')) {
     db.exec('ALTER TABLE tracks ADD COLUMN bpm_edited INTEGER NOT NULL DEFAULT 0')

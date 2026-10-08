@@ -18,6 +18,7 @@ import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 import { tracksById } from '../state/tracksById'
 import { ContextMenu } from './ContextMenu'
 import { writeStored } from '../state/stored'
+import { isSlowBpm } from '../state/trackFilters'
 
 type SortKey = TrackTableColumnKey
 
@@ -198,6 +199,9 @@ export function TrackTable({
   const setEnergyFilter = useCollectionStore((s) => s.setEnergyFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
+  const slowBpmFilter = useCollectionStore((s) => s.slowBpmFilter)
+  const setSlowBpmFilter = useCollectionStore((s) => s.setSlowBpmFilter)
+  const slowestBpm = useCollectionStore((s) => s.slowestBpm)
   const mcoTagsFilter = useCollectionStore((s) => s.mcoTagsFilter)
   const setMcoTagsFilter = useCollectionStore((s) => s.setMcoTagsFilter)
   const missingMetadataFilter = useCollectionStore((s) => s.missingMetadataFilter)
@@ -400,6 +404,7 @@ export function TrackTable({
             : t.analysisStatus !== 'done'
       )
       .filter((t) => matchesEnergy(t.energy, energyFilter))
+      .filter((t) => !slowBpmFilter || isSlowBpm(t, slowestBpm))
       .filter((t) => !duplicates || duplicates.has(t.id))
       .filter((t) => !missingMetadataFilter || isMissingId3Metadata(t))
       .filter((t) => !cloudOnlyFilter || t.cloudStatus === 'cloud_only')
@@ -439,6 +444,8 @@ export function TrackTable({
     currentTrack,
     analysedFilter,
     energyFilter,
+    slowBpmFilter,
+    slowestBpm,
     hotCueCounts,
     duplicates,
     missingMetadataFilter,
@@ -928,6 +935,7 @@ export function TrackTable({
           />
         )}
         {duplicatesFilter && <FilterChip icon="content_copy" label="Duplicates" onClear={() => setDuplicatesFilter(false)} />}
+        {slowBpmFilter && <FilterChip icon="speed" label={`Below ${slowestBpm} BPM`} onClear={() => setSlowBpmFilter(false)} />}
         {mcoTagsFilter !== 'all' && (
           <FilterChip
             icon="sell"

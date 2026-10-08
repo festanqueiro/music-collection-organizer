@@ -77,7 +77,10 @@ Done with the review and right after it:
 - **`store.ts` from 2,286 lines to 1,380**: hot cues and waveforms (`cueSlice.ts`), saved
   playlists (`savedPlaylistSlice.ts`), MIDI (`midiSlice.ts`), Tags (`tagSlice.ts`), and what the
   playing actions share (`playbackHelpers.ts`) — code moved, not changed;
-- Convert works on three files at a time.
+- Convert works on three files at a time;
+- **half time** settled by a slowest tempo in the analysis, with the Slow BPM filter and *Measure
+  it again* for tracks already analysed ([ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md));
+  **Tag names** the same whatever their capitals.
 
 Still to do, most useful first:
 
@@ -86,9 +89,9 @@ Still to do, most useful first:
    collection actions out. Then **one Undo** for the five separate ones (queue, playlist, hot cue,
    tag, subtag). The other large files: `TrackTable.tsx` 1,460 (its two menus), `ipc.ts` 976
    (cast, backups), `App.tsx` 915, `Player.tsx` 897.
-2. **Re-check the tempo rules on the whole collection (S)** — `npm run bpm:compare` after a full
-   re-analysis: the two-thirds threshold rests on 32 tracks, and half time (7 % of the songs
-   compared) is left to the user.
+2. **Re-check the tempo rules on the whole collection (S)** — `npm run bpm:compare` after the
+   collection's tempos are measured again: the two-thirds threshold rests on 32 tracks, and the
+   slowest tempo ([ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)) on 19.
 3. **The other remembered settings (S)** — 26 `localStorage` calls keep their own validation
    (layouts, lists, choices); none of the remembered settings are in the backups.
 4. **`version-bump.yml` and `pages.yml` on current actions (S)** — left on the old versions: they
@@ -105,7 +108,9 @@ Still to do, most useful first:
 - **`npm run dev` + React StrictMode**: Player's mount effect runs twice, so
   `createMediaElementSource` throws in dev only (packaged builds are fine).
 - **Absolute track paths** (see Next #2); tag export/import has the same limitation.
-- Genre names are unique case-sensitively in SQLite but matched case-insensitively in the UI.
+- Reloading the window (dev builds and the smoke test only) logs six fonts given as `data:` URIs
+  and refused by the page's Content-Security-Policy (`default-src 'self'`, no `font-src`). Not on a
+  first load; where they come from wasn't traced.
 - Undoing a genre deletion keys sub-genre associations by name, so two same-named sub-genres under
   one genre merge.
 - The external-disk backup hasn't been run against a real external disk yet.

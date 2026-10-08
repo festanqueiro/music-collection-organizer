@@ -19,7 +19,8 @@ own tunes.
   more than **1.65** times stronger there than at the tracker's tempo. Measured: the nine tracks
   that were two thirds out are at 1.80 and above, the 23 that weren't at 1.47 and below.
 - **Half and double, never automatically.** 85 and 170 describe the same track; which one is
-  "the" tempo is a matter of how it is mixed.
+  "the" tempo is a matter of how it is mixed. (Since [ADR 0066](0066-half-time-is-a-slowest-tempo.md)
+  a slowest tempo settles it.)
 - **Refine BPM** in a track's menu: Double, Halve, Two-thirds fix (× 1.5), Set the BPM. A
   multiplied tempo is sharpened on the audio near the result (106.58 × 1.5 → 160, not 159.87),
   kept only if it lands within 3.5 % of it; a typed tempo is taken as typed. 30 to 300 BPM.

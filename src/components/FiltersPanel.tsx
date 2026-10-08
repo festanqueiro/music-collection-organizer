@@ -6,6 +6,7 @@ import { useCollectionStore, type AnalysedFilter, type McoTagsFilter } from '../
 import { toCamelot, formatKey } from '../state/harmonic'
 import { findDuplicates } from '../state/duplicates'
 import { isMissingId3Metadata, matchesEnergy, matchesMcoTagsFilter, type EnergyRange } from '../state/trackFilters'
+import { isSlowBpm } from '../state/trackFilters'
 
 function Section({ title, hint, children }: { title: string; hint: string; children: ReactNode }) {
   return (
@@ -129,6 +130,10 @@ export function FiltersPanel() {
   const setEnergyFilter = useCollectionStore((s) => s.setEnergyFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
+  const slowBpmFilter = useCollectionStore((s) => s.slowBpmFilter)
+  const setSlowBpmFilter = useCollectionStore((s) => s.setSlowBpmFilter)
+  const slowestBpm = useCollectionStore((s) => s.slowestBpm)
+  const slowCount = useCollectionStore((s) => s.tracks.filter((t) => isSlowBpm(t, s.slowestBpm)).length)
   const trackTags = useCollectionStore((s) => s.trackTags)
   const mcoTagsFilter = useCollectionStore((s) => s.mcoTagsFilter)
   const setMcoTagsFilter = useCollectionStore((s) => s.setMcoTagsFilter)
@@ -195,6 +200,17 @@ export function FiltersPanel() {
         hint={`The same song more than once — matching artist and title, or filename — in any folder or format. ${duplicateCount} tracks have a copy.`}
       >
         <Toggle on={duplicatesFilter} onChange={setDuplicatesFilter} label="Only tracks with a duplicate" />
+      </Section>
+
+      <Section
+        title="Slow BPM"
+        hint={
+          slowestBpm > 0
+            ? `Tracks analysed slower than ${slowestBpm} BPM — probably at half time (82.5 for 165). ${slowCount} now. Check them, then right-click → Refine BPM of all… → Double, or Measure it again. The limit is in Settings → Library.`
+            : 'Off: no slowest tempo is set in Settings → Library.'
+        }
+      >
+        <Toggle on={slowBpmFilter} onChange={setSlowBpmFilter} label="Only tracks below the slowest tempo" />
       </Section>
 
       <Section

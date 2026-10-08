@@ -25,3 +25,11 @@ export function matchesMcoTagsFilter(tags: TrackTagIds | undefined, filter: McoT
   if (filter === 'all') return true
   return filter === 'no-tags' ? !tags?.genreIds.length : !tags?.subgenreIds.length
 }
+
+// Probably at half time (the Slow BPM filter): analysed slower than the
+// slowest tempo the user mixes at. Not one whose BPM they set themselves —
+// that one is as they want it.
+export function isSlowBpm(track: { bpm: number | null; bpmEdited?: boolean }, slowestBpm: number): boolean {
+  return slowestBpm > 0 && !!track.bpm && track.bpm < slowestBpm && !track.bpmEdited
+}
+

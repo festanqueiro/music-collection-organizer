@@ -121,3 +121,31 @@ importing Rekordbox's BPM.
   whole-track refinement).
 - The threshold on other collections: the gap between 1.47 and 1.80 is narrow, and it comes from
   32 tracks.
+
+## 2026-10-08 — half time: can the audio tell?
+
+The 19 tracks of the BETA collection stored under 97 BPM, with how much stronger each is at
+double the stored tempo (the same measure as above) and what Rekordbox has:
+
+| Ratio | MCO | Rekordbox | |
+|---|---|---|---|
+| 3.25 | 82.37 | 165 | doubled |
+| 2.56 | 84.99 | 85 | kept |
+| 2.09 | 79.82 | 80.01 | kept |
+| 2.01 | 82.54 | 165 | doubled |
+| 1.90 | 80.01 | 160 | doubled |
+| 1.77 | 80.09 | 160 | doubled |
+| 1.59 | 83.43 | 83.5 | kept |
+| 1.58 | 82.32 | 164.99 | doubled |
+| 1.54 | 82.45 | 165 | doubled |
+| 1.36 – 0.64 | 65 – 71.88 | 130 – 143.98 | doubled (nine tracks) |
+| 0.82 | 93.19 | 93.35 | kept |
+
+No ratio separates the doubled from the kept: half time is a convention
+([ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)). With a slowest tempo of 90, a read-only
+run of the new measurement over those tracks and a sample of others (30 in all): the 17 under 90
+doubled to 130, 135, 136.94, 140 (×4), 143.97, 159.8, 160 (×2), 165 (×4), 167 and 170 — Rekordbox's
+values within 0.02 BPM on the 14 it doubles; 91.93 → 138 and 93.19 → 140 by the two-thirds check;
+ten faster tracks unchanged but for the whole number next to them.
+
+`npm run bpm:compare` gives the comparison with Rekordbox for a whole collection.

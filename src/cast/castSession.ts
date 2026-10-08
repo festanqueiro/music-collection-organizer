@@ -5,6 +5,7 @@
 // effects, siren and visualizer (receiverSync.ts).
 import { useCollectionStore } from '../state/store'
 import type { CastDevice, CastStatus } from '../types'
+import { ipcErrorMessage } from '../ipcError'
 
 export function isCastActive(status: CastStatus): boolean {
   return status.state === 'connecting' || status.state === 'casting'
@@ -17,9 +18,7 @@ export function castingToAScreen(status: CastStatus): boolean {
   return isCastActive(status) && status.mode === 'receiver' && !status.audioOnly
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err)
-}
+const errorMessage = ipcErrorMessage
 
 export async function startCasting(device: CastDevice): Promise<void> {
   // Recording and casting never run together (docs/features/recording.md).

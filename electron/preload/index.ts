@@ -270,10 +270,11 @@ const api = {
   },
   initialAppTheme,
   setAppTheme: (id: AppThemeId): Promise<void> => ipcRenderer.invoke('config:setAppTheme', id),
-  getLibrarySettings: (): Promise<{ watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean }> =>
+  getLibrarySettings: (): Promise<{ watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean; slowestBpm: number }> =>
     ipcRenderer.invoke('config:getLibrarySettings'),
   setWatchCollectionFolder: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke('config:setWatchCollectionFolder', enabled),
+  setSlowestBpm: (bpm: number): Promise<void> => ipcRenderer.invoke('config:setSlowestBpm', bpm),
   setAutoAnalyseNewTracks: (enabled: boolean): Promise<void> =>
     ipcRenderer.invoke('config:setAutoAnalyseNewTracks', enabled),
   // A background rescan (folder watcher) found changes.

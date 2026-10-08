@@ -766,7 +766,9 @@ export interface ConvertProgress {
 // "Refine BPM" (docs/features/dj-tools.md): multiply the tempo (2, 0.5, or
 // 1.5 when two thirds of it was detected), set it, or hand it back to
 // analysis.
-export type BpmChange = { kind: 'factor'; factor: number } | { kind: 'set'; bpm: number } | { kind: 'detect' }
+// 'measure' measures the analysed tempo again on the audio with the
+// current rules, without the rest of the analysis.
+export type BpmChange = { kind: 'factor'; factor: number } | { kind: 'set'; bpm: number } | { kind: 'detect' } | { kind: 'measure' }
 
 // The player's waveform (docs/features/player.md, ADR 0065). 'classic': one
 // colour, the played part lit. 'rgb': each slice coloured by what's in it —

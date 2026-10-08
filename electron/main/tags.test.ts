@@ -193,6 +193,36 @@ describe('tags', () => {
     expect(getTrackTagIds(db, trackId).subgenreIds).toEqual([restoredSubgenreId])
   })
 
+  it('treats a Tag name as the same whatever its capitals', () => {
+    const houseId = createGenre(db, 'House')
+    expect(() => createGenre(db, 'house')).toThrow('There is already a Tag called "House"')
+    expect(() => createGenre(db, 'HOUSE')).toThrow()
+    const dubId = createGenre(db, 'Dub')
+    expect(() => renameGenre(db, dubId, 'hOuSe')).toThrow()
+    // Its own name in other capitals is a rename like any other.
+    renameGenre(db, houseId, 'HOUSE')
+    expect((db.prepare('SELECT name FROM genres WHERE id = ?').get(houseId) as { name: string }).name).toBe('HOUSE')
+  })
+
+  it('treats a Subtag name the same way, within its Tag', () => {
+    const houseId = createGenre(db, 'House')
+    const dubId = createGenre(db, 'Dub')
+    const deepId = createSubgenre(db, 'Deep', houseId)
+    expect(() => createSubgenre(db, 'deep', houseId)).toThrow('This Tag already has a Subtag called "Deep"')
+    // Another Tag can have its own.
+    const dubDeep = createSubgenre(db, 'deep', dubId)
+    const techId = createSubgenre(db, 'Tech', houseId)
+    expect(() => renameSubgenre(db, techId, 'DEEP')).toThrow()
+    renameSubgenre(db, deepId, 'DEEP')
+    renameSubgenre(db, dubDeep, 'Deep')
+    expect((db.prepare('SELECT name FROM subgenres WHERE id = ?').get(deepId) as { name: string }).name).toBe('DEEP')
+  })
+
+  it('keeps the database to it too', () => {
+    createGenre(db, 'House')
+    expect(() => db.prepare("INSERT INTO genres (name) VALUES ('house')").run()).toThrow()
+  })
+
   it('renameGenre updates the name in place, keeping the same id and associations', () => {
     const houseId = createGenre(db, 'House')
     setTrackGenres(db, trackId, [houseId])

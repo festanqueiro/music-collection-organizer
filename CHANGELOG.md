@@ -6,7 +6,20 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Added
+- **Half time handled in the analysis**: a tune at 165 BPM could be analysed
+  as 82.5. Analysis now doubles a BPM below a **slowest tempo** (90 BPM;
+  change it, or turn it off, in Settings → Library → Tempo).
+- **For tracks already in the collection**: a **Slow BPM** filter lists the
+  ones below the slowest tempo, and **Refine BPM → Measure it again**
+  re-measures the tempo of the tracks you choose in about a second each —
+  sharper, two thirds caught, slow tempos doubled — keeping everything
+  else. A BPM you set by hand is left alone.
+
 ### Fixed
+- **Tag names no longer depend on capitals**: `house` can't be created
+  next to `House`, nor two Subtags of one Tag that differ only that way.
+  The message says which name is already there.
 - **Convert → Replace the original, same file name** (only the bit depth
   or sampling frequency changes): if the converted file couldn't be put in
   place after the original went to the Trash, it was deleted. It is now

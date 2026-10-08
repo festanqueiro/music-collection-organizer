@@ -41,6 +41,8 @@ import {
   getLastExternalBackup,
   setLastExternalBackup,
   getAutoAnalyseNewTracks,
+  getSlowestBpm,
+  setSlowestBpm,
   setAutoAnalyseNewTracks,
   setAppThemeId,
 } from './config'
@@ -474,14 +476,16 @@ export function registerIpcHandlers(
     for (const win of BrowserWindow.getAllWindows()) win.setBackgroundColor(getAppTheme(id).background)
   })
 
-  ipcMain.handle('config:getLibrarySettings', (): { watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean } => ({
+  ipcMain.handle('config:getLibrarySettings', (): { watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean; slowestBpm: number } => ({
     watchCollectionFolder: getWatchCollectionFolder(),
     autoAnalyseNewTracks: getAutoAnalyseNewTracks(),
+    slowestBpm: getSlowestBpm(),
   }))
   ipcMain.handle('config:setWatchCollectionFolder', (_e, enabled: boolean): void => {
     setWatchCollectionFolder(enabled === true)
     syncFolderWatcher()
   })
+  ipcMain.handle('config:setSlowestBpm', (_e, bpm: number): void => setSlowestBpm(bpm))
   ipcMain.handle('config:setAutoAnalyseNewTracks', (_e, enabled: boolean): void =>
     setAutoAnalyseNewTracks(enabled === true)
   )
@@ -561,6 +565,7 @@ export function registerIpcHandlers(
       await runAnalysisQueue(db, tracks, {
         concurrency: 4,
         cacheDir: getMediaCacheDir(),
+        slowestBpm: getSlowestBpm() || null,
         onProgress: (progress) => {
           analysisProgress.done += progress.done - runDone
           runDone = progress.done
@@ -759,7 +764,7 @@ export function registerIpcHandlers(
     async (_e, trackIds: number[], change: BpmChange): Promise<{ tracks: Track[]; skipped: { trackId: number; reason: string }[] }> => {
       // Only a multiplied tempo is measured on the audio — in a worker, so a
       // batch doesn't freeze the window — and the renderer is told how far it is.
-      const measurer = change.kind === 'factor' ? createTempoMeasurer(getMediaCacheDir()) : null
+      const measurer = change.kind === 'factor' || change.kind === 'measure' ? createTempoMeasurer(getMediaCacheDir(), getSlowestBpm() || null) : null
       const skipped: { trackId: number; reason: string }[] = []
       const changed: number[] = []
       try {

@@ -215,6 +215,10 @@ export interface CollectionState {
   setEnergyFilter: (range: EnergyRange | null) => void
   duplicatesFilter: boolean
   setDuplicatesFilter: (on: boolean) => void
+  // Only tracks whose BPM is below the slowest tempo (and not set by hand):
+  // the ones that are probably at half time.
+  slowBpmFilter: boolean
+  setSlowBpmFilter: (on: boolean) => void
   mcoTagsFilter: McoTagsFilter
   setMcoTagsFilter: (filter: McoTagsFilter) => void
   // Tracks whose file has no artist or title (see missingMetadata.ts).
@@ -423,6 +427,10 @@ export interface CollectionState {
   // do when a background rescan it triggered finds changes.
   watchCollectionFolder: boolean
   autoAnalyseNewTracks: boolean
+  // The slowest tempo mixed at: analysis doubles a BPM below it (half
+  // time). 0 = never.
+  slowestBpm: number
+  setSlowestBpm: (bpm: number) => Promise<void>
   loadLibrarySettings: () => Promise<void>
   setWatchCollectionFolder: (enabled: boolean) => Promise<void>
   setAutoAnalyseNewTracks: (enabled: boolean) => Promise<void>
@@ -704,6 +712,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   analysedFilter: 'all',
   energyFilter: null,
   duplicatesFilter: false,
+  slowBpmFilter: false,
   missingMetadataFilter: false,
   missingTracks: [],
   missingTracksFilter: false,
@@ -746,6 +755,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   autoCheckUpdates: true,
   watchCollectionFolder: true,
   autoAnalyseNewTracks: false,
+  slowestBpm: 90,
   midiLearningControl: null,
 
   loadEffectsSettings: async () => {
@@ -906,6 +916,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setWatchCollectionFolder: async (enabled) => {
     set({ watchCollectionFolder: enabled })
     await window.api.setWatchCollectionFolder(enabled)
+  },
+
+  setSlowestBpm: async (bpm) => {
+    set({ slowestBpm: bpm })
+    await window.api.setSlowestBpm(bpm)
   },
 
   setAutoAnalyseNewTracks: async (enabled) => {
@@ -1210,6 +1225,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setAnalysedFilter: (filter) => set({ analysedFilter: filter, checkedTrackIds: new Set() }),
   setEnergyFilter: (range) => set({ energyFilter: range, checkedTrackIds: new Set() }),
   setDuplicatesFilter: (on) => set({ duplicatesFilter: on, checkedTrackIds: new Set() }),
+  setSlowBpmFilter: (on) => set({ slowBpmFilter: on, checkedTrackIds: new Set() }),
   setMcoTagsFilter: (filter) => set({ mcoTagsFilter: filter, checkedTrackIds: new Set() }),
   setMissingMetadataFilter: (on) => set({ missingMetadataFilter: on, checkedTrackIds: new Set() }),
   setMissingTracksFilter: (on) => set({ missingTracksFilter: on, checkedTrackIds: new Set() }),
@@ -1303,8 +1319,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   changeTracksBpm: async (trackIds, change) => {
     // A batch takes about a second a track: say how far it is.
-    const many = trackIds.length > 1 && change.kind === 'factor'
-    const stopProgress = many ? window.api.onBpmProgress(({ done, total }) => get().showToast(`Refining the BPM: ${done + 1} of ${total}…`)) : null
+    const many = trackIds.length > 1 && (change.kind === 'factor' || change.kind === 'measure')
+    const doing = change.kind === 'measure' ? 'Measuring the tempo' : 'Refining the BPM'
+    const stopProgress = many ? window.api.onBpmProgress(({ done, total }) => get().showToast(`${doing}: ${done + 1} of ${total}…`)) : null
     let result: Awaited<ReturnType<typeof window.api.changeTracksBpm>>
     try {
       result = await window.api.changeTracksBpm(trackIds, change)
@@ -1312,7 +1329,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
       stopProgress?.()
     }
     const { tracks: changed, skipped } = result
-    if (many && skipped.length === 0) get().showToast(`BPM refined on ${changed.length} tracks`)
+    if (many && skipped.length === 0) get().showToast(change.kind === 'measure' ? `Tempo measured again on ${changed.length} tracks` : `BPM refined on ${changed.length} tracks`)
     const byId = new Map(changed.map((t) => [t.id, t]))
     if (byId.size > 0) set({ tracks: get().tracks.map((t) => byId.get(t.id) ?? t) })
     if (skipped.length > 0) {

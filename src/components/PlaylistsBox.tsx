@@ -15,6 +15,7 @@ import { songs } from '../format'
 import { RekordboxImportSummary } from './RekordboxImportSummary'
 import { ContextMenu } from './ContextMenu'
 import { writeStored } from '../state/stored'
+import { ipcErrorMessage } from '../ipcError'
 
 const LAYOUT_KEY = 'playlistsBox'
 // What was last ticked in a collection import, per computer. Playlists
@@ -99,7 +100,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
       useCollectionStore.setState({ playlistNodes: await window.api.movePlaylistNode(id, targetId, where) })
       if (where === 'into' && targetId !== null && closed.has(targetId)) toggleFolder(targetId)
     } catch (err) {
-      showToast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+      showToast(ipcErrorMessage(err))
     }
   }
 
@@ -162,7 +163,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
       ].filter(Boolean)
       showToast(`Imported from Rekordbox${extras.length > 0 ? `: ${take.playlists ? 'the playlists, ' : ''}${extras.join(', ')}` : ''}`)
     } catch (err) {
-      showToast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+      showToast(ipcErrorMessage(err))
     }
   }
 

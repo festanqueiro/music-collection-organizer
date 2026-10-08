@@ -6,7 +6,7 @@ import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
 import type { TempoTask, WorkerResult, WorkerTask } from './worker'
 import { decodeToPcm } from './decode'
-import { refineBpm } from './tempoRefine'
+import { analysedBpm, refineBpm } from './tempoRefine'
 import { describeAnalysisError } from './errorMessage'
 
 // Tracks an analysis run was part-way through when the app last closed are
@@ -59,7 +59,8 @@ function writeAnalysisResult(
 export async function analyzeTrack(
   db: AppDatabase,
   track: { id: number; path: string },
-  cacheDir: string
+  cacheDir: string,
+  slowestBpm: number | null = null
 ): Promise<void> {
   db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
   try {
@@ -72,7 +73,7 @@ export async function analyzeTrack(
     // etc.), where two concurrent reads of a not-fully-synced file can
     // race each other.
     const playablePath = await getPlayableFilePath(track.path, cacheDir)
-    const result = await runAnalysisPipeline(playablePath, track.path)
+    const result = await runAnalysisPipeline(playablePath, track.path, undefined, slowestBpm)
     writeAnalysisResult(db, track, result)
   } catch (err) {
     markFailed(db, track.id, describeAnalysisError(err))
@@ -89,11 +90,17 @@ const WORKER_ENTRY = fileURLToPath(new URL('./analysis/worker.js', import.meta.u
 // done in the main process for a batch. One worker, kept for the batch,
 // answers one track at a time; `close` ends it. Without the built worker
 // (under Vitest) it's measured in-process.
-export function createTempoMeasurer(cacheDir: string): { measure: (path: string, target: number) => Promise<number | null>; close: () => void } {
+// `mode`: 'near' sharpens a tempo the user multiplied; 'again' measures as
+// analysis would, starting from the stored tempo.
+export function createTempoMeasurer(
+  cacheDir: string,
+  slowestBpm: number | null = null
+): { measure: (path: string, target: number, mode?: 'near' | 'again') => Promise<number | null>; close: () => void } {
   if (!existsSync(WORKER_ENTRY)) {
     return {
-      measure: async (path, target) => {
-        const refined = refineBpm(await decodeToPcm(await getPlayableFilePath(path, cacheDir)), target, 44100, false)
+      measure: async (path, target, mode = 'near') => {
+        const pcm = await decodeToPcm(await getPlayableFilePath(path, cacheDir))
+        const refined = mode === 'again' ? analysedBpm(pcm, target, slowestBpm) : refineBpm(pcm, target, 44100, false)
         return refined === target ? null : refined
       },
       close: () => {},
@@ -115,11 +122,11 @@ export function createTempoMeasurer(cacheDir: string): { measure: (path: string,
   worker.on('error', giveUp)
   worker.on('exit', giveUp)
   return {
-    measure: (path, target) =>
+    measure: (path, target, mode = 'near') =>
       new Promise((resolve) => {
         const id = nextId++
         waiting.set(id, resolve)
-        const task: TempoTask = { kind: 'tempo', id, path, cacheDir, target }
+        const task: TempoTask = { kind: 'tempo', id, path, cacheDir, target, mode, slowestBpm }
         worker.postMessage(task)
       }),
     close: () => void worker.terminate(),
@@ -135,6 +142,8 @@ async function runAnalysisQueueInProcess(
   tracks: { id: number; path: string }[],
   options: {
     cacheDir: string
+    // Below it the tempo is doubled (the Library setting); null leaves it.
+    slowestBpm?: number | null
     onProgress?: (progress: { done: number; total: number }) => void
     signal?: AbortSignal
   }
@@ -143,7 +152,7 @@ async function runAnalysisQueueInProcess(
   let done = 0
   for (const track of tracks) {
     if (options.signal?.aborted) break
-    await analyzeTrack(db, track, options.cacheDir)
+    await analyzeTrack(db, track, options.cacheDir, options.slowestBpm ?? null)
     done++
     options.onProgress?.({ done, total })
   }
@@ -166,6 +175,8 @@ export async function runAnalysisQueue(
   options: {
     concurrency: number
     cacheDir: string
+    // Below it the tempo is doubled (the Library setting); null leaves it.
+    slowestBpm?: number | null
     // done may be fractional: it includes how far the in-flight tracks are.
     onProgress?: (progress: { done: number; total: number }) => void
     signal?: AbortSignal
@@ -239,7 +250,7 @@ export async function runAnalysisQueue(
       const track = tracks[nextIndex++]
       db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
       inFlightTrackIds.add(track.id)
-      const task: WorkerTask = { id: track.id, path: track.path, cacheDir }
+      const task: WorkerTask = { id: track.id, path: track.path, cacheDir, slowestBpm: options.slowestBpm ?? null }
       worker.postMessage(task)
     }
 

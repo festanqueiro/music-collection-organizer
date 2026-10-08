@@ -67,7 +67,9 @@ bars drift ([ADR 0062](../adr/0062-tempo-measured-over-the-whole-track.md),
 [measurements](../research/bpm-accuracy.md)). Tracks analysed before 2026-10-08 keep their old BPM
 until re-analysed. On broken beats the tracker can report two thirds of the tempo (108 for 162): the
 analysis also tries the tempo 1.5 times faster and takes it when the track is clearly stronger
-there ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)). A BPM set by hand (*Refine BPM*,
+there ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)). Half time is settled by a **slowest tempo** (Settings → Library → Tempo: 90 BPM by default, or 70,
+80, 100, none): a BPM analysed below it is doubled
+([ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)). A BPM set by hand (*Refine BPM*,
 [DJ tools](dj-tools.md#refine-bpm)) or taken from Rekordbox is kept by later analyses.
 Start it from the folder tree's menu (**Analyse collection / this folder** — pending and failed only),
 the selection toolbar or a row's menu (**Analyse / Re-analyse track** — always re-runs), the Update
