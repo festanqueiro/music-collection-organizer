@@ -4,21 +4,31 @@
 // Folders/Tags/Subtags/Filters views, whichever is open. A tree of folders
 // and playlists; click a playlist to show its songs in the table, drop
 // rows on one to add them, right-click to play, rename or delete.
-import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
 import { onMenuCommand, runMenuCommand } from '../menuCommands'
-import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportDestination, RekordboxImportPlan } from '../types'
-import { baseName } from '../paths'
+import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportChoices, RekordboxImportDestination, RekordboxImportPlan } from '../types'
 import { filterPlaylistNodes } from '../state/savedPlaylist'
+import { songs } from '../format'
+import { RekordboxImportSummary } from './RekordboxImportSummary'
 
 const LAYOUT_KEY = 'playlistsBox'
+// What was last ticked in a collection import, per computer. Playlists
+// only is what an import always did.
+const IMPORT_CHOICES_KEY = 'rekordboxImportChoices'
+function loadImportChoices(): RekordboxImportChoices {
+  try {
+    const stored = JSON.parse(localStorage.getItem(IMPORT_CHOICES_KEY) ?? 'null')
+    return { playlists: stored?.playlists !== false, cues: stored?.cues === true, bpm: stored?.bpm === true }
+  } catch {
+    return { playlists: true, cues: false, bpm: false }
+  }
+}
 const MIN_HEIGHT = 80
 const DEFAULT_HEIGHT = 240
 const HEADER_HEIGHT = 34
-// Recently added-to playlists shown above the full list in Add to playlist.
-const RECENT_IN_MENU = 3
 
 interface Layout {
   height: number
@@ -58,8 +68,6 @@ type Editing = { kind: 'create'; nodeKind: PlaylistNode['kind']; parentId: numbe
 // as files instead).
 const NODE_TYPE = 'application/x-mco-playlist-node'
 type DropWhere = 'before' | 'after' | 'into'
-
-const songs = (n: number) => `${n} song${n === 1 ? '' : 's'}`
 
 export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: number) => void }) {
   const nodes = useCollectionStore((s) => s.playlistNodes)
@@ -118,6 +126,15 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   const [duplicateChoices, setDuplicateChoices] = useState<Record<string, RekordboxDuplicateAction>>({})
   // Where the import's new playlists go; the Rekordbox folder unless chosen.
   const [destination, setDestination] = useState<RekordboxImportDestination>({ kind: 'rekordbox' })
+  // What to take from a collection export: the playlists, its cues, its tempos.
+  const [choices, setChoices] = useState<RekordboxImportChoices>(loadImportChoices)
+  useEffect(() => {
+    try {
+      localStorage.setItem(IMPORT_CHOICES_KEY, JSON.stringify(choices))
+    } catch {
+      // Not remembered; playlists only next time.
+    }
+  }, [choices])
 
   async function pickImport() {
     const picked = await window.api.pickRekordboxImport()
@@ -138,13 +155,22 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     filePaths: string[],
     relinks: { from: string; trackId: number }[],
     duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>,
-    into: RekordboxImportDestination
+    into: RekordboxImportDestination,
+    take: RekordboxImportChoices
   ) {
     try {
-      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths, relinks, duplicates, into) })
+      const result = await window.api.importRekordbox(filePaths, relinks, duplicates, into, take)
+      useCollectionStore.setState({ playlistNodes: result.nodes })
       const selected = useCollectionStore.getState().selectedPlaylistId
       if (selected !== null) void useCollectionStore.getState().selectPlaylist(selected)
-      showToast('Imported from Rekordbox')
+      // Tempos and cues changed on the tracks themselves.
+      if (result.bpm?.songs) await useCollectionStore.getState().loadAll()
+      else if (result.cues?.songs) await useCollectionStore.getState().refreshHotCueCounts()
+      const extras = [
+        result.cues ? `${result.cues.cues} cue${result.cues.cues === 1 ? '' : 's'} on ${songs(result.cues.songs)}` : null,
+        result.bpm ? `the BPM of ${songs(result.bpm.songs)}` : null,
+      ].filter(Boolean)
+      showToast(`Imported from Rekordbox${extras.length > 0 ? `: ${take.playlists ? 'the playlists, ' : ''}${extras.join(', ')}` : ''}`)
     } catch (err) {
       showToast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
     }
@@ -412,6 +438,29 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     </button>
   )
 
+  // The two items a playlist's menu and a folder's share. A folder exports
+  // one .m3u8 per playlist in it.
+  const exportM3uItem = (node: PlaylistNode, label: string) =>
+    menuItem('ios_share', label, () =>
+      void window.api
+        .exportPlaylistM3u(node.id)
+        .then((r) => {
+          if (!r) return
+          showToast(
+            r.files === 1
+              ? `Exported ${songs(r.songs)} — in Rekordbox: File → Import → Import Playlist`
+              : `Exported ${r.files} playlists — in Rekordbox: File → Import → Import Playlist`
+          )
+        })
+        .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
+    )
+  const keepAsOwnItem = (node: PlaylistNode) =>
+    node.source === 'rekordbox' &&
+    menuItem('link_off', 'Keep as my own', () => {
+      void window.api.detachPlaylistNode(node.id).then((nodes) => useCollectionStore.setState({ playlistNodes: nodes }))
+      showToast(`${node.name} won't be refreshed from Rekordbox any more`)
+    })
+
   return (
     <div
       style={{
@@ -557,25 +606,9 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                   requestAddManyToQueue(ids.filter((id) => present.has(id)))
                 })
               })}
-              {menuItem('ios_share', 'Export for Rekordbox (m3u8)…', () =>
-                void window.api
-                  .exportPlaylistM3u(menu.node!.id)
-                  .then((r) => {
-                    if (!r) return
-                    showToast(
-                      r.files === 1
-                        ? `Exported ${songs(r.songs)} — in Rekordbox: File → Import → Import Playlist`
-                        : `Exported ${r.files} playlists — in Rekordbox: File → Import → Import Playlist`
-                    )
-                  })
-                  .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
-              )}
+              {exportM3uItem(menu.node, 'Export for Rekordbox (m3u8)…')}
               {menuItem('edit', 'Rename', () => setEditing({ kind: 'rename', id: menu.node!.id }))}
-              {menu.node.source === 'rekordbox' &&
-                menuItem('link_off', 'Keep as my own', () => {
-                  void window.api.detachPlaylistNode(menu.node!.id).then((nodes) => useCollectionStore.setState({ playlistNodes: nodes }))
-                  showToast(`${menu.node!.name} won't be refreshed from Rekordbox any more`)
-                })}
+              {keepAsOwnItem(menu.node)}
               {menuItem('delete', 'Delete playlist…', () => setConfirmDelete(menu.node))}
             </>
           ) : (
@@ -583,25 +616,9 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
               {menuItem('play_arrow', 'Play folder', () => void playNode(menu.node!.id))}
               {menuItem('queue_music', 'New playlist here', () => startCreate('playlist', menu.node!.id))}
               {menuItem('create_new_folder', 'New folder here', () => startCreate('folder', menu.node!.id))}
-              {menuItem('ios_share', 'Export playlists for Rekordbox (m3u8)…', () =>
-                void window.api
-                  .exportPlaylistM3u(menu.node!.id)
-                  .then((r) => {
-                    if (!r) return
-                    showToast(
-                      r.files === 1
-                        ? `Exported ${songs(r.songs)} — in Rekordbox: File → Import → Import Playlist`
-                        : `Exported ${r.files} playlists — in Rekordbox: File → Import → Import Playlist`
-                    )
-                  })
-                  .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
-              )}
+              {exportM3uItem(menu.node, 'Export playlists for Rekordbox (m3u8)…')}
               {menuItem('edit', 'Rename', () => setEditing({ kind: 'rename', id: menu.node!.id }))}
-              {menu.node.source === 'rekordbox' &&
-                menuItem('link_off', 'Keep as my own', () => {
-                  void window.api.detachPlaylistNode(menu.node!.id).then((nodes) => useCollectionStore.setState({ playlistNodes: nodes }))
-                  showToast(`${menu.node!.name} won't be refreshed from Rekordbox any more`)
-                })}
+              {keepAsOwnItem(menu.node)}
               {menuItem('delete', 'Delete folder…', () => setConfirmDelete(menu.node))}
             </>
           )}
@@ -617,7 +634,10 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
           onCancel={() => setImportPlan(null)}
           onConfirm={() => {
             const { filePaths, plan } = importPlan
-            if (destination.kind === 'new' && !destination.name.trim()) return showToast('Give the new folder a name')
+            // Playlist files hold nothing else, so there the playlists are always taken.
+            const take: RekordboxImportChoices = plan.extras ? choices : { playlists: true, cues: false, bpm: false }
+            if (!take.playlists && !take.cues && !take.bpm) return showToast('Tick something to import')
+            if (take.playlists && destination.kind === 'new' && !destination.name.trim()) return showToast('Give the new folder a name')
             setImportPlan(null)
             void runImport(
               filePaths,
@@ -627,12 +647,15 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                   .filter((p) => p.duplicate && duplicateChoices[p.key])
                   .map((p) => [p.key, { action: duplicateChoices[p.key], targetId: p.duplicate!.id }])
               ),
-              destination
+              destination,
+              take
             )
           }}
         >
-          <ImportSummary
+          <RekordboxImportSummary
             plan={importPlan.plan}
+            choices={choices}
+            onChoices={setChoices}
             nodes={nodes}
             destination={destination}
             onDestination={setDestination}
@@ -677,354 +700,6 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
             </p>
           )}
         </ConfirmDialog>
-      )}
-    </div>
-  )
-}
-
-function ImportSummary({
-  plan,
-  nodes,
-  destination,
-  onDestination,
-  rejected,
-  onToggle,
-  onSetAll,
-  duplicateChoices,
-  onDuplicateChoice,
-}: {
-  plan: RekordboxImportPlan
-  nodes: PlaylistNode[]
-  destination: RekordboxImportDestination
-  onDestination: (destination: RekordboxImportDestination) => void
-  rejected: Set<string>
-  onToggle: (from: string) => void
-  onSetAll: (on: boolean) => void
-  duplicateChoices: Record<string, RekordboxDuplicateAction>
-  onDuplicateChoice: (key: string, action: RekordboxDuplicateAction) => void
-}) {
-  const duplicates = plan.playlists.filter((p) => p.duplicate)
-  const refreshed = plan.playlists.filter((p) => p.refresh).length
-  const fresh = plan.playlists.length - refreshed
-  const relinked = plan.playlists.reduce((sum, p) => sum + p.relinked, 0)
-  const missing = plan.songs - plan.matched - relinked
-  const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
-  // The box's folders as places to import into, each with the folders it
-  // sits in. The Rekordbox folder is the first choice already.
-  const byId = new Map(nodes.map((n) => [n.id, n]))
-  const folderPath = (node: PlaylistNode): string => {
-    const parts = [node.name]
-    for (let p = node.parentId; p !== null; p = byId.get(p)?.parentId ?? null) parts.unshift(byId.get(p)?.name ?? '')
-    return parts.join(' / ')
-  }
-  const folders = nodes.filter((n) => n.kind === 'folder' && !(n.parentId === null && n.source === 'rekordbox' && n.name === 'Rekordbox'))
-  // One list at a time, in a box of a fixed height, so the dialog stays
-  // the same size however long an import is. It opens on the first list
-  // that asks for a decision.
-  type Tab = 'playlists' | 'duplicates' | 'relinks' | 'gone'
-  const tabs: { id: Tab; label: string; count: number }[] = [
-    { id: 'playlists' as const, label: 'Playlists', count: plan.playlists.length },
-    { id: 'duplicates' as const, label: 'Already in MCO', count: duplicates.length },
-    { id: 'relinks' as const, label: 'Different path', count: plan.relinks.length },
-    { id: 'gone' as const, label: 'Not in this export', count: plan.gone.length },
-  ].filter((t) => t.id === 'playlists' || t.count > 0)
-  const [tab, setTab] = useState<Tab>(duplicates.length > 0 ? 'duplicates' : plan.relinks.length > 0 ? 'relinks' : 'playlists')
-  const used = plan.relinks.filter((r) => !rejected.has(r.from)).length
-  const note: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-dim)' }
-  const ellipsis: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <p style={{ margin: 0 }}>
-        {count(plan.playlists.length, 'playlist')}
-        {plan.folders > 0 ? ` in ${count(plan.folders, 'folder')}` : ''} — {fresh} new
-        {refreshed > 0 ? `, ${refreshed} to refresh` : ''}.{fresh === 0 ? ' They’re refreshed where they are.' : ''}
-      </p>
-      {fresh > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 8px' }}>
-          <label htmlFor="import-destination" style={{ flexShrink: 0 }}>
-            New ones go in
-          </label>
-          <select
-            id="import-destination"
-            value={destination.kind === 'folder' ? String(destination.id) : destination.kind}
-            onChange={(e) => {
-              const value = e.target.value
-              if (value === 'rekordbox' || value === 'top') onDestination({ kind: value })
-              else if (value === 'new') onDestination({ kind: 'new', name: '' })
-              else onDestination({ kind: 'folder', id: Number(value) })
-            }}
-            style={{ flex: 1, minWidth: 0, fontSize: '12px' }}
-          >
-            <option value="rekordbox">The Rekordbox folder</option>
-            <option value="top">The top level (no folder)</option>
-            {folders.length > 0 && (
-              <optgroup label="Your folders">
-                {folders.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {folderPath(f)}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            <option value="new">A new folder…</option>
-          </select>
-          {destination.kind === 'new' && (
-            <input
-              autoFocus
-              value={destination.name}
-              placeholder="Folder name"
-              aria-label="New folder name"
-              onChange={(e) => onDestination({ kind: 'new', name: e.target.value })}
-              // Keep the table's shortcuts (Space, P…) out of the field.
-              onKeyDown={(e) => e.key !== 'Escape' && e.stopPropagation()}
-              style={{ flexBasis: '100%', height: '24px', padding: '0 6px' }}
-            />
-          )}
-        </div>
-      )}
-      <p style={{ margin: 0 }}>
-        {count(plan.songs, 'song')}: {plan.matched} found in your collection
-        {relinked > 0 ? `, ${relinked} at a different path` : ''}
-        {missing > 0 && (
-          <>
-            ,{' '}
-            <span
-              title="Outside the collection folder, not scanned yet, or — from a .txt — a different title or artist"
-              style={{ color: 'var(--color-cue)' }}
-            >
-              {missing} not found (left out)
-            </span>
-          </>
-        )}
-        .
-      </p>
-      {refreshed > 0 && (
-        <p style={{ margin: 0 }}>Refreshed playlists get Rekordbox's songs; changes you made to them in MCO are replaced.</p>
-      )}
-      <div>
-        <div role="tablist" style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', borderBottom: '1px solid var(--color-border)' }}>
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              role="tab"
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
-              style={{
-                background: 'none',
-                border: 'none',
-                borderBottom: `2px solid ${tab === t.id ? 'var(--color-accent)' : 'transparent'}`,
-                borderRadius: 0,
-                padding: '4px 0',
-                marginBottom: '-1px',
-                fontSize: '12px',
-                color: tab === t.id ? 'var(--color-text)' : 'var(--color-text-dim)',
-                cursor: 'pointer',
-              }}
-            >
-              {t.label} <span style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.7 }}>{t.count}</span>
-            </button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '30px', ...note }}>
-          {tab === 'playlists' && <span>Songs found{relinked > 0 ? ' + at a different path' : ''} / songs in the playlist. ↻ is a refresh.</span>}
-          {tab === 'duplicates' && (
-            // Playlists MCO already seems to have — same name or same songs.
-            <span>Updating links MCO’s playlist to Rekordbox: it stays where it is, and importing again refreshes it.</span>
-          )}
-          {tab === 'relinks' && (
-            // An old USB stick's paths, a moved file: the same song in the
-            // collection, used only if left ticked — and remembered.
-            <>
-              <span style={{ flex: 1 }}>
-                The same song in your collection — {used} of {plan.relinks.length} used.
-              </span>
-              <button onClick={() => onSetAll(true)} style={{ fontSize: '11px' }}>
-                All
-              </button>
-              <button onClick={() => onSetAll(false)} style={{ fontSize: '11px' }}>
-                None
-              </button>
-            </>
-          )}
-          {tab === 'gone' && <span>Imported before and no longer in Rekordbox’s export. They’re kept; delete them yourself if you want.</span>}
-        </div>
-        <div
-          role="tabpanel"
-          style={{
-            height: '240px',
-            overflowY: 'auto',
-            border: '1px solid var(--color-border)',
-            borderRadius: '6px',
-            padding: '4px 8px',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {tab === 'playlists' &&
-            plan.playlists.map((p, i) => (
-              <div key={i} title={p.name} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-                <span style={ellipsis}>
-                  {p.name}
-                  {p.refresh ? ' ↻' : ''}
-                </span>
-                <span style={{ color: p.matched + p.relinked < p.songs ? 'var(--color-cue)' : 'var(--color-text-dim)', flexShrink: 0 }}>
-                  {p.matched}
-                  {p.relinked > 0 ? ` + ${p.relinked}` : ''}/{p.songs}
-                </span>
-              </div>
-            ))}
-          {tab === 'duplicates' &&
-            duplicates.map((p) => {
-              const d = p.duplicate!
-              const why = [
-                d.sameName ? 'same name' : null,
-                d.songs === 'same' ? 'same songs' : d.songs === 'most' ? `mostly the same songs (${d.shared} shared)` : `${d.shared} of its ${d.mcoSongs} songs shared`,
-              ]
-                .filter(Boolean)
-                .join(', ')
-              return (
-                <div key={p.key} style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '4px 0' }}>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', ...ellipsis }}>{p.name}</span>
-                    <span style={{ display: 'block', ...note }}>
-                      MCO’s “{d.name}”: {why}
-                    </span>
-                  </span>
-                  <select
-                    aria-label={`What to do with ${p.name}`}
-                    value={duplicateChoices[p.key] ?? 'new'}
-                    onChange={(e) => onDuplicateChoice(p.key, e.target.value as RekordboxDuplicateAction)}
-                    style={{ fontSize: '12px', flexShrink: 0 }}
-                  >
-                    <option value="skip">Skip — keep MCO’s</option>
-                    <option value="new">Import as a new playlist</option>
-                    <option value="update">Update MCO’s with these songs</option>
-                  </select>
-                </div>
-              )
-            })}
-          {tab === 'relinks' &&
-            plan.relinks.map((r) => (
-              <label
-                key={r.from}
-                title={`${r.from}\n→ ${r.to}`}
-                style={{ display: 'flex', gap: '6px', alignItems: 'flex-start', padding: '3px 0', cursor: 'pointer' }}
-              >
-                <input type="checkbox" checked={!rejected.has(r.from)} onChange={() => onToggle(r.from)} style={{ marginTop: '2px' }} />
-                <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ ...ellipsis, color: 'var(--color-text-dim)' }}>{baseName(r.from)}</span>
-                  <span style={ellipsis}>
-                    → {r.label} <span style={note}>({r.reason})</span>
-                  </span>
-                </span>
-              </label>
-            ))}
-          {tab === 'gone' &&
-            plan.gone.map((name) => (
-              <div key={name} title={name} style={ellipsis}>
-                {name}
-              </div>
-            ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// "Add to playlist…" from the table's right-click menu: every playlist
-// (with its folders as a path), and a new one.
-export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: number; trackIds: number[]; onClose: () => void }) {
-  const nodes = useCollectionStore((s) => s.playlistNodes)
-  const addTracks = useCollectionStore((s) => s.addTracksToSavedPlaylist)
-  const createNode = useCollectionStore((s) => s.createPlaylistNode)
-  const showToast = useCollectionStore((s) => s.showToast)
-  const [naming, setNaming] = useState(false)
-  // Opens at the pointer, then moves back inside the window if it would
-  // run off the right or bottom edge (the detail panel is at the edge).
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState({ left: x, top: y })
-  useLayoutEffect(() => {
-    const rect = menuRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const left = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))
-    const top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))
-    setPosition((current) => (current.left === left && current.top === top ? current : { left, top }))
-  }, [x, y, naming])
-
-  useEffect(() => {
-    const close = () => onClose()
-    window.addEventListener('click', close)
-    return () => window.removeEventListener('click', close)
-  }, [onClose])
-
-  const recentIds = useCollectionStore((s) => s.recentPlaylistIds)
-  const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
-  const pathOf = (node: PlaylistNode): string => {
-    const parts: string[] = []
-    for (let p = node.parentId; p !== null; p = byId.get(p)?.parentId ?? null) parts.unshift(byId.get(p)?.name ?? '')
-    return parts.join(' / ')
-  }
-  const playlists = nodes.filter((n) => n.kind === 'playlist')
-  // The ones last added to, first; then the whole tree.
-  const recent = recentIds
-    .map((id) => byId.get(id))
-    .filter((n): n is PlaylistNode => n?.kind === 'playlist')
-    .slice(0, RECENT_IN_MENU)
-  const item = (node: PlaylistNode, key: string) => (
-    <button
-      key={key}
-      onClick={() => {
-        onClose()
-        void addTracks(node.id, trackIds)
-      }}
-      style={contextMenuItemStyle}
-    >
-      <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-        queue_music
-      </span>
-      <span>{node.name}</span>
-      {node.parentId !== null && <span style={{ color: 'var(--color-text-dim)', fontSize: '11px' }}>{pathOf(node)}</span>}
-    </button>
-  )
-
-  return (
-    <div
-      ref={menuRef}
-      onClick={(e) => e.stopPropagation()}
-      style={{ ...contextMenuStyle, ...position, maxHeight: '60vh', overflowY: 'auto', minWidth: '200px' }}
-    >
-      <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
-        Add {songs(trackIds.length)} to…
-      </div>
-      {recent.length > 0 && playlists.length > recent.length && (
-        <>
-          {recent.map((node) => item(node, `recent-${node.id}`))}
-          <div style={{ height: '1px', background: 'var(--color-border)', margin: '4px 0' }} />
-        </>
-      )}
-      {playlists.map((node) => item(node, String(node.id)))}
-      {naming ? (
-        <input
-          autoFocus
-          placeholder="Playlist name"
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === 'Escape') onClose()
-            if (e.key !== 'Enter' || !e.currentTarget.value.trim()) return
-            const name = e.currentTarget.value
-            onClose()
-            createNode('playlist', name, null)
-              .then((id) => addTracks(id, trackIds))
-              .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
-          }}
-          style={{ margin: '4px', width: 'calc(100% - 8px)', height: '24px', padding: '0 6px' }}
-        />
-      ) : (
-        <button onClick={() => setNaming(true)} style={contextMenuItemStyle}>
-          <span className="material-symbols-outlined" style={contextMenuIconStyle}>
-            add
-          </span>
-          New playlist…
-        </button>
       )}
     </div>
   )

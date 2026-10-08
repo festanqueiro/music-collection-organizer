@@ -62,11 +62,13 @@ export function deleteHotCue(db: AppDatabase, trackId: number, slot: number): Tr
 }
 
 // Rekordbox's cues → MCO, for songs MCO has (matched by path) that have no
-// cues in MCO yet — songs with MCO cues are left alone and counted.
+// cues in MCO yet — songs with MCO cues are left alone and counted. With
+// `write` off nothing is written: the counts, for the import's summary.
 export function importRekordboxCues(
   db: AppDatabase,
   collection: RekordboxCollection,
-  match: (path: string) => number | undefined
+  match: (path: string) => number | undefined,
+  write = true
 ): { songs: number; cues: number; skipped: number } {
   return runInTransaction(db, () => {
     const hasCues = db.prepare('SELECT 1 FROM track_cues WHERE track_id = ? LIMIT 1')
@@ -92,7 +94,7 @@ export function importRekordboxCues(
         const slot = kind === 'hot' ? c.num : -1
         if (kind === 'hot' && takenSlots.has(slot)) continue
         if (kind === 'hot') takenSlots.add(slot)
-        insert.run(id, kind, slot, Math.round(c.start * 1000) / 1000, c.end ?? null, c.color ? rgbToHex(c.color) : null, '')
+        if (write) insert.run(id, kind, slot, Math.round(c.start * 1000) / 1000, c.end ?? null, c.color ? rgbToHex(c.color) : null, '')
         cues++
       }
       songs++

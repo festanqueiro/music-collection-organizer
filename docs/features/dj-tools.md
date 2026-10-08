@@ -61,6 +61,30 @@ How it works: `findSimilarTracks` (`src/state/similarTracks.ts`) is one pass ove
 already in the store — no index, no database query — memoised on the selected track, the track
 list and the tags, and skipped while the section is collapsed. Only the rows shown are rendered.
 
+## Refine BPM
+
+The analysis can be an octave out (85 for 170), or report two thirds of the tempo on broken
+beats (108 for 162). Right-click a track → **Refine BPM…** (with several rows checked, **Refine BPM
+of all…**) ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)):
+
+- **Double**, **Halve**, **Two-thirds fix (× 1.5)** — for one track each shows what it gives
+  (`≈ 159.87`). The result is then sharpened on the track's audio near that value, so 106.58 × 1.5
+  becomes 160; if the audio doesn't agree within 3.5 % the plain product is kept.
+- **Set the BPM…** — type it (a comma works as the decimal point); taken as typed, to two decimals.
+- 30 to 300 BPM; anything else is refused with a message. A track with no BPM yet can only be set.
+- A BPM changed this way is **yours**: the menu's header says *set by you*, and analysing the
+  track again updates everything else but keeps it. **Detect it again** (shown for such tracks)
+  forgets it and re-analyses.
+- The bar counter, the suggested cues, the Compatible filter's tempo match and the Rekordbox
+  export all use the new BPM at once. The analysed first beat isn't moved.
+
+How it works: `changeTrackBpm` (`electron/main/bpmEdit.ts`), IPC `tracks:changeBpm` (returns the
+tracks as they are now), `tracks.bpm_edited`; `refineBpm(…, threeHalves = false)` does the
+sharpening. UI: `src/components/RefineBpmMenu.tsx`, opened from `TrackTable`'s menus.
+
+The analysis itself now catches the two-thirds case in most tracks
+([measurements](../research/bpm-accuracy.md)); half time is left to you.
+
 ## Headphone pre-listen (cue)
 
 Audition a track in your headphones while the main output keeps playing.
@@ -107,6 +131,11 @@ ways, is next: [Rekordbox sync](rekordbox-sync.md).
 Code: `electron/main/rekordboxExport.ts`.
 
 ## Tests
+- `bpmEdit.test.ts`: factors sharpened on the audio, the plain product when the audio says nothing
+  or something far off, a typed BPM, refusals, detect. `tempoRefine.test.ts`: 160 and 170 found
+  from two thirds of them on a broken beat, real 108 and 128 left alone, nothing past 200.
+  In the built app (Playwright, demo library): halve → 70, double → 140, set, refuse, detect, and
+  the menu from a row's right-click.
 - `similarTracks.test.ts`: tempo alone (BPM on, off, no BPM on the track); key matches and nothing else, shared Tags/Subtags, the ranking and its
   tempo tie-break, key-only / tags-only, a track with nothing to go on.
 - `src/state/harmonic.test.ts` (every key against Mixed In Key's wheel),

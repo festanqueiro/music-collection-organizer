@@ -26,6 +26,8 @@ export interface Track {
   // grid (docs/features/hot-cues.md, ADR 0059). Null until set — the grid
   // then starts at firstBeat, unconfirmed.
   gridStart: number | null
+  // The BPM was set by the user (Refine BPM): analysis leaves it alone.
+  bpmEdited?: boolean
   musicalKey: string | null
   // When it was last analysed (ms); the waveform is read per track
   // (tracks:getWaveform, ADR 0058) and read again when this changes.
@@ -181,6 +183,31 @@ export interface RekordboxImportPlan {
   relinks: RekordboxRelink[]
   // Imported playlists that aren't in this export any more (kept).
   gone: string[]
+  // What else a collection export (xml) can bring, counted — null for
+  // playlist files (m3u8, txt), which only hold playlists.
+  extras?: RekordboxImportExtras | null
+}
+
+export interface RekordboxImportExtras {
+  // Hot cues, memory cues and loops, for songs with no cues in MCO yet;
+  // `skipped` songs already have cues in MCO.
+  cues: { songs: number; cues: number; skipped: number }
+  // Songs whose BPM is missing in MCO or differs from Rekordbox's.
+  bpm: { songs: number }
+}
+
+// What the user ticked in the import's summary. Playlists only is what an
+// import always did.
+export interface RekordboxImportChoices {
+  playlists: boolean
+  cues: boolean
+  bpm: boolean
+}
+
+export interface RekordboxImportResult {
+  nodes: PlaylistNode[]
+  cues: { songs: number; cues: number } | null
+  bpm: { songs: number } | null
 }
 
 // A cue point on a track (docs/features/hot-cues.md): a hot cue A–H
@@ -735,3 +762,8 @@ export interface ConvertProgress {
   // The file being converted now.
   name: string
 }
+
+// "Refine BPM" (docs/features/dj-tools.md): multiply the tempo (2, 0.5, or
+// 1.5 when two thirds of it was detected), set it, or hand it back to
+// analysis.
+export type BpmChange = { kind: 'factor'; factor: number } | { kind: 'set'; bpm: number } | { kind: 'detect' }

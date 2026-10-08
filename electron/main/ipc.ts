@@ -1,8 +1,14 @@
-import { app, ipcMain, dialog, shell, BrowserWindow, powerSaveBlocker, type IpcMainInvokeEvent, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
-import { basename, dirname, join, relative, isAbsolute, sep } from 'node:path'
+import { app, ipcMain, dialog, shell, BrowserWindow, powerSaveBlocker, type IpcMainInvokeEvent } from 'electron'
+import { basename, join, relative, isAbsolute } from 'node:path'
 import { writeFileSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { applyMoves, planMove, type MovedTrack } from './moveTracks'
-import { convertTracks, defaultConvertDeps, probeAudio } from './convert'
+import { showOpenDialog, showSaveDialog } from './ipcDialogs'
+import { changeTrackBpm } from './bpmEdit'
+import { decodeToPcm } from './analysis/decode'
+import { refineBpm } from './analysis/tempoRefine'
+import { registerTagIpc } from './ipcTags'
+import { registerPlaylistIpc } from './ipcPlaylists'
+import { registerConvertIpc } from './ipcConvert'
 import { listScreenDisplays, watchScreenDisplays } from './screenWindow'
 import type { AppDatabase } from './db'
 import {
@@ -37,13 +43,7 @@ import {
   getAutoAnalyseNewTracks,
   setAutoAnalyseNewTracks,
   setAppThemeId,
-  getPlaylistImportFolder,
-  setPlaylistImportFolder,
-  getRekordboxCompareFile,
-  setRekordboxCompareFile,
 } from './config'
-import { compareWithRekordbox, loadMcoSide } from './rekordboxCompare'
-import { deleteHotCue, getHotCueCounts, getTrackCues, importRekordboxCues, setHotCue, updateHotCue } from './cues'
 import { getAppTheme, isAppThemeId } from '../../src/appThemes'
 import { FolderWatcher } from './folderWatcher'
 import { isTrustedReleaseUrl, type Updater } from './updater'
@@ -60,67 +60,18 @@ import { TagReader, readFileTags, saveFileTags } from './tagReader'
 import { getMediaCacheDir } from './mediaCacheDir'
 import { listBackups, restoreBackup, runBackup } from './backup'
 import { checkDestination, runExternalBackup } from './externalBackup'
-import {
-  createGenre,
-  createSubgenre,
-  deleteGenre,
-  deleteSubgenre,
-  renameGenre,
-  renameSubgenre,
-  setGenreColor,
-  setSubgenreColor,
-  countTracksWithGenre,
-  countTracksWithSubgenre,
-  setTrackGenres,
-  setTrackSubgenres,
-  getTrackTagIds,
-  addGenresToTracks,
-  addSubgenresToTracks,
-  captureGenreDeletionSnapshot,
-  undoGenreDeletion,
-  captureSubgenreDeletionSnapshot,
-  undoSubgenreDeletion,
-} from './tags'
-import { exportTagData, importTagData, type TagExportData } from './tagExport'
 import { buildMidiExport, parseMidiExportText } from './midiExport'
-import { buildRekordboxXml } from './rekordboxExport'
 import { CastController, type DirectMediaSources } from './cast/castSession'
 import { isReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
-import { getCastableFilePath } from './audioTranscode'
-import { waveformSection } from './waveformSection'
+import { getCastableFilePath, getPlayableFilePath } from './audioTranscode'
 import { registerRecordingIpc } from './recording'
 import { mimeTypeFor } from './mediaTypes'
-import {
-  addTracksToPlaylist,
-  createPlaylistNode,
-  deletePlaylistNode,
-  getNodeTrackIds,
-  getPlaylistNodes,
-  getPlaylistTrackIds,
-  getTrackPlaylistIds,
-  removeTracksFromPlaylist,
-  renamePlaylistNode,
-  setPlaylistTrackIds,
-  trackMatcher,
-  applyRekordboxImport,
-  detachPlaylistNode,
-  movePlaylistNode,
-  planRekordboxImport,
-  rekordboxTxtToTree,
-  playlistToM3u,
-  folderPlaylists,
-} from './playlists'
-import { decodeRekordboxText, parseM3uEntries, parseRekordboxTxt, readRekordboxCollection, parseRekordboxXml, type RekordboxNode } from './rekordboxXml'
 import type {
+  BpmChange,
   Track,
-  Genre,
-  Subgenre,
   BackupInfo,
   BackupEntry,
-  ImportResult,
-  GenreDeletionSnapshot,
-  SubgenreDeletionSnapshot,
   EffectsSettings,
   MidiMappings,
   MidiImportResult,
@@ -133,18 +84,7 @@ import type {
   WriteTagsResult,
   ExternalBackupInfo,
   ExternalBackupResult,
-  PlaylistNode,
-  RekordboxImportPlan,
-  RekordboxReport,
-  AudioInfo,
-  ConvertOptions,
-  ConvertResult,
-  RekordboxDuplicateAction,
-  RekordboxImportDestination,
-  TrackCue,
-  WaveformSection,
 } from '../../src/types'
-import type { TrackTagIds } from '../../src/state/tagFilter'
 
 interface TrackRow {
   id: number
@@ -165,6 +105,7 @@ interface TrackRow {
   bpm: number | null
   first_beat: number | null
   grid_start: number | null
+  bpm_edited: number | null
   musical_key: string | null
   analyzed_at: number | null
   loudness: number | null
@@ -175,19 +116,6 @@ interface TrackRow {
   analysis_status: 'pending' | 'analyzing' | 'done' | 'error'
   analysis_error: string | null
   tags_read_at: number | null
-}
-
-interface GenreRow {
-  id: number
-  name: string
-  color: string | null
-}
-
-interface SubgenreRow {
-  id: number
-  name: string
-  genre_id: number
-  color: string | null
 }
 
 function rowToTrack(row: TrackRow): Track {
@@ -210,6 +138,7 @@ function rowToTrack(row: TrackRow): Track {
     bpm: row.bpm,
     firstBeat: row.first_beat ?? null,
     gridStart: row.grid_start ?? null,
+    bpmEdited: row.bpm_edited === 1,
     musicalKey: row.musical_key,
     analyzedAt: row.analyzed_at ?? null,
     loudness: row.loudness,
@@ -226,18 +155,6 @@ function rowToTrack(row: TrackRow): Track {
 // How long the collection folder has to be quiet before a background
 // rescan — long enough that copying in an album is one scan, not twenty.
 const WATCH_DEBOUNCE_MS = 3000
-
-// Dialogs are parented to whichever window asked for them. Falls back to an
-// unparented dialog if that window is somehow gone by now.
-function showOpenDialog(e: IpcMainInvokeEvent, options: OpenDialogOptions) {
-  const win = BrowserWindow.fromWebContents(e.sender)
-  return win ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options)
-}
-
-function showSaveDialog(e: IpcMainInvokeEvent, options: SaveDialogOptions) {
-  const win = BrowserWindow.fromWebContents(e.sender)
-  return win ? dialog.showSaveDialog(win, options) : dialog.showSaveDialog(options)
-}
 
 // getMainWindow is a function (not a fixed BrowserWindow) so a window
 // recreated after all windows were closed (macOS's 'activate' event) is
@@ -693,279 +610,11 @@ export function registerIpcHandlers(
     }))
   )
 
-  // COLLATE NOCASE so the Tag Tree/pickers/selects (everything reads
-  // through these two handlers) list tags A-Z regardless of case, rather
-  // than in whatever order they happened to get created.
-  ipcMain.handle('tags:getGenres', (): Genre[] =>
-    (db.prepare('SELECT * FROM genres ORDER BY name COLLATE NOCASE').all() as unknown as GenreRow[]).map((r) => ({
-      id: r.id,
-      name: r.name,
-      color: r.color,
-    }))
-  )
-  ipcMain.handle('tags:getSubgenres', (): Subgenre[] =>
-    (db.prepare('SELECT * FROM subgenres ORDER BY name COLLATE NOCASE').all() as unknown as SubgenreRow[]).map((r) => ({
-      id: r.id,
-      name: r.name,
-      genreId: r.genre_id,
-      color: r.color,
-    }))
-  )
+  registerTagIpc(db)
+  registerPlaylistIpc(db)
+  registerConvertIpc(db, sendToRenderer)
 
-  ipcMain.handle('tags:createGenre', (_e, name: string): number => createGenre(db, name))
 
-  // Playlists (docs/features/playlists.md): changes return the tree after
-  // the write, so the store patches locally.
-  ipcMain.handle('playlists:getNodes', (): PlaylistNode[] => getPlaylistNodes(db))
-  ipcMain.handle(
-    'playlists:create',
-    (_e, kind: 'folder' | 'playlist', name: string, parentId: number | null): { id: number; nodes: PlaylistNode[] } => {
-      const id = createPlaylistNode(db, kind, name, parentId)
-      return { id, nodes: getPlaylistNodes(db) }
-    }
-  )
-  ipcMain.handle('playlists:rename', (_e, id: number, name: string): PlaylistNode[] => {
-    renamePlaylistNode(db, id, name)
-    return getPlaylistNodes(db)
-  })
-  ipcMain.handle('playlists:delete', (_e, id: number): PlaylistNode[] => {
-    deletePlaylistNode(db, id)
-    return getPlaylistNodes(db)
-  })
-  // Rekordbox: the whole collection's XML export (File menu), or single
-  // playlists exported as .m3u8 (paths) or .txt (titles) — several at once.
-  const readRekordboxFiles = (filePaths: string[]): RekordboxNode[] =>
-    filePaths.flatMap((filePath): RekordboxNode[] => {
-      const text = decodeRekordboxText(readFileSync(filePath))
-      if (/\.xml$/i.test(filePath)) return parseRekordboxXml(text)
-      const name = basename(filePath).replace(/\.[^.]+$/, '')
-      if (/\.m3u8?$/i.test(filePath)) {
-        const entries = parseM3uEntries(text)
-        return [{ kind: 'playlist', name, paths: entries.map((e) => e.path), hints: entries.map((e) => e.hint) }]
-      }
-      return rekordboxTxtToTree(db, name, parseRekordboxTxt(text))
-    })
-  ipcMain.handle(
-    'playlists:pickRekordbox',
-    async (event): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> => {
-      const window = BrowserWindow.fromWebContents(event.sender)
-      const options = {
-        title: 'Import from Rekordbox',
-        // Opens where the last import came from (Rekordbox's exports
-        // usually go to the same folder).
-        defaultPath: getPlaylistImportFolder() ?? undefined,
-        properties: ['openFile' as const, 'multiSelections' as const],
-        filters: [{ name: 'Rekordbox export', extensions: ['m3u8', 'm3u', 'txt', 'xml'] }],
-      }
-      const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
-      if (result.canceled || result.filePaths.length === 0) return null
-      setPlaylistImportFolder(dirname(result.filePaths[0]))
-      try {
-        return { filePaths: result.filePaths, plan: planRekordboxImport(db, readRekordboxFiles(result.filePaths)) }
-      } catch (err) {
-        return { error: err instanceof Error ? err.message : String(err) }
-      }
-    }
-  )
-  // Rekordbox sync, phase 1: compare Rekordbox's collection export with MCO
-  // (read-only). `pick` asks for the file; otherwise the last one is used.
-  ipcMain.handle(
-    'rekordbox:compare',
-    async (event, pick: boolean): Promise<{ report: RekordboxReport } | { error: string } | null> => {
-      let file = pick ? null : getRekordboxCompareFile()
-      if (!file || !existsSync(file)) {
-        const window = BrowserWindow.fromWebContents(event.sender)
-        const last = getRekordboxCompareFile()
-        const options = {
-          title: 'Compare with Rekordbox',
-          message: 'Choose the collection Rekordbox exported (File → Export Collection in xml format)',
-          defaultPath: last ? dirname(last) : undefined,
-          properties: ['openFile' as const],
-          filters: [{ name: 'Rekordbox collection (xml)', extensions: ['xml'] }],
-        }
-        const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
-        if (result.canceled || result.filePaths.length === 0) return null
-        file = result.filePaths[0]
-      }
-      try {
-        const collection = readRekordboxCollection(decodeRekordboxText(readFileSync(file)))
-        if (collection.tracks.length === 0) return { error: "That file has no songs — it needs Rekordbox's whole-collection export." }
-        setRekordboxCompareFile(file)
-        return { report: compareWithRekordbox(file, collection, loadMcoSide(db, getCollectionFolder())) }
-      } catch (err) {
-        return { error: err instanceof Error ? err.message : String(err) }
-      }
-    }
-  )
-  // Cue points (docs/features/hot-cues.md): writes return the track's cues.
-  ipcMain.handle('cues:get', (_e, trackId: number): TrackCue[] => getTrackCues(db, trackId))
-  ipcMain.handle('waveform:section', async (_e, trackId: number, start: number, length: number): Promise<WaveformSection | null> => {
-    const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
-    if (!row || !Number.isFinite(start) || !(length > 0) || length > 300) return null
-    return waveformSection(row.path, getMediaCacheDir(), start, length)
-  })
-  ipcMain.handle('cues:counts', (): Record<number, number> => getHotCueCounts(db))
-  ipcMain.handle('cues:set', (_e, trackId: number, slot: number, start: number): TrackCue[] => setHotCue(db, trackId, slot, start))
-  ipcMain.handle(
-    'cues:update',
-    (_e, trackId: number, slot: number, changes: { color?: string | null; name?: string }): TrackCue[] =>
-      updateHotCue(db, trackId, slot, changes)
-  )
-  ipcMain.handle('cues:delete', (_e, trackId: number, slot: number): TrackCue[] => deleteHotCue(db, trackId, slot))
-  // From the Compare report: the compared export's cues, for songs with none in MCO.
-  ipcMain.handle('cues:importRekordbox', (): { songs: number; cues: number; skipped: number } | { error: string } => {
-    const file = getRekordboxCompareFile()
-    if (!file || !existsSync(file)) return { error: 'Compare with Rekordbox first — the export file is gone.' }
-    try {
-      return importRekordboxCues(db, readRekordboxCollection(decodeRekordboxText(readFileSync(file))), trackMatcher(db))
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) }
-    }
-  })
-  // relinks: the "found at another path" songs the user kept ticked.
-  // duplicates: per incoming playlist MCO already seemed to have, skip /
-  // new / update (with the MCO playlist to update).
-  // destination: where the new playlists and folders go.
-  ipcMain.handle(
-    'playlists:importRekordbox',
-    (
-      _e,
-      filePaths: string[],
-      relinks: { from: string; trackId: number }[] = [],
-      duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }> = {},
-      destination: RekordboxImportDestination = { kind: 'rekordbox' }
-    ): PlaylistNode[] => {
-    applyRekordboxImport(db, readRekordboxFiles(filePaths), relinks, duplicates, destination)
-    return getPlaylistNodes(db)
-  })
-  ipcMain.handle(
-    'playlists:move',
-    (_e, id: number, targetId: number | null, where: 'before' | 'after' | 'into'): PlaylistNode[] => {
-      movePlaylistNode(db, id, targetId, where)
-      return getPlaylistNodes(db)
-    }
-  )
-  // m3u8 for Rekordbox: a playlist to a file, or a folder's playlists to
-  // one file each in a chosen folder. File names lose characters macOS
-  // and Windows don't allow.
-  ipcMain.handle('playlists:exportM3u', async (event, id: number): Promise<{ files: number; songs: number } | null> => {
-    const node = getPlaylistNodes(db).find((n) => n.id === id)
-    if (!node) return null
-    const window = BrowserWindow.fromWebContents(event.sender)
-    const safe = (name: string) => name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'Playlist'
-    if (node.kind === 'playlist') {
-      const options: SaveDialogOptions = {
-        title: 'Export playlist for Rekordbox',
-        defaultPath: join(app.getPath('documents'), `${safe(node.name)}.m3u8`),
-        filters: [{ name: 'Playlist', extensions: ['m3u8'] }],
-      }
-      const result = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options)
-      if (result.canceled || !result.filePath) return null
-      const { text, songs } = playlistToM3u(db, id)
-      writeFileSync(result.filePath, text, 'utf8')
-      return { files: 1, songs }
-    }
-    const options: OpenDialogOptions = {
-      title: `Export the playlists in ${node.name} for Rekordbox`,
-      buttonLabel: 'Export here',
-      properties: ['openDirectory', 'createDirectory'],
-    }
-    const result = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options)
-    const dir = result.filePaths[0]
-    if (result.canceled || !dir) return null
-    let songs = 0
-    const playlists = folderPlaylists(db, id)
-    for (const playlist of playlists) {
-      const m3u = playlistToM3u(db, playlist.id)
-      songs += m3u.songs
-      writeFileSync(join(dir, `${safe(playlist.name)}.m3u8`), m3u.text, 'utf8')
-    }
-    return { files: playlists.length, songs }
-  })
-  ipcMain.handle('playlists:detach', (_e, id: number): PlaylistNode[] => {
-    detachPlaylistNode(db, id)
-    return getPlaylistNodes(db)
-  })
-  ipcMain.handle('playlists:getTrackIds', (_e, playlistId: number): number[] => getPlaylistTrackIds(db, playlistId))
-  ipcMain.handle('playlists:getNodeTrackIds', (_e, id: number): number[] => getNodeTrackIds(db, id))
-  ipcMain.handle('playlists:forTrack', (_e, trackId: number): number[] => getTrackPlaylistIds(db, trackId))
-  ipcMain.handle(
-    'playlists:addTracks',
-    (_e, playlistId: number, trackIds: number[]): { added: number; skipped: number; trackIds: number[]; nodes: PlaylistNode[] } => ({
-      ...addTracksToPlaylist(db, playlistId, trackIds),
-      trackIds: getPlaylistTrackIds(db, playlistId),
-      nodes: getPlaylistNodes(db),
-    })
-  )
-  ipcMain.handle(
-    'playlists:removeTracks',
-    (_e, playlistId: number, trackIds: number[]): { trackIds: number[]; nodes: PlaylistNode[] } => {
-      removeTracksFromPlaylist(db, playlistId, trackIds)
-      return { trackIds: getPlaylistTrackIds(db, playlistId), nodes: getPlaylistNodes(db) }
-    }
-  )
-  ipcMain.handle(
-    'playlists:setTracks',
-    (_e, playlistId: number, trackIds: number[]): { trackIds: number[]; nodes: PlaylistNode[] } => {
-      setPlaylistTrackIds(db, playlistId, trackIds)
-      return { trackIds: getPlaylistTrackIds(db, playlistId), nodes: getPlaylistNodes(db) }
-    }
-  )
-  ipcMain.handle('tags:createSubgenre', (_e, name: string, genreId: number): number =>
-    createSubgenre(db, name, genreId)
-  )
-  ipcMain.handle('tags:renameGenre', (_e, genreId: number, name: string): void => renameGenre(db, genreId, name))
-  ipcMain.handle('tags:renameSubgenre', (_e, subgenreId: number, name: string): void =>
-    renameSubgenre(db, subgenreId, name)
-  )
-  ipcMain.handle('tags:setGenreColor', (_e, genreId: number, color: string | null): void =>
-    setGenreColor(db, genreId, color)
-  )
-  ipcMain.handle('tags:setSubgenreColor', (_e, subgenreId: number, color: string | null): void =>
-    setSubgenreColor(db, subgenreId, color)
-  )
-  ipcMain.handle('tags:countTracksWithGenre', (_e, genreId: number): number => countTracksWithGenre(db, genreId))
-  ipcMain.handle('tags:countTracksWithSubgenre', (_e, subgenreId: number): number =>
-    countTracksWithSubgenre(db, subgenreId)
-  )
-  ipcMain.handle('tags:deleteGenre', (_e, genreId: number): GenreDeletionSnapshot => {
-    const snapshot = captureGenreDeletionSnapshot(db, genreId)
-    deleteGenre(db, genreId)
-    return snapshot
-  })
-  ipcMain.handle('tags:undoDeleteGenre', (_e, snapshot: GenreDeletionSnapshot): void =>
-    undoGenreDeletion(db, snapshot)
-  )
-  ipcMain.handle('tags:deleteSubgenre', (_e, subgenreId: number): SubgenreDeletionSnapshot => {
-    const snapshot = captureSubgenreDeletionSnapshot(db, subgenreId)
-    deleteSubgenre(db, subgenreId)
-    return snapshot
-  })
-  ipcMain.handle('tags:undoDeleteSubgenre', (_e, snapshot: SubgenreDeletionSnapshot): void =>
-    undoSubgenreDeletion(db, snapshot)
-  )
-
-  // These return the post-write tag state (read back from the DB) rather
-  // than void, so the renderer store can apply the server's answer directly
-  // instead of reimplementing setTrackGenres's subgenre-cascade rule
-  // client-side against a possibly-stale cache.
-  ipcMain.handle('tags:setTrackGenres', (_e, trackId: number, genreIds: number[]): TrackTagIds => {
-    setTrackGenres(db, trackId, genreIds)
-    return { trackId, ...getTrackTagIds(db, trackId) }
-  })
-  ipcMain.handle('tags:setTrackSubgenres', (_e, trackId: number, subgenreIds: number[]): TrackTagIds => {
-    setTrackSubgenres(db, trackId, subgenreIds)
-    return { trackId, ...getTrackTagIds(db, trackId) }
-  })
-
-  ipcMain.handle(
-    'tags:batchAddTags',
-    (_e, trackIds: number[], tagIds: { genreIds: number[]; subgenreIds: number[] }): TrackTagIds[] => {
-      if (tagIds.genreIds.length) addGenresToTracks(db, trackIds, tagIds.genreIds)
-      if (tagIds.subgenreIds.length) addSubgenresToTracks(db, trackIds, tagIds.subgenreIds)
-      return trackIds.map((trackId) => ({ trackId, ...getTrackTagIds(db, trackId) }))
-    }
-  )
 
   ipcMain.handle('tracks:download', async (_e, trackId: number): Promise<void> => {
     await downloadTrack(db, trackId)
@@ -1042,55 +691,6 @@ export function registerIpcHandlers(
     shell.showItemInFolder(row.path)
   })
 
-  // "Convert to…" (docs/features/convert.md). What a file is now, for the
-  // dialog; the folder picker for somewhere else to save; and the
-  // conversion itself, one run at a time, reporting after each file.
-  ipcMain.handle('tracks:audioInfo', async (_e, trackId: number): Promise<AudioInfo | null> => {
-    const row = db.prepare('SELECT path FROM tracks WHERE id = ? AND present = 1').get(trackId) as { path: string } | undefined
-    if (!row) return null
-    return probeAudio(row.path).catch(() => null)
-  })
-  ipcMain.handle('tracks:pickConvertFolder', async (e, defaultPath: string | null): Promise<string | null> => {
-    const result = await showOpenDialog(e, {
-      title: 'Save the converted files in',
-      buttonLabel: 'Choose',
-      defaultPath: defaultPath ?? undefined,
-      properties: ['openDirectory', 'createDirectory'],
-    })
-    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
-  })
-  let converting = false
-  let stopConverting = false
-  ipcMain.handle(
-    'tracks:convert',
-    async (_e, trackIds: number[], options: ConvertOptions): Promise<{ results: ConvertResult[]; rescan: boolean } | { error: string }> => {
-      if (converting) return { error: 'A conversion is already running' }
-      converting = true
-      stopConverting = false
-      try {
-        const results = await convertTracks(
-          db,
-          defaultConvertDeps((path) => shell.trashItem(path)),
-          trackIds,
-          options,
-          (progress) => sendToRenderer('tracks:convertProgress', progress),
-          () => stopConverting
-        )
-        // Copies saved inside the collection are new tracks for a scan to find.
-        const collectionFolder = getCollectionFolder()
-        const rescan =
-          !!collectionFolder && results.some((r) => r.status === 'converted' && !r.replaced && !!r.path && r.path.startsWith(collectionFolder + sep))
-        return { results, rescan }
-      } catch (err) {
-        return { error: err instanceof Error ? err.message : String(err) }
-      } finally {
-        converting = false
-      }
-    }
-  )
-  ipcMain.on('tracks:convertStop', () => {
-    stopConverting = true
-  })
 
   // Moves the file to the Trash (recoverable — and on a synced folder,
   // the cloud's own trash too), then hides its row like any file that's
@@ -1119,6 +719,32 @@ export function registerIpcHandlers(
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as unknown as TrackRow | undefined
     return row ? rowToTrack(row) : null
   })
+
+  // Refine BPM: the tracks as they are after the change, for the renderer
+  // to patch in, and why any were left alone. A multiplied tempo is
+  // sharpened on the audio, one track at a time.
+  ipcMain.handle(
+    'tracks:changeBpm',
+    async (_e, trackIds: number[], change: BpmChange): Promise<{ tracks: Track[]; skipped: { trackId: number; reason: string }[] }> => {
+      const measure = async (path: string, target: number): Promise<number | null> => {
+        const pcm = await decodeToPcm(await getPlayableFilePath(path, getMediaCacheDir()))
+        const refined = refineBpm(pcm, target, 44100, false)
+        return refined === target ? null : refined
+      }
+      const skipped: { trackId: number; reason: string }[] = []
+      const changed: number[] = []
+      for (const trackId of trackIds) {
+        const result = await changeTrackBpm(db, trackId, change, measure)
+        if (result.ok) changed.push(trackId)
+        else skipped.push({ trackId, reason: result.reason })
+      }
+      const tracks = changed
+        .map((id) => db.prepare(`SELECT ${trackListColumns} FROM tracks WHERE id = ?`).get(id) as unknown as TrackRow | undefined)
+        .filter((row): row is TrackRow => !!row)
+        .map(rowToTrack)
+      return { tracks, skipped }
+    }
+  )
 
   // One play of a track: bumps its count and returns the new totals, for
   // the renderer to patch into its copy of the track.
@@ -1193,59 +819,6 @@ export function registerIpcHandlers(
     }
   })
 
-  ipcMain.handle('tracks:getAllTagIds', (): TrackTagIds[] => {
-    const rows = db
-      .prepare(
-        `SELECT track_id, genre_id, NULL as subgenre_id FROM track_genres
-         UNION ALL
-         SELECT track_id, NULL, subgenre_id FROM track_subgenres`
-      )
-      .all() as { track_id: number; genre_id: number | null; subgenre_id: number | null }[]
-    const byTrack = new Map<number, { genreIds: number[]; subgenreIds: number[] }>()
-    for (const row of rows) {
-      if (!byTrack.has(row.track_id)) byTrack.set(row.track_id, { genreIds: [], subgenreIds: [] })
-      const entry = byTrack.get(row.track_id)!
-      if (row.genre_id) entry.genreIds.push(row.genre_id)
-      if (row.subgenre_id) entry.subgenreIds.push(row.subgenre_id)
-    }
-    return Array.from(byTrack.entries()).map(([trackId, tags]) => ({ trackId, ...tags }))
-  })
-
-  ipcMain.handle('tags:exportData', async (e): Promise<{ path: string } | null> => {
-    const result = await showSaveDialog(e, {
-      defaultPath: 'tag-export.json',
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    })
-    if (result.canceled || !result.filePath) return null
-    writeFileSync(result.filePath, JSON.stringify(exportTagData(db), null, 2))
-    return { path: result.filePath }
-  })
-
-  // One-way export for Rekordbox's "rekordbox xml" library view — see
-  // rekordboxExport.ts for what goes in it.
-  ipcMain.handle(
-    'export:rekordbox',
-    async (e): Promise<{ path: string; trackCount: number; playlistCount: number } | null> => {
-      const result = await showSaveDialog(e, {
-        defaultPath: 'mco-rekordbox.xml',
-        filters: [{ name: 'Rekordbox XML', extensions: ['xml'] }],
-      })
-      if (result.canceled || !result.filePath) return null
-      const { xml, trackCount, playlistCount } = buildRekordboxXml(db, app.getVersion())
-      writeFileSync(result.filePath, xml)
-      return { path: result.filePath, trackCount, playlistCount }
-    }
-  )
-
-  ipcMain.handle('tags:importData', async (e): Promise<ImportResult | null> => {
-    const result = await showOpenDialog(e, {
-      properties: ['openFile'],
-      filters: [{ name: 'JSON', extensions: ['json'] }],
-    })
-    if (result.canceled || result.filePaths.length === 0) return null
-    const data = JSON.parse(readFileSync(result.filePaths[0], 'utf-8')) as TagExportData
-    return importTagData(db, data)
-  })
 
   // Casting to a Google Cast device (see electron/main/cast/). Chunks are
   // `send`, not `invoke` — the renderer streams several a second and

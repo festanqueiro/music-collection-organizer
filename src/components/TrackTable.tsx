@@ -10,10 +10,12 @@ import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
 import { baseName, isInFolder } from '../paths'
-import { AddToPlaylistMenu } from './PlaylistsBox'
+import { AddToPlaylistMenu } from './AddToPlaylistMenu'
 import { ConvertDialog } from './ConvertDialog'
+import { RefineBpmMenu } from './RefineBpmMenu'
 // Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
+import { tracksById } from '../state/tracksById'
 
 type SortKey = TrackTableColumnKey
 
@@ -207,7 +209,7 @@ export function TrackTable({
   const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
   const currentTrackId = playlist[0] ?? null
   const currentTrack = useMemo(
-    () => (currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null),
+    () => (currentTrackId != null ? (tracksById(tracks).get(currentTrackId) ?? null) : null),
     [tracks, currentTrackId]
   )
   // The filter needs a playing track with an analysed key to compare with.
@@ -219,6 +221,8 @@ export function TrackTable({
   const [addToPlaylistMenu, setAddToPlaylistMenu] = useState<{ trackIds: number[]; x: number; y: number } | null>(null)
   // "Convert to…": the tracks the dialog is open for.
   const [convertTrackIds, setConvertTrackIds] = useState<number[] | null>(null)
+  // "Refine BPM…": the tracks its menu is open for, and where.
+  const [bpmMenu, setBpmMenu] = useState<{ trackIds: number[]; x: number; y: number } | null>(null)
   // The selected playlist (docs/features/playlists.md): its songs, in its
   // order until a column header is clicked.
   const selectedPlaylistId = useCollectionStore((s) => s.selectedPlaylistId)
@@ -1266,9 +1270,21 @@ export function TrackTable({
                   <span className="material-symbols-outlined" style={contextMenuIconStyle}>
                     graphic_eq
                   </span>
-                  {menuTrackIds.every((id) => tracks.find((t) => t.id === id)?.analysisStatus === 'done')
+                  {menuTrackIds.every((id) => tracksById(tracks).get(id)?.analysisStatus === 'done')
                     ? 'Re-analyse all'
                     : 'Analyse all'}
+                </button>
+                <button
+                  onClick={() => {
+                    setBpmMenu({ trackIds: menuTrackIds, x: contextMenu.x, y: contextMenu.y })
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    speed
+                  </span>
+                  Refine BPM of all…
                 </button>
                 <button
                   onClick={() => {
@@ -1381,9 +1397,21 @@ export function TrackTable({
               <span className="material-symbols-outlined" style={contextMenuIconStyle}>
                 graphic_eq
               </span>
-              {tracks.find((t) => t.id === contextMenu.trackId)?.analysisStatus === 'done'
+              {tracksById(tracks).get(contextMenu.trackId)?.analysisStatus === 'done'
                 ? 'Re-analyse track'
                 : 'Analyse track'}
+            </button>
+            <button
+              onClick={() => {
+                setBpmMenu({ trackIds: [contextMenu.trackId], x: contextMenu.x, y: contextMenu.y })
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                speed
+              </span>
+              Refine BPM…
             </button>
             <button
               onClick={() => {
@@ -1411,7 +1439,7 @@ export function TrackTable({
             </button>
             <button
               onClick={() => {
-                const track = tracks.find((t) => t.id === contextMenu.trackId)
+                const track = tracksById(tracks).get(contextMenu.trackId)
                 if (track) onShowInFolderTree(track.folder)
                 setContextMenu(null)
               }}
@@ -1430,6 +1458,7 @@ export function TrackTable({
           <AddToPlaylistMenu {...addToPlaylistMenu} onClose={() => setAddToPlaylistMenu(null)} />
         )}
         {convertTrackIds && <ConvertDialog trackIds={convertTrackIds} onClose={() => setConvertTrackIds(null)} />}
+        {bpmMenu && <RefineBpmMenu {...bpmMenu} onClose={() => setBpmMenu(null)} />}
       </div>
     </>
   )

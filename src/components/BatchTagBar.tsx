@@ -1,7 +1,7 @@
 // src/components/BatchTagBar.tsx
 import { useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { AddToPlaylistMenu } from './PlaylistsBox'
+import { AddToPlaylistMenu } from './AddToPlaylistMenu'
 
 // The selection half of TrackTable's always-visible toolbar — only
 // renders when tracks are checked. `visibleTrackIds` is the table's

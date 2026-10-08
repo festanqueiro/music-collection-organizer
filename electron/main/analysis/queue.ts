@@ -26,7 +26,7 @@ function writeAnalysisResult(
   db.prepare(
     `UPDATE tracks SET
       title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate,
-      bpm = @bpm, first_beat = @first_beat, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
+      bpm = CASE WHEN bpm_edited = 1 THEN bpm ELSE @bpm END, first_beat = @first_beat, musical_key = @musical_key, waveform_peaks = @waveform_peaks,
       loudness = @loudness, energy = @energy,
       analysis_status = 'done', analysis_error = NULL, analyzed_at = @analyzed_at, tags_read_at = @analyzed_at
     WHERE id = @id`

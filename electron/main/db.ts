@@ -178,6 +178,10 @@ function migrate(db: AppDatabase): void {
   if (!trackColumnNames.has('grid_start')) {
     db.exec('ALTER TABLE tracks ADD COLUMN grid_start REAL')
   }
+  // The BPM was set by the user (Refine BPM, ADR 0064): analysis keeps it.
+  if (!trackColumnNames.has('bpm_edited')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN bpm_edited INTEGER NOT NULL DEFAULT 0')
+  }
   // Why the last analysis failed (analysis/errorMessage.ts); null otherwise.
   if (!trackColumnNames.has('analysis_error')) {
     db.exec('ALTER TABLE tracks ADD COLUMN analysis_error TEXT')

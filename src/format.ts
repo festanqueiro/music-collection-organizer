@@ -31,3 +31,6 @@ export function formatDuration(totalSeconds: number): string {
   const pad = (n: number) => n.toString().padStart(2, '0')
   return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
 }
+
+// "1 song", "12 songs".
+export const songs = (n: number) => `${n} song${n === 1 ? '' : 's'}`

@@ -50,5 +50,11 @@ in `capture.mjs` and use it in `website/index.html`.
   opens while it runs; leave it be. The GPU draws the visualizer, so it
   looks better than on Linux's software WebGL.
 
+**Clips on a Mac don't record with Playwright 1.64 and Electron 43**
+(2026-10-08): with `recordVideo` on, the app's window stays blank and
+`launch()` times out at `waitForLoadState`. Screenshots are fine
+(`npm run site:capture -- shots`); make the clips on Linux until the Mac
+recording is redone.
+
 Audio plays into the void (no sound device) but the player, waveform and
 visualizer behave as they do on a Mac.

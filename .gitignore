@@ -12,5 +12,8 @@ release/
 *.tsbuildinfo
 dist-pages
 
+# Graphify's code knowledge graph (docs/adr/0063): rebuilt on each machine
+graphify-out/
+
 # website capture scratch (demo library data, raw recordings)
 website/capture/.work/

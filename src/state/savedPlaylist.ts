@@ -61,3 +61,19 @@ export function filterPlaylistNodes(
   }
   return visible
 }
+
+// The names of the folders a playlist or folder sits in, outermost first
+// ("Sets", "2026") — empty at the top level. Stops at a parent loop, which
+// the DB shouldn't hold.
+export function playlistFolders(
+  node: { parentId: number | null },
+  byId: ReadonlyMap<number, { name: string; parentId: number | null }>
+): string[] {
+  const names: string[] = []
+  const seen = new Set<number>()
+  for (let p = node.parentId; p !== null && !seen.has(p); p = byId.get(p)?.parentId ?? null) {
+    seen.add(p)
+    names.unshift(byId.get(p)?.name ?? '')
+  }
+  return names
+}

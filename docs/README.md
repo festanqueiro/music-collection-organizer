@@ -13,8 +13,8 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 - [Roadmap](product/roadmap.md): shipped, in progress, next; known issues.
 - [Glossary](product/glossary.md): the words we use (collection, Tags/Subtags, cue, receiver…).
 - [Changelog](../CHANGELOG.md): what changed in each release, newest first.
-- [Latest session](log/2026-09-27-session.md): what was built on 2026-09-27 and the issues faced
-  ([previous](log/2026-09-26-session.md)).
+- [Latest session](log/2026-10-08-session.md): releases 1.0.56–1.0.58, and a duplication and
+  performance check ([previous](log/2026-10-02-session.md)).
 
 ## Sections
 | Folder | Holds | One file per |
@@ -130,6 +130,8 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0060](adr/0060-the-start-is-the-beginning-until-moved.md) | The start of the tune is 0:00 until the user moves it | accepted |
 | [0061](adr/0061-convert-copies-by-default-and-replaces-in-place.md) | Convert makes a copy by default, and replaces by moving the track's row | accepted |
 | [0062](adr/0062-tempo-measured-over-the-whole-track.md) | Measure the tempo over the whole track, near the beat tracker's | accepted |
+| [0063](adr/0063-graphify-as-an-optional-dev-tool.md) | Graphify's code graph is an optional dev tool, built per machine | accepted |
+| [0064](adr/0064-bpm-two-thirds-and-set-by-hand.md) | Try the tempo one and a half times faster; a BPM set by hand is the user's | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |
