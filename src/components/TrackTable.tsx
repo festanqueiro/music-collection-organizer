@@ -10,7 +10,7 @@ import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
 import { baseName, isInFolder } from '../paths'
-import { AddToPlaylistMenu } from './PlaylistsBox'
+import { AddToPlaylistMenu } from './AddToPlaylistMenu'
 import { ConvertDialog } from './ConvertDialog'
 // Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'

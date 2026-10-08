@@ -67,7 +67,7 @@ take the original's place in the collection.
     file's, so the next scan sees nothing changed and analysis isn't redone), then the original is
     trashed with `shell.trashItem`. Same name: the original is trashed first, then the new file
     renamed in.
-- IPC: `tracks:audioInfo`, `tracks:pickConvertFolder`, `tracks:convert` (one run at a time;
+- IPC (`electron/main/ipcConvert.ts`): `tracks:audioInfo`, `tracks:pickConvertFolder`, `tracks:convert` (one run at a time;
   `tracks:convertProgress` events; returns the results and whether a scan is needed),
   `tracks:convertStop`.
 - Renderer: `src/components/ConvertDialog.tsx`, opened from `TrackTable`'s menus. After a run it

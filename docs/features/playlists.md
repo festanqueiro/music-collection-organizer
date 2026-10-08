@@ -176,7 +176,9 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   `PLAYLISTS/NODE` (`Type="0"` folder, `Type="1"` playlist; `KeyType="0"` = TrackID keys,
   `"1"` = Location keys). IPC handlers return the post-write tree / track list so the store patches
   locally (the repo's convention).
-- **Renderer**: `src/components/PlaylistsBox.tsx` (tree, menus, drop targets, split handle), a
+- **IPC**: the `playlists:*` and `cues:*` handlers are in `electron/main/ipcPlaylists.ts`.
+- **Renderer**: `src/components/PlaylistsBox.tsx` (tree, menus, drop targets, split handle),
+  `RekordboxImportSummary.tsx` (the import dialog's contents), `AddToPlaylistMenu.tsx`, a
   `selectedPlaylistId` and `playlists` in the store, `TrackTable` taking an ordered id list when a
   playlist is selected.
 - **Search**: `filterPlaylistNodes` (`src/state/savedPlaylist.ts`, pure) returns the ids to show;

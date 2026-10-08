@@ -40,7 +40,7 @@ suggests them from the filename; nothing is written until you press **Save to fi
   restored on failure ([ADR 0026](../adr/0026-write-tags-byte-for-byte.md)). IPC `tracks:writeTags`
   updates the DB (tags, size, mtime, `tags_read_at`).
 - Reading: `electron/main/tagReader.ts`, IPC `tracks:readFileTags` ([ADR 0027](../adr/0027-read-file-tags-in-background.md)).
-- Suggestions: `src/state/filenameTags.ts`; UI in `src/components/DetailPanel.tsx`.
+- Suggestions: `src/state/filenameTags.ts`; UI in `src/components/detail/FileTagsSection.tsx`.
 
 ## Tests
 - `electron/main/tagWriter.test.ts` (synthetic WAV/AIFF: frames and chunks preserved, clearing,

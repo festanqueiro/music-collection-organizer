@@ -36,7 +36,9 @@ and Subtags named in the playlists the track is in, and not on it yet — a trac
   tooltip names the playlists it comes from. The row is hidden when there's nothing to suggest,
   and follows changes to the track's playlists and tags at once.
 - How: `suggestTagsFromPlaylists` (`src/state/playlistTagSuggestions.ts`, pure), fed by the same
-  per-track read as the panel's Playlists section (`playlists:forTrack`).
+  per-track read as the panel's Playlists section (`playlists:forTrack`, read once in
+  `DetailPanel`); the row is `PlaylistTagSuggestions` in `src/components/detail/TrackPlaylists.tsx`.
+  The `tags:*` handlers are in `electron/main/ipcTags.ts`.
 
 ## Managing tags
 

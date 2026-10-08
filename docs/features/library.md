@@ -173,7 +173,9 @@ Drag rows straight to Finder, a DAW or any app — a normal file drag of the ori
 - Cloud files: `cloudDetect.ts`, `cloudDownload.ts`.
 - Analysis: `electron/main/analysis/` (`queue.ts`, `worker.ts`, `pipeline.ts`, `bpmKey.ts`,
   `energy.ts`, `waveform.ts`, `metadata.ts`); play counts `src/state/playCount.ts`.
-- UI: `src/components/TrackTable.tsx`, `DetailPanel.tsx`, `FolderTree.tsx`, `Toolbar.tsx`,
+- UI: `src/components/TrackTable.tsx`, `DetailPanel.tsx` (its sections in `detail/`: `DetailSection`,
+  `CoverSection`, `FileTagsSection`, `TagPicker`, `TrackPlaylists`, `SimilarTracksSection`,
+  `FilePathSection`), `FolderTree.tsx`, `Toolbar.tsx`,
   `src/App.tsx` (sidebar); `src/state/folderTree.ts`.
 - Delete: `tracks:trash` in `electron/main/ipc.ts` (`shell.trashItem`, row `present = 0`).
 - Drag-out: `tracks:startDrag`, `electron/main/dragIcon.ts`.
