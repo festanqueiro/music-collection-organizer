@@ -1,7 +1,7 @@
 # The promo video
 
-About 75 seconds of the real app on the demo collection, with captions, over one of the demo
-tracks: `MCO-promo.mp4`, 1600×900, H.264 + AAC. This file is its **script** — the words on screen
+About 85 seconds of the real app on the demo collection, shown in a window frame with each scene's
+words above it, over a soundtrack: `MCO-promo.mp4`, 1600×900, H.264 + AAC. This file is its **script** — the words on screen
 are read from here — and the notes for recording it again.
 
 ## Recording it again
@@ -9,7 +9,13 @@ are read from here — and the notes for recording it again.
 ```bash
 npx electron-vite build
 node website/capture/promo.mjs ~/Desktop/MCO-promo.mp4
+# with your own soundtrack, from 92.5 seconds into the file:
+node website/capture/promo.mjs ~/Desktop/MCO-promo.mp4 --music "/path/to/track.wav" --music-start 92.5
 ```
+
+- **The soundtrack**: `--music` takes any audio file ffmpeg reads, `--music-start` the second to
+  start from (pick a drop: the video opens on it). It is looped if shorter than the video and
+  faded in and out. Without `--music` it is a demo track. Only use music you may publish.
 
 - **Needs**: Playwright (`npm i -g playwright`) and the demo library. `npm run test:app` prepares the
   library the first time (it scans, analyses and tags the made-up collection in
@@ -39,57 +45,59 @@ To change what happens in a scene, edit the block with the same id in `promo.mjs
 > Music Collection Organizer
 > Your tracks, analysed, tagged and ready to play
 
-The opening card, three seconds, then it fades to the app.
+The opening card alone on the backdrop, three seconds, then the app arrives in its frame.
 
 ## collection
 > Your whole collection: BPM, key, energy, loudness
 
-The table scrolls down and back; a click on *Deep Water* opens its details.
+Yellow. The table scrolls down and back, then a close-up of the BPM to Volume Score columns with
+an outline around them; a click on *Deep Water* opens its details.
 
 ## tags
 > Your own Tags and Subtags, in colour
 
-The Tags view; *Dubstep* is picked, then back to Folders.
+Pink. The Tags view; *Dubstep* is picked, a close-up of the Tags and Subtags columns, then back to
+Folders.
 
 ## details
 > Every playlist a track is in, and the tracks that mix with it
 
-The track that is in the most playlists is selected; its details scroll to **Playlists**, then
-to **Similar tracks**.
+Blue. The track that is in the most playlists is selected; a close-up of its details' **Playlists**
+section, outlined, then of **Similar tracks**.
 
 ## player
 > Play it: a waveform with bar lines and hot cues
 
-*Basement (Dub)* is played from its row menu, the player is made larger, hot cues B and C are
-pressed.
+Lime. *Basement (Dub)* is played from its row menu, the player is made larger, a close-up of the
+waveform, hot cues B and C are pressed.
 
 ## convert
 > Convert a file to another format without leaving
 
-A row's menu → Convert to… (closed without converting).
+Orange. A row's menu → Convert to…, a close-up of the dialog (closed without converting).
 
 ## playlists
 > Playlists and folders, in and out of Rekordbox
 
-*Sunday Session* is opened; the Playlists box is searched for "late".
+Pink. *Sunday Session* is opened; a close-up of the Playlists box, which is searched for "late".
 
 ## effects
 > Effects, a mic and a dub siren
 
-The FX screen, a few seconds. (*Basement (Dub)* is started again just before: see Gotchas.)
+Red. The FX screen, closer, a few seconds. (*Basement (Dub)* is started again just before: see Gotchas.)
 
 ## visualizer
 > And a visualizer for the room
 
-The visualizer opens on its current theme with the caption, then Tangle, Crystal and Sponge,
-three seconds each, without one.
+Blue. The visualizer opens on its current theme, then Tangle, Crystal and Sponge, three seconds
+each.
 
 ## end
 > MCO
 > Music Collection Organizer
 > festanqueiro.github.io/music-collection-organizer
 
-The closing card.
+The frame leaves; the closing card.
 
 ## How it's made
 
@@ -98,13 +106,21 @@ The closing card.
 - **Frames** come from Chromium's own screencast over the DevTools protocol
   (`Page.startScreencast`): a JPEG each time the page paints, about 27 a second, each with its
   time. Playwright's `recordVideo` leaves the window blank with this Electron on a Mac.
-- **Over the app**, drawn by the script in the page: a pointer that follows the mouse (the real
-  one isn't in a screencast), the caption, and the two cards.
+- **Around and over the app**, drawn in the page by `promoStage.js`: a dark backdrop; a window
+  frame (title bar, border and glow in the scene's colour) the app is fitted into and never
+  leaves; **the scene's words in a band above the frame, always**; close-ups, which enlarge the
+  app inside the frame; a marching outline around what is being shown; a pointer that follows
+  the mouse (the real one isn't in a screencast); and the two cards. The app's own layout isn't
+  touched — `#root` is moved into the frame and only gets a transform.
+- **In `promo.mjs`**: `scene(id, colour)` puts up a scene's words and colour, `zoomTo(locator,
+  scale)` goes closer on something, `spot(locator, extra)` outlines it, `home()` shows the whole
+  app again. The colours are the `ACCENTS` of `promoStage.js`.
 - **ffmpeg** (the bundled one) lays the frames out by their times at 30 fps, fits them into
   1600×900 (the window is as tall as the screen allows, so there are thin bars above and below
-  on a laptop), and adds the soundtrack: *Amber Riddim — Basement (Dub)* from the demo
-  collection, looped, faded in and out. The demo tracks are synthesised by
-  `make-demo-collection.py`, so there is nothing to license.
+  on a laptop), and adds the soundtrack: the `--music` file, or *Amber Riddim — Basement (Dub)*
+  from the demo collection, looped, faded in and out. The demo tracks are synthesised by
+  `make-demo-collection.py`, so there is nothing to license; a track of your own is yours to
+  clear.
 
 ## Gotchas
 
@@ -116,6 +132,12 @@ The closing card.
 - **Rows have to be on screen to be clicked**: with the larger player the table is short. The
   scenes use rows near the top (*Deep Water*, *Basement (Dub)*, *Bassline Science*), and the
   details scene comes before the player is made larger.
+- **A `<style>` written into the page is refused** by the app's Content-Security-Policy; the
+  stage adopts a constructed stylesheet instead.
+- **A close-up can't centre something at the edge of the app** (the app never leaves the frame),
+  so the details sections are scrolled into the middle of their panel before their close-ups.
+- **Menus and dialogs** are the app's own and are shown at the fitted size or closer like the
+  rest; nothing is drawn outside the frame but the words, the cards and the pointer.
 - **Selectors** are the app's own labels (`aria-label="Larger player"`, `button:has-text("Convert
   to…")`…): a renamed button stops the script at that scene with the selector in the error.
 - **The recording leaves the demo app's waveform style and player size as it found them** (Classic,
