@@ -35,6 +35,7 @@ import {
   parseRekordboxTxt,
   readRekordboxCollection,
   parseRekordboxXml,
+  type RekordboxCollection,
   type RekordboxNode,
 } from './rekordboxXml'
 import type {
@@ -43,10 +44,13 @@ import type {
   RekordboxReport,
   RekordboxDuplicateAction,
   RekordboxImportDestination,
+  RekordboxImportChoices,
+  RekordboxImportResult,
   TrackCue,
   WaveformSection,
 } from '../../src/types'
 import type { AppDatabase } from './db'
+import { importRekordboxBpm } from './rekordboxBpm'
 
 export function registerPlaylistIpc(db: AppDatabase): void {
   // Playlists (docs/features/playlists.md): changes return the tree after
@@ -80,6 +84,9 @@ export function registerPlaylistIpc(db: AppDatabase): void {
       }
       return rekordboxTxtToTree(db, name, parseRekordboxTxt(text))
     })
+  // The collection exports (xml) among the picked files, with their tracks' cues and tempos.
+  const readRekordboxCollections = (filePaths: string[]): RekordboxCollection[] =>
+    filePaths.filter((filePath) => /\.xml$/i.test(filePath)).map((filePath) => readRekordboxCollection(decodeRekordboxText(readFileSync(filePath))))
   ipcMain.handle(
     'playlists:pickRekordbox',
     async (event): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> => {
@@ -96,7 +103,20 @@ export function registerPlaylistIpc(db: AppDatabase): void {
       if (result.canceled || result.filePaths.length === 0) return null
       setPlaylistImportFolder(dirname(result.filePaths[0]))
       try {
-        return { filePaths: result.filePaths, plan: planRekordboxImport(db, readRekordboxFiles(result.filePaths)) }
+        const plan = planRekordboxImport(db, readRekordboxFiles(result.filePaths))
+        // A collection export also holds cues and tempos: counted here, taken only if asked.
+        const collections = readRekordboxCollections(result.filePaths)
+        if (collections.length > 0) {
+          const match = trackMatcher(db)
+          const sum = { cues: { songs: 0, cues: 0, skipped: 0 }, bpm: { songs: 0 } }
+          for (const collection of collections) {
+            const cues = importRekordboxCues(db, collection, match, false)
+            sum.cues = { songs: sum.cues.songs + cues.songs, cues: sum.cues.cues + cues.cues, skipped: sum.cues.skipped + cues.skipped }
+            sum.bpm.songs += importRekordboxBpm(db, collection, match, false).songs
+          }
+          plan.extras = sum
+        }
+        return { filePaths: result.filePaths, plan }
       } catch (err) {
         return { error: err instanceof Error ? err.message : String(err) }
       }
@@ -161,6 +181,8 @@ export function registerPlaylistIpc(db: AppDatabase): void {
   // duplicates: per incoming playlist MCO already seemed to have, skip /
   // new / update (with the MCO playlist to update).
   // destination: where the new playlists and folders go.
+  // choices: what to take — playlists, and from a collection export its
+  // cues and tempos.
   ipcMain.handle(
     'playlists:importRekordbox',
     (
@@ -168,11 +190,27 @@ export function registerPlaylistIpc(db: AppDatabase): void {
       filePaths: string[],
       relinks: { from: string; trackId: number }[] = [],
       duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }> = {},
-      destination: RekordboxImportDestination = { kind: 'rekordbox' }
-    ): PlaylistNode[] => {
-    applyRekordboxImport(db, readRekordboxFiles(filePaths), relinks, duplicates, destination)
-    return getPlaylistNodes(db)
-  })
+      destination: RekordboxImportDestination = { kind: 'rekordbox' },
+      choices: RekordboxImportChoices = { playlists: true, cues: false, bpm: false }
+    ): RekordboxImportResult => {
+      if (choices.playlists) applyRekordboxImport(db, readRekordboxFiles(filePaths), relinks, duplicates, destination)
+      const cues = { songs: 0, cues: 0 }
+      const bpm = { songs: 0 }
+      if (choices.cues || choices.bpm) {
+        // After the playlists, so songs just confirmed at another path are matched too.
+        const match = trackMatcher(db)
+        for (const collection of readRekordboxCollections(filePaths)) {
+          if (choices.cues) {
+            const got = importRekordboxCues(db, collection, match)
+            cues.songs += got.songs
+            cues.cues += got.cues
+          }
+          if (choices.bpm) bpm.songs += importRekordboxBpm(db, collection, match).songs
+        }
+      }
+      return { nodes: getPlaylistNodes(db), cues: choices.cues ? cues : null, bpm: choices.bpm ? bpm : null }
+    }
+  )
   ipcMain.handle(
     'playlists:move',
     (_e, id: number, targetId: number | null, where: 'before' | 'after' | 'into'): PlaylistNode[] => {

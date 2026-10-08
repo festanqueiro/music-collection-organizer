@@ -4,6 +4,26 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.59 — 2026-10-08
+
+### Added
+- **Refine BPM…** in a track's right-click menu (and **Refine BPM of
+  all…** for checked tracks): **Double**, **Halve**, **Two-thirds fix
+  (× 1.5)** or **Set the BPM…** by hand. A BPM set this way is kept when the
+  track is analysed again; **Detect it again** hands it back to analysis.
+- **Choose what to import from a Rekordbox collection**: the import's
+  summary now asks what to take from a collection export (xml) —
+  **Playlists**, **Hot cues, memory cues and loops** (for songs with none
+  in MCO yet), and **BPM** (Rekordbox's, where MCO has none or a different
+  one). Each shows how much it would bring; what you tick is remembered.
+
+### Fixed
+- **Tracks around 160–175 BPM analysed as about 108**: on broken beats the
+  analysis could report two thirds of the tempo (106.67 for 160, 113 for
+  170). It now checks the tempo one and a half times faster and takes it
+  when the track is clearly stronger there. **Re-analyse** a track to
+  correct one analysed before this, or use **Refine BPM…**.
+
 ## 1.0.58 — 2026-10-08
 
 ### Added

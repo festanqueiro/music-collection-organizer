@@ -53,6 +53,42 @@ describe('refineBpm', () => {
   })
 })
 
+// A broken beat: kicks on beats 1 and 2.5 of the bar, snares on 2 and 4,
+// hats on every half beat — nothing on a plain four-to-the-floor grid.
+function brokenBeat(bpm: number, seconds: number): Float32Array {
+  const pcm = new Float32Array(Math.floor(seconds * SR))
+  const half = 60 / bpm / 2
+  const burst = (at: number, level: number, hz: number, decaySamples: number) => {
+    const start = Math.floor(at * SR)
+    for (let i = 0; i < 3000 && start + i < pcm.length; i++) pcm[start + i] += level * Math.exp(-i / decaySamples) * Math.sin((2 * Math.PI * hz * i) / SR)
+  }
+  for (let n = 0; n * half < seconds; n++) {
+    const step = n % 8
+    burst(n * half, 0.25, 7000, 200)
+    if (step === 0 || step === 3) burst(n * half, 0.8, 60, 400)
+    if (step === 2 || step === 6) burst(n * half, 0.6, 1800, 250)
+  }
+  return pcm
+}
+
+describe('refineBpm, when the tracker reports two thirds of the tempo', () => {
+  it('takes the tempo one and a half times faster when the track is far stronger there', () => {
+    expect(refineBpm(brokenBeat(160, 60), 106.67)).toBe(160)
+    expect(refineBpm(brokenBeat(170, 60), 113.2)).toBe(170)
+    expect(refineBpm(clickTrack(165, 60), 109.41)).toBe(165)
+  })
+
+  it('leaves a track that really is at that tempo alone', () => {
+    expect(refineBpm(clickTrack(108, 60), 108.06)).toBe(108)
+    expect(refineBpm(brokenBeat(108, 60), 108.06)).toBe(108)
+    expect(refineBpm(clickTrack(128, 60), 128.03)).toBe(128)
+  })
+
+  it('never goes past 200 BPM', () => {
+    expect(refineBpm(clickTrack(210, 60), 140)).toBe(140)
+  })
+})
+
 describe('onsetEnvelope', () => {
   it('rises where a sound starts and averages to nothing', () => {
     const envelope = onsetEnvelope(clickTrack(120, 4))

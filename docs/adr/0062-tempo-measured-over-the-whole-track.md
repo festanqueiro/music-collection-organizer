@@ -18,6 +18,7 @@ tune analysed as 172.27 is a beat out after 16 bars and a bar out after 64
   envelope's Fourier component at the beat rate and at 2× and 4×. The strongest wins, found to
   0.001 BPM.
 - The tracker still chooses the tempo octave (87.5 or 175); the refinement never leaves ±3.5 %.
+  (Since [ADR 0064](0064-bpm-two-thirds-and-set-by-hand.md) it also tries 1.5 times the tempo.)
 - The result is stored to **0.01 BPM**, and as the **whole number** when it's within 0.03 of one.
 - The tracker's value is kept when the track is under 10 s or no tempo stands out (the best is
   less than twice the median of those tried) — an acapella, a drone.

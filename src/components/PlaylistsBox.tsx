@@ -9,12 +9,23 @@ import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
 import { onMenuCommand, runMenuCommand } from '../menuCommands'
-import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportDestination, RekordboxImportPlan } from '../types'
+import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportChoices, RekordboxImportDestination, RekordboxImportPlan } from '../types'
 import { filterPlaylistNodes } from '../state/savedPlaylist'
 import { songs } from '../format'
 import { RekordboxImportSummary } from './RekordboxImportSummary'
 
 const LAYOUT_KEY = 'playlistsBox'
+// What was last ticked in a collection import, per computer. Playlists
+// only is what an import always did.
+const IMPORT_CHOICES_KEY = 'rekordboxImportChoices'
+function loadImportChoices(): RekordboxImportChoices {
+  try {
+    const stored = JSON.parse(localStorage.getItem(IMPORT_CHOICES_KEY) ?? 'null')
+    return { playlists: stored?.playlists !== false, cues: stored?.cues === true, bpm: stored?.bpm === true }
+  } catch {
+    return { playlists: true, cues: false, bpm: false }
+  }
+}
 const MIN_HEIGHT = 80
 const DEFAULT_HEIGHT = 240
 const HEADER_HEIGHT = 34
@@ -115,6 +126,15 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   const [duplicateChoices, setDuplicateChoices] = useState<Record<string, RekordboxDuplicateAction>>({})
   // Where the import's new playlists go; the Rekordbox folder unless chosen.
   const [destination, setDestination] = useState<RekordboxImportDestination>({ kind: 'rekordbox' })
+  // What to take from a collection export: the playlists, its cues, its tempos.
+  const [choices, setChoices] = useState<RekordboxImportChoices>(loadImportChoices)
+  useEffect(() => {
+    try {
+      localStorage.setItem(IMPORT_CHOICES_KEY, JSON.stringify(choices))
+    } catch {
+      // Not remembered; playlists only next time.
+    }
+  }, [choices])
 
   async function pickImport() {
     const picked = await window.api.pickRekordboxImport()
@@ -135,13 +155,22 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     filePaths: string[],
     relinks: { from: string; trackId: number }[],
     duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>,
-    into: RekordboxImportDestination
+    into: RekordboxImportDestination,
+    take: RekordboxImportChoices
   ) {
     try {
-      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths, relinks, duplicates, into) })
+      const result = await window.api.importRekordbox(filePaths, relinks, duplicates, into, take)
+      useCollectionStore.setState({ playlistNodes: result.nodes })
       const selected = useCollectionStore.getState().selectedPlaylistId
       if (selected !== null) void useCollectionStore.getState().selectPlaylist(selected)
-      showToast('Imported from Rekordbox')
+      // Tempos and cues changed on the tracks themselves.
+      if (result.bpm?.songs) await useCollectionStore.getState().loadAll()
+      else if (result.cues?.songs) await useCollectionStore.getState().refreshHotCueCounts()
+      const extras = [
+        result.cues ? `${result.cues.cues} cue${result.cues.cues === 1 ? '' : 's'} on ${songs(result.cues.songs)}` : null,
+        result.bpm ? `the BPM of ${songs(result.bpm.songs)}` : null,
+      ].filter(Boolean)
+      showToast(`Imported from Rekordbox${extras.length > 0 ? `: ${take.playlists ? 'the playlists, ' : ''}${extras.join(', ')}` : ''}`)
     } catch (err) {
       showToast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
     }
@@ -605,7 +634,10 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
           onCancel={() => setImportPlan(null)}
           onConfirm={() => {
             const { filePaths, plan } = importPlan
-            if (destination.kind === 'new' && !destination.name.trim()) return showToast('Give the new folder a name')
+            // Playlist files hold nothing else, so there the playlists are always taken.
+            const take: RekordboxImportChoices = plan.extras ? choices : { playlists: true, cues: false, bpm: false }
+            if (!take.playlists && !take.cues && !take.bpm) return showToast('Tick something to import')
+            if (take.playlists && destination.kind === 'new' && !destination.name.trim()) return showToast('Give the new folder a name')
             setImportPlan(null)
             void runImport(
               filePaths,
@@ -615,12 +647,15 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                   .filter((p) => p.duplicate && duplicateChoices[p.key])
                   .map((p) => [p.key, { action: duplicateChoices[p.key], targetId: p.duplicate!.id }])
               ),
-              destination
+              destination,
+              take
             )
           }}
         >
           <RekordboxImportSummary
             plan={importPlan.plan}
+            choices={choices}
+            onChoices={setChoices}
             nodes={nodes}
             destination={destination}
             onDestination={setDestination}

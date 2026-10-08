@@ -107,6 +107,18 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
     paths — songs are matched by title + artist, then title alone when unique, then file name.
   - **XML** (**File → Export Collection in xml format**): the whole tree, folders included.
   A playlist from an m3u8 or text file is named after the file.
+- **What to import** — when the files include a collection export (xml), the summary starts with
+  three ticks, each saying how much it would bring:
+  - **Playlists** (on by default) — everything described below.
+  - **Hot cues, memory cues and loops** (off by default) — for songs with no cues in MCO yet;
+    songs that already have cues in MCO are left as they are, and counted.
+  - **BPM** (off by default) — Rekordbox's BPM for songs where MCO has none or a different one
+    (more than 0.05 apart). It replaces MCO's and, like a BPM set with *Refine BPM*, is kept when
+    the song is analysed again ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)).
+  A tick with nothing to bring is greyed out. With *Playlists* off the playlist details below are
+  dimmed and nothing is done to playlists. What was ticked is remembered per computer
+  (`rekordboxImportChoices`). Playlist files (m3u8, txt) hold nothing else, so they show no ticks
+  and always import their playlists. Key, genre, comments and the other fields aren't offered.
 - Before anything changes, a summary dialog: the folders and playlists found, how many songs
   matched songs in MCO, how many didn't (outside the collection folder, or not scanned yet), and
   which existing imported playlists will be **refreshed**. *Import* or *Cancel*.
@@ -229,6 +241,10 @@ the m3u8 export and songs found at a different path.
   every word in any order, a matching folder's contents, no match.
 - `savedPlaylist.test.ts`: moving one or several songs up/down/to the ends, dropping on a moved
   song, unknown ids; undo restoring places, keeping songs added since, no duplicates.
+- `rekordboxBpm.test.ts`: Rekordbox's BPM where MCO has none or another, kept through analysis,
+  the same within 0.05 left alone, a dry run that only counts; the cue import's dry run. On a real
+  export (2,777 tracks) against a copy of the BETA database: 111 cues on 76 songs, the BPM of
+  2,489 songs (BETA had 224 analysed).
 - `playlists.test.ts`, the destination: into a folder (after what's there, no Rekordbox folder
   made), a new folder, the top level; a second import refreshes in place; a missing folder, a
   playlist or an empty name refused with nothing written.

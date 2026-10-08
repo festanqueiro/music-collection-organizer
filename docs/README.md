@@ -131,6 +131,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0061](adr/0061-convert-copies-by-default-and-replaces-in-place.md) | Convert makes a copy by default, and replaces by moving the track's row | accepted |
 | [0062](adr/0062-tempo-measured-over-the-whole-track.md) | Measure the tempo over the whole track, near the beat tracker's | accepted |
 | [0063](adr/0063-graphify-as-an-optional-dev-tool.md) | Graphify's code graph is an optional dev tool, built per machine | accepted |
+| [0064](adr/0064-bpm-two-thirds-and-set-by-hand.md) | Try the tempo one and a half times faster; a BPM set by hand is the user's | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

@@ -12,6 +12,7 @@ import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, ar
 import { baseName, isInFolder } from '../paths'
 import { AddToPlaylistMenu } from './AddToPlaylistMenu'
 import { ConvertDialog } from './ConvertDialog'
+import { RefineBpmMenu } from './RefineBpmMenu'
 // Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 import { tracksById } from '../state/tracksById'
@@ -220,6 +221,8 @@ export function TrackTable({
   const [addToPlaylistMenu, setAddToPlaylistMenu] = useState<{ trackIds: number[]; x: number; y: number } | null>(null)
   // "Convert to…": the tracks the dialog is open for.
   const [convertTrackIds, setConvertTrackIds] = useState<number[] | null>(null)
+  // "Refine BPM…": the tracks its menu is open for, and where.
+  const [bpmMenu, setBpmMenu] = useState<{ trackIds: number[]; x: number; y: number } | null>(null)
   // The selected playlist (docs/features/playlists.md): its songs, in its
   // order until a column header is clicked.
   const selectedPlaylistId = useCollectionStore((s) => s.selectedPlaylistId)
@@ -1273,6 +1276,18 @@ export function TrackTable({
                 </button>
                 <button
                   onClick={() => {
+                    setBpmMenu({ trackIds: menuTrackIds, x: contextMenu.x, y: contextMenu.y })
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    speed
+                  </span>
+                  Refine BPM of all…
+                </button>
+                <button
+                  onClick={() => {
                     setConvertTrackIds(menuTrackIds)
                     setContextMenu(null)
                   }}
@@ -1388,6 +1403,18 @@ export function TrackTable({
             </button>
             <button
               onClick={() => {
+                setBpmMenu({ trackIds: [contextMenu.trackId], x: contextMenu.x, y: contextMenu.y })
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                speed
+              </span>
+              Refine BPM…
+            </button>
+            <button
+              onClick={() => {
                 setConvertTrackIds([contextMenu.trackId])
                 setContextMenu(null)
               }}
@@ -1431,6 +1458,7 @@ export function TrackTable({
           <AddToPlaylistMenu {...addToPlaylistMenu} onClose={() => setAddToPlaylistMenu(null)} />
         )}
         {convertTrackIds && <ConvertDialog trackIds={convertTrackIds} onClose={() => setConvertTrackIds(null)} />}
+        {bpmMenu && <RefineBpmMenu {...bpmMenu} onClose={() => setBpmMenu(null)} />}
       </div>
     </>
   )

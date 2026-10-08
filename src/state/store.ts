@@ -2,6 +2,7 @@
 import { create, type StoreApi } from 'zustand'
 import type {
   Track,
+  BpmChange,
   TrackCue,
   PlaylistNode,
   RecordingFormat,
@@ -595,6 +596,10 @@ export interface CollectionState {
   runAnalysis: (trackIds?: number[]) => Promise<void>
   // The start of the tune — bar 0 of the beat grid — or null to clear it.
   setTrackGridStart: (trackId: number, start: number | null) => Promise<void>
+  // Refine BPM: doubles, halves, multiplies by 1.5 or sets the tempo of
+  // these tracks — or, with 'detect', hands it back to analysis and
+  // analyses them again.
+  changeTracksBpm: (trackIds: number[], change: BpmChange) => Promise<void>
   // One play of a track (see Player.tsx): bumps its play count.
   recordPlay: (trackId: number) => Promise<void>
   // Moves a track's file to the Trash and drops it from the collection,
@@ -1967,6 +1972,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setTrackGridStart: async (trackId, start) => {
     const track = await window.api.setTrackGridStart(trackId, start)
     if (track) set({ tracks: get().tracks.map((t) => (t.id === trackId ? track : t)) })
+  },
+
+  changeTracksBpm: async (trackIds, change) => {
+    const { tracks: changed, skipped } = await window.api.changeTracksBpm(trackIds, change)
+    const byId = new Map(changed.map((t) => [t.id, t]))
+    if (byId.size > 0) set({ tracks: get().tracks.map((t) => byId.get(t.id) ?? t) })
+    if (skipped.length > 0) {
+      get().showToast(skipped.length === 1 && trackIds.length === 1 ? skipped[0].reason : `${skipped.length} left as they were: ${skipped[0].reason}`)
+    }
+    if (change.kind === 'detect' && changed.length > 0) await get().runAnalysis(changed.map((t) => t.id))
   },
 
   recordPlay: async (trackId) => {

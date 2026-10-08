@@ -67,3 +67,57 @@ a track, against 6–13 s for the tracker itself.
 - The refined values against Rekordbox's for the same files.
 - Tracks whose tempo changes (live drums, vinyl rips that drift): one tempo is still assumed.
 - Whether 170.6 for Hackney Parrot is right; it wasn't measured outside the app.
+
+## 2026-10-08 — "tracks around 160 show as about 108"
+
+### What it is
+On broken beats (jungle, footwork, 160) the beat tracker follows every third half-beat and
+reports **two thirds** of the tempo: 106.67 for 160, 113.33 for 170.
+
+### How strongly each tempo is in the track
+The same measurement as above (the size of the onset envelope's component at the beat rate and at
+2× and 4×), at the stored tempo and at 1.5 times it, for 32 tracks of the BETA collection where
+1.5× stays under 200 BPM. The ratio is faster ÷ stored:
+
+| Ratio | Stored → 1.5× | Track | Really |
+|---|---|---|---|
+| 11.72 | 111.43 → 167.8 | Hidden Agenda — Dispatches #1 | two thirds |
+| 6.01 | 111.15 → 167 | Y.L.S. — Looking In | two thirds (Rekordbox: 167) |
+| 4.48 | 109.41 → 165 | Xtanki, Zero — Extent | two thirds |
+| 4.33 | 112.43 → 170 | Zero — Homecoming | two thirds |
+| 3.51 | 106.65 → 160 | Freud & Xtanki — Bos | two thirds |
+| 3.27 | 113.23 → 170 | Y.L.S., JSwift — Seeded | two thirds (Rekordbox: 170) |
+| 2.64 | 106.58 → 160 | LMajor — 160 Yo | two thirds (Rekordbox: 160) |
+| 2.10 | 93.19 → 140 | Benton — Badman BBS VIP | two thirds (140 is the strongest tempo from 60 to 200) |
+| 1.80 | 100.03 → 150 | Kessler — Tribunal | two thirds (150 is the strongest tempo from 60 to 200) |
+| 1.47 | 84.99 → 127.5 | Quartz — Runtime | not this (half time, more likely) |
+| 1.44 | 71.88 → 108 | Babe Roots — World Struggle (Ambient Dub) | not this |
+| ≤ 0.93 | | the other 21, among them real 108, 109, 122–128 BPM tracks | right as stored |
+
+So the tracks that are two thirds out sit at 1.80 and above, the others at 1.47 and below. The
+analysis takes the faster tempo above **1.65** (`THREE_HALVES_RATIO` in `tempoRefine.ts`,
+[ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)). On 77 tracks (those 32 and 45 more)
+it moved those nine and no other.
+
+### Against Rekordbox
+One collection export (`exportCollection_0810.xml`, 2,777 tracks) against the BETA database as
+it was before this fix, on the 218 songs both have a BPM for:
+
+| MCO against Rekordbox | Songs |
+|---|---|
+| the same (within 0.05) | 96 |
+| within 1 % | 84 |
+| MCO has two thirds of Rekordbox's | 5 |
+| MCO has half of Rekordbox's | 16 |
+| MCO has twice Rekordbox's | 2 |
+| something else | 15 |
+
+Half time is three times as common as two thirds here. It isn't corrected automatically — 85 and
+170 are both honest readings of the same track — which is what **Refine BPM → Double** is for, or
+importing Rekordbox's BPM.
+
+### Not checked
+- The 15 "something else" and the 84 within 1 % (most of those were analysed before the
+  whole-track refinement).
+- The threshold on other collections: the gap between 1.47 and 1.80 is narrow, and it comes from
+  32 tracks.

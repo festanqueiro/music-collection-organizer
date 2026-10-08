@@ -3,6 +3,9 @@ import { basename, join, relative, isAbsolute } from 'node:path'
 import { writeFileSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { applyMoves, planMove, type MovedTrack } from './moveTracks'
 import { showOpenDialog, showSaveDialog } from './ipcDialogs'
+import { changeTrackBpm } from './bpmEdit'
+import { decodeToPcm } from './analysis/decode'
+import { refineBpm } from './analysis/tempoRefine'
 import { registerTagIpc } from './ipcTags'
 import { registerPlaylistIpc } from './ipcPlaylists'
 import { registerConvertIpc } from './ipcConvert'
@@ -61,10 +64,11 @@ import { buildMidiExport, parseMidiExportText } from './midiExport'
 import { CastController, type DirectMediaSources } from './cast/castSession'
 import { isReceiverSettingsMessage } from '../../src/cast/receiverProtocol'
 import { mediaUrlToFilePath, trackPathToMediaUrl } from './mediaProtocol'
-import { getCastableFilePath } from './audioTranscode'
+import { getCastableFilePath, getPlayableFilePath } from './audioTranscode'
 import { registerRecordingIpc } from './recording'
 import { mimeTypeFor } from './mediaTypes'
 import type {
+  BpmChange,
   Track,
   BackupInfo,
   BackupEntry,
@@ -101,6 +105,7 @@ interface TrackRow {
   bpm: number | null
   first_beat: number | null
   grid_start: number | null
+  bpm_edited: number | null
   musical_key: string | null
   analyzed_at: number | null
   loudness: number | null
@@ -133,6 +138,7 @@ function rowToTrack(row: TrackRow): Track {
     bpm: row.bpm,
     firstBeat: row.first_beat ?? null,
     gridStart: row.grid_start ?? null,
+    bpmEdited: row.bpm_edited === 1,
     musicalKey: row.musical_key,
     analyzedAt: row.analyzed_at ?? null,
     loudness: row.loudness,
@@ -713,6 +719,32 @@ export function registerIpcHandlers(
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(trackId) as unknown as TrackRow | undefined
     return row ? rowToTrack(row) : null
   })
+
+  // Refine BPM: the tracks as they are after the change, for the renderer
+  // to patch in, and why any were left alone. A multiplied tempo is
+  // sharpened on the audio, one track at a time.
+  ipcMain.handle(
+    'tracks:changeBpm',
+    async (_e, trackIds: number[], change: BpmChange): Promise<{ tracks: Track[]; skipped: { trackId: number; reason: string }[] }> => {
+      const measure = async (path: string, target: number): Promise<number | null> => {
+        const pcm = await decodeToPcm(await getPlayableFilePath(path, getMediaCacheDir()))
+        const refined = refineBpm(pcm, target, 44100, false)
+        return refined === target ? null : refined
+      }
+      const skipped: { trackId: number; reason: string }[] = []
+      const changed: number[] = []
+      for (const trackId of trackIds) {
+        const result = await changeTrackBpm(db, trackId, change, measure)
+        if (result.ok) changed.push(trackId)
+        else skipped.push({ trackId, reason: result.reason })
+      }
+      const tracks = changed
+        .map((id) => db.prepare(`SELECT ${trackListColumns} FROM tracks WHERE id = ?`).get(id) as unknown as TrackRow | undefined)
+        .filter((row): row is TrackRow => !!row)
+        .map(rowToTrack)
+      return { tracks, skipped }
+    }
+  )
 
   // One play of a track: bumps its count and returns the new totals, for
   // the renderer to patch into its copy of the track.

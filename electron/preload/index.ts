@@ -32,11 +32,14 @@ import type {
   RekordboxImportPlan,
   RekordboxReport,
   AudioInfo,
+  BpmChange,
   ConvertOptions,
   ConvertProgress,
   ConvertResult,
   RekordboxDuplicateAction,
   RekordboxImportDestination,
+  RekordboxImportChoices,
+  RekordboxImportResult,
   TrackCue,
   WaveformSection,
 } from '../../src/types'
@@ -97,6 +100,8 @@ const api = {
   stopAnalysis: (): Promise<void> => ipcRenderer.invoke('analysis:stop'),
   getTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getAll'),
   getMissingTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getMissing'),
+  changeTracksBpm: (trackIds: number[], change: BpmChange): Promise<{ tracks: Track[]; skipped: { trackId: number; reason: string }[] }> =>
+    ipcRenderer.invoke('tracks:changeBpm', trackIds, change),
   setTrackGridStart: (trackId: number, start: number | null): Promise<Track | null> => ipcRenderer.invoke('tracks:setGridStart', trackId, start),
   getTrackWaveform: (trackId: number): Promise<number[] | null> => ipcRenderer.invoke('tracks:getWaveform', trackId),
   getGenres: (): Promise<Genre[]> => ipcRenderer.invoke('tags:getGenres'),
@@ -121,8 +126,9 @@ const api = {
     filePaths: string[],
     relinks: { from: string; trackId: number }[],
     duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>,
-    destination: RekordboxImportDestination
-  ): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:importRekordbox', filePaths, relinks, duplicates, destination),
+    destination: RekordboxImportDestination,
+    choices: RekordboxImportChoices
+  ): Promise<RekordboxImportResult> => ipcRenderer.invoke('playlists:importRekordbox', filePaths, relinks, duplicates, destination, choices),
   movePlaylistNode: (id: number, targetId: number | null, where: 'before' | 'after' | 'into'): Promise<PlaylistNode[]> =>
     ipcRenderer.invoke('playlists:move', id, targetId, where),
   exportPlaylistM3u: (id: number): Promise<{ files: number; songs: number } | null> => ipcRenderer.invoke('playlists:exportM3u', id),

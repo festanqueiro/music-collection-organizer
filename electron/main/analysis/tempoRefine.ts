@@ -86,24 +86,15 @@ function strength(envelope: Float32Array, framesPerSecond: number, bpm: number):
   return total
 }
 
-// The tempo near `roughBpm` the whole track agrees on best, to 0.01 BPM —
-// and to the whole number when it's within 0.03 of one, which is where
-// produced music sits. `roughBpm` comes back unchanged when there's too
-// little to go on (under ten seconds, or no tempo standing out).
-export function refineBpm(pcm: Float32Array, roughBpm: number, sampleRate = 44100): number {
-  if (!(roughBpm > 0)) return roughBpm
-  const seconds = pcm.length / sampleRate
-  if (seconds < 10) return roughBpm
-  const envelope = onsetEnvelope(pcm, sampleRate)
-  const fps = sampleRate / HOP
+// The tempo near `center` the track agrees on best, how strongly, and
+// whether it stands out from the others near it (twice their median).
+function peakNear(envelope: Float32Array, fps: number, seconds: number, center: number): { bpm: number; score: number; clear: boolean } {
   // A tempo's peak is about 60 / seconds BPM wide: a quarter of that per step finds it.
   const coarse = Math.min(0.25, (0.25 * 60) / seconds)
-  const from = roughBpm * (1 - SEARCH)
-  const to = roughBpm * (1 + SEARCH)
-  let best = roughBpm
+  let best = center
   let bestScore = -1
   const scores: number[] = []
-  for (let bpm = from; bpm <= to; bpm += coarse) {
+  for (let bpm = center * (1 - SEARCH); bpm <= center * (1 + SEARCH); bpm += coarse) {
     const score = strength(envelope, fps, bpm)
     scores.push(score)
     if (score > bestScore) {
@@ -112,7 +103,6 @@ export function refineBpm(pcm: Float32Array, roughBpm: number, sampleRate = 4410
     }
   }
   const median = [...scores].sort((a, b) => a - b)[scores.length >> 1]
-  if (!(bestScore > 2 * median)) return roughBpm
   // Then closer around it, down to a thousandth.
   for (let step = coarse / 4; step >= 0.0005; step /= 4) {
     for (const bpm of [best - 2 * step, best - step, best + step, best + 2 * step]) {
@@ -123,6 +113,41 @@ export function refineBpm(pcm: Float32Array, roughBpm: number, sampleRate = 4410
       }
     }
   }
-  const whole = Math.round(best)
-  return Math.abs(best - whole) <= 0.03 ? whole : Math.round(best * 100) / 100
+  return { bpm: best, score: bestScore, clear: bestScore > 2 * median }
+}
+
+// On broken beats (jungle, footwork, 160) the tracker often follows every
+// third half-beat and reports two thirds of the tempo: 106.67 for 160, 113
+// for 170. The real tempo is then far stronger in the track than the one
+// reported — 1.8 to 11.7 times on the nine such tracks measured, against
+// 1.47 times at most for the 23 that were right
+// (docs/research/bpm-accuracy.md). Above this ratio the tempo one and a
+// half times faster is taken instead. The gap is narrow: a track can still
+// come out wrong either way, which is what Refine BPM in a track's menu is
+// for.
+const THREE_HALVES_RATIO = 1.65
+// Nothing is moved past this: no faster tempo is mixed as such.
+const FASTEST_BPM = 200
+
+// The tempo the whole track agrees on best, to 0.01 BPM — and to the whole
+// number when it's within 0.03 of one, which is where produced music sits.
+// Looked for near `roughBpm`, and near one and a half times it (see
+// THREE_HALVES_RATIO) unless `threeHalves` is off — for a tempo the user
+// chose, which is only sharpened. `roughBpm` comes back unchanged when
+// there's too little to go on (under ten seconds, or no tempo standing out).
+export function refineBpm(pcm: Float32Array, roughBpm: number, sampleRate = 44100, threeHalves = true): number {
+  if (!(roughBpm > 0)) return roughBpm
+  const seconds = pcm.length / sampleRate
+  if (seconds < 10) return roughBpm
+  const envelope = onsetEnvelope(pcm, sampleRate)
+  const fps = sampleRate / HOP
+  const near = peakNear(envelope, fps, seconds, roughBpm)
+  let found = near.clear ? near : null
+  if (threeHalves && roughBpm * 1.5 * (1 + SEARCH) <= FASTEST_BPM) {
+    const faster = peakNear(envelope, fps, seconds, roughBpm * 1.5)
+    if (faster.clear && faster.score > THREE_HALVES_RATIO * near.score) found = faster
+  }
+  if (!found) return roughBpm
+  const whole = Math.round(found.bpm)
+  return Math.abs(found.bpm - whole) <= 0.03 ? whole : Math.round(found.bpm * 100) / 100
 }

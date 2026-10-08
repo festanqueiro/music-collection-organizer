@@ -5,12 +5,14 @@
 // tabs over one list — the playlists, the ones MCO already has, the songs
 // found at another path, the ones no longer in the export.
 import { useState } from 'react'
-import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportDestination, RekordboxImportPlan } from '../types'
+import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportChoices, RekordboxImportDestination, RekordboxImportPlan } from '../types'
 import { baseName } from '../paths'
 import { playlistFolders } from '../state/savedPlaylist'
 
 export function RekordboxImportSummary({
   plan,
+  choices,
+  onChoices,
   nodes,
   destination,
   onDestination,
@@ -21,6 +23,8 @@ export function RekordboxImportSummary({
   onDuplicateChoice,
 }: {
   plan: RekordboxImportPlan
+  choices: RekordboxImportChoices
+  onChoices: (choices: RekordboxImportChoices) => void
   nodes: PlaylistNode[]
   destination: RekordboxImportDestination
   onDestination: (destination: RekordboxImportDestination) => void
@@ -55,8 +59,52 @@ export function RekordboxImportSummary({
   const used = plan.relinks.filter((r) => !rejected.has(r.from)).length
   const note: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-dim)' }
   const ellipsis: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+  const extras = plan.extras ?? null
+  // With a collection export the playlists can be left out; a playlist file has nothing else.
+  const takePlaylists = !extras || choices.playlists
+  const choice = (key: keyof RekordboxImportChoices, label: string, detail: string, available: boolean) => (
+    <label key={key} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', opacity: available ? 1 : 0.5 }}>
+      <input
+        type="checkbox"
+        checked={choices[key] && available}
+        disabled={!available}
+        onChange={(e) => onChoices({ ...choices, [key]: e.target.checked })}
+        style={{ marginTop: '3px' }}
+      />
+      <span>
+        <span style={{ color: 'var(--color-text)' }}>{label}</span>
+        <span style={{ display: 'block', ...note }}>{detail}</span>
+      </span>
+    </label>
+  )
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {extras && (
+        // A collection export holds more than playlists: take what's wanted.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingBottom: '10px', borderBottom: '1px solid var(--color-border)' }}>
+          <strong style={{ color: 'var(--color-text)' }}>What to import</strong>
+          {choice('playlists', 'Playlists', `${count(plan.playlists.length, 'playlist')}${plan.folders > 0 ? ` in ${count(plan.folders, 'folder')}` : ''} — the details are below.`, true)}
+          {choice(
+            'cues',
+            'Hot cues, memory cues and loops',
+            extras.cues.songs > 0
+              ? `${count(extras.cues.cues, 'cue')} on ${count(extras.cues.songs, 'song')} with none in MCO yet.${extras.cues.skipped > 0 ? ` ${count(extras.cues.skipped, 'song')} that already ${extras.cues.skipped === 1 ? 'has' : 'have'} cues in MCO ${extras.cues.skipped === 1 ? 'is' : 'are'} left as ${extras.cues.skipped === 1 ? 'it is' : 'they are'}.` : ''}`
+              : extras.cues.skipped > 0
+                ? `Nothing to bring: the ${count(extras.cues.skipped, 'song')} with cues in Rekordbox already ${extras.cues.skipped === 1 ? 'has' : 'have'} cues in MCO.`
+                : 'No cues in this export for songs in your collection.',
+            extras.cues.songs > 0
+          )}
+          {choice(
+            'bpm',
+            'BPM',
+            extras.bpm.songs > 0
+              ? `Rekordbox’s BPM for ${count(extras.bpm.songs, 'song')} where MCO has none or a different one. It replaces MCO’s and is kept when the song is analysed again.`
+              : 'Nothing to bring: MCO’s BPMs match Rekordbox’s.',
+            extras.bpm.songs > 0
+          )}
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', ...(takePlaylists ? {} : { opacity: 0.4, pointerEvents: 'none' }) }} aria-hidden={!takePlaylists}>
       <p style={{ margin: 0 }}>
         {count(plan.playlists.length, 'playlist')}
         {plan.folders > 0 ? ` in ${count(plan.folders, 'folder')}` : ''} — {fresh} new
@@ -248,6 +296,7 @@ export function RekordboxImportSummary({
               </div>
             ))}
         </div>
+      </div>
       </div>
     </div>
   )

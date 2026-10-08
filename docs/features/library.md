@@ -65,7 +65,10 @@ The **BPM** is the beat tracker's, then sharpened over the whole track to 0.01 B
 when it's within 0.03 of one) — the tracker alone can be a few BPM off on fast music, which made
 bars drift ([ADR 0062](../adr/0062-tempo-measured-over-the-whole-track.md),
 [measurements](../research/bpm-accuracy.md)). Tracks analysed before 2026-10-08 keep their old BPM
-until re-analysed.
+until re-analysed. On broken beats the tracker can report two thirds of the tempo (108 for 162): the
+analysis also tries the tempo 1.5 times faster and takes it when the track is clearly stronger
+there ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)). A BPM set by hand (*Refine BPM*,
+[DJ tools](dj-tools.md#refine-bpm)) or taken from Rekordbox is kept by later analyses.
 Start it from the folder tree's menu (**Analyse collection / this folder** — pending and failed only),
 the selection toolbar or a row's menu (**Analyse / Re-analyse track** — always re-runs), the Update
 Collection popup, or automatically for a track you play or queue. A progress bar (combined across
@@ -128,7 +131,7 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 - Only the rows on screen are drawn, at a fixed height, so it stays at ~120 fps with thousands of
   tracks ([ADR 0024](../adr/0024-virtualised-track-table.md)).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of the queue**, **Pre-listen
-  in headphones**, **Analyse/Re-analyse track**, **Convert to…** ([Convert](convert.md)), **Show in Finder** (*Show in File Explorer* on Windows), **Show in Folder
+  in headphones**, **Analyse/Re-analyse track**, **Refine BPM…** ([DJ tools](dj-tools.md#refine-bpm)), **Convert to…** ([Convert](convert.md)), **Show in Finder** (*Show in File Explorer* on Windows), **Show in Folder
   Tree View**.
 - **Add all to queue** queues everything visible ([Queue](queue.md)).
 
