@@ -24,7 +24,9 @@ interface NodeRow {
   track_count: number
 }
 
-// The whole tree, parents before children, siblings in order.
+// The whole tree, parents before children. Among siblings the folders come
+// first, by name ("2022" before "2026", "Set 2" before "Set 10"); the
+// playlists follow in the order the user (or Rekordbox) gave them.
 export function getPlaylistNodes(db: AppDatabase): PlaylistNode[] {
   const rows = db
     .prepare(
@@ -35,6 +37,14 @@ export function getPlaylistNodes(db: AppDatabase): PlaylistNode[] {
     .all() as unknown as NodeRow[]
   const byParent = new Map<number | null, NodeRow[]>()
   for (const row of rows) byParent.set(row.parent_id, [...(byParent.get(row.parent_id) ?? []), row])
+  for (const siblings of byParent.values()) {
+    // Array.sort is stable, so playlists (and same-named folders) keep their position order.
+    siblings.sort((a, b) =>
+      a.kind !== b.kind
+        ? a.kind === 'folder' ? -1 : 1
+        : a.kind === 'folder' ? a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) : 0
+    )
+  }
   const out: PlaylistNode[] = []
   const walk = (parentId: number | null) => {
     for (const r of byParent.get(parentId) ?? []) {

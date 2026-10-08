@@ -4,6 +4,25 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.57 — 2026-10-08
+
+### Added
+- **Tags suggested from a track's playlists**: under the Tag and Subtag
+  boxes in the track details, MCO suggests the Tags and Subtags of yours
+  that appear in the names of the playlists the track is in. Click one to
+  add it; nothing is added on its own.
+- **Convert to…** in a track's right-click menu (and **Convert all to…**
+  for checked tracks): write the file again as WAV, AIFF, FLAC, Apple
+  Lossless, MP3 or AAC, choosing the bit depth (16 or 24-bit) or bit rate
+  and the sampling frequency. The converted file is saved next to the
+  original, or in a folder you choose; tick **Replace the original** to
+  have it take the track's place (Tags, cues and playlists stay) and send
+  the original to the Trash.
+
+### Changed
+- **Folders come first in the Playlists box**, sorted by name, at every
+  level; playlists follow in the order you gave them.
+
 ## 1.0.56 — 2026-10-08
 
 ### Added

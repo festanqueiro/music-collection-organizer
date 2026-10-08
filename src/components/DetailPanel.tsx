@@ -7,6 +7,7 @@ import { formatDuration, decodeHtmlEntities } from '../format'
 import type { Track } from '../types'
 import { camelotColor, formatKey, toCamelot } from '../state/harmonic'
 import { findSimilarTracks } from '../state/similarTracks'
+import { suggestTagsFromPlaylists, type PlaylistTagSuggestion } from '../state/playlistTagSuggestions'
 import { AddToPlaylistMenu } from './PlaylistsBox'
 import { formatGain, formatLufs, gainToMatch, medianLoudness } from '../state/loudness'
 import { guessTagsFromFilename } from '../state/filenameTags'
@@ -770,6 +771,7 @@ export function DetailPanel({
             if (subgenre) await setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, subgenre.id))
           }}
         />
+        {tagsOpen && <PlaylistTagSuggestions trackId={track.id} genreIds={tags.genreIds} subgenreIds={tags.subgenreIds} />}
       </DetailSection>
       <TrackPlaylistsSection key={`playlists-${track.id}`} trackId={track.id} onSelectPlaylist={onSelectPlaylist} />
       <SimilarTracksSection key={`similar-${track.id}`} track={track} onSelectTrack={onSelectTrack} />
@@ -973,13 +975,11 @@ function SimilarTracksSection({ track, onSelectTrack }: { track: Track; onSelect
 
 // The playlists the track is in, in the Playlists box's order; a click opens
 // one. Keyed by track in the parent, so it never shows the last track's.
-function TrackPlaylistsSection({ trackId, onSelectPlaylist }: { trackId: number; onSelectPlaylist: (playlistId: number) => void }) {
+// The playlists a track is in (null until read). Read again whenever the
+// tree changes: adding or removing songs (here or anywhere else) replaces it.
+function useTrackPlaylistIds(trackId: number): number[] | null {
   const playlistNodes = useCollectionStore((s) => s.playlistNodes)
-  const selectedPlaylistId = useCollectionStore((s) => s.selectedPlaylistId)
   const [playlistIds, setPlaylistIds] = useState<number[] | null>(null)
-  const [open, toggleOpen] = useSectionOpen('playlists')
-  // Read again whenever the tree changes: adding or removing songs (here
-  // or anywhere else) replaces it.
   useEffect(() => {
     let cancelled = false
     window.api
@@ -992,6 +992,83 @@ function TrackPlaylistsSection({ trackId, onSelectPlaylist }: { trackId: number;
       cancelled = true
     }
   }, [trackId, playlistNodes])
+  return playlistIds
+}
+
+// Under the Tag and Subtag boxes: Tags and Subtags named in the playlists
+// the track is in (src/state/playlistTagSuggestions.ts). A click adds one;
+// nothing is added on its own.
+function PlaylistTagSuggestions({ trackId, genreIds, subgenreIds }: { trackId: number; genreIds: number[]; subgenreIds: number[] }) {
+  const playlistNodes = useCollectionStore((s) => s.playlistNodes)
+  const genres = useCollectionStore((s) => s.genres)
+  const subgenres = useCollectionStore((s) => s.subgenres)
+  const setTrackGenres = useCollectionStore((s) => s.setTrackGenres)
+  const setTrackSubgenres = useCollectionStore((s) => s.setTrackSubgenres)
+  const showToast = useCollectionStore((s) => s.showToast)
+  const playlistIds = useTrackPlaylistIds(trackId)
+  const suggestions = useMemo(() => {
+    const inIds = new Set(playlistIds ?? [])
+    const names = playlistNodes.filter((n) => n.kind === 'playlist' && inIds.has(n.id)).map((n) => n.name)
+    return suggestTagsFromPlaylists(names, genres, subgenres, { genreIds, subgenreIds })
+  }, [playlistNodes, playlistIds, genres, subgenres, genreIds, subgenreIds])
+  if (suggestions.length === 0) return null
+
+  async function add(s: PlaylistTagSuggestion) {
+    try {
+      if (s.kind === 'tag') return await setTrackGenres(trackId, [...genreIds, s.id])
+      // A Subtag needs its Tag on the track.
+      if (s.parent?.missing) await setTrackGenres(trackId, [...genreIds, s.parent.id])
+      await setTrackSubgenres(trackId, [...subgenreIds, s.id])
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '8px' }}>
+      <div style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginBottom: '4px' }}>Suggested from its playlists</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+        {suggestions.map((s) => {
+          const where = `In the playlist${s.playlists.length === 1 ? '' : 's'} ${s.playlists.map((p) => `“${p}”`).join(', ')}`
+          const color = (s.kind === 'tag' ? genres.find((g) => g.id === s.id)?.color : subgenres.find((sg) => sg.id === s.id)?.color) ?? 'var(--color-border)'
+          return (
+            <button
+              key={`${s.kind}-${s.id}`}
+              onClick={() => void add(s)}
+              title={`Add the ${s.kind === 'tag' ? 'Tag' : 'Subtag'} ${s.name}${s.parent?.missing ? ` (and its Tag ${s.parent.name})` : ''}. ${where}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                maxWidth: '100%',
+                fontSize: '11px',
+                padding: '1px 8px 1px 4px',
+                borderRadius: '99px',
+                border: `1px dashed ${color}`,
+                background: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '14px', color: 'var(--color-text-dim)' }}>
+                add
+              </span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {s.parent && <span style={{ color: 'var(--color-text-dim)' }}>{s.parent.name} › </span>}
+                {s.name}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function TrackPlaylistsSection({ trackId, onSelectPlaylist }: { trackId: number; onSelectPlaylist: (playlistId: number) => void }) {
+  const playlistNodes = useCollectionStore((s) => s.playlistNodes)
+  const selectedPlaylistId = useCollectionStore((s) => s.selectedPlaylistId)
+  const playlistIds = useTrackPlaylistIds(trackId)
+  const [open, toggleOpen] = useSectionOpen('playlists')
   const playlists = useMemo(() => {
     const byId = new Map(playlistNodes.map((n) => [n.id, n]))
     const inIds = new Set(playlistIds ?? [])

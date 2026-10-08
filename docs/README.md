@@ -45,6 +45,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 [Filters](features/filters.md) ·
 [Tags](features/tags.md) ·
 [ID3 tags](features/id3-tags.md) (editing, filename suggestions) ·
+[Convert to…](features/convert.md) (format, bit depth, sampling frequency) ·
 [Player](features/player.md) ·
 [Queue](features/queue.md) ·
 [FX](features/fx.md) ·
@@ -127,6 +128,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0058](adr/0058-waveforms-read-per-track.md) | Read waveforms per track, not with the track list | accepted |
 | [0059](adr/0059-the-start-of-the-tune-is-its-own-setting.md) | The start of the tune is its own setting, exported as Rekordbox's grid | accepted |
 | [0060](adr/0060-the-start-is-the-beginning-until-moved.md) | The start of the tune is 0:00 until the user moves it | accepted |
+| [0061](adr/0061-convert-copies-by-default-and-replaces-in-place.md) | Convert makes a copy by default, and replaces by moving the track's row | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

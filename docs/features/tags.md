@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-28
+updated: 2026-10-08
 adrs: [0008, 0030]
 ---
 # Tags
@@ -20,6 +20,23 @@ can be created inline.
 
 If the file has an ID3 genre that isn't one of your genres yet, the panel
 offers it as a one-click suggestion.
+
+**Suggested from its playlists**: under the Tag and Subtag boxes, the panel suggests the Tags
+and Subtags named in the playlists the track is in, and not on it yet — a track in
+`2022-08-HOSPICE-DUBTECHNO-120` gets **+ Dub Techno**.
+- Only Tags and Subtags you already have are suggested; no new Tag is made up from a playlist's
+  name. Folder names aren't looked at.
+- A name counts when the playlist's name has it as whole words, whatever the case, accents or
+  separators: *UK Garage* is in `2023-UK-GARAGE` and in `ukgarage set`; *Dub* isn't in
+  `Dubstep classics`. One-letter names never match.
+- A Subtag shows with its Tag (`Dub › Steppers`); clicking it adds the Tag too when the track
+  doesn't have it. When two Tags have a Subtag of the same name, only the one whose Tag the
+  track has, or the playlists also name, is suggested.
+- A click adds it — the same as choosing it in the box; nothing is added on its own. The
+  tooltip names the playlists it comes from. The row is hidden when there's nothing to suggest,
+  and follows changes to the track's playlists and tags at once.
+- How: `suggestTagsFromPlaylists` (`src/state/playlistTagSuggestions.ts`, pure), fed by the same
+  per-track read as the panel's Playlists section (`playlists:forTrack`).
 
 ## Managing tags
 
@@ -74,4 +91,6 @@ exactly; unmatched tracks are counted as skipped.
 Code: `electron/main/tagExport.ts`.
 
 ## Tests
+- `src/state/playlistTagSuggestions.test.ts`: whole words, case/accents/separators, what the
+  track already has, a Subtag with its Tag, Subtags of the same name, the playlists listed.
 - `src/state/tagFilter.test.ts`, `electron/main/tags.test.ts`, `tagExport.test.ts`.

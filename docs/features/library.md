@@ -123,7 +123,7 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 - Only the rows on screen are drawn, at a fixed height, so it stays at ~120 fps with thousands of
   tracks ([ADR 0024](../adr/0024-virtualised-track-table.md)).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of the queue**, **Pre-listen
-  in headphones**, **Analyse/Re-analyse track**, **Show in Finder** (*Show in File Explorer* on Windows), **Show in Folder
+  in headphones**, **Analyse/Re-analyse track**, **Convert to…** ([Convert](convert.md)), **Show in Finder** (*Show in File Explorer* on Windows), **Show in Folder
   Tree View**.
 - **Add all to queue** queues everything visible ([Queue](queue.md)).
 

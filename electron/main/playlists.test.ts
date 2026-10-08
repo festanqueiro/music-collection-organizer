@@ -115,6 +115,17 @@ describe('playlists', () => {
     expect(getTrackPlaylistIds(db, t[0])).toEqual([b])
   })
 
+  it('lists folders first, by name, and playlists after them in their own order', () => {
+    createPlaylistNode(db, 'playlist', 'Zebra', null)
+    const sets = createPlaylistNode(db, 'folder', 'Sets 10', null)
+    createPlaylistNode(db, 'playlist', 'Alpha', null)
+    createPlaylistNode(db, 'folder', 'sets 2', null)
+    createPlaylistNode(db, 'folder', '2022', null)
+    createPlaylistNode(db, 'playlist', 'Late', sets)
+    createPlaylistNode(db, 'folder', 'Inner', sets)
+    expect(getPlaylistNodes(db).map((n) => n.name)).toEqual(['2022', 'sets 2', 'Sets 10', 'Inner', 'Late', 'Zebra', 'Alpha'])
+  })
+
   it("plays a folder's playlists in tree order", () => {
     const f = createPlaylistNode(db, 'folder', 'F', null)
     const a = createPlaylistNode(db, 'playlist', 'A', f)
@@ -124,7 +135,8 @@ describe('playlists', () => {
     addTracksToPlaylist(db, a, [t[1]])
     addTracksToPlaylist(db, b, [t[2], t[0]])
     addTracksToPlaylist(db, outside, [t[3]])
-    expect(getNodeTrackIds(db, f)).toEqual([t[1], t[2], t[0]])
+    // The folder inside it first, as the tree shows it.
+    expect(getNodeTrackIds(db, f)).toEqual([t[2], t[0], t[1]])
     expect(getNodeTrackIds(db, b)).toEqual([t[2], t[0]])
   })
 })
@@ -179,8 +191,8 @@ describe('rekordbox import', () => {
     createPlaylistNode(db, 'playlist', 'Kept here', mine)
     applyRekordboxImport(db, tree(['/m/a.wav']), [], {}, { kind: 'folder', id: mine })
     let nodes = getPlaylistNodes(db)
-    // No Rekordbox folder; the tree lands after what's already in Gigs.
-    expect(nodes.map((n) => n.name)).toEqual(['Gigs', 'Kept here', 'Sets', 'Bassin'])
+    // No Rekordbox folder; folders show before the playlists of Gigs.
+    expect(nodes.map((n) => n.name)).toEqual(['Gigs', 'Sets', 'Bassin', 'Kept here'])
     const sets = nodes.find((n) => n.name === 'Sets')!
     expect(sets.parentId).toBe(mine)
     const bassin = nodes.find((n) => n.name === 'Bassin')!
@@ -189,7 +201,7 @@ describe('rekordbox import', () => {
     // Again, to somewhere else: refreshed where it is, nothing new made.
     applyRekordboxImport(db, tree(['/m/a.wav', '/m/b.wav']), [], {}, { kind: 'new', name: ' Other ' })
     nodes = getPlaylistNodes(db)
-    expect(nodes.map((n) => n.name)).toEqual(['Gigs', 'Kept here', 'Sets', 'Bassin'])
+    expect(nodes.map((n) => n.name)).toEqual(['Gigs', 'Sets', 'Bassin', 'Kept here'])
     expect(getPlaylistTrackIds(db, bassin.id)).toHaveLength(2)
 
     const other: RekordboxNode[] = [{ kind: 'playlist', name: 'Starters', paths: ['/m/a.wav'] }]
@@ -361,8 +373,9 @@ describe('moving playlists', () => {
     const names = () => getPlaylistNodes(db).map((n) => `${n.name}<${n.parentId === null ? '' : getPlaylistNodes(db).find((p) => p.id === n.parentId)!.name}`)
     movePlaylistNode(db, b, f, 'into')
     expect(names()).toEqual(['F<', 'G<F', 'B<F', 'A<'])
+    // Before a folder: the first of the playlists, which follow the folders.
     movePlaylistNode(db, a, g, 'before')
-    expect(names()).toEqual(['F<', 'A<F', 'G<F', 'B<F'])
+    expect(names()).toEqual(['F<', 'G<F', 'A<F', 'B<F'])
     movePlaylistNode(db, a, b, 'after')
     expect(names()).toEqual(['F<', 'G<F', 'B<F', 'A<F'])
     movePlaylistNode(db, b, null, 'into')
