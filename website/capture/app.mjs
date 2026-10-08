@@ -1,6 +1,7 @@
 // Launches the built app (out/) on the demo collection with its own data
 // folder, sized for screenshots. See website/capture/README.md.
 import { createRequire } from 'node:module'
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,7 +30,12 @@ const PRISTINE = path.join(WORK, 'xdg-pristine')
 
 // Playwright comes from the environment (npx playwright, or a global install).
 function playwright() {
-  const places = [REPO, process.env.PLAYWRIGHT_MODULE_DIR, '/root/node-tools/node_modules/'].filter(Boolean)
+  // `npm i -g` puts it where a plain require doesn't look.
+  let globalRoot = null
+  try {
+    globalRoot = path.dirname(execSync('npm root -g', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim())
+  } catch {}
+  const places = [REPO, process.env.PLAYWRIGHT_MODULE_DIR, globalRoot, '/root/node-tools/node_modules/'].filter(Boolean)
   for (const p of places) {
     try {
       return createRequire(path.join(p, 'x.js'))('playwright')
