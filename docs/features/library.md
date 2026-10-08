@@ -61,6 +61,11 @@ analyse in the main process as well, which froze MCO for tens of seconds on a lo
 ### Analysis
 Computes duration, bitrate, BPM, musical key, waveform peaks, loudness (EBU R128, LUFS) and a 1–10
 energy rating, in a pool of 4 worker threads ([ADR 0006](../adr/0006-analysis-in-worker-threads.md)).
+The **BPM** is the beat tracker's, then sharpened over the whole track to 0.01 BPM (a whole number
+when it's within 0.03 of one) — the tracker alone can be a few BPM off on fast music, which made
+bars drift ([ADR 0062](../adr/0062-tempo-measured-over-the-whole-track.md),
+[measurements](../research/bpm-accuracy.md)). Tracks analysed before 2026-10-08 keep their old BPM
+until re-analysed.
 Start it from the folder tree's menu (**Analyse collection / this folder** — pending and failed only),
 the selection toolbar or a row's menu (**Analyse / Re-analyse track** — always re-runs), the Update
 Collection popup, or automatically for a track you play or queue. A progress bar (combined across
@@ -135,6 +140,12 @@ steps aside, and right-clicking a checked row acts on the whole selection in tab
 to queue**, **Add all to top of the queue**, **Analyse all**, **Clear selection**.
 
 ### Track details
+The panel's **width** can be changed by dragging its left edge: 280 to 720 px, and never more
+than 60 % of the window; a double-click on the edge goes back to 320 px. Remembered per computer
+(`localStorage`, `detailPanelWidth`). The **sidebar** (the Folders / Tags / Subtags / Filters views
+and the Playlists box) resizes the same way at its right edge: 200 to 560 px, at most 40 % of the
+window, 260 px on a double-click (`sidebarWidth`); not while it's collapsed to its icon strip.
+
 Six sections, each with a header that opens and closes it (click anywhere on the header); which
 ones are closed is remembered between sessions (per section, in `localStorage` under
 `detailSection.<id>`; all start open):

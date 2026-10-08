@@ -129,6 +129,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0059](adr/0059-the-start-of-the-tune-is-its-own-setting.md) | The start of the tune is its own setting, exported as Rekordbox's grid | accepted |
 | [0060](adr/0060-the-start-is-the-beginning-until-moved.md) | The start of the tune is 0:00 until the user moves it | accepted |
 | [0061](adr/0061-convert-copies-by-default-and-replaces-in-place.md) | Convert makes a copy by default, and replaces by moving the track's row | accepted |
+| [0062](adr/0062-tempo-measured-over-the-whole-track.md) | Measure the tempo over the whole track, near the beat tracker's | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

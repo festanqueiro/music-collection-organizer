@@ -36,7 +36,7 @@ export.
   a seek past it, and not with macOS's *Reduce motion* on). `CueMarkers` runs one
   `requestAnimationFrame` loop over the audio's time and animates the marker's element itself
   (Web Animations), outside React ([ADR 0023](../adr/0023-fx-settings-outside-react.md)).
-- **Suggested** (after the pads, for a track with a BPM): bars **8, 16, 32, 48, 64** from the start — 4
+- **Suggested** (after the pads, for a track with a BPM): bars **8, 16, 24, 32, 40, 48, 56, 64** (every 8 bars) from the start — 4
   beats a bar at the track's BPM, so "16" is 16 × 4 × 60 / BPM seconds after the start (30 s at
   128 BPM): 16 bars have played and the 17th begins — where most dance music changes phrase; past the end of the
   track they're left out. Each is also a dashed line on the waveform. Click one to put it on the **first empty pad**
@@ -55,7 +55,7 @@ export.
   there (colour and name kept); a click without moving jumps there and plays, like its pad. While
   dragging, a **zoom** opens above the waveform: a detailed waveform of the 8 bars around the cue
   (12 s without a BPM), which slides under the cue held in the middle; bar lines numbered from the
-  start (bar 0; 8/16/32/48/64 brighter), faint beat lines, the other cues
+  start (bar 0; every 8th bar up to 64 brighter), faint beat lines, the other cues
   in view, and a dashed line where it started. The header reads the time to the millisecond, *bar
   N + M beats*, and how far it has moved (seconds and beats). **⌥** (Alt) moves it at the zoom's
   scale — the waveform under the pointer moves with it — for fine placement; **Shift** snaps to the

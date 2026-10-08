@@ -94,6 +94,40 @@ function saveSidebarState(state: SidebarState): void {
 const LEFT_COLLAPSED_KEY = 'leftSidebarCollapsed'
 const COLLAPSED_LEFT_WIDTH = 48
 
+// The details panel's width: dragged at its left edge, remembered per computer.
+const DETAIL_WIDTH_KEY = 'detailPanelWidth'
+const DETAIL_WIDTH_DEFAULT = 320
+const DETAIL_WIDTH_MIN = 280
+const DETAIL_WIDTH_MAX = 720
+// Never so wide that the table has no room left.
+const clampDetailWidth = (width: number) =>
+  Math.round(Math.max(DETAIL_WIDTH_MIN, Math.min(width, DETAIL_WIDTH_MAX, window.innerWidth * 0.6)))
+
+function loadDetailWidth(): number {
+  try {
+    const stored = Number(localStorage.getItem(DETAIL_WIDTH_KEY))
+    return stored > 0 ? clampDetailWidth(stored) : DETAIL_WIDTH_DEFAULT
+  } catch {
+    return DETAIL_WIDTH_DEFAULT
+  }
+}
+
+// The same for the sidebar (the views and the Playlists box), at its right edge.
+const LEFT_WIDTH_KEY = 'sidebarWidth'
+const LEFT_WIDTH_DEFAULT = 260
+const LEFT_WIDTH_MIN = 200
+const LEFT_WIDTH_MAX = 560
+const clampLeftWidth = (width: number) => Math.round(Math.max(LEFT_WIDTH_MIN, Math.min(width, LEFT_WIDTH_MAX, window.innerWidth * 0.4)))
+
+function loadLeftWidth(): number {
+  try {
+    const stored = Number(localStorage.getItem(LEFT_WIDTH_KEY))
+    return stored > 0 ? clampLeftWidth(stored) : LEFT_WIDTH_DEFAULT
+  } catch {
+    return LEFT_WIDTH_DEFAULT
+  }
+}
+
 export default function App() {
   const loadAll = useCollectionStore((s) => s.loadAll)
   const tracks = useCollectionStore((s) => s.tracks)
@@ -162,6 +196,44 @@ export default function App() {
     } catch {
       // Non-essential preference — fine to lose.
     }
+  }
+  const [detailWidth, setDetailWidth] = useState(loadDetailWidth)
+  useEffect(() => {
+    try {
+      localStorage.setItem(DETAIL_WIDTH_KEY, String(detailWidth))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  }, [detailWidth])
+  const [leftWidth, setLeftWidth] = useState(loadLeftWidth)
+  useEffect(() => {
+    try {
+      localStorage.setItem(LEFT_WIDTH_KEY, String(leftWidth))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  }, [leftWidth])
+  // The details are on the right, so dragging left makes them wider; the
+  // sidebar is on the left, so dragging right does.
+  function startDetailResize(e: React.PointerEvent) {
+    startPaneResize(e, (dx) => setDetailWidth(clampDetailWidth(detailWidth - dx)))
+  }
+  function startLeftResize(e: React.PointerEvent) {
+    startPaneResize(e, (dx) => setLeftWidth(clampLeftWidth(leftWidth + dx)))
+  }
+  // `onDrag` gets how far the pointer is from where the drag began.
+  function startPaneResize(e: React.PointerEvent, onDrag: (dx: number) => void) {
+    e.preventDefault()
+    const startX = e.clientX
+    const move = (ev: PointerEvent) => onDrag(ev.clientX - startX)
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      document.body.style.cursor = ''
+    }
+    document.body.style.cursor = 'col-resize'
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
   }
   const [selectedFolder, setSelectedFolder] = useState<string | null>(() => loadSidebarState().folder)
   // The sidebar reopens where it was left: same view, same folder.
@@ -559,7 +631,7 @@ export default function App() {
         style={{
           gridTemplateRows: 'auto 1fr auto',
           gridTemplateAreas: "'toolbar toolbar toolbar' 'left center right' 'footer footer footer'",
-          gridTemplateColumns: `${leftCollapsed ? `${COLLAPSED_LEFT_WIDTH}px` : '260px'} 1fr ${showDetails ? '320px' : '0px'}`,
+          gridTemplateColumns: `${leftCollapsed ? `${COLLAPSED_LEFT_WIDTH}px` : `${leftWidth}px`} 1fr ${showDetails ? `${detailWidth}px` : '0px'}`,
         }}
       >
         {playerScreen && (
@@ -582,6 +654,15 @@ export default function App() {
           />
         </div>
 
+        {!leftCollapsed && (
+          // On the sidebar's right edge, over the border.
+          <div
+            onPointerDown={startLeftResize}
+            onDoubleClick={() => setLeftWidth(LEFT_WIDTH_DEFAULT)}
+            title="Drag to resize the sidebar (double-click to reset)"
+            style={{ gridArea: 'left', justifySelf: 'end', width: '7px', marginRight: '-3px', cursor: 'col-resize', zIndex: 2 }}
+          />
+        )}
         <div className="pane" style={{ gridArea: 'left', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* The views scroll on their own above the Playlists box. */}
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', padding: leftCollapsed ? '12px 0' : '12px' }}>
@@ -753,6 +834,16 @@ export default function App() {
           />
         </div>
 
+        {showDetails && (
+          // On the panel's left edge, over the border; a double-click goes
+          // back to the usual width.
+          <div
+            onPointerDown={startDetailResize}
+            onDoubleClick={() => setDetailWidth(DETAIL_WIDTH_DEFAULT)}
+            title="Drag to resize the details (double-click to reset)"
+            style={{ gridArea: 'right', justifySelf: 'start', width: '7px', marginLeft: '-3px', cursor: 'col-resize', zIndex: 2 }}
+          />
+        )}
         <div className="pane" style={{ gridArea: 'right', borderRight: 'none', overflowX: 'hidden' }}>
           <DetailPanel
             track={showDetails ? selectedTrack : null}

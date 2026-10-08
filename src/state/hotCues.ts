@@ -44,12 +44,12 @@ export function rgbToHex(rgb: [number, number, number]): string {
 // (Track.gridStart, ADR 0059), not a cue. It is 0:00 until the user moves
 // it (ADR 0060) — MCO never guesses it, though it offers where analysis
 // found the first beat (or, for a track analysed before that was kept,
-// where the waveform first gets loud). The suggestions are every 16 bars
-// from it, and bar 8 for a short intro (8, 16, 32, 48, 64 — where phrases
-// change in most dance music): "16"
+// where the waveform first gets loud). The suggestions are every 8 bars
+// from it, up to 64 (8, 16, 24, 32, 40, 48, 56, 64 — where phrases change,
+// or are half-way, in most dance music): "16"
 // is where the 17th bar begins, 16 × 4 × 60 / BPM seconds after the start.
 // They move with it.
-export const SUGGESTED_CUE_BARS = [8, 16, 32, 48, 64]
+export const SUGGESTED_CUE_BARS = [8, 16, 24, 32, 40, 48, 56, 64]
 
 // The start marker's colour and its "slot" while it's dragged like a cue.
 export const START_COLOR = '#9aa3b2'

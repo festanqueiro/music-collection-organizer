@@ -110,7 +110,7 @@ Code: `src/components/Player.tsx`, `src/audio/effectsChain.ts`,
 
 ## Tests
 - `hotCues.test.ts` (`barCounter`): bars and beats from the start (bar 0), phrase progress,
-  8/16/32/48/64 on the suggestions counted from the start, nothing before the start or without
+  8/16/24/…/64 on the suggestions counted from the start, nothing before the start or without
   a tempo.
 - `src/state/playlist.test.ts`, `playCount.test.ts`; playback and waveform checked in the BETA build.
 

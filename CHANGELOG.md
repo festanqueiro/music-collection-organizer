@@ -4,6 +4,23 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.58 — 2026-10-08
+
+### Added
+- **The track details and the sidebar can be resized**: drag the details'
+  left edge (280 to 720 px) or the sidebar's right edge (200 to 560 px); a
+  double-click on the edge goes back to the usual width. Both widths are
+  remembered.
+- **Bars 24, 40 and 56** join the suggested cues next to the hot cue pads:
+  now every 8 bars from 8 to 64.
+
+### Fixed
+- **Bars that drifted away from the music**: fast tracks could be analysed
+  a few BPM off (a 175 BPM tune as 172.27), which put the bar counter and
+  the suggested cues a beat late by bar 16 and a whole bar late by bar 64.
+  The tempo is now measured over the whole track. **Re-analyse** a track
+  (right-click) to correct one analysed before this.
+
 ## 1.0.57 — 2026-10-08
 
 ### Added
