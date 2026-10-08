@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { CONTEXT_MENU_Z_INDEX } from './contextMenuStyles'
+import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { matchesTagFilter, type TagFilterMode, type TagFilterState } from '../state/tagFilter'
 import type { Track } from '../types'
 import { TagColorPopover } from './TagColorPopover'
+import { ContextMenu } from './ContextMenu'
 
 // Drops any id from `ids` that no longer exists in `existing` — e.g. after
 // deleteGenre removes a genre out from under a still-checked checkbox, so
@@ -360,19 +360,7 @@ export function TagTree({
       })}
 
       {contextMenu && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            background: 'var(--color-surface-raised)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '6px',
-            padding: '4px',
-            zIndex: CONTEXT_MENU_Z_INDEX,
-          }}
-        >
+        <ContextMenu x={contextMenu.x} y={contextMenu.y}>
           <button
             onClick={() => {
               handleRename(contextMenu.target)
@@ -409,7 +397,7 @@ export function TagTree({
             </span>
             Delete
           </button>
-        </div>
+        </ContextMenu>
       )}
 
       {colorPicker && (

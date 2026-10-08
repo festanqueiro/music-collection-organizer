@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CONTEXT_MENU_Z_INDEX } from './contextMenuStyles'
 import { useCollectionStore } from '../state/store'
 import { buildFolderTree, type FolderTreeNode } from '../state/folderTree'
 import type { Track } from '../types'
 import { isInFolder, parentPath } from '../paths'
+import { ContextMenu } from './ContextMenu'
 
 const folderContextMenuItemStyle = {
   display: 'flex',
@@ -279,19 +279,7 @@ export function FolderTree({
         }}
       />
       {contextMenu && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: 'fixed',
-            top: contextMenu.y,
-            left: contextMenu.x,
-            background: 'var(--color-surface-raised)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '6px',
-            padding: '4px',
-            zIndex: CONTEXT_MENU_Z_INDEX,
-          }}
-        >
+        <ContextMenu x={contextMenu.x} y={contextMenu.y}>
           <button
             onClick={() => {
               // Same status filter as the collection-wide analysis run
@@ -326,7 +314,7 @@ export function FolderTree({
             </span>
             Add all to queue
           </button>
-        </div>
+        </ContextMenu>
       )}
     </div>
   )

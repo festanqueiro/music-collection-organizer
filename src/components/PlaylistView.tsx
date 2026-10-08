@@ -3,8 +3,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import { formatKey } from '../state/harmonic'
-import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
+import { contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 import { tracksById } from '../state/tracksById'
+import { ContextMenu } from './ContextMenu'
+import { REVEAL_IN_FILE_MANAGER } from '../platform'
 
 // Fetched lazily and cached across the whole queue, not per-row state —
 // the same track can appear (and its row remount) any number of times as
@@ -14,10 +16,6 @@ import { tracksById } from '../state/tracksById'
 // (collapsing and re-expanding the queue).
 const artworkCache = new Map<number, string | null>()
 
-// Approximate size of the queue entry's right-click menu, for keeping it
-// inside the window.
-const QUEUE_MENU_HEIGHT = 100
-const QUEUE_MENU_WIDTH = 220
 
 function useTrackArtwork(trackId: number | undefined): string | null {
   const [, forceUpdate] = useState(0)
@@ -288,16 +286,7 @@ export function PlaylistView({ embedded = false }: { embedded?: boolean } = {}) 
       </div>
 
       {contextMenu && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            ...contextMenuStyle,
-            // Keep it on screen when opened on one of the last rows / near
-            // the right edge (it's ~3 items tall).
-            top: Math.min(contextMenu.y, window.innerHeight - QUEUE_MENU_HEIGHT),
-            left: Math.min(contextMenu.x, window.innerWidth - QUEUE_MENU_WIDTH),
-          }}
-        >
+        <ContextMenu x={contextMenu.x} y={contextMenu.y}>
           {/* Neither applies to the entry that's already playing. */}
           {contextMenu.index > 0 && (
             <>
@@ -326,7 +315,19 @@ export function PlaylistView({ embedded = false }: { embedded?: boolean } = {}) 
             </span>
             Remove from queue
           </button>
-        </div>
+          <button
+            onClick={() => {
+              window.api.showTrackInFolder(contextMenu.trackId)
+              setContextMenu(null)
+            }}
+            style={contextMenuItemStyle}
+          >
+            <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+              folder_open
+            </span>
+            {REVEAL_IN_FILE_MANAGER}
+          </button>
+        </ContextMenu>
       )}
     </div>
   )

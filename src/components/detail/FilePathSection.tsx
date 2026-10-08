@@ -14,6 +14,23 @@ export function FilePathSection({ track, onTrashed }: { track: Track; onTrashed:
   const [confirmingTrash, setConfirmingTrash] = useState(false)
   const [trashError, setTrashError] = useState<string | null>(null)
   const trashTrack = useCollectionStore((s) => s.trashTrack)
+  const runAnalysis = useCollectionStore((s) => s.runAnalysis)
+  const analysing = track.analysisStatus === 'analyzing'
+  const analysed = track.analysisStatus === 'done'
+  // A status with its icon on the left and, where there's something to do, a button on the right.
+  const status = (icon: string, color: string, text: string, action?: { label: string; title: string; run: () => void; disabled?: boolean }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minHeight: '24px' }}>
+      <span className="material-symbols-outlined" style={{ fontSize: '16px', color, flexShrink: 0 }}>
+        {icon}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+      {action && (
+        <button onClick={action.run} disabled={action.disabled} title={action.title} style={{ fontSize: '12px', flexShrink: 0 }}>
+          {action.label}
+        </button>
+      )}
+    </div>
+  )
   const [open, toggleOpen] = useSectionOpen('file')
   useEffect(() => {
     setCopied(false)
@@ -22,6 +39,30 @@ export function FilePathSection({ track, onTrashed }: { track: Track; onTrashed:
   }, [track.id])
   return (
     <DetailSection title="File" open={open} onToggle={toggleOpen}>
+      {/* Whether the file is on this computer, and whether it has been analysed. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginBottom: '8px' }}>
+        {track.cloudStatus === 'local'
+          ? status('cloud_done', 'var(--color-accent)', 'Synced locally')
+          : status('cloud', 'var(--color-text-dim)', 'In the cloud only', {
+              label: 'Sync',
+              title: 'Download the file to this computer',
+              run: () => void window.api.downloadTrack(track.id).then(() => useCollectionStore.getState().loadAll()),
+            })}
+        {analysing
+          ? status('progress_activity', 'var(--color-text-dim)', 'Analysing…')
+          : analysed
+            ? status('check_circle', 'var(--color-accent)', `Analysed${track.analyzedAt ? ` on ${new Date(track.analyzedAt).toLocaleDateString()}` : ''}`, {
+                label: 'Re-analyse',
+                title: 'Analyse it again: BPM, key, waveform, loudness. Your cues, Tags and a BPM you set are kept.',
+                run: () => void runAnalysis([track.id]),
+              })
+            : status(
+                track.analysisStatus === 'error' ? 'error' : 'radio_button_unchecked',
+                track.analysisStatus === 'error' ? 'var(--color-error)' : 'var(--color-text-dim)',
+                track.analysisStatus === 'error' ? 'Analysis failed' : 'Not analysed',
+                { label: 'Analyse', title: 'Work out its BPM, key, waveform and loudness', run: () => void runAnalysis([track.id]) }
+              )}
+      </div>
       <div style={{ userSelect: 'text', overflowWrap: 'anywhere', lineHeight: 1.4 }}>{track.path}</div>
       <div style={{ display: 'flex', gap: '6px', marginTop: '6px' }}>
         <button

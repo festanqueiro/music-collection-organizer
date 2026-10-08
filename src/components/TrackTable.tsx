@@ -5,7 +5,7 @@ import { formatGain, formatLufs, gainToMatch, medianLoudness } from '../state/lo
 import { useCollectionStore } from '../state/store'
 import { REVEAL_IN_FILE_MANAGER } from '../platform'
 import { BatchTagBar } from './BatchTagBar'
-import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
+import { contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
 import { formatDuration, formatDate, decodeHtmlEntities } from '../format'
 import type { Track, TrackTableColumnKey } from '../types'
 import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
@@ -16,6 +16,7 @@ import { RefineBpmMenu } from './RefineBpmMenu'
 // Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 import { tracksById } from '../state/tracksById'
+import { ContextMenu } from './ContextMenu'
 
 type SortKey = TrackTableColumnKey
 
@@ -1164,10 +1165,7 @@ export function TrackTable({
           </tbody>
         </table>
         {columnsMenu && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ ...contextMenuStyle, top: columnsMenu.y, left: columnsMenu.x }}
-          >
+          <ContextMenu x={columnsMenu.x} y={columnsMenu.y}>
             <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>Columns</div>
             {columnOrder.map((key) => (
               <label key={key} style={{ ...contextMenuItemStyle, cursor: key === 'title' ? 'default' : 'pointer' }}>
@@ -1180,13 +1178,10 @@ export function TrackTable({
                 {columnLabels[key]}
               </label>
             ))}
-          </div>
+          </ContextMenu>
         )}
         {contextMenu && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{ ...contextMenuStyle, top: contextMenu.y, left: contextMenu.x }}
-          >
+          <ContextMenu x={contextMenu.x} y={contextMenu.y}>
             {menuOnMissing && selectedPlaylistId !== null ? (
               // A song whose file is gone: all it can do is leave the playlist.
               <button
@@ -1452,7 +1447,7 @@ export function TrackTable({
             </button>
               </>
             )}
-          </div>
+          </ContextMenu>
         )}
         {addToPlaylistMenu && (
           <AddToPlaylistMenu {...addToPlaylistMenu} onClose={() => setAddToPlaylistMenu(null)} />

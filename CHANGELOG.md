@@ -4,6 +4,38 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.60 — 2026-10-08
+
+### Added
+- **Show in Finder** (*Show in File Explorer* on Windows) in the queue's
+  right-click menu, as in the collection table's.
+- **An × on each set hot cue pad** (on its top-right corner) deletes that
+  cue. Deleting a hot cue — with the ×, its menu or Shift-1–8 — now shows
+  **Undo** for a few seconds, which puts it back with its colour and name.
+- **A larger player**: the button with two arrows at the right of the
+  player's first line doubles the player's height, all of it for the
+  waveform (four times as tall). Click it again to go back. Remembered.
+- **Bar lines over the whole waveform**: a faint line where a bar begins,
+  counted from the start of the tune, a brighter one every 16 bars. They
+  thin out on long tracks. Can be switched off in Settings → Appearance.
+- **Waveform styles** (Settings → Appearance → Waveform): **Classic** (one
+  colour, as before), **RGB** (each slice coloured by frequency — red bass,
+  green mids, blue highs) and **3-band** (bass, mids and highs as three
+  waveforms: blue, orange, white).
+- **Sync and analysis status in the track details**: the File section says
+  whether the file is synced locally and whether it's analysed, with
+  **Sync**, **Analyse** and **Re-analyse** buttons.
+
+### Changed
+- The player no longer shows *Synced locally* and *Analysed*: both are in
+  the track details' File section now.
+
+### Fixed
+- **Right-click menus cut off at the edge of the window**: a menu opened on
+  the last track of a list ran under the player, hiding its last items
+  (Show in Finder among them). Every right-click menu now moves back inside
+  the window, and scrolls if it is taller than it.
+
 ## 1.0.59 — 2026-10-08
 
 ### Added

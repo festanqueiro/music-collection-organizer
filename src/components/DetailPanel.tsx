@@ -139,7 +139,7 @@ export function DetailPanel({
           <span className="material-symbols-outlined">cloud</span> This file is not downloaded locally.
         </p>
         <button onClick={handleDownload} disabled={downloading}>
-          {downloading ? 'Downloading…' : 'Download'}
+          {downloading ? 'Syncing…' : 'Sync locally (download)'}
         </button>
         {downloadError && (
           <p style={{ color: 'var(--color-secondary)', fontSize: '12px' }}>{downloadError}</p>

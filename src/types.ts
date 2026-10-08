@@ -767,3 +767,17 @@ export interface ConvertProgress {
 // 1.5 when two thirds of it was detected), set it, or hand it back to
 // analysis.
 export type BpmChange = { kind: 'factor'; factor: number } | { kind: 'set'; bpm: number } | { kind: 'detect' }
+
+// The player's waveform (docs/features/player.md, ADR 0065). 'classic': one
+// colour, the played part lit. 'rgb': each slice coloured by what's in it —
+// red bass, green mids, blue highs. 'bands': bass, mids and highs as three
+// waveforms over each other, blue, orange and white.
+export type WaveformStyle = 'classic' | 'rgb' | 'bands'
+export const WAVEFORM_STYLES: WaveformStyle[] = ['classic', 'rgb', 'bands']
+
+// A track's waveform in three bands, slice for slice with its peaks.
+export interface WaveformBands {
+  low: number[]
+  mid: number[]
+  high: number[]
+}

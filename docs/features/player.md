@@ -15,7 +15,28 @@ interrupts playback.
   progress line. Click to seek; a click within 6 px of the left edge goes to
   0:00.
 - **Play/pause** and **Play next in queue**.
+- **Bar lines** — over the whole waveform, a faint line where each bar begins, counted from the
+  start of the tune at the track's BPM (the bar counter's and the suggested cues' grid), a brighter
+  one every 16 bars. On a long track they thin out — every 2, 4, 8… bars — to stay under 128 lines.
+  None without a BPM. Settings → Appearance → *Bar lines on the waveform* turns them off.
+- **Waveform style** — Settings → Appearance → Waveform
+  ([ADR 0065](../adr/0065-coloured-waveforms-from-three-bands.md)):
+  - **Classic**: one colour, the played part lit (as it always was).
+  - **RGB**: each slice coloured by what's in it — red for bass, green for mids, blue for highs —
+    as in Serato, djay and Rekordbox's RGB.
+  - **3-band**: bass, mids and highs as three waveforms over each other — blue, orange and white,
+    as on Rekordbox 6 and the CDJ-3000 — the tallest at the back in each slice.
+  In the two coloured styles what hasn't played yet is shaded. They need the waveform in three
+  bands (below 200 Hz, 200 Hz–4 kHz, above): analysis stores it, and for a track analysed before
+  1.0.60 it's worked out the first time that track is loaded with a coloured style chosen (a
+  fraction of a second, then kept). Until it's there, and for a file that's gone, the waveform is
+  drawn Classic. The second screen and the TV keep their own waveform.
 - **CUE** — CDJ-style cue button (see below).
+- **Larger player** — the two-arrows button at the right of the first line (before the screen
+  buttons) doubles the player's height: 254 px for 127. All the extra height goes to the waveform
+  (167 px for 40); the buttons keep their size. Click again for the usual size.
+  Remembered per computer (`playerLarge` in the store and in localStorage); it applies to the
+  empty player too.
 - **Time** — shows elapsed / total; click to switch to time left.
 - **The buttons on the right** — two joined groups of icon buttons, names in their tooltips:
   *sound and picture* (Audio output, Rec, Mic, Cast, Screen) and *views* (Visualizer, FX, Queue,
@@ -112,6 +133,11 @@ Code: `src/components/Player.tsx`, `src/audio/effectsChain.ts`,
 - `hotCues.test.ts` (`barCounter`): bars and beats from the start (bar 0), phrase progress,
   8/16/24/…/64 on the suggestions counted from the start, nothing before the start or without
   a tempo.
+- `waveformGrid.test.ts` (a line per bar from the start, phrases, thinning, no tempo),
+  `analysis/waveform.test.ts` (a bass note in the lows, a lead in the mids, a hat in the highs; the
+  scale; silence; the half rate). In the built app on the demo library (Playwright): 29 bar lines
+  on a 48 s track at 140 BPM; the bands of a track analysed before worked out in 88 ms; RGB and
+  3-band chosen in Settings and drawn; the larger player 127 → 254 px.
 - `src/state/playlist.test.ts`, `playCount.test.ts`; playback and waveform checked in the BETA build.
 
 ## Limits & open questions

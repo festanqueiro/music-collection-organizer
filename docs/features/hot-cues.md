@@ -44,10 +44,14 @@ export.
   that pad's letter and colour (*D·16*) and jumps there like the pad. **Right-click** one to pick
   the pad, A–H: an empty pad takes it, a set pad is replaced, and a suggestion already on a pad
   moves (the old pad is cleared). Marked **≈** while the first beat is only a guess (below).
-- **Keys 1–8** do the same as the pads; **Shift-1–8** deletes that cue. Not while typing, not with
+- **Keys 1–8** do the same as the pads; **Shift-1–8** deletes that cue (with Undo). Not while typing, not with
   a dialog open, and not while the visualizer is open (it keeps 1–8 for its themes).
 - **Right-click** (or Shift-click) a set pad: **Name…** (e.g. "Drop", shown in the pad's tooltip),
   a colour from Rekordbox's hot-cue palette, **Delete hot cue**.
+- **The × on a set pad's top-right corner** deletes that cue in one click. However a hot cue is
+  deleted — the ×, the menu, Shift-1–8 — an **Undo** shows at the bottom of the window for 8 s and
+  puts it back at the same place with its colour and name (not if that pad has been given a new
+  cue in the meantime). `removeHotCue` / `undoCueRemove` in the store.
 - **Colours**: new cues take their slot's default — the ones the user's Rekordbox uses for A–D (pink,
   blue, green, purple), then orange, cyan, yellow, magenta for E–H from its palette — eight
   clearly different colours, so no two pads look alike, and a cue looks the same in both apps.

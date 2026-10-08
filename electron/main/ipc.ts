@@ -5,6 +5,7 @@ import { applyMoves, planMove, type MovedTrack } from './moveTracks'
 import { showOpenDialog, showSaveDialog } from './ipcDialogs'
 import { changeTrackBpm } from './bpmEdit'
 import { decodeToPcm } from './analysis/decode'
+import { computeWaveformBands, type WaveformBands } from './analysis/waveform'
 import { refineBpm } from './analysis/tempoRefine'
 import { registerTagIpc } from './ipcTags'
 import { registerPlaylistIpc } from './ipcPlaylists'
@@ -177,7 +178,7 @@ export function registerIpcHandlers(
   // by the player only, and they made every reload of the list slow.
   const trackListColumns = (db.prepare('PRAGMA table_info(tracks)').all() as { name: string }[])
     .map((c) => c.name)
-    .filter((name) => name !== 'waveform_peaks')
+    .filter((name) => name !== 'waveform_peaks' && name !== 'waveform_bands')
     .join(', ')
 
   // Guards scan:run against overlapping runs.
@@ -599,6 +600,37 @@ export function registerIpcHandlers(
   ipcMain.handle('tracks:getWaveform', (_e, trackId: number): number[] | null => {
     const row = db.prepare('SELECT waveform_peaks FROM tracks WHERE id = ?').get(trackId) as { waveform_peaks: string | null } | undefined
     return row?.waveform_peaks ? JSON.parse(row.waveform_peaks) : null
+  })
+
+  // The same waveform in three bands, for the coloured styles (ADR 0065).
+  // Analysis stores it; for a track analysed before it did, it's worked out
+  // from the file the first time it's asked for (at half the sampling rate:
+  // enough for bands cut at 200 Hz and 4 kHz) and kept.
+  const bandsInFlight = new Map<number, Promise<WaveformBands | null>>()
+  ipcMain.handle('tracks:getWaveformBands', (_e, trackId: number): Promise<WaveformBands | null> => {
+    const row = db.prepare('SELECT path, waveform_bands, present, cloud_status FROM tracks WHERE id = ?').get(trackId) as
+      | { path: string; waveform_bands: string | null; present: number; cloud_status: string }
+      | undefined
+    if (!row) return Promise.resolve(null)
+    if (row.waveform_bands) return Promise.resolve(JSON.parse(row.waveform_bands) as WaveformBands)
+    if (!row.present || row.cloud_status !== 'local') return Promise.resolve(null)
+    const running = bandsInFlight.get(trackId)
+    if (running) return running
+    const work = (async () => {
+      try {
+        const pcm = await decodeToPcm(await getPlayableFilePath(row.path, getMediaCacheDir()), 22050)
+        const bands = computeWaveformBands(pcm, 22050)
+        db.prepare('UPDATE tracks SET waveform_bands = ? WHERE id = ?').run(JSON.stringify(bands), trackId)
+        return bands
+      } catch (err) {
+        console.error('waveform bands failed', row.path, err)
+        return null
+      } finally {
+        bandsInFlight.delete(trackId)
+      }
+    })()
+    bandsInFlight.set(trackId, work)
+    return work
   })
 
   // The hidden ones, for the Missing Tracks filter: files the last scan

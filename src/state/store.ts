@@ -2,6 +2,8 @@
 import { create, type StoreApi } from 'zustand'
 import type {
   Track,
+  WaveformBands,
+  WaveformStyle,
   BpmChange,
   TrackCue,
   PlaylistNode,
@@ -25,7 +27,7 @@ import type {
   ScreenDisplay,
   ScreenTarget,
 } from '../types'
-import { DEFAULT_EFFECTS_SETTINGS, DEFAULT_MIC_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
+import { WAVEFORM_STYLES, DEFAULT_EFFECTS_SETTINGS, DEFAULT_MIC_SETTINGS, DEFAULT_TRACK_TABLE_COLUMN_ORDER, SIREN_MODES, SIREN_BEATS, DELAY_DIVISIONS } from '../types'
 import { scaleMidiValue, scaleMidiValueToOption, sendMidiFeedback } from '../audio/midi'
 import { MIC_KNOBS, MIC_TOGGLES, echoTimeForDivision, talkAfterRelease } from '../audio/micControls'
 import { getDubSirenEngine } from '../audio/sirenEngine'
@@ -59,6 +61,7 @@ import {
 import { baseName } from '../paths'
 import { moveTracksInPlaylist, restoreRemovedTracks } from './savedPlaylist'
 import type { EnergyRange } from './trackFilters'
+import { HOT_CUE_LETTERS } from './hotCues'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
 // onChange continuously, and writing to electron-store on every tick would
@@ -73,6 +76,7 @@ let talkPress: { at: number; wasLive: boolean } | null = null
 let toastTimeout: ReturnType<typeof setTimeout> | null = null
 let queueUndoTimeout: ReturnType<typeof setTimeout> | null = null
 let playlistUndoTimeout: ReturnType<typeof setTimeout> | null = null
+let cueUndoTimeout: ReturnType<typeof setTimeout> | null = null
 
 // A track's cues after a write (the IPC returns them), into the store.
 function patchCues(
@@ -354,6 +358,8 @@ export interface CollectionState {
   // (Settings → MIDI). Purely visual — bindings keep working when hidden.
   showMidiControls: boolean
   setShowMidiControls: (show: boolean) => void
+  playerLarge: boolean
+  setPlayerLarge: (large: boolean) => void
   // How the Key column/detail panel/queue show keys (Settings → Appearance).
   keyNotation: KeyNotation
   setKeyNotation: (notation: KeyNotation) => void
@@ -502,11 +508,26 @@ export interface CollectionState {
   // Whole-track waveforms, read per track when the player loads it (they're
   // not in `tracks`, ADR 0058).
   trackWaveforms: Map<number, number[]>
+  // The same in bass, mids and highs, for the coloured waveform styles.
+  trackWaveformBands: Map<number, WaveformBands>
+  loadTrackWaveformBands: (trackId: number) => Promise<void>
+  // How the player's waveform is drawn, and whether bar lines are on it
+  // (Settings → Appearance).
+  waveformStyle: WaveformStyle
+  setWaveformStyle: (style: WaveformStyle) => void
+  waveformGrid: boolean
+  setWaveformGrid: (show: boolean) => void
   loadTrackWaveform: (trackId: number) => Promise<void>
   refreshHotCueCounts: () => Promise<void>
   setHotCue: (trackId: number, slot: number, start: number) => Promise<void>
   updateHotCue: (trackId: number, slot: number, changes: { color?: string | null; name?: string }) => Promise<void>
   deleteHotCue: (trackId: number, slot: number) => Promise<void>
+  // Deletes a hot cue the user removed (the pad's ×, its menu): Undo puts
+  // it back where it was, with its colour and name.
+  removeHotCue: (trackId: number, slot: number) => Promise<void>
+  cueUndo: { message: string; trackId: number; cue: TrackCue } | null
+  undoCueRemove: () => Promise<void>
+  dismissCueUndo: () => void
   // Removes songs from the playlist being viewed; Undo puts them back.
   removeTracksFromSelectedPlaylist: (trackIds: number[]) => Promise<void>
   // Drag-reorder in the playlist being viewed: `trackIds` land before or
@@ -789,6 +810,17 @@ function loadShowMidiControls(): boolean {
   }
 }
 
+// The player at twice its height, all of it for the waveform. A
+// per-computer view preference.
+const PLAYER_LARGE_KEY = 'playerLarge'
+function loadPlayerLarge(): boolean {
+  try {
+    return localStorage.getItem(PLAYER_LARGE_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
+
 const CUE_VOLUME_KEY = 'cueVolume'
 function loadCueVolume(): number {
   try {
@@ -808,6 +840,25 @@ function loadAppTheme(): AppThemeId {
 
 function applyAppTheme(theme: AppThemeId): void {
   if (typeof document !== 'undefined') document.documentElement.dataset.theme = theme
+}
+
+// The player's waveform: its style and its bar lines (per computer).
+const WAVEFORM_STYLE_KEY = 'waveformStyle'
+function loadWaveformStyle(): WaveformStyle {
+  try {
+    const stored = localStorage.getItem(WAVEFORM_STYLE_KEY) as WaveformStyle | null
+    return stored && WAVEFORM_STYLES.includes(stored) ? stored : 'classic'
+  } catch {
+    return 'classic'
+  }
+}
+const WAVEFORM_GRID_KEY = 'waveformGrid'
+function loadWaveformGrid(): boolean {
+  try {
+    return localStorage.getItem(WAVEFORM_GRID_KEY) !== 'false'
+  } catch {
+    return true
+  }
 }
 
 const KEY_NOTATION_KEY = 'keyNotation'
@@ -851,6 +902,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   screenDisplays: [],
   visualizerThemeOptions: loadVisualizerThemeOptions(),
   showMidiControls: loadShowMidiControls(),
+  playerLarge: loadPlayerLarge(),
   keyNotation: loadKeyNotation(),
   appTheme: loadAppTheme(),
   compatibleFilter: false,
@@ -953,6 +1005,32 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
   refreshHotCueCounts: async () => set({ hotCueCounts: await window.api.getHotCueCounts() }),
   trackWaveforms: new Map(),
+  trackWaveformBands: new Map(),
+  loadTrackWaveformBands: async (trackId) => {
+    const bands = await window.api.getTrackWaveformBands(trackId)
+    const trackWaveformBands = new Map(get().trackWaveformBands)
+    if (bands) trackWaveformBands.set(trackId, bands)
+    else if (!trackWaveformBands.delete(trackId)) return
+    set({ trackWaveformBands })
+  },
+  waveformStyle: loadWaveformStyle(),
+  setWaveformStyle: (style) => {
+    set({ waveformStyle: style })
+    try {
+      localStorage.setItem(WAVEFORM_STYLE_KEY, style)
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+  waveformGrid: loadWaveformGrid(),
+  setWaveformGrid: (show) => {
+    set({ waveformGrid: show })
+    try {
+      localStorage.setItem(WAVEFORM_GRID_KEY, String(show))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
   loadTrackWaveform: async (trackId) => {
     const peaks = await window.api.getTrackWaveform(trackId)
     const trackWaveforms = new Map(get().trackWaveforms)
@@ -963,6 +1041,35 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setHotCue: async (trackId, slot, start) => patchCues(set, get, trackId, await window.api.setHotCue(trackId, slot, start)),
   updateHotCue: async (trackId, slot, changes) => patchCues(set, get, trackId, await window.api.updateHotCue(trackId, slot, changes)),
   deleteHotCue: async (trackId, slot) => patchCues(set, get, trackId, await window.api.deleteHotCue(trackId, slot)),
+  removeHotCue: async (trackId, slot) => {
+    const cue = (get().trackCues.get(trackId) ?? []).find((c) => c.kind === 'hot' && c.slot === slot)
+    await get().deleteHotCue(trackId, slot)
+    if (!cue) return
+    // One undo at a time at the bottom of the window.
+    get().dismissQueueUndo()
+    get().dismissPlaylistUndo()
+    if (cueUndoTimeout) clearTimeout(cueUndoTimeout)
+    set({ cueUndo: { message: `Deleted hot cue ${HOT_CUE_LETTERS[slot] ?? ''}${cue.name ? ` — ${cue.name}` : ''}`, trackId, cue } })
+    cueUndoTimeout = setTimeout(() => set({ cueUndo: null }), 8000)
+  },
+  cueUndo: null,
+  undoCueRemove: async () => {
+    const undo = get().cueUndo
+    get().dismissCueUndo()
+    if (!undo) return
+    const { trackId, cue } = undo
+    // Not over a cue set on that pad since.
+    if ((get().trackCues.get(trackId) ?? []).some((c) => c.kind === 'hot' && c.slot === cue.slot)) {
+      get().showToast(`Pad ${HOT_CUE_LETTERS[cue.slot] ?? ''} has a new cue: the deleted one wasn't put back`)
+      return
+    }
+    await get().setHotCue(trackId, cue.slot, cue.start)
+    if (cue.color || cue.name) await get().updateHotCue(trackId, cue.slot, { color: cue.color, name: cue.name })
+  },
+  dismissCueUndo: () => {
+    if (cueUndoTimeout) clearTimeout(cueUndoTimeout)
+    set({ cueUndo: null })
+  },
   playlistNodes: [],
   selectedPlaylistId: null,
   selectedPlaylistTrackIds: [],
@@ -1014,6 +1121,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     const name = result.nodes.find((n) => n.id === playlistId)?.name ?? 'the playlist'
     // One undo at a time at the bottom of the window.
     get().dismissQueueUndo()
+    get().dismissCueUndo()
     if (playlistUndoTimeout) clearTimeout(playlistUndoTimeout)
     set({
       playlistUndo: {
@@ -1075,6 +1183,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     if (previous.length > 1) {
       if (queueUndoTimeout) clearTimeout(queueUndoTimeout)
       get().dismissPlaylistUndo()
+      get().dismissCueUndo()
       set({ queueUndo: { message, previous } })
       queueUndoTimeout = setTimeout(() => set({ queueUndo: null }), 8000)
     } else get().showToast(message)
@@ -1836,6 +1945,15 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     set({ visualizerFps: fps })
     try {
       localStorage.setItem(VISUALIZER_FPS_KEY, String(fps))
+    } catch {
+      // Non-essential preference — fine to lose.
+    }
+  },
+
+  setPlayerLarge: (large) => {
+    set({ playerLarge: large })
+    try {
+      localStorage.setItem(PLAYER_LARGE_KEY, String(large))
     } catch {
       // Non-essential preference — fine to lose.
     }

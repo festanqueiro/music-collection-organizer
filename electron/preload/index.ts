@@ -32,6 +32,7 @@ import type {
   RekordboxImportPlan,
   RekordboxReport,
   AudioInfo,
+  WaveformBands,
   BpmChange,
   ConvertOptions,
   ConvertProgress,
@@ -104,6 +105,8 @@ const api = {
     ipcRenderer.invoke('tracks:changeBpm', trackIds, change),
   setTrackGridStart: (trackId: number, start: number | null): Promise<Track | null> => ipcRenderer.invoke('tracks:setGridStart', trackId, start),
   getTrackWaveform: (trackId: number): Promise<number[] | null> => ipcRenderer.invoke('tracks:getWaveform', trackId),
+  // The waveform in bass, mids and highs, for the coloured styles.
+  getTrackWaveformBands: (trackId: number): Promise<WaveformBands | null> => ipcRenderer.invoke('tracks:getWaveformBands', trackId),
   getGenres: (): Promise<Genre[]> => ipcRenderer.invoke('tags:getGenres'),
   getSubgenres: (): Promise<Subgenre[]> => ipcRenderer.invoke('tags:getSubgenres'),
   getAllTagIds: (): Promise<TrackTagIds[]> => ipcRenderer.invoke('tracks:getAllTagIds'),

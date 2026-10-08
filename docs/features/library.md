@@ -133,6 +133,9 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of the queue**, **Pre-listen
   in headphones**, **Analyse/Re-analyse track**, **Refine BPM…** ([DJ tools](dj-tools.md#refine-bpm)), **Convert to…** ([Convert](convert.md)), **Show in Finder** (*Show in File Explorer* on Windows), **Show in Folder
   Tree View**.
+- Right-click menus stay inside the window: opened on the last row or by an edge, the menu moves
+  back in by however much it would stick out, and scrolls if it's taller than the window
+  (`src/components/ContextMenu.tsx`, used by every right-click menu; `ContextMenu.test.ts`).
 - **Add all to queue** queues everything visible ([Queue](queue.md)).
 
 ### Selecting several tracks
@@ -158,7 +161,8 @@ ones are closed is remembered between sessions (per section, in `localStorage` u
 3. **Tags** — your Tags and Subtags ([Tags](tags.md)); the header shows how many the track has.
 4. **Playlists** — the playlists the track is in ([Playlists](playlists.md)).
 5. **Similar tracks** — [DJ tools](dj-tools.md#similar-tracks); not ranked while closed.
-6. **File** — the file's **full path** with **Copy path**, **Show in Finder** (*Show in File Explorer* on
+6. **File** — whether the file is **synced locally** (or in the cloud only, with **Sync**) and
+   whether it's **analysed** (with the date, and **Re-analyse**; else **Analyse**), then the file's **full path** with **Copy path**, **Show in Finder** (*Show in File Explorer* on
 Windows, as in the row menu and after a recording) and **Delete** (moves the file to
 the Trash after a confirmation; restoring it brings the track back with its tags —
 [ADR 0031](../adr/0031-delete-moves-to-trash.md)).

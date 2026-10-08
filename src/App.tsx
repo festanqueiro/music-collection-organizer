@@ -263,6 +263,9 @@ export default function App() {
   const [statsOpen, setStatsOpen] = useState(false)
   const selectPlaylist = useCollectionStore((s) => s.selectPlaylist)
   const queueUndo = useCollectionStore((s) => s.queueUndo)
+  const cueUndo = useCollectionStore((s) => s.cueUndo)
+  const undoCueRemove = useCollectionStore((s) => s.undoCueRemove)
+  const dismissCueUndo = useCollectionStore((s) => s.dismissCueUndo)
   const undoQueueReplace = useCollectionStore((s) => s.undoQueueReplace)
   const dismissQueueUndo = useCollectionStore((s) => s.dismissQueueUndo)
   const playlistUndo = useCollectionStore((s) => s.playlistUndo)
@@ -608,6 +611,7 @@ export default function App() {
         />
       )}
       {queueUndo && <UndoToast message={queueUndo.message} onUndo={undoQueueReplace} onDismiss={dismissQueueUndo} />}
+      {cueUndo && <UndoToast message={cueUndo.message} onUndo={() => void undoCueRemove()} onDismiss={dismissCueUndo} />}
       {playlistUndo && (
         <UndoToast message={playlistUndo.message} onUndo={() => void undoPlaylistRemove()} onDismiss={dismissPlaylistUndo} />
       )}
