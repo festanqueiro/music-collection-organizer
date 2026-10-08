@@ -11,7 +11,8 @@
 // The app's own layout isn't touched: #root is moved into the frame and
 // only gets a transform.
 (() => {
-  const ACCENTS = { yellow: '#ffd23f', pink: '#ff5fa2', blue: '#4cc9f0', lime: '#9ef01a', orange: '#ff9f1c', red: '#ff4d6d', violet: '#a78bfa' }
+  // The two colours of the logo: the pink of its letters and ring, the blue of its disc.
+  const ACCENTS = { pink: '#ffc3c5', blue: '#7ba7bd' }
   // The band above the frame for the words, the frame's title bar, and the
   // space left under the frame.
   const CAPTION = 92
@@ -71,11 +72,21 @@
     #promo-card { position: fixed; inset: 0; z-index: 2147483645; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
       opacity: 0; transition: opacity 500ms ease; }
     #promo-card.on { opacity: 1; }
-    #promo-card .title { font: 700 132px/1 'Promo Grotesk', Roboto, system-ui, sans-serif; letter-spacing: .03em; display: flex; }
-    #promo-card .title span { background: linear-gradient(100deg, #ffd23f, #ff5fa2 35%, #a78bfa 62%, #4cc9f0); background-size: 320% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; }
-    #promo-card.on .title span { animation: promo-letter 700ms cubic-bezier(.2,.9,.25,1.2) both, promo-sheen 3.2s ease-in-out infinite alternate; }
-    @keyframes promo-letter { from { opacity: 0; transform: translateY(60px) scale(.7) rotate(-8deg); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
-    @keyframes promo-sheen { to { background-position: 100% 0; } }
+    /* The logo, put together on the card: the disc spins up, the ring is drawn, the three letters drop in, and it keeps breathing. */
+    #promo-logo { position: relative; width: 300px; height: 300px; margin-bottom: 6px; }
+    #promo-logo > * { position: absolute; }
+    #promo-logo .disc { left: 9%; top: 9%; width: 82%; height: 82%; border-radius: 50%; background: ${ACCENTS.blue}; box-shadow: 0 0 0 6px ${ACCENTS.pink}, 0 0 70px -6px ${ACCENTS.blue}; transform: scale(0); }
+    #promo-card.on .disc { animation: promo-disc 900ms cubic-bezier(.2,.9,.25,1.25) both, promo-breathe 2.6s ease-in-out 1.6s infinite; }
+    @keyframes promo-disc { from { transform: scale(0) rotate(-200deg); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes promo-breathe { 50% { box-shadow: 0 0 0 6px ${ACCENTS.pink}, 0 0 110px 4px ${ACCENTS.blue}; } }
+    #promo-logo .wave { left: 9%; top: 9%; width: 82%; height: 82%; border-radius: 50%; border: 3px solid ${ACCENTS.pink}; opacity: 0; }
+    #promo-card.on .wave { animation: promo-wave 2.6s ease-out 1.1s infinite; }
+    #promo-card.on .wave + .wave { animation-delay: 2.4s; }
+    @keyframes promo-wave { from { opacity: .7; transform: scale(1); } to { opacity: 0; transform: scale(1.75); } }
+    #promo-logo .letter { inset: 0; background-size: 100% 100%; opacity: 0; }
+    #promo-card.on .letter { animation: promo-drop 620ms cubic-bezier(.2,.9,.25,1.4) both, promo-bob 2.6s ease-in-out infinite; }
+    @keyframes promo-drop { from { opacity: 0; transform: translateY(-46px) scale(.6) rotate(-14deg); } to { opacity: 1; transform: none; } }
+    @keyframes promo-bob { 0%, 30%, 100% { transform: none; } 15% { transform: translateY(-7px); } }
     #promo-card .line { font: 500 31px/1.3 'Promo Grotesk', Roboto, system-ui, sans-serif; color: #c9d1e0; }
     #promo-card .line + .line { font-weight: 400; font-size: 23px; color: #8b95a8; }
     #promo-card.on .line { animation: promo-word 620ms cubic-bezier(.2,.9,.25,1.1) both; }
@@ -88,7 +99,7 @@
     @keyframes promo-tick { from { background: #0c0e13; } to { background: #0d0f14; } }
   `)
   document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
-  document.documentElement.style.setProperty('--promo-accent', ACCENTS.yellow)
+  document.documentElement.style.setProperty('--promo-accent', ACCENTS.pink)
 
   const add = (id, html = '', parent = document.documentElement) => { const el = document.createElement('div'); el.id = id; el.innerHTML = html; parent.appendChild(el); return el }
   // The frame: as wide as the app can be shown whole under the words.
@@ -142,8 +153,8 @@
   // The backdrop: wide bands lying across the picture, each a slow double
   // wave that travels sideways — some to the right, some to the left, at
   // their own speeds — rising and sinking a little, so they slide over one
-  // another. Only movement, nothing to look at. Mostly slate; two take the
-  // scene's colour.
+  // another. Only movement, nothing to look at. Mostly the logo's blue; two
+  // take the scene's colour.
   const flow = document.createElement('canvas')
   flow.id = 'promo-flow'
   flow.width = Math.round(innerWidth / 2)
@@ -158,7 +169,10 @@
     { at: 0.86, fat: 66, sway: 28, speed: 12, phase: 3.3, tint: true },
     { at: 1.02, fat: 48, sway: 30, speed: -8, phase: 5.6, tint: false },
   ]
-  let accent = ACCENTS.yellow
+  let accent = ACCENTS.pink
+  // The logo's picture (a data URL), and where M, C and O are across it, in 256ths.
+  let logo = ''
+  const LETTERS = [[42, 102], [102, 153.5], [153.5, 214]]
   function drawFlow(now) {
     const t = now / 1000
     const { width: W, height: H } = flow
@@ -174,8 +188,8 @@
       pen.closePath()
       // Lighter towards one end, so the eye follows it across.
       const fade = pen.createLinearGradient(0, 0, W, 0)
-      const color = b.tint ? accent : '#5b6b8c'
-      const strength = b.tint ? 0.085 : 0.12
+      const color = b.tint ? accent : ACCENTS.blue
+      const strength = b.tint ? 0.08 : 0.1
       const hex = (v) => Math.round(v * 255).toString(16).padStart(2, '0')
       const [from, to] = b.speed > 0 ? [0.45, 1] : [1, 0.45]
       fade.addColorStop(0, color + hex(strength * from))
@@ -190,6 +204,7 @@
   window.promo = {
     accents: ACCENTS,
     accent(color) { accent = color; document.documentElement.style.setProperty('--promo-accent', color) },
+    logo(dataUrl) { logo = dataUrl },
     // The font of the words, from its file (base64): a FontFace made from
     // bytes isn't fetched, so the page's policy has nothing to refuse.
     async font(base64) {
@@ -242,18 +257,22 @@
     card(title, lines) {
       if (!title) return cardEl.classList.remove('on')
       cardEl.innerHTML = ''
-      const t = document.createElement('div')
-      t.className = 'title'
-      // A letter at a time, each with its own part of the gradient.
-      ;[...title].forEach((letter, i, all) => {
-        const l = document.createElement('span')
-        l.textContent = letter
-        l.style.animationDelay = `${i * 110}ms, ${i * 110}ms`
-        l.style.backgroundPosition = `${(i / Math.max(1, all.length - 1)) * 60}% 0`
-        t.appendChild(l)
+      // The logo says the name: a disc and ring drawn here, and the picture's
+      // three letters, each cut out of it, so they can arrive one by one.
+      const logoEl = document.createElement('div')
+      logoEl.id = 'promo-logo'
+      logoEl.title = title
+      logoEl.innerHTML = '<div class="wave"></div><div class="wave"></div><div class="disc"></div>'
+      LETTERS.forEach(([left, right], i) => {
+        const l = document.createElement('div')
+        l.className = 'letter'
+        l.style.backgroundImage = `url(${logo})`
+        l.style.clipPath = `inset(${(86 / 256) * 100}% ${((256 - right) / 256) * 100}% ${(86 / 256) * 100}% ${(left / 256) * 100}%)`
+        l.style.animationDelay = `${620 + i * 150}ms, ${1900 + i * 180}ms`
+        logoEl.appendChild(l)
       })
-      cardEl.appendChild(t)
-      lines.forEach((line, i) => { const l = document.createElement('div'); l.className = 'line'; l.textContent = line; l.style.animationDelay = `${420 + i * 160}ms`; cardEl.appendChild(l) })
+      cardEl.appendChild(logoEl)
+      lines.forEach((line, i) => { const l = document.createElement('div'); l.className = 'line'; l.textContent = line; l.style.animationDelay = `${1100 + i * 160}ms`; cardEl.appendChild(l) })
       cardEl.classList.add('on')
     },
   }

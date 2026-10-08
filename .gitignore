@@ -17,3 +17,5 @@ graphify-out/
 
 # website capture scratch (demo library data, raw recordings)
 website/capture/.work/
+# what this machine records the promo video with (a library and a soundtrack of your own)
+website/capture/promo.local.json

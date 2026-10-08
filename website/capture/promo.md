@@ -13,6 +13,16 @@ node website/capture/promo.mjs ~/Desktop/MCO-promo.mp4
 node website/capture/promo.mjs ~/Desktop/MCO-promo.mp4 --music "/path/to/track.wav" --music-start 92.5
 ```
 
+- **A library of your own**: `--library "/path/to/folder"` shows that folder in place of the demo
+  collection. The first run prepares it (scan, analysis, then Tags by tempo, Subtags, the
+  playlists the scenes open and three hot cues a track — all made up for the video, in a data
+  folder of its own under `.work/promo-<folder>`; **no audio file is written to** and your real
+  MCO library isn't touched). Delete that folder to prepare it again. The folder's path shows in
+  the details panel: a link from somewhere neutral (`/Users/Shared/Music/…`) keeps your user name
+  out of the picture. The track that is played is the soundtrack's own, when it is in the folder.
+- **This machine's defaults**: `website/capture/promo.local.json` (not in git) —
+  `{ "library": "…", "music": "…", "musicStart": 92.5 }` — is what a plain
+  `node website/capture/promo.mjs out.mp4` records with.
 - **The soundtrack**: `--music` takes any audio file ffmpeg reads, `--music-start` the second to
   start from (pick a drop: the video opens on it). It is looped if shorter than the video and
   faded in and out. Without `--music` it is a demo track. Only use music you may publish.
@@ -45,51 +55,53 @@ To change what happens in a scene, edit the block with the same id in `promo.mjs
 > Music Collection Organizer
 > Your tracks, analysed, tagged and ready to play
 
-The opening card alone on the backdrop, three seconds, then the app arrives in its frame.
+The opening card alone on the backdrop — the logo is put together (the disc spins up, the
+letters M, C, O drop in, rings go out from it) over the two lines below the first, which only
+names it — three seconds, then the app arrives in its frame.
 
 ## collection
 > Your whole collection: BPM, key, energy, loudness
 
-Yellow. The table scrolls down and back, then a close-up of the BPM to Volume Score columns with
+The table scrolls down and back, then a close-up of the BPM to Volume Score columns with
 an outline around them; a click on *Deep Water* opens its details.
 
 ## tags
 > Your own Tags and Subtags, in colour
 
-Pink. The Tags view; *Dubstep* is picked, a close-up of the Tags and Subtags columns, then back to
+The Tags view; *Dubstep* is picked, a close-up of the Tags and Subtags columns, then back to
 Folders.
 
 ## details
 > Every playlist a track is in, and the tracks that mix with it
 
-Blue. The track that is in the most playlists is selected; a close-up of its details' **Playlists**
+The track that is in the most playlists is selected; a close-up of its details' **Playlists**
 section, outlined, then of **Similar tracks**.
 
 ## player
 > Play it: a waveform with bar lines and hot cues
 
-Lime. *Basement (Dub)* is played from its row menu, the player is made larger, a close-up of the
+*Basement (Dub)* is played from its row menu, the player is made larger, a close-up of the
 waveform, hot cues B and C are pressed.
 
 ## convert
 > Convert a file to another format without leaving
 
-Orange. A row's menu → Convert to…, a close-up of the dialog (closed without converting).
+A row's menu → Convert to…, a close-up of the dialog (closed without converting).
 
 ## playlists
 > Playlists and folders, in and out of Rekordbox
 
-Pink. *Sunday Session* is opened; a close-up of the Playlists box, which is searched for "late".
+*Sunday Session* is opened; a close-up of the Playlists box, which is searched for "late".
 
 ## effects
 > Effects, a mic and a dub siren
 
-Red. The FX screen, closer, a few seconds. (*Basement (Dub)* is started again just before: see Gotchas.)
+The FX screen, closer, a few seconds. (*Basement (Dub)* is started again just before: see Gotchas.)
 
 ## visualizer
 > And a visualizer for the room
 
-Blue. The visualizer opens on its current theme, then Tangle, Crystal and Sponge, three seconds
+The visualizer opens on its current theme, then Tangle, Crystal and Sponge, three seconds
 each.
 
 ## end
@@ -97,7 +109,7 @@ each.
 > Music Collection Organizer
 > festanqueiro.github.io/music-collection-organizer
 
-The frame leaves; the closing card.
+The frame leaves; the closing card, with the logo again.
 
 ## How it's made
 
@@ -108,7 +120,7 @@ The frame leaves; the closing card.
   time. Playwright's `recordVideo` leaves the window blank with this Electron on a Mac.
 - **Around and over the app**, drawn in the page by `promoStage.js`: a dark backdrop with wide
   bands that wave slowly sideways, left and right, sliding over one another — movement and
-  nothing else (a canvas; slate, two in the scene's colour — the `BANDS` list sets where, how
+  nothing else (a canvas; the logo's blue, two in the scene's colour — the `BANDS` list sets where, how
   fat, how fast and which way); a window
   frame (title bar, border and glow in the scene's colour) the app is fitted into and never
   leaves; **the scene's words in a band above the frame, always**, arriving a word at a time with a line
@@ -119,9 +131,13 @@ The frame leaves; the closing card.
   touched — `#root` is moved into the frame and only gets a transform.
 - **The font** of the words and cards is Space Grotesk (`fonts/SpaceGrotesk.ttf`, SIL Open Font
   License, `fonts/OFL.txt`). To change it, put another `.ttf` there and its name in `promo.mjs`.
+- **Colours**: the logo's two, its pink and its blue (`ACCENTS` in `promoStage.js`); the scenes
+  alternate between them, and the backdrop's bands are the blue with two in the scene's colour.
+  The logo on the cards is `resources/icon.png`: its three letters are cut out of the picture
+  (`LETTERS` says where they are) so each can move by itself.
 - **In `promo.mjs`**: `scene(id, colour)` puts up a scene's words and colour, `zoomTo(locator,
   scale)` goes closer on something, `spot(locator, extra)` outlines it, `home()` shows the whole
-  app again. The colours are the `ACCENTS` of `promoStage.js`.
+  app again.
 - **ffmpeg** (the bundled one) lays the frames out by their times at 30 fps, fits them into
   1600×900 (the window is as tall as the screen allows, so there are thin bars above and below
   on a laptop), and adds the soundtrack: the `--music` file, or *Amber Riddim — Basement (Dub)*
@@ -146,6 +162,9 @@ The frame leaves; the closing card.
   so the details sections are scrolled into the middle of their panel before their close-ups.
 - **Menus and dialogs** are the app's own and are shown at the fitted size or closer like the
   rest; nothing is drawn outside the frame but the words, the cards and the pointer.
+- **The scenes name the demo collection's tracks**; with a library of your own they take rows
+  from the top of the table instead (`cast` in `promo.mjs`), and the track isn't started a
+  second time (a real one is still playing).
 - **Selectors** are the app's own labels (`aria-label="Larger player"`, `button:has-text("Convert
   to…")`…): a renamed button stops the script at that scene with the selector in the error.
 - **The recording leaves the demo app's waveform style and player size as it found them** (Classic,
