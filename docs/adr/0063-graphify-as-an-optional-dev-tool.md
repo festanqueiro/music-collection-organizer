@@ -37,8 +37,12 @@ read.
 ## Consequences
 - First build on 2026-10-08 (Graphify 0.9.80, commit `65c6e4c`): 269 code files, 1,866 nodes,
   5,267 edges, 91 communities, a few seconds, no tokens.
-- The graph goes stale as the code changes: `graphify update .` after changes, or
-  `graphify hook install` for a local git hook that does it on commit.
+- The graph goes stale as the code changes. Kept current locally, not by CI: `graphify hook
+  install` (a post-commit and post-checkout hook in the clone's `.git/hooks`, AST only, in the
+  background), and `graphify update .` after pulling `main` when a release is prepared — a pull
+  doesn't fire the hooks. A GitHub Action was considered and left out: the graph is only used
+  where the assistant runs, so CI would have to commit the generated `graph.json` back to `main`
+  after every merge.
 - Links that aren't in the code's syntax aren't in the graph: the renderer reaches the main
   process over IPC channel names, so `graphify path "ConvertDialog" "convertTracks"` finds
   nothing.

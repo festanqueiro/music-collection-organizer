@@ -132,3 +132,10 @@ code only, with no AI calls:
 `graphify-out/` is git-ignored. Without it, or without the tool, ignore the rules above and read
 the code as usual. Graphify's always-on hooks (`graphify claude install`) are not in the shared
 `.claude/settings.json` on purpose: they'd fail on a machine without the tool.
+
+Keeping it current:
+- `graphify hook install` (once per clone) rebuilds the graph after every commit and branch
+  switch, in the background. It also writes a `.gitattributes` for a `graph.json` merge driver:
+  delete it, the graph isn't tracked.
+- A `git pull` doesn't fire the hook. **When preparing a release**, after the PR is merged and
+  `main` is pulled, run `graphify update .` so the graph matches what was released.
