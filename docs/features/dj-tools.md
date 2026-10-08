@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-07
+updated: 2026-10-08
 adrs: []
 ---
 # DJ tools
@@ -42,9 +42,12 @@ The detail panel has a **Similar tracks** section for the selected track (playin
 
 - **Key**: tracks in the same key, or a compatible one (the same rule as the Compatible filter).
 - **Tags**: tracks sharing a Tag or a Subtag with it.
-- Two switches in the section's header, **Key** and **Tags**, choose what counts (both on by
-  default, remembered); one is greyed out when the track has no key or no tags yet. A track is
-  listed when it matches on at least one of the two that are on.
+- **BPM**: tracks at a tempo that mixes with it (within 6 %, or half/double time).
+- Three switches in the section's header, **Key**, **Tags** and **BPM**, choose what counts
+  (Key and Tags on by default, BPM off — a tempo alone matches a large part of a collection;
+  all remembered); one is greyed out when the track has no key, tags or BPM yet. A track is
+  listed when it matches on at least one of those that are on. With BPM off, the tempo still
+  breaks ties and still shows bright on a row when it mixes.
 - Best first: 3 points per shared Subtag, 2 per shared Tag, 3 for the same key, 2 for a
   compatible one, 1 for a tempo that mixes (within 6 %, or half/double time). Ties go to the
   closer tempo, then the title.
@@ -104,7 +107,7 @@ ways, is next: [Rekordbox sync](rekordbox-sync.md).
 Code: `electron/main/rekordboxExport.ts`.
 
 ## Tests
-- `similarTracks.test.ts`: key matches and nothing else, shared Tags/Subtags, the ranking and its
+- `similarTracks.test.ts`: tempo alone (BPM on, off, no BPM on the track); key matches and nothing else, shared Tags/Subtags, the ranking and its
   tempo tie-break, key-only / tags-only, a track with nothing to go on.
 - `src/state/harmonic.test.ts` (every key against Mixed In Key's wheel),
   `electron/main/rekordboxExport.test.ts`.

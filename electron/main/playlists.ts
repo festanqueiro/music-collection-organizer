@@ -4,7 +4,14 @@
 // touched, and a track deleted from the collection leaves every playlist.
 import { statSync } from 'node:fs'
 import { runInTransaction, type AppDatabase } from './db'
-import type { PlaylistNode, RekordboxDuplicate, RekordboxDuplicateAction, RekordboxImportPlan, RekordboxRelink } from '../../src/types'
+import type {
+  PlaylistNode,
+  RekordboxDuplicate,
+  RekordboxDuplicateAction,
+  RekordboxImportDestination,
+  RekordboxImportPlan,
+  RekordboxRelink,
+} from '../../src/types'
 import type { RekordboxNode, RekordboxTxtRow, SongHint } from './rekordboxXml'
 
 interface NodeRow {
@@ -361,13 +368,21 @@ export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[], size
 // skip them, import them as new ones (the default), or update MCO's with
 // Rekordbox's songs — which also links it, so later imports refresh it
 // where it is.
+// `destination`: where the top of the imported tree goes when it's new.
+// What an earlier import brought in is refreshed wherever it is now.
 export function applyRekordboxImport(
   db: AppDatabase,
   tree: RekordboxNode[],
   relinks: { from: string; trackId: number }[] = [],
-  duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }> = {}
+  duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }> = {},
+  destination: RekordboxImportDestination = { kind: 'rekordbox' }
 ): void {
   runInTransaction(db, () => {
+    if (destination.kind === 'new' && !destination.name.trim()) throw new Error('The new folder needs a name')
+    if (destination.kind === 'folder') {
+      const row = db.prepare('SELECT kind FROM playlist_nodes WHERE id = ?').get(destination.id) as { kind: string } | undefined
+      if (row?.kind !== 'folder') throw new Error("That folder isn't there any more — choose another")
+    }
     const remember = db.prepare(
       'INSERT OR REPLACE INTO playlist_path_aliases (path, track_id) SELECT ?, id FROM tracks WHERE id = ?'
     )
@@ -389,8 +404,18 @@ export function applyRekordboxImport(
       }
       return insertNode.run(parentId, kind, name, position ?? nextPosition(db, parentId), path, now, now).lastInsertRowid as number
     }
-    const rootId = ensure('folder', 'Rekordbox', ROOT_PATH, null, null)
-    const ids = new Map<string, number>([[ROOT_PATH, rootId]])
+    const rootId = existing.get(`folder:${ROOT_PATH}`)?.id ?? null
+    // Made only once something new goes in it.
+    let destinationId: number | null | undefined
+    const destinationParent = (): number | null => {
+      if (destinationId !== undefined) return destinationId
+      if (destination.kind === 'rekordbox') destinationId = ensure('folder', 'Rekordbox', ROOT_PATH, null, null)
+      else if (destination.kind === 'top') destinationId = null
+      else if (destination.kind === 'folder') destinationId = destination.id
+      else destinationId = createPlaylistNode(db, 'folder', destination.name, null)
+      return destinationId
+    }
+    const ids = new Map<string, number>()
     const siblings = new Map<number, number>()
     for (const { node, path } of flatten(tree)) {
       const decision = node.kind === 'playlist' && !existing.has(`playlist:${JSON.stringify(path)}`) ? duplicates[JSON.stringify(path)] : undefined
@@ -404,9 +429,21 @@ export function applyRekordboxImport(
           continue
         }
       }
-      const parentId = ids.get(JSON.stringify(path.slice(0, -1)))!
-      const position = siblings.get(parentId) ?? 0
-      siblings.set(parentId, position + 1)
+      let parentId: number | null
+      // Rekordbox's order inside the folders that mirror it; at the end of
+      // any other folder, after what the user keeps there.
+      let ordered = true
+      if (path.length > 1) parentId = ids.get(JSON.stringify(path.slice(0, -1)))!
+      else {
+        const found = existing.get(`${node.kind}:${JSON.stringify(path)}`)
+        parentId = found ? found.parent_id : destinationParent()
+        ordered = parentId !== null && parentId === (destination.kind === 'rekordbox' ? destinationParent() : rootId)
+      }
+      let position: number | null = null
+      if (ordered && parentId !== null) {
+        position = siblings.get(parentId) ?? 0
+        siblings.set(parentId, position + 1)
+      }
       const id = ensure(node.kind, path[path.length - 1], JSON.stringify(path), parentId, position)
       ids.set(JSON.stringify(path), id)
       if (node.kind === 'playlist') {

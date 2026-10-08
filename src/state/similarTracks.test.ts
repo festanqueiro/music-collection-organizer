@@ -47,4 +47,19 @@ describe('findSimilarTracks', () => {
   it('has nothing to go on for a track with no key and no tags', () => {
     expect(findSimilarTracks(t(1, null), [t(1, null), t(2, 'A minor')], new Map())).toEqual([])
   })
+
+  it('can count a tempo that mixes on its own (within 6 %, half/double time), closest first', () => {
+    const selected = t(1, 'A minor', 140)
+    const tracks = [selected, t(2, null, 146), t(3, null, 70), t(4, null, 120), t(5, null, null), t(6, 'A minor', 100)]
+    expect(ids(findSimilarTracks(selected, tracks, new Map(), { byKey: false, byTags: false, byBpm: true }))).toEqual([3, 2])
+    // With the key too: the key match first, the tempo-only ones after.
+    expect(ids(findSimilarTracks(selected, tracks, new Map(), { byKey: true, byTags: false, byBpm: true }))).toEqual([6, 3, 2])
+    // Off, a tempo alone isn't enough.
+    expect(ids(findSimilarTracks(selected, tracks, new Map(), { byKey: true, byTags: false }))).toEqual([6])
+  })
+
+  it('has no tempo to go on for a track without a BPM', () => {
+    const tracks = [t(1, null, null), t(2, null, 140)]
+    expect(findSimilarTracks(tracks[0], tracks, new Map(), { byKey: true, byTags: true, byBpm: true })).toEqual([])
+  })
 })

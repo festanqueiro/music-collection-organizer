@@ -9,8 +9,9 @@ import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
 import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
 import { onMenuCommand, runMenuCommand } from '../menuCommands'
-import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportPlan } from '../types'
+import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportDestination, RekordboxImportPlan } from '../types'
 import { baseName } from '../paths'
+import { filterPlaylistNodes } from '../state/savedPlaylist'
 
 const LAYOUT_KEY = 'playlistsBox'
 const MIN_HEIGHT = 80
@@ -83,6 +84,9 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   const closed = useMemo(() => new Set(layout.closed), [layout.closed])
 
   const [editing, setEditing] = useState<Editing | null>(null)
+  // The search field under the header: null while it's closed.
+  const [query, setQuery] = useState<string | null>(null)
+  const visible = useMemo(() => filterPlaylistNodes(nodes, query ?? ''), [nodes, query])
   const [menu, setMenu] = useState<{ x: number; y: number; node: PlaylistNode | null } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<PlaylistNode | null>(null)
   const [dropTarget, setDropTarget] = useState<number | null>(null)
@@ -112,6 +116,8 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   // skip when the songs are the same, otherwise import as new — unless
   // the user picks otherwise.
   const [duplicateChoices, setDuplicateChoices] = useState<Record<string, RekordboxDuplicateAction>>({})
+  // Where the import's new playlists go; the Rekordbox folder unless chosen.
+  const [destination, setDestination] = useState<RekordboxImportDestination>({ kind: 'rekordbox' })
 
   async function pickImport() {
     const picked = await window.api.pickRekordboxImport()
@@ -119,6 +125,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     if ('error' in picked) return showToast(picked.error)
     if (picked.plan.playlists.length === 0) return showToast('No playlists in that file')
     setRejectedRelinks(new Set())
+    setDestination({ kind: 'rekordbox' })
     setDuplicateChoices(
       Object.fromEntries(
         picked.plan.playlists.filter((p) => p.duplicate).map((p) => [p.key, p.duplicate!.songs === 'same' ? 'skip' : 'new'])
@@ -130,15 +137,16 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   async function runImport(
     filePaths: string[],
     relinks: { from: string; trackId: number }[],
-    duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>
+    duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>,
+    into: RekordboxImportDestination
   ) {
     try {
-      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths, relinks, duplicates) })
+      useCollectionStore.setState({ playlistNodes: await window.api.importRekordbox(filePaths, relinks, duplicates, into) })
       const selected = useCollectionStore.getState().selectedPlaylistId
       if (selected !== null) void useCollectionStore.getState().selectPlaylist(selected)
       showToast('Imported from Rekordbox')
     } catch (err) {
-      showToast(err instanceof Error ? err.message : String(err))
+      showToast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
     }
   }
 
@@ -156,6 +164,8 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
         parents.add(p)
       }
       setLayout((l) => ({ ...l, collapsed: false, closed: l.closed.filter((id) => !parents.has(id)) }))
+      // The search might be hiding it.
+      setQuery(null)
       setEditing({ kind: 'rename', id: selectedId })
     }
     window.addEventListener('keydown', onKeyDown)
@@ -189,6 +199,8 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     // The new name field shows inside its folder, so open it.
     if (parentId !== null && closed.has(parentId)) toggleFolder(parentId)
     setLayout((l) => ({ ...l, collapsed: false }))
+    // The search might be hiding the folder it goes in.
+    setQuery(null)
     setEditing({ kind: 'create', nodeKind, parentId })
   }
 
@@ -282,20 +294,21 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   }
 
   function renderLevel(parentId: number | null, depth: number): React.ReactNode {
-    const level = children.get(parentId) ?? []
+    const level = (children.get(parentId) ?? []).filter((node) => !visible || visible.has(node.id))
     const creatingHere = editing?.kind === 'create' && editing.parentId === parentId
     return (
       <>
         {level.map((node) => {
           const isFolder = node.kind === 'folder'
-          const open = isFolder && !closed.has(node.id)
+          // A search opens every folder it shows.
+          const open = isFolder && (visible !== null || !closed.has(node.id))
           const selected = node.id === selectedId
           const isDrop = node.id === dropTarget
           if (editing?.kind === 'rename' && editing.id === node.id) return nameInput(node.id, node.name, depth)
           return (
             <div key={node.id}>
               <div
-                onClick={() => (isFolder ? toggleFolder(node.id) : onSelectPlaylist(node.id))}
+                onClick={() => (isFolder ? visible === null && toggleFolder(node.id) : onSelectPlaylist(node.id))}
                 onDoubleClick={() => setEditing({ kind: 'rename', id: node.id })}
                 onContextMenu={(e) => {
                   e.preventDefault()
@@ -428,6 +441,28 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
           </span>
           <span style={{ fontSize: '11px', fontWeight: 500, letterSpacing: '0.1em', color: 'var(--color-text-dim)' }}>PLAYLISTS</span>
         </button>
+        {nodes.length > 0 && (
+          <button
+            onClick={() => {
+              setLayout((l) => ({ ...l, collapsed: false }))
+              setQuery((q) => (q === null ? '' : null))
+            }}
+            title={query === null ? 'Search playlists' : 'Close the search'}
+            aria-label="Search playlists"
+            aria-pressed={query !== null}
+            style={{
+              display: 'flex',
+              background: 'none',
+              border: 'none',
+              padding: '2px',
+              color: query !== null ? 'var(--color-accent)' : 'var(--color-text-dim)',
+            }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+              search
+            </span>
+          </button>
+        )}
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -443,6 +478,24 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
           </span>
         </button>
       </div>
+      {!layout.collapsed && query !== null && (
+        <div style={{ flexShrink: 0, padding: '0 8px 6px' }}>
+          <input
+            autoFocus
+            type="text"
+            value={query}
+            placeholder="Search playlists"
+            aria-label="Search playlists"
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setQuery(null)
+              // Keep the table's shortcuts (Space, P…) out of the field.
+              e.stopPropagation()
+            }}
+            style={{ width: '100%', height: '24px', padding: '0 6px' }}
+          />
+        </div>
+      )}
       {!layout.collapsed && (
         <div
           style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 8px 8px' }}
@@ -477,6 +530,8 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                 New playlist
               </button>
             </div>
+          ) : visible?.size === 0 && !editing ? (
+            <div style={{ color: 'var(--color-text-dim)', padding: '4px 4px' }}>No playlist or folder with that name.</div>
           ) : (
             renderLevel(null, 0)
           )}
@@ -558,9 +613,11 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
           title="Import from Rekordbox"
           icon="download"
           confirmLabel="Import"
+          width="480px"
           onCancel={() => setImportPlan(null)}
           onConfirm={() => {
             const { filePaths, plan } = importPlan
+            if (destination.kind === 'new' && !destination.name.trim()) return showToast('Give the new folder a name')
             setImportPlan(null)
             void runImport(
               filePaths,
@@ -569,12 +626,16 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                 plan.playlists
                   .filter((p) => p.duplicate && duplicateChoices[p.key])
                   .map((p) => [p.key, { action: duplicateChoices[p.key], targetId: p.duplicate!.id }])
-              )
+              ),
+              destination
             )
           }}
         >
           <ImportSummary
             plan={importPlan.plan}
+            nodes={nodes}
+            destination={destination}
+            onDestination={setDestination}
             rejected={rejectedRelinks}
             onToggle={(from) =>
               setRejectedRelinks((prev) => {
@@ -623,6 +684,9 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
 
 function ImportSummary({
   plan,
+  nodes,
+  destination,
+  onDestination,
   rejected,
   onToggle,
   onSetAll,
@@ -630,6 +694,9 @@ function ImportSummary({
   onDuplicateChoice,
 }: {
   plan: RekordboxImportPlan
+  nodes: PlaylistNode[]
+  destination: RekordboxImportDestination
+  onDestination: (destination: RekordboxImportDestination) => void
   rejected: Set<string>
   onToggle: (from: string) => void
   onSetAll: (on: boolean) => void
@@ -642,28 +709,171 @@ function ImportSummary({
   const relinked = plan.playlists.reduce((sum, p) => sum + p.relinked, 0)
   const missing = plan.songs - plan.matched - relinked
   const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+  // The box's folders as places to import into, each with the folders it
+  // sits in. The Rekordbox folder is the first choice already.
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  const folderPath = (node: PlaylistNode): string => {
+    const parts = [node.name]
+    for (let p = node.parentId; p !== null; p = byId.get(p)?.parentId ?? null) parts.unshift(byId.get(p)?.name ?? '')
+    return parts.join(' / ')
+  }
+  const folders = nodes.filter((n) => n.kind === 'folder' && !(n.parentId === null && n.source === 'rekordbox' && n.name === 'Rekordbox'))
+  // One list at a time, in a box of a fixed height, so the dialog stays
+  // the same size however long an import is. It opens on the first list
+  // that asks for a decision.
+  type Tab = 'playlists' | 'duplicates' | 'relinks' | 'gone'
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: 'playlists' as const, label: 'Playlists', count: plan.playlists.length },
+    { id: 'duplicates' as const, label: 'Already in MCO', count: duplicates.length },
+    { id: 'relinks' as const, label: 'Different path', count: plan.relinks.length },
+    { id: 'gone' as const, label: 'Not in this export', count: plan.gone.length },
+  ].filter((t) => t.id === 'playlists' || t.count > 0)
+  const [tab, setTab] = useState<Tab>(duplicates.length > 0 ? 'duplicates' : plan.relinks.length > 0 ? 'relinks' : 'playlists')
+  const used = plan.relinks.filter((r) => !rejected.has(r.from)).length
+  const note: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-dim)' }
+  const ellipsis: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxWidth: '460px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
       <p style={{ margin: 0 }}>
         {count(plan.playlists.length, 'playlist')}
         {plan.folders > 0 ? ` in ${count(plan.folders, 'folder')}` : ''} — {fresh} new
-        {refreshed > 0 ? `, ${refreshed} to refresh` : ''}. They go in the <strong style={{ color: 'var(--color-text)' }}>Rekordbox</strong>{' '}
-        folder.
+        {refreshed > 0 ? `, ${refreshed} to refresh` : ''}.{fresh === 0 ? ' They’re refreshed where they are.' : ''}
       </p>
-      {duplicates.length > 0 && (
-        // Playlists MCO already seems to have — same name or same songs.
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <strong style={{ color: 'var(--color-text)' }}>Already in MCO ({duplicates.length})</strong>
-          <div
-            style={{
-              maxHeight: '200px',
-              overflowY: 'auto',
-              border: '1px solid var(--color-border)',
-              borderRadius: '6px',
-              padding: '4px 6px',
+      {fresh > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 8px' }}>
+          <label htmlFor="import-destination" style={{ flexShrink: 0 }}>
+            New ones go in
+          </label>
+          <select
+            id="import-destination"
+            value={destination.kind === 'folder' ? String(destination.id) : destination.kind}
+            onChange={(e) => {
+              const value = e.target.value
+              if (value === 'rekordbox' || value === 'top') onDestination({ kind: value })
+              else if (value === 'new') onDestination({ kind: 'new', name: '' })
+              else onDestination({ kind: 'folder', id: Number(value) })
             }}
+            style={{ flex: 1, minWidth: 0, fontSize: '12px' }}
           >
-            {duplicates.map((p) => {
+            <option value="rekordbox">The Rekordbox folder</option>
+            <option value="top">The top level (no folder)</option>
+            {folders.length > 0 && (
+              <optgroup label="Your folders">
+                {folders.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {folderPath(f)}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <option value="new">A new folder…</option>
+          </select>
+          {destination.kind === 'new' && (
+            <input
+              autoFocus
+              value={destination.name}
+              placeholder="Folder name"
+              aria-label="New folder name"
+              onChange={(e) => onDestination({ kind: 'new', name: e.target.value })}
+              // Keep the table's shortcuts (Space, P…) out of the field.
+              onKeyDown={(e) => e.key !== 'Escape' && e.stopPropagation()}
+              style={{ flexBasis: '100%', height: '24px', padding: '0 6px' }}
+            />
+          )}
+        </div>
+      )}
+      <p style={{ margin: 0 }}>
+        {count(plan.songs, 'song')}: {plan.matched} found in your collection
+        {relinked > 0 ? `, ${relinked} at a different path` : ''}
+        {missing > 0 && (
+          <>
+            ,{' '}
+            <span
+              title="Outside the collection folder, not scanned yet, or — from a .txt — a different title or artist"
+              style={{ color: 'var(--color-cue)' }}
+            >
+              {missing} not found (left out)
+            </span>
+          </>
+        )}
+        .
+      </p>
+      {refreshed > 0 && (
+        <p style={{ margin: 0 }}>Refreshed playlists get Rekordbox's songs; changes you made to them in MCO are replaced.</p>
+      )}
+      <div>
+        <div role="tablist" style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', borderBottom: '1px solid var(--color-border)' }}>
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                background: 'none',
+                border: 'none',
+                borderBottom: `2px solid ${tab === t.id ? 'var(--color-accent)' : 'transparent'}`,
+                borderRadius: 0,
+                padding: '4px 0',
+                marginBottom: '-1px',
+                fontSize: '12px',
+                color: tab === t.id ? 'var(--color-text)' : 'var(--color-text-dim)',
+                cursor: 'pointer',
+              }}
+            >
+              {t.label} <span style={{ fontVariantNumeric: 'tabular-nums', opacity: 0.7 }}>{t.count}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '30px', ...note }}>
+          {tab === 'playlists' && <span>Songs found{relinked > 0 ? ' + at a different path' : ''} / songs in the playlist. ↻ is a refresh.</span>}
+          {tab === 'duplicates' && (
+            // Playlists MCO already seems to have — same name or same songs.
+            <span>Updating links MCO’s playlist to Rekordbox: it stays where it is, and importing again refreshes it.</span>
+          )}
+          {tab === 'relinks' && (
+            // An old USB stick's paths, a moved file: the same song in the
+            // collection, used only if left ticked — and remembered.
+            <>
+              <span style={{ flex: 1 }}>
+                The same song in your collection — {used} of {plan.relinks.length} used.
+              </span>
+              <button onClick={() => onSetAll(true)} style={{ fontSize: '11px' }}>
+                All
+              </button>
+              <button onClick={() => onSetAll(false)} style={{ fontSize: '11px' }}>
+                None
+              </button>
+            </>
+          )}
+          {tab === 'gone' && <span>Imported before and no longer in Rekordbox’s export. They’re kept; delete them yourself if you want.</span>}
+        </div>
+        <div
+          role="tabpanel"
+          style={{
+            height: '240px',
+            overflowY: 'auto',
+            border: '1px solid var(--color-border)',
+            borderRadius: '6px',
+            padding: '4px 8px',
+            fontVariantNumeric: 'tabular-nums',
+          }}
+        >
+          {tab === 'playlists' &&
+            plan.playlists.map((p, i) => (
+              <div key={i} title={p.name} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
+                <span style={ellipsis}>
+                  {p.name}
+                  {p.refresh ? ' ↻' : ''}
+                </span>
+                <span style={{ color: p.matched + p.relinked < p.songs ? 'var(--color-cue)' : 'var(--color-text-dim)', flexShrink: 0 }}>
+                  {p.matched}
+                  {p.relinked > 0 ? ` + ${p.relinked}` : ''}/{p.songs}
+                </span>
+              </div>
+            ))}
+          {tab === 'duplicates' &&
+            duplicates.map((p) => {
               const d = p.duplicate!
               const why = [
                 d.sameName ? 'same name' : null,
@@ -674,8 +884,8 @@ function ImportSummary({
               return (
                 <div key={p.key} style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '4px 0' }}>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                    <span style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-dim)' }}>
+                    <span style={{ display: 'block', ...ellipsis }}>{p.name}</span>
+                    <span style={{ display: 'block', ...note }}>
                       MCO’s “{d.name}”: {why}
                     </span>
                   </span>
@@ -692,45 +902,8 @@ function ImportSummary({
                 </div>
               )
             })}
-          </div>
-          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)' }}>
-            Updating links MCO’s playlist to Rekordbox: it stays where it is, and importing again refreshes it.
-          </span>
-        </div>
-      )}
-      <p style={{ margin: 0 }}>
-        {plan.matched} of {count(plan.songs, 'song')} found in your collection
-        {relinked > 0 ? `, ${relinked} more at a different path (below)` : ''}.
-        {missing > 0 && ` ${missing} not found (outside the collection folder, not scanned yet, or — from a .txt — a different title or artist); they're left out.`}
-      </p>
-      {plan.relinks.length > 0 && (
-        // An old USB stick's paths, a moved file: the same song in the
-        // collection, used only if left ticked — and remembered.
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <strong style={{ color: 'var(--color-text)' }}>Found at a different path</strong>
-            <span style={{ color: 'var(--color-text-dim)' }}>
-              {plan.relinks.length - [...rejected].filter((f) => plan.relinks.some((r) => r.from === f)).length} of{' '}
-              {plan.relinks.length} used
-            </span>
-            <span style={{ flex: 1 }} />
-            <button onClick={() => onSetAll(true)} style={{ fontSize: '11px' }}>
-              All
-            </button>
-            <button onClick={() => onSetAll(false)} style={{ fontSize: '11px' }}>
-              None
-            </button>
-          </div>
-          <div
-            style={{
-              maxHeight: '200px',
-              overflowY: 'auto',
-              border: '1px solid var(--color-border)',
-              borderRadius: '6px',
-              padding: '4px 6px',
-            }}
-          >
-            {plan.relinks.map((r) => (
+          {tab === 'relinks' &&
+            plan.relinks.map((r) => (
               <label
                 key={r.from}
                 title={`${r.from}\n→ ${r.to}`}
@@ -738,48 +911,20 @@ function ImportSummary({
               >
                 <input type="checkbox" checked={!rejected.has(r.from)} onChange={() => onToggle(r.from)} style={{ marginTop: '2px' }} />
                 <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--color-text-dim)' }}>
-                    {baseName(r.from)}
-                  </span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    → {r.label} <span style={{ color: 'var(--color-text-dim)', fontSize: '11px' }}>({r.reason})</span>
+                  <span style={{ ...ellipsis, color: 'var(--color-text-dim)' }}>{baseName(r.from)}</span>
+                  <span style={ellipsis}>
+                    → {r.label} <span style={note}>({r.reason})</span>
                   </span>
                 </span>
               </label>
             ))}
-          </div>
+          {tab === 'gone' &&
+            plan.gone.map((name) => (
+              <div key={name} title={name} style={ellipsis}>
+                {name}
+              </div>
+            ))}
         </div>
-      )}
-      {refreshed > 0 && (
-        <p style={{ margin: 0 }}>Refreshed playlists get Rekordbox's songs; changes you made to them in MCO are replaced.</p>
-      )}
-      {plan.gone.length > 0 && (
-        <p style={{ margin: 0 }}>
-          No longer in this export (kept): {plan.gone.join(', ')}
-        </p>
-      )}
-      <div
-        style={{
-          maxHeight: '180px',
-          overflowY: 'auto',
-          border: '1px solid var(--color-border)',
-          borderRadius: '6px',
-          padding: '6px 8px',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {plan.playlists.map((p, i) => (
-          <div key={i} style={{ display: 'flex', gap: '8px', justifyContent: 'space-between' }}>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {p.name}
-              {p.refresh ? ' ↻' : ''}
-            </span>
-            <span style={{ color: p.matched + p.relinked < p.songs ? 'var(--color-cue)' : 'var(--color-text-dim)', flexShrink: 0 }}>
-              {p.matched}
-              {p.relinked > 0 ? ` + ${p.relinked}` : ''}/{p.songs}
-            </span>
-          </div>
-        ))}
       </div>
     </div>
   )

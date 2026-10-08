@@ -32,6 +32,7 @@ import type {
   RekordboxImportPlan,
   RekordboxReport,
   RekordboxDuplicateAction,
+  RekordboxImportDestination,
   TrackCue,
   WaveformSection,
 } from '../../src/types'
@@ -115,8 +116,9 @@ const api = {
   importRekordbox: (
     filePaths: string[],
     relinks: { from: string; trackId: number }[],
-    duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>
-  ): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:importRekordbox', filePaths, relinks, duplicates),
+    duplicates: Record<string, { action: RekordboxDuplicateAction; targetId?: number }>,
+    destination: RekordboxImportDestination
+  ): Promise<PlaylistNode[]> => ipcRenderer.invoke('playlists:importRekordbox', filePaths, relinks, duplicates, destination),
   movePlaylistNode: (id: number, targetId: number | null, where: 'before' | 'after' | 'into'): Promise<PlaylistNode[]> =>
     ipcRenderer.invoke('playlists:move', id, targetId, where),
   exportPlaylistM3u: (id: number): Promise<{ files: number; songs: number } | null> => ipcRenderer.invoke('playlists:exportM3u', id),

@@ -149,6 +149,15 @@ export interface RekordboxDuplicate {
   mcoSongs: number
 }
 
+// Where an import's new playlists and folders go: the Rekordbox folder
+// (made on the first import), the top level, a folder of the Playlists
+// box, or a new folder at the top level.
+export type RekordboxImportDestination =
+  | { kind: 'rekordbox' }
+  | { kind: 'top' }
+  | { kind: 'folder'; id: number }
+  | { kind: 'new'; name: string }
+
 // What to do with an incoming playlist that MCO already seems to have.
 export type RekordboxDuplicateAction = 'skip' | 'new' | 'update'
 

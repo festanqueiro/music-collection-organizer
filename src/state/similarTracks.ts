@@ -1,5 +1,6 @@
 // Similar tracks for the detail panel (docs/features/dj-tools.md): tracks
-// that mix harmonically with the selected one, or share its Tags/Subtags.
+// that mix harmonically with the selected one, share its Tags/Subtags, or
+// (when asked) sit at a tempo that mixes with its own.
 // One pass over the collection, no index kept.
 import type { Track } from '../types'
 import type { TrackTagIds } from './tagFilter'
@@ -22,6 +23,8 @@ export interface SimilarOptions {
   // Which likenesses count; a track needs at least one of them.
   byKey: boolean
   byTags: boolean
+  // A tempo that mixes is enough on its own. Off, it only breaks ties.
+  byBpm?: boolean
 }
 
 // A shared Subtag says more than a shared Tag; the same key more than a
@@ -50,7 +53,8 @@ export function findSimilarTracks<T extends SimilarSource>(
   const genreIds = new Set(tags?.genreIds)
   const subgenreIds = new Set(tags?.subgenreIds)
   const useTags = genreIds.size > 0 || subgenreIds.size > 0
-  if (!key && !useTags) return []
+  const useBpm = !!options.byBpm && !!track.bpm
+  if (!key && !useTags && !useBpm) return []
 
   const out: SimilarTrack<T>[] = []
   for (const other of tracks) {
@@ -67,8 +71,8 @@ export function findSimilarTracks<T extends SimilarSource>(
     const otherTags = useTags ? trackTags.get(other.id) : undefined
     const sharedGenreIds = otherTags ? otherTags.genreIds.filter((id) => genreIds.has(id)) : []
     const sharedSubgenreIds = otherTags ? otherTags.subgenreIds.filter((id) => subgenreIds.has(id)) : []
-    if (!keyMatch && sharedGenreIds.length === 0 && sharedSubgenreIds.length === 0) continue
     const bpmMixes = areBpmsCompatible(other.bpm, track.bpm)
+    if (!keyMatch && sharedGenreIds.length === 0 && sharedSubgenreIds.length === 0 && !(useBpm && bpmMixes)) continue
     out.push({
       track: other,
       key: keyMatch,
