@@ -7,12 +7,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { ConfirmDialog } from './ConfirmDialog'
-import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
+import { contextMenuIconStyle, contextMenuItemStyle } from './contextMenuStyles'
 import { onMenuCommand, runMenuCommand } from '../menuCommands'
 import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportChoices, RekordboxImportDestination, RekordboxImportPlan } from '../types'
 import { filterPlaylistNodes } from '../state/savedPlaylist'
 import { songs } from '../format'
 import { RekordboxImportSummary } from './RekordboxImportSummary'
+import { ContextMenu } from './ContextMenu'
 
 const LAYOUT_KEY = 'playlistsBox'
 // What was last ticked in a collection import, per computer. Playlists
@@ -588,7 +589,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
       )}
 
       {menu && (
-        <div onClick={(e) => e.stopPropagation()} style={{ ...contextMenuStyle, top: menu.y, left: menu.x }}>
+        <ContextMenu x={menu.x} y={menu.y}>
           {menu.node === null ? (
             <>
               {menuItem('queue_music', 'New playlist', () => startCreate('playlist', null))}
@@ -622,7 +623,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
               {menuItem('delete', 'Delete folder…', () => setConfirmDelete(menu.node))}
             </>
           )}
-        </div>
+        </ContextMenu>
       )}
 
       {importPlan && (

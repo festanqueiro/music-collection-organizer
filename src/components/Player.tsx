@@ -18,8 +18,38 @@ import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './
 
 const preciseTime = (s: number) => `${formatDuration(Math.floor(s))}.${String(Math.floor((s % 1) * 10))}`
 import { START_SLOT, detectedStart, gridStart, hotCueSlots, suggestedCues } from '../state/hotCues'
+import { PlayerWaveform } from './PlayerWaveform'
 
 const NO_CUES: never[] = []
+
+// The player's two sizes (the store's playerLarge): at the larger one the
+// panel is twice as high (254 px for 127), and all of the extra height goes
+// to the waveform, four times as tall. The buttons stay as they are.
+function usePlayerSize() {
+  const large = useCollectionStore((s) => s.playerLarge)
+  return { large, waveHeight: large ? 167 : 40 }
+}
+
+// In the player's header, before the screen buttons.
+function PlayerSizeButton() {
+  const large = useCollectionStore((s) => s.playerLarge)
+  const setLarge = useCollectionStore((s) => s.setPlayerLarge)
+  return (
+    <button
+      onClick={() => setLarge(!large)}
+      // Keeps focus off it so Space/C still reach the window.
+      onMouseDown={(e) => e.preventDefault()}
+      title={large ? 'Smaller player' : 'Larger player: a taller waveform'}
+      aria-label={large ? 'Smaller player' : 'Larger player'}
+      aria-pressed={large}
+      style={{ display: 'flex', background: 'none', border: 'none', padding: '2px', marginRight: '6px', color: large ? 'var(--color-accent)' : 'var(--color-text-dim)' }}
+    >
+      <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>
+        {large ? 'unfold_less' : 'unfold_more'}
+      </span>
+    </button>
+  )
+}
 
 // How close (in px) to the waveform's left edge a click counts as "seek to
 // the start".
@@ -41,6 +71,7 @@ export function Player({
   onShowDetails: (track: Track) => void
   onFilterByArtist: (artist: string) => void
 }) {
+  const size = usePlayerSize()
   const audioRef = useRef<HTMLAudioElement>(null)
   // Remembers the volume to restore on unmute — a plain ref, not state,
   // since it's write-only from the mute button's own perspective (never
@@ -84,6 +115,17 @@ export function Player({
     useCollectionStore.getState().loadTrackWaveform(track.id).catch((err) => console.error('reading the waveform failed', err))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [track.analyzedAt])
+  // The coloured waveform styles need the waveform in three bands: read
+  // (and, for a track analysed before they existed, worked out) only when
+  // one of them is chosen.
+  const waveformStyle = useCollectionStore((s) => s.waveformStyle)
+  const waveformGrid = useCollectionStore((s) => s.waveformGrid)
+  const bands = useCollectionStore((s) => s.trackWaveformBands.get(track.id)) ?? null
+  useEffect(() => {
+    if (waveformStyle === 'classic') return
+    useCollectionStore.getState().loadTrackWaveformBands(track.id).catch((err) => console.error('reading the waveform bands failed', err))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track.id, track.analyzedAt, waveformStyle])
   // What the beat grid is counted from: the start of the tune (bar 0) —
   // 0:00 until the user moves it.
   const grid = useMemo(
@@ -403,7 +445,7 @@ export function Player({
         if (useCollectionStore.getState().visualizerOpen) return
         e.preventDefault()
         const slot = Number(e.code.slice(5)) - 1
-        if (e.shiftKey) void useCollectionStore.getState().deleteHotCue(track.id, slot)
+        if (e.shiftKey) void useCollectionStore.getState().removeHotCue(track.id, slot)
         else hotCueRef.current(slot)
       }
     }
@@ -587,17 +629,8 @@ export function Player({
               : `${formatDuration(currentTime)} / ${formatDuration(duration || track.duration!)}`}
           </span>
         )}
-        {track.cloudStatus === 'local' && (
-          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px', flexShrink: 0 }}>
-            Synced locally
-          </span>
-        )}
-        {track.analysisStatus === 'done' && (
-          <span style={{ fontSize: '11px', color: 'var(--color-text-dim)', marginLeft: '8px', flexShrink: 0 }}>
-            Analysed
-          </span>
-        )}
-        <div style={{ marginLeft: 'auto', paddingLeft: '8px' }}>
+        <div style={{ marginLeft: 'auto', paddingLeft: '8px', display: 'flex', alignItems: 'center' }}>
+          <PlayerSizeButton />
           <PlayerScreenButtons hasTrack />
         </div>
       </div>
@@ -701,55 +734,25 @@ export function Player({
             audioRef={audioRef}
           />
           {peaks && peaks.length > 0 ? (
-            <svg
-              width="100%"
-              height="40"
-              viewBox={`0 0 ${peaks.length} 100`}
-              preserveAspectRatio="none"
-              onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
-              // Short/quiet-passage bars leave plenty of transparent gaps
-              // in the waveform — without this, clicks landing in those
-              // gaps (rather than exactly on a painted bar) are silently
-              // dropped, since SVG only hit-tests painted areas by
-              // default. pointerEvents: 'all' makes the whole box
-              // clickable regardless of what's actually drawn there.
-              style={{ cursor: 'pointer', display: 'block', pointerEvents: 'all' }}
-            >
-              {peaks.map((peak, i) => (
-                <rect
-                  key={i}
-                  x={i}
-                  y={50 - peak * 50}
-                  width={1}
-                  height={peak * 100}
-                  fill={i / peaks.length <= progress ? 'var(--color-accent)' : 'var(--color-border)'}
-                />
-              ))}
-              <rect
-                x={progress * peaks.length}
-                y={0}
-                width={Math.max(1, peaks.length / 400)}
-                height={100}
-                fill="var(--color-secondary)"
-              />
-              {duration > 0 && (
-                <rect
-                  x={(cuePoint / duration) * peaks.length}
-                  y={0}
-                  width={Math.max(1, peaks.length / 400)}
-                  height={100}
-                  fill="var(--color-cue)"
-                >
-                  <title>Cue point {formatDuration(cuePoint)}</title>
-                </rect>
-              )}
-            </svg>
+            <PlayerWaveform
+              peaks={peaks}
+              bands={bands}
+              style={waveformStyle}
+              showGrid={waveformGrid}
+              height={size.waveHeight}
+              progress={progress}
+              duration={duration}
+              cuePoint={cuePoint}
+              bpm={track.bpm}
+              gridStart={gridStart(grid)}
+              onSeek={seekToClientX}
+            />
           ) : (
             // No waveform data yet (track not analyzed) — still seekable,
             // just without the visualization.
             <div
               onClick={(e) => seekToClientX(e.clientX, e.currentTarget)}
-              style={{ position: 'relative', height: '40px', borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
+              style={{ position: 'relative', height: `${size.waveHeight}px`, borderBottom: '1px solid var(--color-border)', cursor: 'pointer' }}
             >
               {duration > 0 && (
                 <div
@@ -804,7 +807,7 @@ export function Player({
       <HotCuePads
         cues={cues}
         onPad={hotCue}
-        onDelete={(slot) => void useCollectionStore.getState().deleteHotCue(track.id, slot)}
+        onDelete={(slot) => void useCollectionStore.getState().removeHotCue(track.id, slot)}
         onChange={(slot, changes) => void useCollectionStore.getState().updateHotCue(track.id, slot, changes)}
         suggestions={suggestions}
         onSuggest={async (slot, time, from) => {
@@ -825,11 +828,13 @@ export function EmptyPlayer() {
   const playerVolume = useCollectionStore((s) => s.playerVolume)
   const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
   const lastVolumeRef = useRef(1)
+  const size = usePlayerSize()
   return (
     <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
       <div style={{ display: 'flex', alignItems: 'center' }}>
         <span style={{ color: 'var(--color-text-dim)' }}>Nothing queued</span>
-        <div style={{ marginLeft: 'auto', paddingLeft: '8px' }}>
+        <div style={{ marginLeft: 'auto', paddingLeft: '8px', display: 'flex', alignItems: 'center' }}>
+          <PlayerSizeButton />
           <PlayerScreenButtons hasTrack={false} />
         </div>
       </div>
@@ -851,7 +856,7 @@ export function EmptyPlayer() {
         <MidiLearnBadge control="player.playNext" />
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ height: '40px', borderBottom: '1px solid var(--color-border)' }} />
+          <div style={{ height: `${size.waveHeight}px`, borderBottom: '1px solid var(--color-border)' }} />
           <div style={{ marginTop: '4px', height: '2px', background: 'var(--color-border)', borderRadius: '1px' }} />
         </div>
 

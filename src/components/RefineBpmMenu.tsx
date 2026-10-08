@@ -4,11 +4,12 @@
 // the beat tracker can be an octave out, or report two thirds of the tempo
 // on broken beats. Doubles it, halves it, multiplies it by one and a half,
 // or sets the BPM typed — for one track, or every checked one.
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { tracksById } from '../state/tracksById'
-import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
+import { contextMenuIconStyle, contextMenuItemStyle } from './contextMenuStyles'
 import type { BpmChange } from '../types'
+import { ContextMenu } from './ContextMenu'
 
 const show = (bpm: number) => String(Math.round(bpm * 100) / 100)
 
@@ -17,18 +18,6 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
   const changeTracksBpm = useCollectionStore((s) => s.changeTracksBpm)
   const showToast = useCollectionStore((s) => s.showToast)
   const [typing, setTyping] = useState(false)
-  // Opens at the pointer, then moves back inside the window if it would
-  // run off the right or bottom edge.
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState({ left: x, top: y })
-  useLayoutEffect(() => {
-    const rect = menuRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const left = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))
-    const top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))
-    setPosition((current) => (current.left === left && current.top === top ? current : { left, top }))
-  }, [x, y, typing])
-
   useEffect(() => {
     const close = () => onClose()
     window.addEventListener('click', close)
@@ -58,7 +47,7 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
   )
 
   return (
-    <div ref={menuRef} onClick={(e) => e.stopPropagation()} style={{ ...contextMenuStyle, ...position, minWidth: '220px' }}>
+    <ContextMenu x={x} y={y} style={{ minWidth: '220px' }}>
       <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
         {single ? `BPM ${bpm ? show(bpm) : '—'}${single.bpmEdited ? ' · set by you' : ''}` : `BPM of ${trackIds.length} tracks`}
       </div>
@@ -104,6 +93,6 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
           Detect it again
         </button>
       )}
-    </div>
+    </ContextMenu>
   )
 }

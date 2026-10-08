@@ -132,6 +132,7 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0062](adr/0062-tempo-measured-over-the-whole-track.md) | Measure the tempo over the whole track, near the beat tracker's | accepted |
 | [0063](adr/0063-graphify-as-an-optional-dev-tool.md) | Graphify's code graph is an optional dev tool, built per machine | accepted |
 | [0064](adr/0064-bpm-two-thirds-and-set-by-hand.md) | Try the tempo one and a half times faster; a BPM set by hand is the user's | accepted |
+| [0065](adr/0065-coloured-waveforms-from-three-bands.md) | Coloured waveforms from three bands, kept per track and filled in on demand | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

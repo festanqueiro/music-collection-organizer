@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-09-27
+updated: 2026-10-08
 adrs: [0012]
 ---
 # Queue
@@ -40,7 +40,7 @@ to close it:
 
 - drag rows to reorder;
 - right-click a row: **Play track now**, **Add to top of the queue**,
-  **Remove from queue**;
+  **Remove from queue**, **Show in Finder** (*Show in File Explorer* on Windows);
 - **Play next in queue**, **Shuffle**, and **Clear queue** in the header
   (Clear queue removes everything after the track playing, which stays);
 - **Continuous play** — when on, the next track starts automatically; when

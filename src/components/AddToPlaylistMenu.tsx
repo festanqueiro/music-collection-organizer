@@ -1,10 +1,11 @@
 // src/components/AddToPlaylistMenu.tsx
-import { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './contextMenuStyles'
+import { contextMenuIconStyle, contextMenuItemStyle } from './contextMenuStyles'
 import type { PlaylistNode } from '../types'
 import { playlistFolders } from '../state/savedPlaylist'
 import { songs } from '../format'
+import { ContextMenu } from './ContextMenu'
 
 // Recently added-to playlists shown above the full list in Add to playlist.
 const RECENT_IN_MENU = 3
@@ -17,18 +18,6 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
   const createNode = useCollectionStore((s) => s.createPlaylistNode)
   const showToast = useCollectionStore((s) => s.showToast)
   const [naming, setNaming] = useState(false)
-  // Opens at the pointer, then moves back inside the window if it would
-  // run off the right or bottom edge (the detail panel is at the edge).
-  const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState({ left: x, top: y })
-  useLayoutEffect(() => {
-    const rect = menuRef.current?.getBoundingClientRect()
-    if (!rect) return
-    const left = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8))
-    const top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8))
-    setPosition((current) => (current.left === left && current.top === top ? current : { left, top }))
-  }, [x, y, naming])
-
   useEffect(() => {
     const close = () => onClose()
     window.addEventListener('click', close)
@@ -62,11 +51,7 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
   )
 
   return (
-    <div
-      ref={menuRef}
-      onClick={(e) => e.stopPropagation()}
-      style={{ ...contextMenuStyle, ...position, maxHeight: '60vh', overflowY: 'auto', minWidth: '200px' }}
-    >
+    <ContextMenu x={x} y={y} style={{ maxHeight: '60vh', minWidth: '200px' }}>
       <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
         Add {songs(trackIds.length)} to…
       </div>
@@ -101,6 +86,6 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
           New playlist…
         </button>
       )}
-    </div>
+    </ContextMenu>
   )
 }

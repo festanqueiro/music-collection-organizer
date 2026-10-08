@@ -1,7 +1,7 @@
 import { decodeToPcm } from './decode'
 import { extractMetadata } from './metadata'
 import { detectBpmAndKey } from './bpmKey'
-import { computeWaveformPeaks } from './waveform'
+import { computeWaveformBands, computeWaveformPeaks, type WaveformBands } from './waveform'
 import { detectEnergy } from './energy'
 
 export interface AnalysisPipelineResult {
@@ -16,6 +16,7 @@ export interface AnalysisPipelineResult {
   firstBeat: number
   musicalKey: string
   waveformPeaks: number[]
+  waveformBands: WaveformBands
   loudness: number
   energy: number
 }
@@ -42,6 +43,7 @@ export async function runAnalysisPipeline(
   const { bpm, firstBeat, key, scale } = detectBpmAndKey(pcm)
   onStep?.(0.8)
   const peaks = computeWaveformPeaks(pcm)
+  const bands = computeWaveformBands(pcm)
   onStep?.(0.9)
   const { loudness, energy } = detectEnergy(pcm)
 
@@ -57,6 +59,7 @@ export async function runAnalysisPipeline(
     firstBeat,
     musicalKey: `${key} ${scale}`,
     waveformPeaks: peaks,
+    waveformBands: bands,
     loudness,
     energy,
   }

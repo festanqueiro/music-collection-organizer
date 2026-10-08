@@ -37,6 +37,8 @@ export function HotCuePads({
   const [menu, setMenu] = useState<{ slot: number; x: number; y: number } | null>(null)
   const [naming, setNaming] = useState(false)
   const [assign, setAssign] = useState<{ suggestion: SuggestedCue; x: number; y: number } | null>(null)
+  // The pad under the pointer: its × is brighter there.
+  const [hovered, setHovered] = useState<number | null>(null)
 
   useEffect(() => {
     if (!menu && !assign) return
@@ -62,7 +64,49 @@ export function HotCuePads({
         const cue = slots[slot]
         const color = cue ? cueColor(cue) : undefined
         return (
-          <span key={slot} style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+          <span
+            key={slot}
+            onMouseEnter={() => setHovered(slot)}
+            onMouseLeave={() => setHovered((current) => (current === slot ? null : current))}
+            style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', gap: '2px' }}
+          >
+            {cue && !disabled && (
+              // On the corner of every set pad: a click deletes the cue
+              // (with an Undo at the bottom of the window).
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setHovered(null)
+                  onDelete(slot)
+                }}
+                // Keeps focus off it so Space/1–8 still reach the window.
+                onMouseDown={(e) => e.preventDefault()}
+                title={`Delete hot cue ${HOT_CUE_LETTERS[slot]}`}
+                aria-label={`Delete hot cue ${HOT_CUE_LETTERS[slot]}`}
+                style={{
+                  position: 'absolute',
+                  top: '-7px',
+                  left: '14px',
+                  width: '14px',
+                  height: '14px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '50%',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface-raised)',
+                  color: 'var(--color-text)',
+                  opacity: hovered === slot ? 1 : 0.75,
+                  cursor: 'pointer',
+                  zIndex: 1,
+                }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '11px', lineHeight: 1 }}>
+                  close
+                </span>
+              </button>
+            )}
             <button
               disabled={disabled}
               onClick={(e) => {
@@ -83,7 +127,7 @@ export function HotCuePads({
               onMouseDown={(e) => e.preventDefault()}
               title={
                 cue
-                  ? `Hot cue ${HOT_CUE_LETTERS[slot]}${cue.name ? ` — ${cue.name}` : ''} at ${cueTime(cue.start)} (${slot + 1}): jump and play. Right-click to name, recolour or delete.`
+                  ? `Hot cue ${HOT_CUE_LETTERS[slot]}${cue.name ? ` — ${cue.name}` : ''} at ${cueTime(cue.start)} (${slot + 1}): jump and play. The × on its corner deletes it; right-click to name, recolour or delete.`
                   : `Hot cue ${HOT_CUE_LETTERS[slot]} (${slot + 1}): set it here`
               }
               aria-label={`Hot cue ${HOT_CUE_LETTERS[slot]}${cue ? ' (set)' : ''}`}
