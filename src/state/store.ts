@@ -508,6 +508,7 @@ const VISUALIZER_THEME_KEY = 'visualizerTheme'
 const VISUALIZER_THEME_ID_SET: Record<VisualizerThemeId, true> = {
   nebula: true, warp: true, horizon: true, soundsystem: true, smoke: true,
   kaleidoscope: true, paint: true, liquid: true, origins: true,
+  sponge: true, crystal: true, tangle: true,
 }
 const VISUALIZER_THEME_IDS = Object.keys(VISUALIZER_THEME_ID_SET) as VisualizerThemeId[]
 const CAST_SCREEN_KEY = 'castScreen'

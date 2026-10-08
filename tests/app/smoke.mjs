@@ -283,6 +283,30 @@ await group('player', async () => {
   await pickStyle('classic')
 })
 
+await group('visualizer', async () => {
+  await win.locator('button[aria-label="Visualizer"]').first().click()
+  await wait(1500)
+  const names = await win.evaluate(() => [...document.querySelectorAll('select option')].map((o) => o.textContent.replace(/^\d+\s+/, '')))
+  check('visualizer lists Sponge, Crystal and Tangle', ['Sponge', 'Crystal', 'Tangle'].every((n) => names.includes(n)), names.join(', '))
+  // Each of the three draws: a canvas with a size, and nothing thrown.
+  const before = errors.length
+  for (const id of ['sponge', 'crystal', 'tangle']) {
+    await win.evaluate((theme) => {
+      const select = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === theme))
+      select.value = theme
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }, id)
+    await wait(1200)
+  }
+  const canvas = await win.evaluate(() => {
+    const c = document.querySelector('canvas')
+    return c ? { w: c.width, h: c.height } : null
+  })
+  check('the new themes draw without errors', !!canvas && canvas.w > 0 && canvas.h > 0 && errors.length === before, JSON.stringify({ canvas, errors: errors.slice(before, before + 2) }))
+  await win.keyboard.press('Escape')
+  await wait(400)
+})
+
 check('no errors in the page', errors.length === 0, errors.slice(0, 5).join(' | '))
 await app.close()
 console.log(failed === 0 ? '\nAll checks passed.' : `\n${failed} check(s) failed.`)

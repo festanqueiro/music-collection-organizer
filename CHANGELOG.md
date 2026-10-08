@@ -15,6 +15,9 @@ installed copies update themselves.
   re-measures the tempo of the tracks you choose in about a second each —
   sharper, two thirds caught, slow tempos doubled — keeping everything
   else. A BPM you set by hand is left alone.
+- **Three new visualizer themes**: **Sponge** (a flight down an endless
+  fractal corridor), **Crystal** (a folding fractal crystal) and **Tangle**
+  (knots orbiting knots), from threejs-visualisers 0.4.0.
 
 ### Fixed
 - **Tag names no longer depend on capitals**: `house` can't be created
