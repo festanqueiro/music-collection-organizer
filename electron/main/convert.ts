@@ -169,7 +169,9 @@ export const defaultConvertDeps = (trash: (path: string) => Promise<void>): Conv
 
 const lastLine = (text: string) => text.trim().split('\n').pop()?.trim() || 'ffmpeg failed'
 
-async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, options: ConvertOptions): Promise<ConvertResult> {
+// `taken`: the names this run has already given out — two files converted
+// at once must not both be told a name is free.
+async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, options: ConvertOptions, taken: Set<string>): Promise<ConvertResult> {
   const row = db.prepare('SELECT path, filename, present, cloud_status FROM tracks WHERE id = ?').get(trackId) as
     | { path: string; filename: string; present: number; cloud_status: string }
     | undefined
@@ -186,9 +188,10 @@ async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, o
   if (replace && alreadyConverted(row.path, options.format, target, info)) {
     return { trackId, name, status: 'skipped', message: 'Already in that format' }
   }
-  const planned = planOutput(row.path, replace ? null : options.folder, options.format, replace, existsSync)
+  const planned = planOutput(row.path, replace ? null : options.folder, options.format, replace, (path) => existsSync(path) || taken.has(path.toLowerCase()))
   if ('conflict' in planned) return fail(`${basename(planned.conflict)} is already there`)
   const out = planned.path
+  taken.add(out.toLowerCase())
   await mkdir(dirname(out), { recursive: true })
   // Not an audio extension, so a scan never takes the half-written file for a track.
   const tmp = `${out}.${randomBytes(4).toString('hex')}.mcotmp`
@@ -240,23 +243,39 @@ async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, o
   }
 }
 
-// One file at a time (ffmpeg uses the cores it needs), reporting after
-// each; `shouldStop` is asked between files.
+// How many files are converted at once: ffmpeg's encoders here are mostly
+// single-threaded, so a few side by side finish a batch sooner without
+// taking the whole machine.
+export const CONVERT_AT_ONCE = 3
+
+// A few files at a time, in the order given, reporting as each starts and
+// ends; `shouldStop` is asked before each file starts (those under way
+// finish). The results come back in the tracks' order, without the ones
+// never started.
 export async function convertTracks(
   db: AppDatabase,
   deps: ConvertDeps,
   trackIds: number[],
   options: ConvertOptions,
   onProgress: (progress: ConvertProgress) => void = () => {},
-  shouldStop: () => boolean = () => false
+  shouldStop: () => boolean = () => false,
+  atOnce = CONVERT_AT_ONCE
 ): Promise<ConvertResult[]> {
-  const results: ConvertResult[] = []
-  for (const [index, trackId] of trackIds.entries()) {
-    if (shouldStop()) break
-    const row = db.prepare('SELECT filename FROM tracks WHERE id = ?').get(trackId) as { filename: string } | undefined
-    onProgress({ done: index, total: trackIds.length, name: row?.filename ?? '' })
-    results.push(await convertOne(db, deps, trackId, options))
+  const results: (ConvertResult | undefined)[] = new Array(trackIds.length)
+  const taken = new Set<string>()
+  let next = 0
+  let done = 0
+  const worker = async () => {
+    while (next < trackIds.length && !shouldStop()) {
+      const index = next++
+      const trackId = trackIds[index]
+      const row = db.prepare('SELECT filename FROM tracks WHERE id = ?').get(trackId) as { filename: string } | undefined
+      onProgress({ done, total: trackIds.length, name: row?.filename ?? '' })
+      results[index] = await convertOne(db, deps, trackId, options, taken)
+      done++
+    }
   }
-  onProgress({ done: results.length, total: trackIds.length, name: '' })
-  return results
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(atOnce, trackIds.length)) }, worker))
+  onProgress({ done, total: trackIds.length, name: '' })
+  return results.filter((r): r is ConvertResult => r !== undefined)
 }

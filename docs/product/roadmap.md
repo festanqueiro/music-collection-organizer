@@ -73,14 +73,19 @@ Done with the review and right after it:
 - dependencies updated within their ranges (Electron 43.7.9, React 19.3, Vite 7.3.7,
   music-metadata 11.16); `checkout`, `setup-node` and the artifact actions on current versions in
   `ci.yml` and `release.yml`;
-- README, and how to update the vendored Graphify skill (CLAUDE.md).
+- README, and how to update the vendored Graphify skill (CLAUDE.md);
+- **`store.ts` from 2,286 lines to 1,380**: hot cues and waveforms (`cueSlice.ts`), saved
+  playlists (`savedPlaylistSlice.ts`), MIDI (`midiSlice.ts`), Tags (`tagSlice.ts`), and what the
+  playing actions share (`playbackHelpers.ts`) — code moved, not changed;
+- Convert works on three files at a time.
 
 Still to do, most useful first:
 
-1. **`store.ts` in slices (M–L)** — about 2,300 lines; player, playlists, cast, settings. With it,
-   **one Undo** for the five separate ones (queue, playlist, hot cue, tag, subtag). The rest of
-   the large files after it: `TrackTable.tsx` 1,460 (its two menus), `ipc.ts` 976 (cast, backups),
-   `App.tsx` 915, `Player.tsx` 897.
+1. **The rest of `store.ts` (M)** — 1,380 lines, of which the `CollectionState` type is 580: split
+   the type by slice, and take the player and queue, the cast and screen settings, and the
+   collection actions out. Then **one Undo** for the five separate ones (queue, playlist, hot cue,
+   tag, subtag). The other large files: `TrackTable.tsx` 1,460 (its two menus), `ipc.ts` 976
+   (cast, backups), `App.tsx` 915, `Player.tsx` 897.
 2. **Re-check the tempo rules on the whole collection (S)** — `npm run bpm:compare` after a full
    re-analysis: the two-thirds threshold rests on 32 tracks, and half time (7 % of the songs
    compared) is left to the user.
@@ -91,10 +96,9 @@ Still to do, most useful first:
    kept, which the bump's push depends on.
 5. **Major dependency updates (S each, one at a time)** — Electron 44, Vite 8, Vitest 5,
    music-metadata 12, `@vitejs/plugin-react` 6.
-6. **Convert several files at once (S)** — it runs one at a time.
-7. **The smoke test in CI (S–M)** — it needs a display (xvfb) and the demo collection made on
+6. **The smoke test in CI (S–M)** — it needs a display (xvfb) and the demo collection made on
    the runner.
-8. **The website (S)** — no mention of Convert, Refine BPM, the waveform styles or the larger
+7. **The website (S)** — no mention of Convert, Refine BPM, the waveform styles or the larger
    player; clips from 1.0.53 (they don't record on a Mac with Playwright 1.64).
 
 ## Known issues

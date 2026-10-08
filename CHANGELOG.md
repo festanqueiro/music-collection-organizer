@@ -23,6 +23,7 @@ installed copies update themselves.
 - **A Rekordbox collection export is read once per import** instead of
   three or four times.
 - The Classic waveform does less work while a track plays.
+- **Convert works on three files at a time**, so a batch finishes sooner.
 - Electron 43.7.9, React 19.3 and other updates within their versions.
 
 ## 1.0.60 — 2026-10-08
