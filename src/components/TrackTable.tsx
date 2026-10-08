@@ -14,6 +14,7 @@ import { AddToPlaylistMenu } from './PlaylistsBox'
 import { ConvertDialog } from './ConvertDialog'
 // Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
+import { tracksById } from '../state/tracksById'
 
 type SortKey = TrackTableColumnKey
 
@@ -207,7 +208,7 @@ export function TrackTable({
   const duplicates = useMemo(() => (duplicatesFilter ? findDuplicates(tracks) : null), [tracks, duplicatesFilter])
   const currentTrackId = playlist[0] ?? null
   const currentTrack = useMemo(
-    () => (currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null),
+    () => (currentTrackId != null ? (tracksById(tracks).get(currentTrackId) ?? null) : null),
     [tracks, currentTrackId]
   )
   // The filter needs a playing track with an analysed key to compare with.
@@ -1266,7 +1267,7 @@ export function TrackTable({
                   <span className="material-symbols-outlined" style={contextMenuIconStyle}>
                     graphic_eq
                   </span>
-                  {menuTrackIds.every((id) => tracks.find((t) => t.id === id)?.analysisStatus === 'done')
+                  {menuTrackIds.every((id) => tracksById(tracks).get(id)?.analysisStatus === 'done')
                     ? 'Re-analyse all'
                     : 'Analyse all'}
                 </button>
@@ -1381,7 +1382,7 @@ export function TrackTable({
               <span className="material-symbols-outlined" style={contextMenuIconStyle}>
                 graphic_eq
               </span>
-              {tracks.find((t) => t.id === contextMenu.trackId)?.analysisStatus === 'done'
+              {tracksById(tracks).get(contextMenu.trackId)?.analysisStatus === 'done'
                 ? 'Re-analyse track'
                 : 'Analyse track'}
             </button>
@@ -1411,7 +1412,7 @@ export function TrackTable({
             </button>
             <button
               onClick={() => {
-                const track = tracks.find((t) => t.id === contextMenu.trackId)
+                const track = tracksById(tracks).get(contextMenu.trackId)
                 if (track) onShowInFolderTree(track.folder)
                 setContextMenu(null)
               }}

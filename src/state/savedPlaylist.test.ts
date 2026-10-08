@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterPlaylistNodes, moveTracksInPlaylist, restoreRemovedTracks } from './savedPlaylist'
+import { filterPlaylistNodes, moveTracksInPlaylist, playlistFolders, restoreRemovedTracks } from './savedPlaylist'
 
 describe('moveTracksInPlaylist', () => {
   const order = [1, 2, 3, 4, 5]
@@ -92,5 +92,30 @@ describe('filterPlaylistNodes', () => {
 
   it('shows nothing when no name matches', () => {
     expect(shown('techno')).toEqual([])
+  })
+})
+
+describe('playlistFolders', () => {
+  const nodes = [
+    { id: 1, parentId: null, name: 'Sets' },
+    { id: 2, parentId: 1, name: '2026' },
+    { id: 3, parentId: 2, name: 'Bassin' },
+    { id: 4, parentId: null, name: 'Loose' },
+  ]
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+
+  it('names the folders a node sits in, outermost first', () => {
+    expect(playlistFolders(nodes[2], byId)).toEqual(['Sets', '2026'])
+    expect(playlistFolders(nodes[1], byId)).toEqual(['Sets'])
+    expect(playlistFolders(nodes[3], byId)).toEqual([])
+  })
+
+  it('stops at a parent that is missing or loops back', () => {
+    expect(playlistFolders({ parentId: 99 }, byId)).toEqual([''])
+    const loop = new Map([
+      [1, { name: 'A', parentId: 2 }],
+      [2, { name: 'B', parentId: 1 }],
+    ])
+    expect(playlistFolders({ parentId: 1 }, loop)).toEqual(['B', 'A'])
   })
 })

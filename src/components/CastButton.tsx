@@ -1,5 +1,6 @@
 // src/components/CastButton.tsx
-import { useEffect, useRef, useState } from 'react'
+import { useEffect } from 'react'
+import { useToolbarPopover } from './useToolbarPopover'
 import { useCollectionStore } from '../state/store'
 import { castingToAScreen, isCastActive, startCasting, stopCasting } from '../cast/castSession'
 import { TV_VISUALIZERS, type CastScreen } from '../cast/tvVisualizers'
@@ -20,10 +21,7 @@ const SCREEN_CHOICES: { id: CastScreen; name: string; icon: string }[] = [
 // TV, Chromecast, Nest). Devices are only searched for while the popover
 // is open.
 export function CastButton() {
-  const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
+  const { open, anchor, buttonRef, popoverRef, toggleOpen: togglePopover } = useToolbarPopover(POPOVER_WIDTH)
   const status = useCollectionStore((s) => s.castStatus)
   const devices = useCollectionStore((s) => s.castDevices)
   const muteLocal = useCollectionStore((s) => s.castMuteLocal)
@@ -38,22 +36,12 @@ export function CastButton() {
   const hideTrackInfo = useCollectionStore((s) => s.visualizerHideTrackInfo)
   const setHideTrackInfo = useCollectionStore((s) => s.setVisualizerHideTrackInfo)
 
+  // Devices are looked for only while the popover is open.
   useEffect(() => {
     if (!open) return
     window.api.startCastDiscovery()
-    function onMouseDown(e: MouseEvent) {
-      const target = e.target as Node
-      if (!popoverRef.current?.contains(target) && !buttonRef.current?.contains(target)) setOpen(false)
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('mousedown', onMouseDown)
-    window.addEventListener('keydown', onKeyDown)
     return () => {
-      window.api.stopCastDiscovery()
-      window.removeEventListener('mousedown', onMouseDown)
-      window.removeEventListener('keydown', onKeyDown)
+      void window.api.stopCastDiscovery()
     }
   }, [open])
 
@@ -63,14 +51,7 @@ export function CastButton() {
       e.currentTarget.blur()
       return
     }
-    const rect = e.currentTarget.getBoundingClientRect()
-    setAnchor({
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8)),
-      bottom: window.innerHeight - rect.top + 8,
-    })
-    setOpen((v) => !v)
-    // Otherwise the focused button swallows Space (play/pause).
-    e.currentTarget.blur()
+    togglePopover(e)
   }
 
   const statusText =

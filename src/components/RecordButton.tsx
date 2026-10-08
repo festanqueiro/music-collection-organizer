@@ -1,5 +1,6 @@
 // src/components/RecordButton.tsx
 import { useEffect, useRef, useState } from 'react'
+import { useToolbarPopover } from './useToolbarPopover'
 import { RECORDING_LEVEL_MAX_DB, RECORDING_LEVEL_MIN_DB, useCollectionStore } from '../state/store'
 import { getAudioEngine } from '../audio/audioEngine'
 import { REVEAL_IN_FILE_MANAGER } from '../platform'
@@ -142,11 +143,8 @@ function RecordMeter() {
 // records what MCO plays to a file. Dimmed while casting — the two never
 // run together.
 export function RecordButton() {
-  const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null)
+  const { open, anchor, buttonRef, popoverRef, toggleOpen } = useToolbarPopover(POPOVER_WIDTH)
   const [folder, setFolder] = useState<string | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
   const state = useCollectionStore((s) => s.recordingState)
   const format = useCollectionStore((s) => s.recordingFormat)
   const setFormat = useCollectionStore((s) => s.setRecordingFormat)
@@ -159,33 +157,8 @@ export function RecordButton() {
   const stats = useRecordingStats(recording, format)
 
   useEffect(() => {
-    if (!open) return
-    window.api.getRecordingFolder().then(setFolder)
-    function onMouseDown(e: MouseEvent) {
-      const target = e.target as Node
-      if (!popoverRef.current?.contains(target) && !buttonRef.current?.contains(target)) setOpen(false)
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('mousedown', onMouseDown)
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('mousedown', onMouseDown)
-      window.removeEventListener('keydown', onKeyDown)
-    }
+    if (open) void window.api.getRecordingFolder().then(setFolder)
   }, [open])
-
-  function toggleOpen(e: React.MouseEvent<HTMLButtonElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setAnchor({
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8)),
-      bottom: window.innerHeight - rect.top + 8,
-    })
-    setOpen((v) => !v)
-    // Otherwise the focused button swallows Space (play/pause).
-    e.currentTarget.blur()
-  }
 
   async function chooseFolder() {
     const chosen = await window.api.chooseRecordingFolder()

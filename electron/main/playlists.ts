@@ -12,7 +12,8 @@ import type {
   RekordboxImportPlan,
   RekordboxRelink,
 } from '../../src/types'
-import type { RekordboxNode, RekordboxTxtRow, SongHint } from './rekordboxXml'
+import { flattenRekordboxTree, type RekordboxNode, type RekordboxTxtRow, type SongHint } from './rekordboxXml'
+import { playlistFolders } from '../../src/state/savedPlaylist'
 
 interface NodeRow {
   id: number
@@ -180,22 +181,6 @@ export function setPlaylistTrackIds(db: AppDatabase, playlistId: number, trackId
 
 const ROOT_PATH = '[]'
 
-// Every playlist and folder with its name path; a repeated name among
-// siblings gets " (2)", " (3)"… so each path is unique.
-function flatten(nodes: RekordboxNode[], parent: string[] = []): { node: RekordboxNode; path: string[] }[] {
-  const out: { node: RekordboxNode; path: string[] }[] = []
-  const seen = new Map<string, number>()
-  for (const node of nodes) {
-    const key = `${node.kind}:${node.name}`
-    const n = (seen.get(key) ?? 0) + 1
-    seen.set(key, n)
-    const path = [...parent, n > 1 ? `${node.name} (${n})` : node.name]
-    out.push({ node, path })
-    if (node.kind === 'folder') out.push(...flatten(node.children, path))
-  }
-  return out
-}
-
 // File paths → track ids: exact (NFC), then ignoring case, then a path the
 // user confirmed earlier is a collection song (playlist_path_aliases).
 export function trackMatcher(db: AppDatabase): (path: string) => number | undefined {
@@ -291,9 +276,8 @@ function duplicateFinder(db: AppDatabase, exclude: Set<number>): (name: string, 
   const nodes = getPlaylistNodes(db)
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const pathOf = (id: number) => {
-    const parts: string[] = []
-    for (let n = byId.get(id); n; n = n.parentId === null ? undefined : byId.get(n.parentId)) parts.unshift(n.name)
-    return parts.join(' / ')
+    const node = byId.get(id)
+    return node ? [...playlistFolders(node, byId), node.name].join(' / ') : ''
   }
   const candidates = nodes
     .filter((n) => n.kind === 'playlist' && !exclude.has(n.id))
@@ -323,7 +307,7 @@ export function planRekordboxImport(db: AppDatabase, tree: RekordboxNode[], size
   const existing = importedNodes(db)
   // Playlists this import refreshes aren't duplicates of themselves.
   const findDuplicate = duplicateFinder(db, new Set([...existing.values()].map((n) => n.id)))
-  const flat = flatten(tree)
+  const flat = flattenRekordboxTree(tree)
   const plan: RekordboxImportPlan = { folders: 0, playlists: [], songs: 0, matched: 0, relinks: [], gone: [] }
   // Each unmatched path looked up once, however many playlists list it.
   const relinkByPath = new Map<string, RekordboxRelink | null>()
@@ -427,7 +411,7 @@ export function applyRekordboxImport(
     }
     const ids = new Map<string, number>()
     const siblings = new Map<number, number>()
-    for (const { node, path } of flatten(tree)) {
+    for (const { node, path } of flattenRekordboxTree(tree)) {
       const decision = node.kind === 'playlist' && !existing.has(`playlist:${JSON.stringify(path)}`) ? duplicates[JSON.stringify(path)] : undefined
       if (decision?.action === 'skip') continue
       if (decision?.action === 'update' && decision.targetId !== undefined && node.kind === 'playlist') {
@@ -475,7 +459,7 @@ export function detachPlaylistNode(db: AppDatabase, id: number): void {
 // Unmatched rows keep a placeholder that matches nothing, so the summary
 // counts them.
 export function rekordboxTxtToTree(db: AppDatabase, name: string, rows: RekordboxTxtRow[]): RekordboxNode[] {
-  const key = (s: string | null) => (s ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')
+  const key = looseKey
   const tracks = db.prepare('SELECT path, filename, title, artist FROM tracks').all() as {
     path: string
     filename: string

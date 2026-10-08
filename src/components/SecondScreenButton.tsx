@@ -5,7 +5,7 @@
 // AirPlay display, a projector, a monitor — or a window here), what it shows
 // (the now-playing screen or a visualizer theme), track info and the Visual
 // delay. Lit while showing.
-import { useEffect, useRef, useState } from 'react'
+import { useToolbarPopover } from './useToolbarPopover'
 import { VISUALIZER_THEMES, getVisualizerTheme, type VisualizerThemeId } from 'threejs-visualisers'
 import { useCollectionStore } from '../state/store'
 import { ToggleSwitch } from './ToggleSwitch'
@@ -19,10 +19,7 @@ const POPOVER_WIDTH = 320
 const NOW_PLAYING = 'now-playing'
 
 export function SecondScreenButton() {
-  const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<{ left: number; bottom: number } | null>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
+  const { open, anchor, buttonRef, popoverRef, toggleOpen } = useToolbarPopover(POPOVER_WIDTH)
   const target = useCollectionStore((s) => s.screenTarget)
   const setTarget = useCollectionStore((s) => s.setScreenTarget)
   const displays = useCollectionStore((s) => s.screenDisplays)
@@ -34,34 +31,6 @@ export function SecondScreenButton() {
   const setHideTrackInfo = useCollectionStore((s) => s.setScreenHideTrackInfo)
   const otherDisplays = displays.filter((d) => !d.hasMainWindow)
   const showingOn = target === 'window' ? 'in a window' : target !== null ? `on ${displays.find((d) => d.id === target)?.label ?? 'a display'}` : null
-
-  useEffect(() => {
-    if (!open) return
-    function onMouseDown(e: MouseEvent) {
-      const t = e.target as Node
-      if (!popoverRef.current?.contains(t) && !buttonRef.current?.contains(t)) setOpen(false)
-    }
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    window.addEventListener('mousedown', onMouseDown)
-    window.addEventListener('keydown', onKeyDown)
-    return () => {
-      window.removeEventListener('mousedown', onMouseDown)
-      window.removeEventListener('keydown', onKeyDown)
-    }
-  }, [open])
-
-  function toggleOpen(e: React.MouseEvent<HTMLButtonElement>) {
-    const rect = e.currentTarget.getBoundingClientRect()
-    setAnchor({
-      left: Math.max(8, Math.min(rect.left, window.innerWidth - POPOVER_WIDTH - 8)),
-      bottom: window.innerHeight - rect.top + 8,
-    })
-    setOpen((v) => !v)
-    // Otherwise the focused button swallows Space (play/pause).
-    e.currentTarget.blur()
-  }
 
   const choices: { target: ScreenTarget; name: string; detail: string; icon: string }[] = [
     ...otherDisplays.map((d) => ({

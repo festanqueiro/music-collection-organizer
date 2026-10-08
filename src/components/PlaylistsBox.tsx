@@ -11,7 +11,7 @@ import { contextMenuIconStyle, contextMenuItemStyle, contextMenuStyle } from './
 import { onMenuCommand, runMenuCommand } from '../menuCommands'
 import type { PlaylistNode, RekordboxDuplicateAction, RekordboxImportDestination, RekordboxImportPlan } from '../types'
 import { baseName } from '../paths'
-import { filterPlaylistNodes } from '../state/savedPlaylist'
+import { filterPlaylistNodes, playlistFolders } from '../state/savedPlaylist'
 
 const LAYOUT_KEY = 'playlistsBox'
 const MIN_HEIGHT = 80
@@ -412,6 +412,29 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
     </button>
   )
 
+  // The two items a playlist's menu and a folder's share. A folder exports
+  // one .m3u8 per playlist in it.
+  const exportM3uItem = (node: PlaylistNode, label: string) =>
+    menuItem('ios_share', label, () =>
+      void window.api
+        .exportPlaylistM3u(node.id)
+        .then((r) => {
+          if (!r) return
+          showToast(
+            r.files === 1
+              ? `Exported ${songs(r.songs)} — in Rekordbox: File → Import → Import Playlist`
+              : `Exported ${r.files} playlists — in Rekordbox: File → Import → Import Playlist`
+          )
+        })
+        .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
+    )
+  const keepAsOwnItem = (node: PlaylistNode) =>
+    node.source === 'rekordbox' &&
+    menuItem('link_off', 'Keep as my own', () => {
+      void window.api.detachPlaylistNode(node.id).then((nodes) => useCollectionStore.setState({ playlistNodes: nodes }))
+      showToast(`${node.name} won't be refreshed from Rekordbox any more`)
+    })
+
   return (
     <div
       style={{
@@ -557,25 +580,9 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
                   requestAddManyToQueue(ids.filter((id) => present.has(id)))
                 })
               })}
-              {menuItem('ios_share', 'Export for Rekordbox (m3u8)…', () =>
-                void window.api
-                  .exportPlaylistM3u(menu.node!.id)
-                  .then((r) => {
-                    if (!r) return
-                    showToast(
-                      r.files === 1
-                        ? `Exported ${songs(r.songs)} — in Rekordbox: File → Import → Import Playlist`
-                        : `Exported ${r.files} playlists — in Rekordbox: File → Import → Import Playlist`
-                    )
-                  })
-                  .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
-              )}
+              {exportM3uItem(menu.node, 'Export for Rekordbox (m3u8)…')}
               {menuItem('edit', 'Rename', () => setEditing({ kind: 'rename', id: menu.node!.id }))}
-              {menu.node.source === 'rekordbox' &&
-                menuItem('link_off', 'Keep as my own', () => {
-                  void window.api.detachPlaylistNode(menu.node!.id).then((nodes) => useCollectionStore.setState({ playlistNodes: nodes }))
-                  showToast(`${menu.node!.name} won't be refreshed from Rekordbox any more`)
-                })}
+              {keepAsOwnItem(menu.node)}
               {menuItem('delete', 'Delete playlist…', () => setConfirmDelete(menu.node))}
             </>
           ) : (
@@ -583,25 +590,9 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
               {menuItem('play_arrow', 'Play folder', () => void playNode(menu.node!.id))}
               {menuItem('queue_music', 'New playlist here', () => startCreate('playlist', menu.node!.id))}
               {menuItem('create_new_folder', 'New folder here', () => startCreate('folder', menu.node!.id))}
-              {menuItem('ios_share', 'Export playlists for Rekordbox (m3u8)…', () =>
-                void window.api
-                  .exportPlaylistM3u(menu.node!.id)
-                  .then((r) => {
-                    if (!r) return
-                    showToast(
-                      r.files === 1
-                        ? `Exported ${songs(r.songs)} — in Rekordbox: File → Import → Import Playlist`
-                        : `Exported ${r.files} playlists — in Rekordbox: File → Import → Import Playlist`
-                    )
-                  })
-                  .catch((err) => showToast(err instanceof Error ? err.message : String(err)))
-              )}
+              {exportM3uItem(menu.node, 'Export playlists for Rekordbox (m3u8)…')}
               {menuItem('edit', 'Rename', () => setEditing({ kind: 'rename', id: menu.node!.id }))}
-              {menu.node.source === 'rekordbox' &&
-                menuItem('link_off', 'Keep as my own', () => {
-                  void window.api.detachPlaylistNode(menu.node!.id).then((nodes) => useCollectionStore.setState({ playlistNodes: nodes }))
-                  showToast(`${menu.node!.name} won't be refreshed from Rekordbox any more`)
-                })}
+              {keepAsOwnItem(menu.node)}
               {menuItem('delete', 'Delete folder…', () => setConfirmDelete(menu.node))}
             </>
           )}
@@ -712,11 +703,7 @@ function ImportSummary({
   // The box's folders as places to import into, each with the folders it
   // sits in. The Rekordbox folder is the first choice already.
   const byId = new Map(nodes.map((n) => [n.id, n]))
-  const folderPath = (node: PlaylistNode): string => {
-    const parts = [node.name]
-    for (let p = node.parentId; p !== null; p = byId.get(p)?.parentId ?? null) parts.unshift(byId.get(p)?.name ?? '')
-    return parts.join(' / ')
-  }
+  const folderPath = (node: PlaylistNode): string => [...playlistFolders(node, byId), node.name].join(' / ')
   const folders = nodes.filter((n) => n.kind === 'folder' && !(n.parentId === null && n.source === 'rekordbox' && n.name === 'Rekordbox'))
   // One list at a time, in a box of a fixed height, so the dialog stays
   // the same size however long an import is. It opens on the first list
@@ -958,11 +945,7 @@ export function AddToPlaylistMenu({ x, y, trackIds, onClose }: { x: number; y: n
 
   const recentIds = useCollectionStore((s) => s.recentPlaylistIds)
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
-  const pathOf = (node: PlaylistNode): string => {
-    const parts: string[] = []
-    for (let p = node.parentId; p !== null; p = byId.get(p)?.parentId ?? null) parts.unshift(byId.get(p)?.name ?? '')
-    return parts.join(' / ')
-  }
+  const pathOf = (node: PlaylistNode): string => playlistFolders(node, byId).join(' / ')
   const playlists = nodes.filter((n) => n.kind === 'playlist')
   // The ones last added to, first; then the whole tree.
   const recent = recentIds

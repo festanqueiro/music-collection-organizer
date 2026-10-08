@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs'
 import type { AppDatabase } from './db'
 import { getPlaylistNodes, getPlaylistTrackIds, trackMatcher } from './playlists'
-import type { RekordboxCollection, RekordboxCue, RekordboxNode, RekordboxTrack } from './rekordboxXml'
+import { flattenRekordboxTree, type RekordboxCollection, type RekordboxCue, type RekordboxTrack } from './rekordboxXml'
 import type { RekordboxCueMark, RekordboxInfoField, RekordboxReport, TrackCue } from '../../src/types'
 import { HOT_CUE_DEFAULT_COLORS, cueColor } from '../../src/state/hotCues'
 import { getTrackCues } from './cues'
@@ -113,20 +113,6 @@ function sameCues(a: RekordboxCueMark[], b: RekordboxCueMark[]): boolean {
   })
 }
 
-function flatten(nodes: RekordboxNode[], parent: string[] = []): { path: string[]; paths: string[] }[] {
-  const out: { path: string[]; paths: string[] }[] = []
-  const seen = new Map<string, number>()
-  for (const node of nodes) {
-    const key = `${node.kind}:${node.name}`
-    const n = (seen.get(key) ?? 0) + 1
-    seen.set(key, n)
-    const path = [...parent, n > 1 ? `${node.name} (${n})` : node.name]
-    if (node.kind === 'playlist') out.push({ path, paths: node.paths })
-    else out.push(...flatten(node.children, path))
-  }
-  return out
-}
-
 export function compareWithRekordbox(
   file: string,
   rb: RekordboxCollection,
@@ -205,7 +191,9 @@ export function compareWithRekordbox(
   const usedMco = new Set<number>()
   const byPath = new Map(mco.playlists.map((p) => [JSON.stringify(p.path), p]))
   const bySource = new Map(mco.playlists.filter((p) => p.sourcePath).map((p) => [p.sourcePath!, p]))
-  for (const { path, paths } of flatten(rb.tree)) {
+  for (const { node, path } of flattenRekordboxTree(rb.tree)) {
+    if (node.kind !== 'playlist') continue
+    const paths = node.paths
     const name = path.join(' / ')
     const rbIds: number[] = []
     let notInCollection = 0

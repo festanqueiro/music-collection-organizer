@@ -17,6 +17,23 @@ export type RekordboxNode =
   | { kind: 'folder'; name: string; children: RekordboxNode[] }
   | { kind: 'playlist'; name: string; paths: string[]; hints?: SongHint[] }
 
+// Every playlist and folder with its name path, parents before children; a
+// repeated name among siblings gets " (2)", " (3)"… so each path is unique.
+// The import and the comparison both know a Rekordbox playlist by this path.
+export function flattenRekordboxTree(nodes: RekordboxNode[], parent: string[] = []): { node: RekordboxNode; path: string[] }[] {
+  const out: { node: RekordboxNode; path: string[] }[] = []
+  const seen = new Map<string, number>()
+  for (const node of nodes) {
+    const key = `${node.kind}:${node.name}`
+    const n = (seen.get(key) ?? 0) + 1
+    seen.set(key, n)
+    const path = [...parent, n > 1 ? `${node.name} (${n})` : node.name]
+    out.push({ node, path })
+    if (node.kind === 'folder') out.push(...flattenRekordboxTree(node.children, path))
+  }
+  return out
+}
+
 const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" }
 
 function decodeEntities(text: string): string {

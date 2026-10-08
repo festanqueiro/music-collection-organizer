@@ -8,6 +8,7 @@ import type { Track } from '../types'
 import { camelotColor, formatKey, toCamelot } from '../state/harmonic'
 import { findSimilarTracks } from '../state/similarTracks'
 import { suggestTagsFromPlaylists, type PlaylistTagSuggestion } from '../state/playlistTagSuggestions'
+import { playlistFolders } from '../state/savedPlaylist'
 import { AddToPlaylistMenu } from './PlaylistsBox'
 import { formatGain, formatLufs, gainToMatch, medianLoudness } from '../state/loudness'
 import { guessTagsFromFilename } from '../state/filenameTags'
@@ -572,6 +573,7 @@ export function DetailPanel({
   const [downloadError, setDownloadError] = useState<string | null>(null)
   const [artworkUrl, setArtworkUrl] = useState<string | null>(null)
   const [tagsOpen, toggleTagsOpen] = useSectionOpen('tags')
+  const playlistIds = useTrackPlaylistIds(selectedTrack && selectedTrack.cloudStatus !== 'cloud_only' ? selectedTrack.id : null)
 
   // Fetched on demand per selected track, not bulk-loaded with the rest of
   // the collection — see extractArtwork's own comment in the main process
@@ -771,9 +773,9 @@ export function DetailPanel({
             if (subgenre) await setTrackSubgenres(track.id, toggleInList(tags.subgenreIds, subgenre.id))
           }}
         />
-        {tagsOpen && <PlaylistTagSuggestions trackId={track.id} genreIds={tags.genreIds} subgenreIds={tags.subgenreIds} />}
+        {tagsOpen && <PlaylistTagSuggestions trackId={track.id} playlistIds={playlistIds} genreIds={tags.genreIds} subgenreIds={tags.subgenreIds} />}
       </DetailSection>
-      <TrackPlaylistsSection key={`playlists-${track.id}`} trackId={track.id} onSelectPlaylist={onSelectPlaylist} />
+      <TrackPlaylistsSection key={`playlists-${track.id}`} playlistIds={playlistIds} onSelectPlaylist={onSelectPlaylist} />
       <SimilarTracksSection key={`similar-${track.id}`} track={track} onSelectTrack={onSelectTrack} />
       <FilePathSection track={track} onTrashed={onClose} />
     </div>
@@ -975,37 +977,50 @@ function SimilarTracksSection({ track, onSelectTrack }: { track: Track; onSelect
 
 // The playlists the track is in, in the Playlists box's order; a click opens
 // one. Keyed by track in the parent, so it never shows the last track's.
-// The playlists a track is in (null until read). Read again whenever the
-// tree changes: adding or removing songs (here or anywhere else) replaces it.
-function useTrackPlaylistIds(trackId: number): number[] | null {
+// The playlists a track is in (null until read, and for no track). Read
+// again whenever the tree changes: adding or removing songs (here or
+// anywhere else) replaces it. Read once in DetailPanel for the sections
+// that show it — the Tags' suggestions and Playlists.
+function useTrackPlaylistIds(trackId: number | null): number[] | null {
   const playlistNodes = useCollectionStore((s) => s.playlistNodes)
-  const [playlistIds, setPlaylistIds] = useState<number[] | null>(null)
+  const [read, setRead] = useState<{ trackId: number; ids: number[] } | null>(null)
   useEffect(() => {
+    if (trackId === null) return
     let cancelled = false
     window.api
       .getTrackPlaylistIds(trackId)
       .then((ids) => {
-        if (!cancelled) setPlaylistIds(ids)
+        if (!cancelled) setRead({ trackId, ids })
       })
       .catch((err) => console.error("reading the track's playlists failed", err))
     return () => {
       cancelled = true
     }
   }, [trackId, playlistNodes])
-  return playlistIds
+  // Not the track before's while this one's are on their way.
+  return read && read.trackId === trackId ? read.ids : null
 }
 
 // Under the Tag and Subtag boxes: Tags and Subtags named in the playlists
 // the track is in (src/state/playlistTagSuggestions.ts). A click adds one;
 // nothing is added on its own.
-function PlaylistTagSuggestions({ trackId, genreIds, subgenreIds }: { trackId: number; genreIds: number[]; subgenreIds: number[] }) {
+function PlaylistTagSuggestions({
+  trackId,
+  playlistIds,
+  genreIds,
+  subgenreIds,
+}: {
+  trackId: number
+  playlistIds: number[] | null
+  genreIds: number[]
+  subgenreIds: number[]
+}) {
   const playlistNodes = useCollectionStore((s) => s.playlistNodes)
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
   const setTrackGenres = useCollectionStore((s) => s.setTrackGenres)
   const setTrackSubgenres = useCollectionStore((s) => s.setTrackSubgenres)
   const showToast = useCollectionStore((s) => s.showToast)
-  const playlistIds = useTrackPlaylistIds(trackId)
   const suggestions = useMemo(() => {
     const inIds = new Set(playlistIds ?? [])
     const names = playlistNodes.filter((n) => n.kind === 'playlist' && inIds.has(n.id)).map((n) => n.name)
@@ -1064,10 +1079,9 @@ function PlaylistTagSuggestions({ trackId, genreIds, subgenreIds }: { trackId: n
   )
 }
 
-function TrackPlaylistsSection({ trackId, onSelectPlaylist }: { trackId: number; onSelectPlaylist: (playlistId: number) => void }) {
+function TrackPlaylistsSection({ playlistIds, onSelectPlaylist }: { playlistIds: number[] | null; onSelectPlaylist: (playlistId: number) => void }) {
   const playlistNodes = useCollectionStore((s) => s.playlistNodes)
   const selectedPlaylistId = useCollectionStore((s) => s.selectedPlaylistId)
-  const playlistIds = useTrackPlaylistIds(trackId)
   const [open, toggleOpen] = useSectionOpen('playlists')
   const playlists = useMemo(() => {
     const byId = new Map(playlistNodes.map((n) => [n.id, n]))
@@ -1075,11 +1089,7 @@ function TrackPlaylistsSection({ trackId, onSelectPlaylist }: { trackId: number;
     return playlistNodes
       .filter((n) => inIds.has(n.id))
       .map((n) => {
-        const folders: string[] = []
-        for (let parent = n.parentId === null ? undefined : byId.get(n.parentId); parent; parent = parent.parentId === null ? undefined : byId.get(parent.parentId)) {
-          folders.unshift(parent.name)
-        }
-        return { id: n.id, name: n.name, folders: folders.join(' / ') }
+        return { id: n.id, name: n.name, folders: playlistFolders(n, byId).join(' / ') }
       })
   }, [playlistNodes, playlistIds])
   return (

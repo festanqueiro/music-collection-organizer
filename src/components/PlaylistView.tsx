@@ -4,6 +4,7 @@ import { useCollectionStore } from '../state/store'
 import { formatDuration, decodeHtmlEntities } from '../format'
 import { formatKey } from '../state/harmonic'
 import { contextMenuStyle, contextMenuItemStyle, contextMenuIconStyle } from './contextMenuStyles'
+import { tracksById } from '../state/tracksById'
 
 // Fetched lazily and cached across the whole queue, not per-row state —
 // the same track can appear (and its row remount) any number of times as
@@ -177,7 +178,8 @@ export function PlaylistView({ embedded = false }: { embedded?: boolean } = {}) 
 
 
   const totalDuration = useMemo(() => {
-    return playlist.reduce((sum, trackId) => sum + (tracks.find((t) => t.id === trackId)?.duration ?? 0), 0)
+    const byId = tracksById(tracks)
+    return playlist.reduce((sum, trackId) => sum + (byId.get(trackId)?.duration ?? 0), 0)
   }, [playlist, tracks])
 
   return (
@@ -265,7 +267,7 @@ export function PlaylistView({ embedded = false }: { embedded?: boolean } = {}) 
                 key={`${trackId}-${index}`}
                 trackId={trackId}
                 isCurrent={index === 0}
-                track={tracks.find((t) => t.id === trackId)}
+                track={tracksById(tracks).get(trackId)}
                 playbackProgress={playbackProgress}
                 onDragStartRow={() => setDragIndex(index)}
                 onDropRow={() => {
