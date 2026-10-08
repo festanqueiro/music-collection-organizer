@@ -205,6 +205,29 @@
     accents: ACCENTS,
     accent(color) { accent = color; document.documentElement.style.setProperty('--promo-accent', color) },
     logo(dataUrl) { logo = dataUrl },
+    // Text the picture is better without (a mastering suffix a file's own
+    // title carries, say): taken out of what the app shows, as it shows
+    // it. Only the picture changes — nothing in the library or the files.
+    tidy(pattern) {
+      const unwanted = new RegExp(pattern, 'g')
+      const clean = (node) => {
+        const text = node.nodeValue
+        // The test first: writing a text node, even unchanged, is another mutation.
+        unwanted.lastIndex = 0
+        if (text && unwanted.test(text)) node.nodeValue = text.replace(unwanted, '')
+      }
+      const sweep = (within) => {
+        const walker = document.createTreeWalker(within, NodeFilter.SHOW_TEXT)
+        while (walker.nextNode()) clean(walker.currentNode)
+      }
+      sweep(root)
+      new MutationObserver((changes) => {
+        for (const change of changes) {
+          if (change.type === 'characterData') clean(change.target)
+          else for (const node of change.addedNodes) node.nodeType === Node.TEXT_NODE ? clean(node) : node.nodeType === Node.ELEMENT_NODE && sweep(node)
+        }
+      }).observe(root, { subtree: true, childList: true, characterData: true })
+    },
     // The font of the words, from its file (base64): a FontFace made from
     // bytes isn't fetched, so the page's policy has nothing to refuse.
     async font(base64) {

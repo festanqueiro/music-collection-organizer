@@ -20,8 +20,12 @@ node website/capture/promo.mjs ~/Desktop/MCO-promo.mp4 --music "/path/to/track.w
   MCO library isn't touched). Delete that folder to prepare it again. The folder's path shows in
   the details panel: a link from somewhere neutral (`/Users/Shared/Music/…`) keeps your user name
   out of the picture. The track that is played is the soundtrack's own, when it is in the folder.
+- **Text to leave out of the picture**: `--tidy "<regular expression>"` takes what matches out of
+  everything the app shows while recording — a mastering suffix that a file's own title carries
+  (`Future First_MST`), say. Only the picture changes: the library and the files keep their
+  titles (to change those, edit the tags in MCO and Save).
 - **This machine's defaults**: `website/capture/promo.local.json` (not in git) —
-  `{ "library": "…", "music": "…", "musicStart": 92.5 }` — is what a plain
+  `{ "library": "…", "music": "…", "musicStart": 92.5, "tidy": "…" }` — is what a plain
   `node website/capture/promo.mjs out.mp4` records with.
 - **The soundtrack**: `--music` takes any audio file ffmpeg reads, `--music-start` the second to
   start from (pick a drop: the video opens on it). It is looped if shorter than the video and
@@ -167,5 +171,8 @@ The frame leaves; the closing card, with the logo again.
   second time (a real one is still playing).
 - **Selectors** are the app's own labels (`aria-label="Larger player"`, `button:has-text("Convert
   to…")`…): a renamed button stops the script at that scene with the selector in the error.
+- **The waveform is recorded in the RGB style** (set before the stage goes up): in Classic a
+  track that has just started is nearly all in the dim colour of what hasn't played, which on a
+  five-minute track is a grey close-up.
 - **The recording leaves the demo app's waveform style and player size as it found them** (Classic,
   normal) so the smoke test and the website captures start from the same place.

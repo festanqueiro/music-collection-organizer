@@ -21,7 +21,8 @@ const option = (name, fallback) => {
   return i >= 0 ? args.splice(i, 2)[1] : fallback
 }
 // What this machine records with when nothing is said: promo.local.json
-// (not in git) — { "library": folder, "music": file, "musicStart": seconds }.
+// (not in git) — { "library": folder, "music": file, "musicStart": seconds,
+// "tidy": a regular expression for text to leave out of the picture }.
 const localFile = new URL('./promo.local.json', import.meta.url)
 const local = fs.existsSync(localFile) ? JSON.parse(fs.readFileSync(localFile, 'utf8')) : {}
 // The library shown: a folder of your own music (`--library`), prepared the
@@ -129,6 +130,11 @@ fs.mkdirSync(frames, { recursive: true })
 const { app, win } = await launch()
 const sleep = (ms) => win.waitForTimeout(ms)
 await win.waitForSelector('text=PLAYLISTS', { timeout: 30000 })
+// The waveform in colour by frequency: in Classic a track that has only
+// just started is nearly all in the dim colour of what hasn't played.
+await win.evaluate(() => localStorage.setItem('waveformStyle', 'rgb'))
+await win.reload()
+await win.waitForSelector('text=PLAYLISTS', { timeout: 30000 })
 await sleep(1500)
 
 // ---- the stage: the frame around the app, and what is drawn over it ----
@@ -139,15 +145,17 @@ await stage('logo', `data:image/png;base64,${fs.readFileSync(path.join(REPO, 're
 // Who is in the scenes: the demo collection's tracks by name, or, in a
 // library of your own, the rows at the top (the soundtrack's own track is
 // the one played, when it is in the library).
+const tidy = option('tidy', local.tidy)
+if (tidy) await stage('tidy', tidy)
 const cast = library
-  ? await win.evaluate(async (soundtrack) => {
-      const shown = (t) => t.title || t.filename
+  ? await win.evaluate(async ([soundtrack, tidy]) => {
+      const shown = (t) => (t.title || t.filename).replace(new RegExp(tidy || '$^', 'g'), '')
       const tracks = (await window.api.getTracks()).sort((a, b) => shown(a).localeCompare(shown(b)))
       const genres = await window.api.getGenres()
       const play = tracks.find((t) => t.path === soundtrack) ?? tracks[1]
       const others = tracks.filter((t) => t !== play)
       return { hover: shown(others[3]), play: shown(play), convert: shown(others[1]), tag: genres[0].name }
-    }, music)
+    }, [music, tidy])
   : { hover: 'Cold Fire (Dub)', play: 'Basement (Dub)', convert: 'Bassline Science', tag: 'Dubstep' }
 const accents = await win.evaluate(() => window.promo.accents)
 // A scene opens with its colour and its words.
@@ -251,7 +259,7 @@ const inSeveral = await win.evaluate(async () => {
   }
   return best
 })
-await click(rowOf(inSeveral.title))
+await click(rowOf(tidy ? inSeveral.title.replace(new RegExp(tidy, 'g'), '') : inSeveral.title))
 await sleep(800)
 const section = (name) => win.locator(`button[aria-expanded]:has-text("${name}")`).first()
 // Up the panel, so the zoom has the whole section rather than its top edge.
