@@ -106,12 +106,18 @@ The frame leaves; the closing card.
 - **Frames** come from Chromium's own screencast over the DevTools protocol
   (`Page.startScreencast`): a JPEG each time the page paints, about 27 a second, each with its
   time. Playwright's `recordVideo` leaves the window blank with this Electron on a Mac.
-- **Around and over the app**, drawn in the page by `promoStage.js`: a dark backdrop; a window
+- **Around and over the app**, drawn in the page by `promoStage.js`: a dark backdrop with fat
+  ribbons that wiggle slowly upwards like smoke (a canvas; slate, two in the scene's colour — the
+  `RIBBONS` list sets where, how fat and how fast); a window
   frame (title bar, border and glow in the scene's colour) the app is fitted into and never
-  leaves; **the scene's words in a band above the frame, always**; close-ups, which enlarge the
+  leaves; **the scene's words in a band above the frame, always**, arriving a word at a time with a line
+  drawn under them while the frame flashes in the scene's colour (the cards' letters arrive one
+  by one too); close-ups, which enlarge the
   app inside the frame; a marching outline around what is being shown; a pointer that follows
   the mouse (the real one isn't in a screencast); and the two cards. The app's own layout isn't
   touched — `#root` is moved into the frame and only gets a transform.
+- **The font** of the words and cards is Space Grotesk (`fonts/SpaceGrotesk.ttf`, SIL Open Font
+  License, `fonts/OFL.txt`). To change it, put another `.ttf` there and its name in `promo.mjs`.
 - **In `promo.mjs`**: `scene(id, colour)` puts up a scene's words and colour, `zoomTo(locator,
   scale)` goes closer on something, `spot(locator, extra)` outlines it, `home()` shows the whole
   app again. The colours are the `ACCENTS` of `promoStage.js`.
@@ -132,8 +138,9 @@ The frame leaves; the closing card.
 - **Rows have to be on screen to be clicked**: with the larger player the table is short. The
   scenes use rows near the top (*Deep Water*, *Basement (Dub)*, *Bassline Science*), and the
   details scene comes before the player is made larger.
-- **A `<style>` written into the page is refused** by the app's Content-Security-Policy; the
-  stage adopts a constructed stylesheet instead.
+- **A `<style>` written into the page is refused** by the app's Content-Security-Policy, and so
+  are `style="…"` attributes and fonts from a URL: the stage adopts a constructed stylesheet,
+  sets styles from script, and makes the font from the file's bytes (`FontFace`).
 - **A close-up can't centre something at the edge of the app** (the app never leaves the frame),
   so the details sections are scrolled into the middle of their panel before their close-ups.
 - **Menus and dialogs** are the app's own and are shown at the fitted size or closer like the

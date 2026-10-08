@@ -1,9 +1,10 @@
 // What the promo video draws in the app's page, around and over the app
 // (run in the page by promo.mjs; see promo.md):
 //
-// - a dark backdrop, and on it the app in a window frame — a title bar and
-//   a border in the scene's colour — that the app never leaves;
-// - the scene's words above the frame, always;
+// - a dark backdrop with fat ribbons that wiggle slowly upwards like
+//   smoke, and on it the app in a window frame — a title bar and a border
+//   in the scene's colour — that the app never leaves;
+// - the scene's words above the frame, always, arriving a word at a time;
 // - zooms inside the frame (`window.promo.zoomAt`), a pointer, a marching
 //   outline around what's being shown, and the title and end cards.
 //
@@ -26,6 +27,11 @@
       border: 2px solid var(--promo-accent); transition: border-color 500ms ease, box-shadow 500ms ease, opacity 600ms ease, transform 700ms cubic-bezier(.22,.8,.2,1);
       box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 0 42px -6px var(--promo-accent), 0 30px 70px rgba(0,0,0,.6); }
     #promo-frame.away { opacity: 0; transform: translateY(26px) scale(.97); }
+    #promo-smoke { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; filter: blur(7px); }
+    /* A ring that flashes round the frame as a scene opens. */
+    #promo-flash { position: fixed; z-index: 3; pointer-events: none; border-radius: 14px; opacity: 0; box-shadow: 0 0 0 4px var(--promo-accent), 0 0 60px 6px var(--promo-accent); }
+    #promo-flash.on { animation: promo-flash 800ms ease-out; }
+    @keyframes promo-flash { 0% { opacity: 0; transform: scale(.985); } 22% { opacity: 1; } 100% { opacity: 0; transform: scale(1.012); } }
     #promo-bar { height: ${BAR}px; display: flex; align-items: center; gap: 7px; padding: 0 12px; background: #161a23; border-bottom: 1px solid rgba(255,255,255,.08);
       font: 500 12px/1 Roboto, system-ui, sans-serif; color: #8b95a8; }
     #promo-bar i { width: 11px; height: 11px; border-radius: 50%; display: block; }
@@ -34,12 +40,23 @@
     #root { position: absolute; left: 0; top: 0; width: 100vw; height: 100vh; transform-origin: 0 0; will-change: transform; background: var(--color-bg);
       transition: transform 950ms cubic-bezier(.22,.8,.2,1); }
     #promo-caption { position: fixed; left: 0; right: 0; top: 0; height: ${CAPTION}px; z-index: 2147483646; pointer-events: none;
-      display: flex; align-items: center; justify-content: center; gap: 16px; white-space: nowrap;
-      font: 700 34px/1.1 Roboto, system-ui, sans-serif; letter-spacing: .005em; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,.6);
-      opacity: 0; transform: translateY(10px); transition: opacity 280ms ease, transform 280ms ease; }
-    #promo-caption.on { opacity: 1; transform: none; }
-    #promo-caption::before { content: ''; width: 14px; height: 14px; border-radius: 4px; background: var(--promo-accent); box-shadow: 0 0 18px var(--promo-accent);
-      animation: promo-pulse 900ms ease-in-out infinite; }
+      display: flex; align-items: center; justify-content: center; gap: 18px; white-space: nowrap;
+      font: 700 37px/1.1 'Promo Grotesk', Roboto, system-ui, sans-serif; letter-spacing: -.012em; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,.6);
+      opacity: 0; transition: opacity 240ms ease; }
+    #promo-caption.on { opacity: 1; }
+    /* The words arrive one after another, each from below; a line in the scene's colour draws under them. */
+    #promo-caption .text { position: relative; padding-bottom: 9px; }
+    #promo-caption .w { display: inline-block; margin-right: .27em; opacity: 0; }
+    #promo-caption .w:last-of-type { margin-right: 0; }
+    #promo-caption.on .w { animation: promo-word 560ms cubic-bezier(.2,.9,.25,1.15) both; }
+    @keyframes promo-word { from { opacity: 0; transform: translateY(26px) rotate(5deg) scale(.92); filter: blur(5px); } to { opacity: 1; transform: none; filter: none; } }
+    #promo-caption .line { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; border-radius: 2px; background: var(--promo-accent); box-shadow: 0 0 14px var(--promo-accent);
+      transform: scaleX(0); transform-origin: 0 50%; transition: background 500ms ease; }
+    #promo-caption.on .line { animation: promo-line 700ms cubic-bezier(.3,.8,.2,1) 260ms both; }
+    @keyframes promo-line { to { transform: scaleX(1); } }
+    #promo-caption .sq { width: 15px; height: 15px; border-radius: 4px; background: var(--promo-accent); box-shadow: 0 0 18px var(--promo-accent); margin-bottom: 9px; }
+    #promo-caption.on .sq { animation: promo-sq 620ms cubic-bezier(.2,.9,.25,1.3) both, promo-pulse 900ms ease-in-out 620ms infinite; }
+    @keyframes promo-sq { from { opacity: 0; transform: scale(0) rotate(-180deg); } to { opacity: 1; transform: none; } }
     @keyframes promo-pulse { 50% { transform: scale(1.35) rotate(45deg); } }
     #promo-spot { position: fixed; z-index: 2147483644; pointer-events: none; opacity: 0; border-radius: 8px;
       transition: opacity 300ms ease, left 500ms ease, top 500ms ease, width 500ms ease, height 500ms ease; }
@@ -54,12 +71,14 @@
     #promo-card { position: fixed; inset: 0; z-index: 2147483645; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
       opacity: 0; transition: opacity 500ms ease; }
     #promo-card.on { opacity: 1; }
-    #promo-card .title { font: 800 120px/1 Roboto, system-ui, sans-serif; letter-spacing: .04em;
-      background: linear-gradient(100deg, #ffd23f, #ff5fa2 35%, #a78bfa 62%, #4cc9f0); background-size: 220% 100%; -webkit-background-clip: text; background-clip: text; color: transparent;
-      animation: promo-sheen 3.2s ease-in-out infinite alternate; }
+    #promo-card .title { font: 700 132px/1 'Promo Grotesk', Roboto, system-ui, sans-serif; letter-spacing: .03em; display: flex; }
+    #promo-card .title span { background: linear-gradient(100deg, #ffd23f, #ff5fa2 35%, #a78bfa 62%, #4cc9f0); background-size: 320% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; }
+    #promo-card.on .title span { animation: promo-letter 700ms cubic-bezier(.2,.9,.25,1.2) both, promo-sheen 3.2s ease-in-out infinite alternate; }
+    @keyframes promo-letter { from { opacity: 0; transform: translateY(60px) scale(.7) rotate(-8deg); filter: blur(8px); } to { opacity: 1; transform: none; filter: none; } }
     @keyframes promo-sheen { to { background-position: 100% 0; } }
-    #promo-card .line { font: 500 30px/1.3 Roboto, system-ui, sans-serif; color: #c9d1e0; }
+    #promo-card .line { font: 500 31px/1.3 'Promo Grotesk', Roboto, system-ui, sans-serif; color: #c9d1e0; }
     #promo-card .line + .line { font-weight: 400; font-size: 23px; color: #8b95a8; }
+    #promo-card.on .line { animation: promo-word 620ms cubic-bezier(.2,.9,.25,1.1) both; }
     #promo-pointer { position: fixed; left: -40px; top: -40px; z-index: 2147483647; pointer-events: none; }
     #promo-click { position: fixed; z-index: 2147483646; pointer-events: none; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; opacity: 0; box-shadow: 0 0 0 3px var(--promo-accent); }
     #promo-click.on { animation: promo-click 420ms ease-out forwards; }
@@ -79,7 +98,9 @@
   const frameWidth = Math.round(innerWidth * base)
   const viewHeight = Math.round(innerHeight * base)
   Object.assign(frame.style, { left: `${Math.round((innerWidth - frameWidth) / 2)}px`, top: `${CAPTION}px`, width: `${frameWidth}px` })
-  add('promo-bar', '<i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>MCO — Music Collection Organizer</span>', frame)
+  // The three dots get their colours here: a style attribute written into the page is refused like a <style>.
+  const bar = add('promo-bar', '<i></i><i></i><i></i><span>MCO — Music Collection Organizer</span>', frame)
+  ;['#ff5f57', '#febc2e', '#28c840'].forEach((color, i) => { bar.children[i].style.background = color })
   const viewEl = add('promo-view', '', frame)
   viewEl.style.height = `${viewHeight}px`
   viewEl.appendChild(root)
@@ -87,6 +108,12 @@
   const pointer = add('promo-pointer', '<svg width="26" height="26" viewBox="0 0 24 24"><path d="M4 2 L4 20 L9 15 L12.5 22 L15.5 20.5 L12 13.5 L19 13.5 Z" fill="white" stroke="black" stroke-width="1.4" stroke-linejoin="round"/></svg>')
   const ring = add('promo-click')
   const captionEl = add('promo-caption')
+  const flashEl = add('promo-flash')
+  {
+    const at = frame.getBoundingClientRect()
+    Object.assign(flashEl.style, { left: `${at.left}px`, top: `${at.top}px`, width: `${at.width}px`, height: `${at.height}px` })
+  }
+  const again = (el) => { el.classList.remove('on'); void el.offsetWidth; el.classList.add('on') }
   const spotEl = add('promo-spot')
   const cardEl = add('promo-card')
   add('promo-tick')
@@ -112,9 +139,60 @@
   }
   apply(1, 0, 0)
 
+  // The backdrop: fat ribbons, each a slow double wave that travels up the
+  // picture, wider towards the top, as smoke is. Mostly slate; one takes
+  // the scene's colour.
+  const smoke = document.createElement('canvas')
+  smoke.id = 'promo-smoke'
+  smoke.width = Math.round(innerWidth / 2)
+  smoke.height = Math.round(innerHeight / 2)
+  document.body.insertBefore(smoke, document.body.firstChild)
+  const pen = smoke.getContext('2d')
+  const RIBBONS = [
+    { at: 0.07, fat: 46, sway: 34, rise: 15, phase: 0.0, tint: false },
+    { at: 0.24, fat: 30, sway: 46, rise: 22, phase: 2.1, tint: true },
+    { at: 0.44, fat: 58, sway: 30, rise: 12, phase: 4.4, tint: false },
+    { at: 0.63, fat: 34, sway: 42, rise: 19, phase: 1.2, tint: false },
+    { at: 0.80, fat: 50, sway: 36, rise: 14, phase: 3.3, tint: true },
+    { at: 0.95, fat: 28, sway: 40, rise: 24, phase: 5.6, tint: false },
+  ]
+  let accent = ACCENTS.yellow
+  function drawSmoke(now) {
+    const t = now / 1000
+    const { width: W, height: H } = smoke
+    pen.clearRect(0, 0, W, H)
+    for (const r of RIBBONS) {
+      // The middle of the ribbon at height y, and half its width there.
+      const mid = (y) => r.at * W + r.sway * Math.sin((y + t * r.rise) / 74 + r.phase) + r.sway * 0.45 * Math.sin((y + t * r.rise * 1.7) / 31 + r.phase * 2)
+      const half = (y) => r.fat * (0.55 + 0.75 * (1 - y / H)) * (1 + 0.18 * Math.sin((y + t * r.rise * 1.3) / 52 + r.phase))
+      pen.beginPath()
+      for (let y = H + 20; y >= -20; y -= 6) pen.lineTo(mid(y) - half(y), y)
+      for (let y = -20; y <= H + 20; y += 6) pen.lineTo(mid(y) + half(y), y)
+      pen.closePath()
+      const fade = pen.createLinearGradient(0, H, 0, 0)
+      const color = r.tint ? accent : '#5b6b8c'
+      const strength = r.tint ? 0.13 : 0.17
+      fade.addColorStop(0, color + '00')
+      fade.addColorStop(0.3, color + Math.round(strength * 255).toString(16).padStart(2, '0'))
+      fade.addColorStop(0.8, color + Math.round(strength * 0.7 * 255).toString(16).padStart(2, '0'))
+      fade.addColorStop(1, color + '00')
+      pen.fillStyle = fade
+      pen.fill()
+    }
+    requestAnimationFrame(drawSmoke)
+  }
+  requestAnimationFrame(drawSmoke)
+
   window.promo = {
     accents: ACCENTS,
-    accent(color) { document.documentElement.style.setProperty('--promo-accent', color) },
+    accent(color) { accent = color; document.documentElement.style.setProperty('--promo-accent', color) },
+    // The font of the words, from its file (base64): a FontFace made from
+    // bytes isn't fetched, so the page's policy has nothing to refuse.
+    async font(base64) {
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+      const face = new FontFace('Promo Grotesk', bytes.buffer, { weight: '300 700' })
+      document.fonts.add(await face.load())
+    },
     // The whole app in the frame.
     home() { apply(1, 0, 0) },
     // Closer: the point (x, y) of the picture as it is now, brought to the
@@ -127,9 +205,24 @@
     },
     // The frame out of the picture (for the cards), or back in it.
     away(gone) { frame.classList.toggle('away', gone) },
+    // A scene's words: the old ones fade, the new arrive a word at a time,
+    // and the frame flashes in the scene's colour.
     caption(text) {
       captionEl.classList.remove('on')
-      if (text) setTimeout(() => { captionEl.textContent = text; captionEl.classList.add('on') }, 260)
+      if (!text) return
+      setTimeout(() => {
+        captionEl.innerHTML = '<div class="sq"></div><div class="text"><div class="line"></div></div>'
+        const textEl = captionEl.querySelector('.text')
+        text.split(' ').forEach((word, i) => {
+          const w = document.createElement('span')
+          w.className = 'w'
+          w.textContent = word
+          w.style.animationDelay = `${120 + i * 60}ms`
+          textEl.insertBefore(w, textEl.lastChild)
+        })
+        captionEl.classList.add('on')
+        if (!frame.classList.contains('away')) again(flashEl)
+      }, 260)
     },
     // The marching outline, kept inside the frame; no rectangle takes it away.
     spot(rect, pad = 4) {
@@ -147,9 +240,16 @@
       cardEl.innerHTML = ''
       const t = document.createElement('div')
       t.className = 'title'
-      t.textContent = title
+      // A letter at a time, each with its own part of the gradient.
+      ;[...title].forEach((letter, i, all) => {
+        const l = document.createElement('span')
+        l.textContent = letter
+        l.style.animationDelay = `${i * 110}ms, ${i * 110}ms`
+        l.style.backgroundPosition = `${(i / Math.max(1, all.length - 1)) * 60}% 0`
+        t.appendChild(l)
+      })
       cardEl.appendChild(t)
-      for (const line of lines) { const l = document.createElement('div'); l.className = 'line'; l.textContent = line; cardEl.appendChild(l) }
+      lines.forEach((line, i) => { const l = document.createElement('div'); l.className = 'line'; l.textContent = line; l.style.animationDelay = `${420 + i * 160}ms`; cardEl.appendChild(l) })
       cardEl.classList.add('on')
     },
   }

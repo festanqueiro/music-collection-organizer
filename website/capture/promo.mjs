@@ -61,6 +61,7 @@ await sleep(1500)
 // ---- the stage: the frame around the app, and what is drawn over it ----
 await win.evaluate(fs.readFileSync(new URL('./promoStage.js', import.meta.url), 'utf8'))
 const stage = (method, ...values) => win.evaluate(([m, v]) => window.promo[m](...v), [method, values])
+await stage('font', fs.readFileSync(new URL('./fonts/SpaceGrotesk.ttf', import.meta.url)).toString('base64'))
 const accents = await win.evaluate(() => window.promo.accents)
 // A scene opens with its colour and its words.
 const scene = async (id, color) => {
