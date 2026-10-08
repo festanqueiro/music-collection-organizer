@@ -11,6 +11,7 @@ export function ConfirmDialog({
   children,
   confirmLabel = 'Confirm',
   icon = 'warning',
+  width = '400px',
   onConfirm,
   onCancel,
 }: {
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   children: ReactNode
   confirmLabel?: string
   icon?: string
+  width?: string
   onConfirm: () => void
   onCancel: () => void
 }) {
@@ -56,7 +58,8 @@ export function ConfirmDialog({
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           padding: '20px 24px',
-          width: '400px',
+          width,
+          maxWidth: 'calc(100vw - 32px)',
           display: 'flex',
           flexDirection: 'column',
           gap: '12px',

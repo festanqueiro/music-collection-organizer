@@ -174,6 +174,44 @@ describe('rekordbox import', () => {
     expect(getPlaylistTrackIds(db, bassin)).toHaveLength(1)
   })
 
+  it('imports into a folder of the box, a new folder or the top level — and refreshes there', () => {
+    const mine = createPlaylistNode(db, 'folder', 'Gigs', null)
+    createPlaylistNode(db, 'playlist', 'Kept here', mine)
+    applyRekordboxImport(db, tree(['/m/a.wav']), [], {}, { kind: 'folder', id: mine })
+    let nodes = getPlaylistNodes(db)
+    // No Rekordbox folder; the tree lands after what's already in Gigs.
+    expect(nodes.map((n) => n.name)).toEqual(['Gigs', 'Kept here', 'Sets', 'Bassin'])
+    const sets = nodes.find((n) => n.name === 'Sets')!
+    expect(sets.parentId).toBe(mine)
+    const bassin = nodes.find((n) => n.name === 'Bassin')!
+    expect(bassin.parentId).toBe(sets.id)
+
+    // Again, to somewhere else: refreshed where it is, nothing new made.
+    applyRekordboxImport(db, tree(['/m/a.wav', '/m/b.wav']), [], {}, { kind: 'new', name: ' Other ' })
+    nodes = getPlaylistNodes(db)
+    expect(nodes.map((n) => n.name)).toEqual(['Gigs', 'Kept here', 'Sets', 'Bassin'])
+    expect(getPlaylistTrackIds(db, bassin.id)).toHaveLength(2)
+
+    const other: RekordboxNode[] = [{ kind: 'playlist', name: 'Starters', paths: ['/m/a.wav'] }]
+    applyRekordboxImport(db, other, [], {}, { kind: 'new', name: ' From the stick ' })
+    nodes = getPlaylistNodes(db)
+    const stick = nodes.find((n) => n.name === 'From the stick')!
+    expect([stick.kind, stick.source, stick.parentId]).toEqual(['folder', 'mco', null])
+    expect(nodes.find((n) => n.name === 'Starters')!.parentId).toBe(stick.id)
+
+    applyRekordboxImport(db, [{ kind: 'playlist', name: 'Loose', paths: [] }], [], {}, { kind: 'top' })
+    expect(getPlaylistNodes(db).find((n) => n.name === 'Loose')!.parentId).toBeNull()
+    expect(getPlaylistNodes(db).some((n) => n.name === 'Rekordbox')).toBe(false)
+  })
+
+  it('refuses a destination that is gone, a playlist, or a new folder with no name', () => {
+    const playlist = createPlaylistNode(db, 'playlist', 'Not a folder', null)
+    expect(() => applyRekordboxImport(db, tree([]), [], {}, { kind: 'folder', id: playlist })).toThrow()
+    expect(() => applyRekordboxImport(db, tree([]), [], {}, { kind: 'folder', id: 9999 })).toThrow()
+    expect(() => applyRekordboxImport(db, tree([]), [], {}, { kind: 'new', name: '  ' })).toThrow()
+    expect(getPlaylistNodes(db)).toHaveLength(1)
+  })
+
   it('matches a text export by title and artist, ignoring case and punctuation', () => {
     const [node] = rekordboxTxtToTree(db, 'Starters', [
       { title: 'HORNSMAN', artist: 'King Earthquake' },

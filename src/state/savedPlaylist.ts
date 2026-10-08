@@ -33,3 +33,31 @@ export function restoreRemovedTracks(current: number[], previous: number[], remo
   })
   return out
 }
+
+// Lower case, without accents, so "cafe" finds "Café".
+const fold = (text: string) => text.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+
+// The Playlists box's search: the ids of the nodes to show for `query`,
+// or null when there's nothing to filter by. A node shows when its name
+// has every word of the query, with the folders it sits in; a folder that
+// matches shows everything in it.
+export function filterPlaylistNodes(
+  nodes: { id: number; parentId: number | null; name: string }[],
+  query: string
+): Set<number> | null {
+  const words = fold(query).split(/\s+/).filter(Boolean)
+  if (words.length === 0) return null
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  const matches = new Set(nodes.filter((n) => words.every((w) => fold(n.name).includes(w))).map((n) => n.id))
+  const visible = new Set<number>()
+  for (const node of nodes) {
+    // Guarded against a parent loop, which the DB shouldn't hold.
+    const chain: number[] = []
+    for (let n: typeof node | undefined = node; n && !chain.includes(n.id); n = n.parentId === null ? undefined : byId.get(n.parentId)) {
+      chain.push(n.id)
+    }
+    if (matches.has(node.id)) chain.forEach((id) => visible.add(id))
+    else if (chain.some((id) => matches.has(id))) visible.add(node.id)
+  }
+  return visible
+}

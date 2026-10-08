@@ -781,6 +781,7 @@ export function DetailPanel({
 // Per-viewer conveniences for the Similar tracks section.
 const SIMILAR_BY_KEY_KEY = 'similarTracksByKey'
 const SIMILAR_BY_TAGS_KEY = 'similarTracksByTags'
+const SIMILAR_BY_BPM_KEY = 'similarTracksByBpm'
 const SIMILAR_PAGE = 8
 
 const similarIconButtonStyle = { background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', color: 'var(--color-text-dim)' }
@@ -793,6 +794,8 @@ function SimilarTracksSection({ track, onSelectTrack }: { track: Track; onSelect
   const [open, toggleOpen] = useSectionOpen('similar')
   const [byKey, setByKey] = useState(() => loadFlag(SIMILAR_BY_KEY_KEY, true))
   const [byTags, setByTags] = useState(() => loadFlag(SIMILAR_BY_TAGS_KEY, true))
+  // Off until asked for: a tempo alone matches a large part of a collection.
+  const [byBpm, setByBpm] = useState(() => loadFlag(SIMILAR_BY_BPM_KEY, false))
   const [shown, setShown] = useState(SIMILAR_PAGE)
   const [playlistMenu, setPlaylistMenu] = useState<{ trackIds: number[]; x: number; y: number } | null>(null)
   const tracks = useCollectionStore((s) => s.tracks)
@@ -806,11 +809,12 @@ function SimilarTracksSection({ track, onSelectTrack }: { track: Track; onSelect
   const hasKey = toCamelot(track.musicalKey) !== null
   const tags = trackTags.get(track.id)
   const hasTags = !!tags && tags.genreIds.length + tags.subgenreIds.length > 0
+  const hasBpm = !!track.bpm
   const similar = useMemo(
-    () => (open ? findSimilarTracks(track, tracks, trackTags, { byKey, byTags }) : []),
+    () => (open ? findSimilarTracks(track, tracks, trackTags, { byKey, byTags, byBpm }) : []),
     // The selected track's own key, tempo and tags are all that matter of it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [open, track.id, track.musicalKey, track.bpm, tracks, trackTags, byKey, byTags]
+    [open, track.id, track.musicalKey, track.bpm, tracks, trackTags, byKey, byTags, byBpm]
   )
   const genreNames = useMemo(() => new Map(genres.map((g) => [g.id, g.name])), [genres])
   const subgenreNames = useMemo(() => new Map(subgenres.map((s) => [s.id, s.name])), [subgenres])
@@ -826,7 +830,7 @@ function SimilarTracksSection({ track, onSelectTrack }: { track: Track; onSelect
       }}
       disabled={!available}
       aria-pressed={on}
-      title={available ? hint : `This track has no ${label.toLowerCase()} yet`}
+      title={available ? hint : `This track has no ${label === 'BPM' ? label : label.toLowerCase()} yet`}
       style={{
         fontSize: '11px',
         padding: '1px 8px',
@@ -850,15 +854,16 @@ function SimilarTracksSection({ track, onSelectTrack }: { track: Track; onSelect
         <span style={{ display: 'flex', gap: '4px' }}>
           {toggle('Key', byKey, hasKey, setByKey, SIMILAR_BY_KEY_KEY, 'The same key, one step round the wheel, or the relative major/minor')}
           {toggle('Tags', byTags, hasTags, setByTags, SIMILAR_BY_TAGS_KEY, 'Shares a Tag or Subtag with this track')}
+          {toggle('BPM', byBpm, hasBpm, setByBpm, SIMILAR_BY_BPM_KEY, 'A tempo that mixes: within 6 %, or half/double time')}
         </span>
       }
     >
       {open && similar.length === 0 && (
         <div style={{ color: 'var(--color-text-dim)' }}>
-          {!hasKey && !hasTags
+          {!hasKey && !hasTags && !hasBpm
             ? 'Analyse this track or give it a Tag to find similar ones.'
-            : !byKey && !byTags
-              ? 'Switch on Key or Tags.'
+            : !byKey && !byTags && !byBpm
+              ? 'Switch on Key, Tags or BPM.'
               : 'Nothing similar found.'}
         </div>
       )}

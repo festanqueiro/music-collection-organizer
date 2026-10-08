@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-07
+updated: 2026-10-08
 adrs: [0050]
 ---
 # Playlists
@@ -24,6 +24,13 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   move into a folder); new ones go to the end of their folder. Rekordbox imports keep
   Rekordbox's order.
 - Empty state: "No playlists yet" with *New playlist* and *Import from Rekordbox…* links.
+- **Search**: the magnifier in the header opens a field under it; typing narrows the tree to
+  the playlists and folders whose name has every word typed (any order, ignoring case and
+  accents). A matching playlist shows with the folders it sits in; a matching folder shows
+  everything in it. Every folder shown is open while searching (the remembered open/closed
+  state comes back afterwards). **Esc** or the magnifier again closes it and shows everything;
+  the search isn't remembered. *No playlist or folder with that name* when nothing matches.
+  Starting a new playlist or folder, or F2, closes the search so the name field shows.
 - When the sidebar is collapsed to its icon strip, a playlist icon under the view icons
   reopens the sidebar with the box expanded.
 
@@ -99,6 +106,11 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
 - Before anything changes, a summary dialog: the folders and playlists found, how many songs
   matched songs in MCO, how many didn't (outside the collection folder, or not scanned yet), and
   which existing imported playlists will be **refreshed**. *Import* or *Cancel*.
+- The dialog stays the same size however big the import: two lines of totals on top, then
+  **tabs** over one list of a fixed height (it scrolls) — **Playlists** (each with songs found
+  + at a different path / songs), and, only when there's something in them, **Already in MCO**,
+  **Different path** and **Not in this export**, each with its count. It opens on the first tab
+  that asks for a decision (Already in MCO, else Different path, else Playlists).
 - **Already in MCO**: each incoming playlist that isn't a refresh is checked against MCO's
   playlists — the **same name** (ignoring case and punctuation) or the **same songs** (all of them,
   or at least 80% of the two together). The summary lists them ("MCO's “Sets / Sunday Session”:
@@ -107,13 +119,21 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   songs** — which replaces its songs and links it to Rekordbox: it stays in its folder, and the
   next import refreshes it there. Matching uses songs found by path (not the unconfirmed
   different-path ones).
-- The Rekordbox tree lands under a top folder **Rekordbox** (created once), mirroring Rekordbox's
-  folders and order. Empty folders are kept.
+- The Rekordbox tree lands under a top folder **Rekordbox** (created when first needed),
+  mirroring Rekordbox's folders and order. Empty folders are kept.
+- **Somewhere else**: the summary's **New ones go in** list chooses where the new playlists and
+  folders land — *The Rekordbox folder* (the default, every time), *The top level*, any folder of
+  the box (with the folders it sits in), or *A new folder…* (a name field; made at the top level,
+  as one of your own folders, only if something goes in it). There they're added at the end, after
+  what's already in the folder. Only what's new moves: playlists a refresh matches, or that
+  *Update MCO's* links, stay where they are — so importing the same export again into another
+  folder doesn't duplicate them. The list is hidden when the import only refreshes.
 - **Refresh**: importing again matches playlists and folders that came from Rekordbox by their
   path in Rekordbox's tree (e.g. `Sets/2026/Bassin`), replaces a matched playlist's songs with
   Rekordbox's list, adds new ones, and **keeps** ones no longer in the XML (the summary lists
-  them, marked "no longer in Rekordbox", so the user can delete them). Playlists made in MCO — and
-  anything moved out of the Rekordbox folder — are never touched. A playlist renamed in Rekordbox
+  them, marked "no longer in Rekordbox", so the user can delete them). Imported playlists are
+  matched wherever they are now (moved, or imported into another folder); playlists made in MCO,
+  or kept as one's own, are never touched. A playlist renamed in Rekordbox
   arrives as a new one (the XML has no stable id).
 - Edits made in MCO to an imported playlist are overwritten by the next refresh of that playlist;
   the summary says so, and the playlist's menu offers **Keep as my own** (detaches it from
@@ -130,7 +150,7 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   file name** — or one Rekordbox shortened (a cut-off name of 12+ characters that starts the
   collection's). Durations must agree within 2 s when both are known; only a single fitting song
   counts, and songs whose file is missing are never suggested.
-- These are never used silently: the summary's **Found at a different path** list shows each
+- These are never used silently: the summary's **Different path** tab shows each
   (old file name → collection song, and why), all ticked, with *All* / *None*. Ticked ones are
   imported as the collection's song and **remembered** (`playlist_path_aliases`), so importing
   the same export again matches them by path with no asking; unticked ones are left out and asked
@@ -155,6 +175,8 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
 - **Renderer**: `src/components/PlaylistsBox.tsx` (tree, menus, drop targets, split handle), a
   `selectedPlaylistId` and `playlists` in the store, `TrackTable` taking an ordered id list when a
   playlist is selected.
+- **Search**: `filterPlaylistNodes` (`src/state/savedPlaylist.ts`, pure) returns the ids to show;
+  `PlaylistsBox` filters each level by it. Names only — nothing is read from the DB.
 - **Editing songs** (phase 3): reorder and undo compute the new order in the renderer
   (`src/state/savedPlaylist.ts`: `moveTracksInPlaylist`, `restoreRemovedTracks` — pure, tested)
   and write it whole with `setPlaylistTrackIds` (`playlists:setTracks`), which renumbers
@@ -196,8 +218,13 @@ the m3u8 export and songs found at a different path.
   songs and Rekordbox imports left out.
 - `rekordboxXml.test.ts`: folders/playlists tree, both KeyTypes, URL-decoding of `Location`
   (spaces, `%20`, non-ASCII, NFD), empty folders, smart playlists.
+- `savedPlaylist.test.ts`, the search: no query, a match with its folders, case and accents,
+  every word in any order, a matching folder's contents, no match.
 - `savedPlaylist.test.ts`: moving one or several songs up/down/to the ends, dropping on a moved
   song, unknown ids; undo restoring places, keeping songs added since, no duplicates.
+- `playlists.test.ts`, the destination: into a folder (after what's there, no Rekordbox folder
+  made), a new folder, the top level; a second import refreshes in place; a missing folder, a
+  playlist or an empty name refused with nothing written.
 - `playlists.test.ts`, already in MCO: same name, same songs, mostly the same, none; refreshes
   aren't duplicates; skip / new / update-and-link, refreshed in place afterwards.
 - `playlists.test.ts`, songs at a different path: by size (from the export or the stick's file),
@@ -227,6 +254,7 @@ the m3u8 export and songs found at a different path.
   so the planned ⌥-drag to add a song twice was dropped; it would need songs identified by
   position instead. Rekordbox playlists with a song twice come in with it once.
 - Songs whose file is missing can't be dragged to reorder (the rows' drag is a file drag).
+- The search looks at names only, not at the songs inside a playlist.
 - Should *Play playlist* also be offered on the row menu when viewing a playlist ("Play from
   here")? Not built yet.
 - Two-way sync with Rekordbox (playlists, music info, cue points, files) is planned separately:

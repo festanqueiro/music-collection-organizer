@@ -4,6 +4,27 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.56 — 2026-10-08
+
+### Added
+- **Search in the Playlists box**: the magnifier in its header opens a
+  field; type part of a name to see only the playlists and folders that
+  match (any word order, accents and capitals don't matter). **Esc** closes
+  it and shows everything again.
+- **A BPM switch in Similar tracks**, next to Key and Tags: switch it on to
+  also list tracks at a tempo that mixes (within 6 %, or half/double time).
+  It starts off.
+- **Choose where a Rekordbox import goes**: the import's summary has a
+  **New ones go in** list — the Rekordbox folder (as before), the top level,
+  one of your folders, or a new folder you name there. Playlists a refresh
+  updates stay where they are.
+
+### Changed
+- **Import from Rekordbox's summary stays a fixed size**: the lists
+  (playlists, already in MCO, songs at a different path, no longer in the
+  export) are now tabs over one scrolling list, instead of stacking into a
+  window taller than the screen.
+
 ## 1.0.55 — 2026-10-08
 
 ### Added
