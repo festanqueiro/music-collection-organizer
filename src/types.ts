@@ -690,3 +690,48 @@ export interface WaveformSection {
   perSecond: number
   peaks: number[]
 }
+
+// "Convert to…" (docs/features/convert.md). Apple Lossless and AAC are
+// both .m4a files.
+export type ConvertFormat = 'wav' | 'aiff' | 'flac' | 'alac' | 'mp3' | 'aac'
+
+export interface ConvertOptions {
+  format: ConvertFormat
+  // WAV, AIFF, FLAC, Apple Lossless; null = same as the file (deeper than 24 → 24).
+  bitDepth: 16 | 24 | null
+  // MP3 and AAC, in kbps.
+  bitrate: number
+  // In Hz; null = same as the file.
+  sampleRate: number | null
+  // Where the converted files go; null = next to each original.
+  folder: string | null
+  // The converted file takes the track's place and the original goes to
+  // the Trash. Only next to the original.
+  replace: boolean
+}
+
+// What a file's audio is, as ffmpeg reads it. A lossy file has no bit depth.
+export interface AudioInfo {
+  codec: string
+  lossless: boolean
+  bitDepth: number | null
+  sampleRate: number | null
+}
+
+export interface ConvertResult {
+  trackId: number
+  // The original's file name.
+  name: string
+  status: 'converted' | 'skipped' | 'failed'
+  path?: string
+  replaced?: boolean
+  // Why it was skipped or failed, or a warning about a converted one.
+  message?: string
+}
+
+export interface ConvertProgress {
+  done: number
+  total: number
+  // The file being converted now.
+  name: string
+}

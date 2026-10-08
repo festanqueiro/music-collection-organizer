@@ -20,9 +20,11 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   collapse chevron. A drag handle between the tree and the box sets the split; the split and
   collapsed state are remembered (localStorage, like the sidebar's view).
 - The tree: folders (📁, expand/collapse, remembered) and playlists (a list icon), each playlist
-  with its song count dimmed on the right. Sorted as the user ordered them (drag to reorder or
-  move into a folder); new ones go to the end of their folder. Rekordbox imports keep
-  Rekordbox's order.
+  with its song count dimmed on the right. **Folders always come first, by name**
+  (numbers in order: `Set 2` before `Set 10`; case ignored), at every level. The playlists follow,
+  as the user ordered them (drag to reorder or move into a folder); new ones go to the end of
+  their folder, and Rekordbox imports keep Rekordbox's order. The same order is used everywhere
+  the tree is read: *Play folder*, the exports, *Add to playlist…*, the track details.
 - Empty state: "No playlists yet" with *New playlist* and *Import from Rekordbox…* links.
 - **Search**: the magnifier in the header opens a field under it; typing narrows the tree to
   the playlists and folders whose name has every word typed (any order, ignoring case and
@@ -91,6 +93,8 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
 - Drag a playlist or folder in the box: onto a folder puts it inside, onto a row's top or bottom
   edge places it before or after, below the tree moves it to the top level. A folder can't go
   inside itself.
+- Folders can be moved into and out of other folders, but not reordered among themselves: they
+  sort by name. A playlist dropped before a folder becomes the first of the playlists.
 
 ### Import from Rekordbox
 - *Import from Rekordbox…* opens a file picker (several files at once, opening in the folder the
@@ -213,6 +217,7 @@ the m3u8 export and songs found at a different path.
    MCO's Rekordbox XML export. Built in #99. ⌥ to add a duplicate was dropped (see Limits). (S–M)
 
 ## Tests
+- `playlists.test.ts`: folders first by name (numbers, case), playlists after in their order.
 - `playlists.test.ts`, a track's playlists: several, one, none, and after a removal.
 - `rekordboxExport.test.ts`: the MCO Playlists folder — nesting, order, empty folders, missing
   songs and Rekordbox imports left out.

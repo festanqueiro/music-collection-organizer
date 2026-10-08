@@ -31,6 +31,10 @@ import type {
   MenuCommand,
   RekordboxImportPlan,
   RekordboxReport,
+  AudioInfo,
+  ConvertOptions,
+  ConvertProgress,
+  ConvertResult,
   RekordboxDuplicateAction,
   RekordboxImportDestination,
   TrackCue,
@@ -183,6 +187,20 @@ const api = {
   ): Promise<{ cancelled: boolean; moved: { id: number; path: string; folder: string }[]; failed: number; alreadyThere: number; conflicts: number }> =>
     ipcRenderer.invoke('tracks:moveToFolder', trackIds, destination),
   showTrackInFolder: (trackId: number): void => ipcRenderer.send('tracks:showInFolder', trackId),
+  // "Convert to…": what the file is now, a folder to save in, the
+  // conversion (progress after each file) and a stop between files.
+  getTrackAudioInfo: (trackId: number): Promise<AudioInfo | null> => ipcRenderer.invoke('tracks:audioInfo', trackId),
+  pickConvertFolder: (defaultPath: string | null): Promise<string | null> => ipcRenderer.invoke('tracks:pickConvertFolder', defaultPath),
+  convertTracks: (trackIds: number[], options: ConvertOptions): Promise<{ results: ConvertResult[]; rescan: boolean } | { error: string }> =>
+    ipcRenderer.invoke('tracks:convert', trackIds, options),
+  stopConverting: (): void => ipcRenderer.send('tracks:convertStop'),
+  onConvertProgress: (cb: (progress: ConvertProgress) => void): (() => void) => {
+    const listener = (_e: unknown, progress: ConvertProgress) => cb(progress)
+    ipcRenderer.on('tracks:convertProgress', listener)
+    return () => {
+      ipcRenderer.removeListener('tracks:convertProgress', listener)
+    }
+  },
   trashTrack: (trackId: number): Promise<{ ok: true } | { ok: false; error: string }> =>
     ipcRenderer.invoke('tracks:trash', trackId),
   recordPlay: (trackId: number): Promise<{ playCount: number; lastPlayedAt: number } | null> =>

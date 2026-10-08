@@ -11,6 +11,7 @@ import type { Track, TrackTableColumnKey } from '../types'
 import { formatKey, keySortValue, toCamelot, camelotColor, areKeysCompatible, areBpmsCompatible } from '../state/harmonic'
 import { baseName, isInFolder } from '../paths'
 import { AddToPlaylistMenu } from './PlaylistsBox'
+import { ConvertDialog } from './ConvertDialog'
 // Lossy files below LOW_BITRATE_KBPS are flagged in the Bitrate column.
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 
@@ -216,6 +217,8 @@ export function TrackTable({
   const sortDir = sortState.direction
   const [contextMenu, setContextMenu] = useState<{ trackId: number; x: number; y: number } | null>(null)
   const [addToPlaylistMenu, setAddToPlaylistMenu] = useState<{ trackIds: number[]; x: number; y: number } | null>(null)
+  // "Convert to…": the tracks the dialog is open for.
+  const [convertTrackIds, setConvertTrackIds] = useState<number[] | null>(null)
   // The selected playlist (docs/features/playlists.md): its songs, in its
   // order until a column header is clicked.
   const selectedPlaylistId = useCollectionStore((s) => s.selectedPlaylistId)
@@ -1269,6 +1272,18 @@ export function TrackTable({
                 </button>
                 <button
                   onClick={() => {
+                    setConvertTrackIds(menuTrackIds)
+                    setContextMenu(null)
+                  }}
+                  style={contextMenuItemStyle}
+                >
+                  <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                    swap_horiz
+                  </span>
+                  Convert all to…
+                </button>
+                <button
+                  onClick={() => {
                     setTracksChecked(menuTrackIds, false)
                     setContextMenu(null)
                   }}
@@ -1372,6 +1387,18 @@ export function TrackTable({
             </button>
             <button
               onClick={() => {
+                setConvertTrackIds([contextMenu.trackId])
+                setContextMenu(null)
+              }}
+              style={contextMenuItemStyle}
+            >
+              <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+                swap_horiz
+              </span>
+              Convert to…
+            </button>
+            <button
+              onClick={() => {
                 window.api.showTrackInFolder(contextMenu.trackId)
                 setContextMenu(null)
               }}
@@ -1402,6 +1429,7 @@ export function TrackTable({
         {addToPlaylistMenu && (
           <AddToPlaylistMenu {...addToPlaylistMenu} onClose={() => setAddToPlaylistMenu(null)} />
         )}
+        {convertTrackIds && <ConvertDialog trackIds={convertTrackIds} onClose={() => setConvertTrackIds(null)} />}
       </div>
     </>
   )

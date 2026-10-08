@@ -1,7 +1,8 @@
 import { app, ipcMain, dialog, shell, BrowserWindow, powerSaveBlocker, type IpcMainInvokeEvent, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
-import { basename, dirname, join, relative, isAbsolute } from 'node:path'
+import { basename, dirname, join, relative, isAbsolute, sep } from 'node:path'
 import { writeFileSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { applyMoves, planMove, type MovedTrack } from './moveTracks'
+import { convertTracks, defaultConvertDeps, probeAudio } from './convert'
 import { listScreenDisplays, watchScreenDisplays } from './screenWindow'
 import type { AppDatabase } from './db'
 import {
@@ -135,6 +136,9 @@ import type {
   PlaylistNode,
   RekordboxImportPlan,
   RekordboxReport,
+  AudioInfo,
+  ConvertOptions,
+  ConvertResult,
   RekordboxDuplicateAction,
   RekordboxImportDestination,
   TrackCue,
@@ -1036,6 +1040,56 @@ export function registerIpcHandlers(
     const row = db.prepare('SELECT path FROM tracks WHERE id = ?').get(trackId) as { path: string } | undefined
     if (!row) return
     shell.showItemInFolder(row.path)
+  })
+
+  // "Convert to…" (docs/features/convert.md). What a file is now, for the
+  // dialog; the folder picker for somewhere else to save; and the
+  // conversion itself, one run at a time, reporting after each file.
+  ipcMain.handle('tracks:audioInfo', async (_e, trackId: number): Promise<AudioInfo | null> => {
+    const row = db.prepare('SELECT path FROM tracks WHERE id = ? AND present = 1').get(trackId) as { path: string } | undefined
+    if (!row) return null
+    return probeAudio(row.path).catch(() => null)
+  })
+  ipcMain.handle('tracks:pickConvertFolder', async (e, defaultPath: string | null): Promise<string | null> => {
+    const result = await showOpenDialog(e, {
+      title: 'Save the converted files in',
+      buttonLabel: 'Choose',
+      defaultPath: defaultPath ?? undefined,
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    return result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]
+  })
+  let converting = false
+  let stopConverting = false
+  ipcMain.handle(
+    'tracks:convert',
+    async (_e, trackIds: number[], options: ConvertOptions): Promise<{ results: ConvertResult[]; rescan: boolean } | { error: string }> => {
+      if (converting) return { error: 'A conversion is already running' }
+      converting = true
+      stopConverting = false
+      try {
+        const results = await convertTracks(
+          db,
+          defaultConvertDeps((path) => shell.trashItem(path)),
+          trackIds,
+          options,
+          (progress) => sendToRenderer('tracks:convertProgress', progress),
+          () => stopConverting
+        )
+        // Copies saved inside the collection are new tracks for a scan to find.
+        const collectionFolder = getCollectionFolder()
+        const rescan =
+          !!collectionFolder && results.some((r) => r.status === 'converted' && !r.replaced && !!r.path && r.path.startsWith(collectionFolder + sep))
+        return { results, rescan }
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : String(err) }
+      } finally {
+        converting = false
+      }
+    }
+  )
+  ipcMain.on('tracks:convertStop', () => {
+    stopConverting = true
   })
 
   // Moves the file to the Trash (recoverable — and on a synced folder,
