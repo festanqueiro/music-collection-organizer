@@ -1,0 +1,13 @@
+# What Graphify (the code knowledge graph, docs/adr/0063) leaves out, on top
+# of .gitignore: generated and binary things that say nothing about the code.
+package-lock.json
+website/assets/
+website/capture/.work/
+build/
+resources/
+*.png
+*.jpg
+*.icns
+*.ico
+*.mp4
+*.gif
