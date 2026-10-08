@@ -5,7 +5,7 @@ import { applyMoves, planMove, type MovedTrack } from './moveTracks'
 import { showOpenDialog, showSaveDialog } from './ipcDialogs'
 import { changeTrackBpm } from './bpmEdit'
 import { decodeToPcm } from './analysis/decode'
-import { computeWaveformBands, type WaveformBands } from './analysis/waveform'
+import { computeWaveformBands, decodeWaveformBands, encodeWaveformBands, type WaveformBands } from './analysis/waveform'
 import { registerTagIpc } from './ipcTags'
 import { registerPlaylistIpc } from './ipcPlaylists'
 import { registerConvertIpc } from './ipcConvert'
@@ -616,7 +616,8 @@ export function registerIpcHandlers(
       | { path: string; waveform_bands: string | null; present: number; cloud_status: string }
       | undefined
     if (!row) return Promise.resolve(null)
-    if (row.waveform_bands) return Promise.resolve(JSON.parse(row.waveform_bands) as WaveformBands)
+    const stored = row.waveform_bands ? decodeWaveformBands(row.waveform_bands) : null
+    if (stored) return Promise.resolve(stored)
     if (!row.present || row.cloud_status !== 'local') return Promise.resolve(null)
     const running = bandsInFlight.get(trackId)
     if (running) return running
@@ -624,7 +625,7 @@ export function registerIpcHandlers(
       try {
         const pcm = await decodeToPcm(await getPlayableFilePath(row.path, getMediaCacheDir()), 22050)
         const bands = computeWaveformBands(pcm, 22050)
-        db.prepare('UPDATE tracks SET waveform_bands = ? WHERE id = ?').run(JSON.stringify(bands), trackId)
+        db.prepare('UPDATE tracks SET waveform_bands = ? WHERE id = ?').run(encodeWaveformBands(bands), trackId)
         return bands
       } catch (err) {
         console.error('waveform bands failed', row.path, err)

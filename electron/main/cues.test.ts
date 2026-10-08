@@ -35,7 +35,7 @@ describe('cues', () => {
     expect(getTrackCues(db, a)).toEqual([])
   })
 
-  it("brings Rekordbox's cues in for songs without cues in MCO", () => {
+  it("brings Rekordbox's cues in: all of them for a song with none, the empty pads of one with cues", () => {
     setHotCue(db, b, 0, 5)
     const collection: RekordboxCollection = {
       version: '7',
@@ -54,14 +54,14 @@ describe('cues', () => {
           cues: [{ num: 1, type: 0, start: 9, color: null }] },
       ],
     }
-    expect(importRekordboxCues(db, collection, trackMatcher(db))).toEqual({ songs: 1, cues: 4, skipped: 1 })
+    expect(importRekordboxCues(db, collection, trackMatcher(db))).toEqual({ songs: 2, cues: 5, skipped: 0 })
     expect(getTrackCues(db, a).map((c) => [c.kind, c.slot, c.start, c.end, c.color])).toEqual([
       ['memory', -1, 2, null, null],
       ['hot', 0, 28.849, null, '#ff376f'],
       ['hot', 2, 56.675, null, '#7dc13d'],
       ['loop', -1, 60, 64, null],
     ])
-    // b kept its own cue.
-    expect(getTrackCues(db, b).map((c) => c.start)).toEqual([5])
+    // b kept its own cue on pad A, and its empty pad B took Rekordbox's.
+    expect(getTrackCues(db, b).map((c) => [c.slot, c.start])).toEqual([[0, 5], [1, 9]])
   })
 })

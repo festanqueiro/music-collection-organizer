@@ -8,6 +8,7 @@ import type { TempoTask, WorkerResult, WorkerTask } from './worker'
 import { decodeToPcm } from './decode'
 import { analysedBpm, refineBpm } from './tempoRefine'
 import { describeAnalysisError } from './errorMessage'
+import { encodeWaveformBands } from './waveform'
 
 // Tracks an analysis run was part-way through when the app last closed are
 // still marked 'analyzing': nothing is analysing them, and a bulk run only
@@ -45,7 +46,7 @@ function writeAnalysisResult(
     first_beat: result.firstBeat,
     musical_key: result.musicalKey,
     waveform_peaks: JSON.stringify(result.waveformPeaks),
-    waveform_bands: JSON.stringify(result.waveformBands),
+    waveform_bands: encodeWaveformBands(result.waveformBands),
     loudness: result.loudness,
     energy: result.energy,
     analyzed_at: Date.now(),

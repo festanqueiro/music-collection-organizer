@@ -52,6 +52,8 @@ export.
   deleted — the ×, the menu, Shift-1–8 — an **Undo** shows at the bottom of the window for 8 s and
   puts it back at the same place with its colour and name (not if that pad has been given a new
   cue in the meantime). `removeHotCue` / `undoCueRemove` in the store.
+- **From Rekordbox**: the collection import's *Hot cues* choice ([Playlists](playlists.md)) never
+  replaces a cue of MCO's: a song with cues only has its empty pads filled.
 - **Colours**: new cues take their slot's default — the ones the user's Rekordbox uses for A–D (pink,
   blue, green, purple), then orange, cyan, yellow, magenta for E–H from its palette — eight
   clearly different colours, so no two pads look alike, and a cue looks the same in both apps.
@@ -76,8 +78,9 @@ export.
 - **In**: Settings → Import & export → **Compare with Rekordbox…** → *Cue points* lists songs whose
   cues differ (only in Rekordbox, only in MCO, different — same slot, time within 10 ms and colour
   count as the same). **Bring Rekordbox's cues into MCO** copies them — hot cues, memory cues and
-  loops with their colours — for every matched song **that has no cues in MCO yet**; songs with
-  their own are left alone and counted. The user's 111 hot cues on 76 songs come in this way.
+  loops with their colours — for every matched song with no cues in MCO; a song **with its own cues keeps them** and only
+  has its empty pads filled with Rekordbox's hot cues. The user's 111 hot cues on 76 songs come in
+  this way.
 - **Out, the start**: a track whose start is set (and has a BPM) is exported with a `TEMPO`
   (`Inizio` = the start, `Bpm`, `Metro="4/4"`, `Battito="1"`) — Rekordbox's beat grid; other
   tracks carry none. Not yet checked in Rekordbox itself.

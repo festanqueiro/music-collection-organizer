@@ -15,6 +15,8 @@ installed copies update themselves.
   re-measures the tempo of the tracks you choose in about a second each —
   sharper, two thirds caught, slow tempos doubled — keeping everything
   else. A BPM you set by hand is left alone.
+- **A dot after a BPM you set** (or took from Rekordbox) in the table, and
+  *set by you* in the track details: the ones analysis leaves alone.
 - **Three new visualizer themes**: **Sponge** (a flight down an endless
   fractal corridor), **Crystal** (a folding fractal crystal) and **Tangle**
   (knots orbiting knots), from threejs-visualisers 0.4.0.
@@ -34,6 +36,11 @@ installed copies update themselves.
   included, and the list of them stays visible to confirm.
 
 ### Changed
+- **Importing cues from Rekordbox fills empty pads**: a song that already
+  has cues in MCO keeps them all and gets Rekordbox's hot cues on its
+  empty pads only. Before, such a song got nothing.
+- The coloured waveform's data takes less than half the space in the
+  database.
 - **Esc closes right-click menus.** The hot cue pads' menus and the
   waveform's stay inside the window like the others.
 - **A Rekordbox collection export is read once per import** instead of

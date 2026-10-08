@@ -73,7 +73,7 @@ export function RekordboxReportView({
   onClose: () => void
   onCompareAgain: () => void
   onPickFile: () => void
-  // Brings Rekordbox's cues into MCO for songs with none in MCO.
+  // Brings Rekordbox's cues into MCO: all of them for a song with none, the empty pads of one with cues.
   onImportCues: () => Promise<string>
 }) {
   const [importing, setImporting] = useState(false)
@@ -295,7 +295,7 @@ export function RekordboxReportView({
                     {importing ? 'Bringing them in…' : `Bring Rekordbox’s cues into MCO (${plural(report.cues.onlyRekordbox, 'song')})`}
                   </button>
                   <span style={{ fontSize: '12px', color: 'var(--color-text-dim)' }}>
-                    Only for songs with no cues in MCO; songs with their own are left alone.
+                    A song with no cues in MCO gets them all; one with its own keeps them and only has its empty pads filled.
                   </span>
                 </div>
               )}

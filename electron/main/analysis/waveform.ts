@@ -65,3 +65,33 @@ export function computeWaveformBands(pcm: Float32Array, sampleRate = 44100, peak
   }
   return { low, mid, high }
 }
+
+// How the bands are kept in the database: each level as one byte (0–255
+// for 0–1, which is finer than the few pixels it is drawn in), the three
+// bands end to end, in base64 — 3.2 kB a track instead of 8 kB of JSON
+// numbers, in a database every daily backup copies. Rows written before
+// this hold the JSON, which `decodeWaveformBands` still reads.
+export function encodeWaveformBands(bands: WaveformBands): string {
+  const count = bands.low.length
+  const bytes = Buffer.alloc(count * 3)
+  const level = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)))
+  for (let i = 0; i < count; i++) {
+    bytes[i] = level(bands.low[i])
+    bytes[count + i] = level(bands.mid[i] ?? 0)
+    bytes[2 * count + i] = level(bands.high[i] ?? 0)
+  }
+  return `b64:${bytes.toString('base64')}`
+}
+
+export function decodeWaveformBands(stored: string): WaveformBands | null {
+  try {
+    if (!stored.startsWith('b64:')) return JSON.parse(stored) as WaveformBands
+    const bytes = Buffer.from(stored.slice(4), 'base64')
+    const count = Math.floor(bytes.length / 3)
+    if (count === 0) return null
+    const band = (from: number) => Array.from(bytes.subarray(from, from + count), (b) => Math.round((b / 255) * 1000) / 1000)
+    return { low: band(0), mid: band(count), high: band(2 * count) }
+  } catch {
+    return null
+  }
+}

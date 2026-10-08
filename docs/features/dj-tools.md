@@ -79,7 +79,8 @@ of all…**) ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)):
 - A batch is measured in a worker thread, one track at a time (`createTempoMeasurer` in
   `analysis/queue.ts`), so the window stays usable; a toast counts *Refining the BPM: 3 of 40…*.
 - 30 to 300 BPM; anything else is refused with a message. A track with no BPM yet can only be set.
-- A BPM changed this way is **yours**: the menu's header says *set by you*, and analysing the
+- A BPM changed this way is **yours**: the menu's header says *set by you*, a dot follows it in
+  the table's BPM column and the details say so, and analysing the
   track again updates everything else but keeps it. **Detect it again** (shown for such tracks)
   forgets it and re-analyses.
 - The bar counter, the suggested cues, the Compatible filter's tempo match and the Rekordbox

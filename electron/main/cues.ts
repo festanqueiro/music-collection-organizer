@@ -61,9 +61,17 @@ export function deleteHotCue(db: AppDatabase, trackId: number, slot: number): Tr
   return getTrackCues(db, trackId)
 }
 
-// Rekordbox's cues → MCO, for songs MCO has (matched by path) that have no
-// cues in MCO yet — songs with MCO cues are left alone and counted. With
-// `write` off nothing is written: the counts, for the import's summary.
+// Rekordbox's cues → MCO, for songs MCO has (matched by path). A song with
+// no cues in MCO gets them all — hot cues, memory cues, loops. A song that
+// already has cues keeps every one of them and only has its **empty pads**
+// filled with Rekordbox's hot cues (not one that sits where an MCO hot cue
+// already is, and no memory cues or loops, which have no slot to tell a
+// second import from a first). `skipped`: songs with cues on both sides
+// that got nothing. With `write` off nothing is written: the counts, for
+// the import's summary.
+// Two cues closer than this are the same cue.
+const SAME_CUE_SECONDS = 0.05
+
 export function importRekordboxCues(
   db: AppDatabase,
   collection: RekordboxCollection,
@@ -71,7 +79,7 @@ export function importRekordboxCues(
   write = true
 ): { songs: number; cues: number; skipped: number } {
   return runInTransaction(db, () => {
-    const hasCues = db.prepare('SELECT 1 FROM track_cues WHERE track_id = ? LIMIT 1')
+    const ownCues = db.prepare('SELECT kind, slot, start FROM track_cues WHERE track_id = ?')
     const exists = db.prepare('SELECT 1 FROM tracks WHERE id = ?')
     const insert = db.prepare('INSERT INTO track_cues (track_id, kind, slot, start, end, color, name) VALUES (?, ?, ?, ?, ?, ?, ?)')
     let songs = 0
@@ -83,21 +91,25 @@ export function importRekordboxCues(
       const id = match(t.path)
       if (id === undefined || done.has(id) || !exists.get(id)) continue
       done.add(id)
-      if (hasCues.get(id)) {
-        skipped++
-        continue
-      }
-      const takenSlots = new Set<number>()
+      const own = ownCues.all(id) as { kind: string; slot: number; start: number }[]
+      const ownHot = own.filter((c) => c.kind === 'hot')
+      const takenSlots = new Set<number>(ownHot.map((c) => c.slot))
+      let added = 0
       for (const c of t.cues) {
         const kind: TrackCue['kind'] = c.type === 4 ? 'loop' : c.num >= 0 && c.num <= 7 ? 'hot' : 'memory'
         // Rekordbox numbers hot loops with a slot too; MCO keeps them as loops.
         const slot = kind === 'hot' ? c.num : -1
+        if (own.length > 0 && kind !== 'hot') continue
         if (kind === 'hot' && takenSlots.has(slot)) continue
+        // Already a hot cue of MCO's, on another pad.
+        if (kind === 'hot' && ownHot.some((mine) => Math.abs(mine.start - c.start) < SAME_CUE_SECONDS)) continue
         if (kind === 'hot') takenSlots.add(slot)
         if (write) insert.run(id, kind, slot, Math.round(c.start * 1000) / 1000, c.end ?? null, c.color ? rgbToHex(c.color) : null, '')
-        cues++
+        added++
       }
-      songs++
+      cues += added
+      if (added > 0) songs++
+      else if (own.length > 0) skipped++
     }
     return { songs, cues, skipped }
   })

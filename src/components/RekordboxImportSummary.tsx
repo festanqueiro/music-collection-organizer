@@ -92,9 +92,9 @@ export function RekordboxImportSummary({
             'cues',
             'Hot cues, memory cues and loops',
             extras.cues.songs > 0
-              ? `${count(extras.cues.cues, 'cue')} on ${count(extras.cues.songs, 'song')} with none in MCO yet.${extras.cues.skipped > 0 ? ` ${count(extras.cues.skipped, 'song')} that already ${extras.cues.skipped === 1 ? 'has' : 'have'} cues in MCO ${extras.cues.skipped === 1 ? 'is' : 'are'} left as ${extras.cues.skipped === 1 ? 'it is' : 'they are'}.` : ''}`
+              ? `${count(extras.cues.cues, 'cue')} on ${count(extras.cues.songs, 'song')}. A song that already has cues in MCO keeps them: only its empty pads are filled.${extras.cues.skipped > 0 ? ` ${count(extras.cues.skipped, 'song')} with cues on both sides ${extras.cues.skipped === 1 ? 'gets' : 'get'} nothing new.` : ''}`
               : extras.cues.skipped > 0
-                ? `Nothing to bring: the ${count(extras.cues.skipped, 'song')} with cues in Rekordbox already ${extras.cues.skipped === 1 ? 'has' : 'have'} cues in MCO.`
+                ? `Nothing to bring: the ${count(extras.cues.skipped, 'song')} with cues in Rekordbox already ${extras.cues.skipped === 1 ? 'has' : 'have'} them in MCO.`
                 : 'No cues in this export for songs in your collection.',
             extras.cues.songs > 0
           )}

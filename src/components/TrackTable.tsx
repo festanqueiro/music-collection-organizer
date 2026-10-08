@@ -746,7 +746,16 @@ export function TrackTable({
         )
       }
       case 'bpm':
-        return track.bpm?.toFixed(0) ?? '—'
+        // A dot after a BPM that was set by hand or taken from Rekordbox:
+        // analysis leaves that one alone.
+        return track.bpm && track.bpmEdited ? (
+          <span title="Set by you (or taken from Rekordbox): analysis keeps it. Refine BPM… → Detect it again hands it back.">
+            {track.bpm.toFixed(0)}
+            <span style={{ color: 'var(--color-accent)', marginLeft: '2px' }}>•</span>
+          </span>
+        ) : (
+          (track.bpm?.toFixed(0) ?? '—')
+        )
       case 'musicalKey': {
         const camelot = toCamelot(track.musicalKey)
         const label = formatKey(track.musicalKey, keyNotation)
