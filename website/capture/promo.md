@@ -106,9 +106,10 @@ The frame leaves; the closing card.
 - **Frames** come from Chromium's own screencast over the DevTools protocol
   (`Page.startScreencast`): a JPEG each time the page paints, about 27 a second, each with its
   time. Playwright's `recordVideo` leaves the window blank with this Electron on a Mac.
-- **Around and over the app**, drawn in the page by `promoStage.js`: a dark backdrop with fat
-  ribbons that wiggle slowly upwards like smoke (a canvas; slate, two in the scene's colour — the
-  `RIBBONS` list sets where, how fat and how fast); a window
+- **Around and over the app**, drawn in the page by `promoStage.js`: a dark backdrop with wide
+  bands that wave slowly sideways, left and right, sliding over one another — movement and
+  nothing else (a canvas; slate, two in the scene's colour — the `BANDS` list sets where, how
+  fat, how fast and which way); a window
   frame (title bar, border and glow in the scene's colour) the app is fitted into and never
   leaves; **the scene's words in a band above the frame, always**, arriving a word at a time with a line
   drawn under them while the frame flashes in the scene's colour (the cards' letters arrive one

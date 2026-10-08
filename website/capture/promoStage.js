@@ -1,8 +1,8 @@
 // What the promo video draws in the app's page, around and over the app
 // (run in the page by promo.mjs; see promo.md):
 //
-// - a dark backdrop with fat ribbons that wiggle slowly upwards like
-//   smoke, and on it the app in a window frame — a title bar and a border
+// - a dark backdrop with wide bands that wave slowly sideways over one
+//   another, and on it the app in a window frame — a title bar and a border
 //   in the scene's colour — that the app never leaves;
 // - the scene's words above the frame, always, arriving a word at a time;
 // - zooms inside the frame (`window.promo.zoomAt`), a pointer, a marching
@@ -27,7 +27,7 @@
       border: 2px solid var(--promo-accent); transition: border-color 500ms ease, box-shadow 500ms ease, opacity 600ms ease, transform 700ms cubic-bezier(.22,.8,.2,1);
       box-shadow: 0 0 0 1px rgba(0,0,0,.6), 0 0 42px -6px var(--promo-accent), 0 30px 70px rgba(0,0,0,.6); }
     #promo-frame.away { opacity: 0; transform: translateY(26px) scale(.97); }
-    #promo-smoke { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; filter: blur(7px); }
+    #promo-flow { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 0; pointer-events: none; filter: blur(12px); }
     /* A ring that flashes round the frame as a scene opens. */
     #promo-flash { position: fixed; z-index: 3; pointer-events: none; border-radius: 14px; opacity: 0; box-shadow: 0 0 0 4px var(--promo-accent), 0 0 60px 6px var(--promo-accent); }
     #promo-flash.on { animation: promo-flash 800ms ease-out; }
@@ -139,49 +139,53 @@
   }
   apply(1, 0, 0)
 
-  // The backdrop: fat ribbons, each a slow double wave that travels up the
-  // picture, wider towards the top, as smoke is. Mostly slate; one takes
-  // the scene's colour.
-  const smoke = document.createElement('canvas')
-  smoke.id = 'promo-smoke'
-  smoke.width = Math.round(innerWidth / 2)
-  smoke.height = Math.round(innerHeight / 2)
-  document.body.insertBefore(smoke, document.body.firstChild)
-  const pen = smoke.getContext('2d')
-  const RIBBONS = [
-    { at: 0.07, fat: 46, sway: 34, rise: 15, phase: 0.0, tint: false },
-    { at: 0.24, fat: 30, sway: 46, rise: 22, phase: 2.1, tint: true },
-    { at: 0.44, fat: 58, sway: 30, rise: 12, phase: 4.4, tint: false },
-    { at: 0.63, fat: 34, sway: 42, rise: 19, phase: 1.2, tint: false },
-    { at: 0.80, fat: 50, sway: 36, rise: 14, phase: 3.3, tint: true },
-    { at: 0.95, fat: 28, sway: 40, rise: 24, phase: 5.6, tint: false },
+  // The backdrop: wide bands lying across the picture, each a slow double
+  // wave that travels sideways — some to the right, some to the left, at
+  // their own speeds — rising and sinking a little, so they slide over one
+  // another. Only movement, nothing to look at. Mostly slate; two take the
+  // scene's colour.
+  const flow = document.createElement('canvas')
+  flow.id = 'promo-flow'
+  flow.width = Math.round(innerWidth / 2)
+  flow.height = Math.round(innerHeight / 2)
+  document.body.insertBefore(flow, document.body.firstChild)
+  const pen = flow.getContext('2d')
+  const BANDS = [
+    { at: 0.06, fat: 62, sway: 26, speed: 16, phase: 0.0, tint: false },
+    { at: 0.27, fat: 44, sway: 34, speed: -11, phase: 2.1, tint: true },
+    { at: 0.48, fat: 74, sway: 24, speed: 9, phase: 4.4, tint: false },
+    { at: 0.68, fat: 50, sway: 32, speed: -15, phase: 1.2, tint: false },
+    { at: 0.86, fat: 66, sway: 28, speed: 12, phase: 3.3, tint: true },
+    { at: 1.02, fat: 48, sway: 30, speed: -8, phase: 5.6, tint: false },
   ]
   let accent = ACCENTS.yellow
-  function drawSmoke(now) {
+  function drawFlow(now) {
     const t = now / 1000
-    const { width: W, height: H } = smoke
+    const { width: W, height: H } = flow
     pen.clearRect(0, 0, W, H)
-    for (const r of RIBBONS) {
-      // The middle of the ribbon at height y, and half its width there.
-      const mid = (y) => r.at * W + r.sway * Math.sin((y + t * r.rise) / 74 + r.phase) + r.sway * 0.45 * Math.sin((y + t * r.rise * 1.7) / 31 + r.phase * 2)
-      const half = (y) => r.fat * (0.55 + 0.75 * (1 - y / H)) * (1 + 0.18 * Math.sin((y + t * r.rise * 1.3) / 52 + r.phase))
+    for (const b of BANDS) {
+      // The middle of the band at x, and half its thickness there.
+      const lift = H * 0.07 * Math.sin(t / (8 + b.phase * 2) + b.phase * 3)
+      const mid = (x) => b.at * H + lift + b.sway * Math.sin((x - t * b.speed) / 150 + b.phase) + b.sway * 0.4 * Math.sin((x - t * b.speed * 1.8) / 63 + b.phase * 2)
+      const half = (x) => b.fat * (1 + 0.22 * Math.sin((x - t * b.speed * 1.3) / 110 + b.phase))
       pen.beginPath()
-      for (let y = H + 20; y >= -20; y -= 6) pen.lineTo(mid(y) - half(y), y)
-      for (let y = -20; y <= H + 20; y += 6) pen.lineTo(mid(y) + half(y), y)
+      for (let x = -20; x <= W + 20; x += 8) pen.lineTo(x, mid(x) - half(x))
+      for (let x = W + 20; x >= -20; x -= 8) pen.lineTo(x, mid(x) + half(x))
       pen.closePath()
-      const fade = pen.createLinearGradient(0, H, 0, 0)
-      const color = r.tint ? accent : '#5b6b8c'
-      const strength = r.tint ? 0.13 : 0.17
-      fade.addColorStop(0, color + '00')
-      fade.addColorStop(0.3, color + Math.round(strength * 255).toString(16).padStart(2, '0'))
-      fade.addColorStop(0.8, color + Math.round(strength * 0.7 * 255).toString(16).padStart(2, '0'))
-      fade.addColorStop(1, color + '00')
+      // Lighter towards one end, so the eye follows it across.
+      const fade = pen.createLinearGradient(0, 0, W, 0)
+      const color = b.tint ? accent : '#5b6b8c'
+      const strength = b.tint ? 0.085 : 0.12
+      const hex = (v) => Math.round(v * 255).toString(16).padStart(2, '0')
+      const [from, to] = b.speed > 0 ? [0.45, 1] : [1, 0.45]
+      fade.addColorStop(0, color + hex(strength * from))
+      fade.addColorStop(1, color + hex(strength * to))
       pen.fillStyle = fade
       pen.fill()
     }
-    requestAnimationFrame(drawSmoke)
+    requestAnimationFrame(drawFlow)
   }
-  requestAnimationFrame(drawSmoke)
+  requestAnimationFrame(drawFlow)
 
   window.promo = {
     accents: ACCENTS,
