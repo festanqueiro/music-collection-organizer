@@ -50,6 +50,12 @@ in `capture.mjs` and use it in `website/index.html`.
   opens while it runs; leave it be. The GPU draws the visualizer, so it
   looks better than on Linux's software WebGL.
 
+## A promo video
+
+`node website/capture/promo.mjs ~/Desktop/MCO-promo.mp4` records about 75 seconds of the real app
+with captions and music. Its script — the scenes and the words — and everything needed to record
+it again are in [promo.md](promo.md).
+
 **Clips on a Mac don't record with Playwright 1.64 and Electron 43**
 (2026-10-08): with `recordVideo` on, the app's window stays blank and
 `launch()` times out at `waitForLoadState`. Screenshots are fine
