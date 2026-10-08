@@ -1,5 +1,6 @@
 // @ts-expect-error essentia.js has no bundled TypeScript definitions for its default (index.js) export
 import { Essentia, EssentiaWASM } from 'essentia.js'
+import { refineBpm } from './tempoRefine'
 
 let essentiaInstance: any | null = null
 
@@ -30,7 +31,9 @@ export function detectBpmAndKey(pcm: Float32Array): BpmKeyResult {
     // vectorToArray throws on an empty vector (no beats found, e.g. a tone).
     const ticks: ArrayLike<number> = rhythm.ticks.size() > 0 ? essentia.vectorToArray(rhythm.ticks) : []
     return {
-      bpm: rhythm.bpm,
+      // The tracker's tempo is only as fine as its frames: sharpened over
+      // the whole track (tempoRefine.ts, ADR 0062).
+      bpm: refineBpm(pcm, rhythm.bpm),
       firstBeat: firstBeatFrom(ticks, pcm),
       key: keyResult.key,
       scale: keyResult.scale,

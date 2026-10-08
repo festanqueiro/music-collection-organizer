@@ -2,7 +2,7 @@
 // sets a cue where the track is; a set pad jumps there and plays. Right-click
 // (or Shift-click) a set pad to name, recolour or delete it. Keys 1–8 and
 // MIDI pads do the same as clicking. After the pads, suggested cues at bars
-// 8/16/32/48/64: click one to put it in the first empty pad (or jump to it
+// 8/16/24/32/40/48/56/64: click one to put it in the first empty pad (or jump to it
 // once set); right-click to pick which pad, A–H.
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import type { TrackCue } from '../types'
@@ -112,7 +112,7 @@ export function HotCuePads({
         <>
           <span
             style={{ fontSize: '11px', color: 'var(--color-text-dim)', margin: '0 2px 0 10px' }}
-            title="Suggested hot cues every 16 bars from the start of the tune."
+            title="Suggested hot cues every 8 bars from the start of the tune."
           >
             Suggested
           </span>

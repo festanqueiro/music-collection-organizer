@@ -76,7 +76,7 @@ export function Player({
   const recordPlay = useCollectionStore((s) => s.recordPlay)
   // Hot cues (docs/features/hot-cues.md), loaded once per track.
   const cues = useCollectionStore((s) => s.trackCues.get(track.id)) ?? NO_CUES
-  // Bars 8/16/32/48/64 from the start of the tune (src/state/hotCues.ts).
+  // Bars 8/16/24/…/64 from the start of the tune (src/state/hotCues.ts).
   // The waveform isn't in the track list (ADR 0058): read when the track
   // loads, and again once an analysis of it finishes.
   const peaks = useCollectionStore((s) => s.trackWaveforms.get(track.id)) ?? null
