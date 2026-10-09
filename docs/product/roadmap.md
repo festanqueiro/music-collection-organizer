@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-08
+updated: 2026-10-09
 ---
 # Roadmap
 
@@ -25,6 +25,7 @@ Per-release detail is in the [changelog](../log/changelog.md).
 | **1.0.56–1.0.57 Playlists polish, Convert** | shipped (2026-10-08, PRs #105, #108) | Search in the Playlists box, a destination and a fixed-size summary for Rekordbox imports, folders first; Tags suggested from playlists; **Convert to…** (format, bit depth, sampling frequency — [feature](../features/convert.md)). |
 | **1.0.58–1.0.59 Tempo** | shipped (2026-10-08, PRs #110, #113) | The tempo measured over the whole track ([ADR 0062](../adr/0062-tempo-measured-over-the-whole-track.md)) and two thirds of it caught ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)); **Refine BPM**; a choice of what a Rekordbox collection import brings; resizable panels; the largest files split; Graphify as a dev tool. |
 | **1.0.60 Waveform** | shipped (2026-10-08, PR #115) | Bar lines and three waveform styles ([ADR 0065](../adr/0065-coloured-waveforms-from-three-bands.md)), a larger player, an × on hot cues with Undo, right-click menus kept on screen, sync and analysis status in the details. |
+| **1.0.61 Half time, Bulk Operations** | shipped (2026-10-09, PR #117) | Half time settled by a slowest tempo ([ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)), a Slow BPM filter and *Measure it again*; a **Bulk Operations** menu with *Measure Every BPM Again*; Rekordbox cues on empty pads; Sponge, Crystal and Tangle; Tag names the same whatever their capitals; the code-review fixes and `npm run test:app`. |
 
 ## Next (roughly in priority order; S ≤ a day, M = a few days, L = a week+)
 1. **Smart crates (M)** — saved filter rules (tags AND/OR, BPM range, key, energy, format, date

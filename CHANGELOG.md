@@ -4,7 +4,7 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
-## Unreleased
+## 1.0.61 — 2026-10-09
 
 ### Added
 - **Half time handled in the analysis**: a tune at 165 BPM could be analysed
@@ -20,7 +20,6 @@ installed copies update themselves.
 - **Three new visualizer themes**: **Sponge** (a flight down an endless
   fractal corridor), **Crystal** (a folding fractal crystal) and **Tangle**
   (knots orbiting knots), from threejs-visualisers 0.4.0.
-
 - **A Bulk Operations menu**, for work on the whole collection:
   **Analyse Tracks Not Analysed Yet** (it was *File → Analyse Collection*)
   and **Measure Every BPM Again**, which re-measures the BPM of every
