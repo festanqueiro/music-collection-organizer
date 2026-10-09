@@ -32,6 +32,16 @@ MCO's own database.
   last played. Sort, search, and filter by folder or tag. Files that go
   missing are hidden, not forgotten, so their tags come back when the
   drive does.
+- **Tempo you can trust, and fix** — the BPM is measured over the whole
+  track, and the common slip on broken beats (two thirds of the tempo) is
+  caught. **Refine BPM** in a track's menu doubles it, halves it, applies
+  the two-thirds fix or takes the number you type, and keeps it through
+  later analyses.
+- **Convert** — right-click a track to write its file again as WAV, AIFF,
+  FLAC, Apple Lossless, MP3 or AAC, at 16 or 24-bit and the sampling
+  frequency you choose: a copy next to the original or in another folder,
+  or in its place (the original goes to the Trash; tags, cues and
+  playlists stay).
 - **Your own tags** — organize tracks with your own genres and
   sub-genres, filterable with AND/OR, taggable in bulk, with undo and
   export/import. Every tag and subtag gets its own colour automatically
@@ -41,16 +51,21 @@ MCO's own database.
   songs by dragging rows onto a playlist, from the right-click menu, or
   from the bar that appears when songs are checked; drag rows to reorder,
   ⌫ to remove (with Undo). Play a playlist or a whole folder (it replaces
-  the queue, with Undo), or export it as an m3u8 for Rekordbox.
+  the queue, with Undo), or export it as an m3u8 for Rekordbox. Import
+  from Rekordbox's exports and choose what comes in: the playlists, the
+  cues, the BPM.
 - **Hot cues** — eight per track, A–H, on pads under the player, keys 1–8
   (Shift-1–8 deletes) or your MIDI controller's pads, drawn on the waveform
-  in their colours; name and recolour them. MCO suggests cues at bars 16,
-  32, 48 and 64 from the first beat, and you drag a cue along the waveform
-  with a zoom of the bars around it (⌥ for fine, Shift snaps to the beat).
+  in their colours; name and recolour them, delete one with the × on its
+  pad (with Undo). MCO suggests cues every 8 bars up to 64 from the start
+  of the tune, and you drag a cue along the waveform with a zoom of the
+  bars around it (⌥ for fine, Shift snaps to the beat).
 - **Play queue** — "play now", "add to queue", or "play next" from any
   track, then reorder, shuffle, and play through the queue continuously,
   on its own full screen.
-- **Player** — a waveform you can click to seek, a CDJ-style cue button,
+- **Player** — a waveform you can click to seek, with bar lines, in three
+  styles (one colour, coloured by frequency, or bass / mids / highs as
+  three bands) and at twice the height when you want it; a CDJ-style cue button,
   volume and mute, macOS media keys and AirPods controls, and a choice of
   audio output device. Rec, Mic and Cast, then Visualizer, FX, Queue and
   Live, sit together at the right of the player bar.
@@ -83,9 +98,10 @@ MCO's own database.
   MCO's Rekordbox XML export carries your tags, playlists and cues back.
 - **MIDI** — map any knob, toggle, or playback button to your controller
   in two clicks, with LED feedback where your controller supports it.
-- **Visualizer** — a full-screen, audio-reactive visualizer with nine
+- **Visualizer** — a full-screen, audio-reactive visualizer with twelve
   themes: Nebula, Warp, Horizon, Sound System (a speaker stack that thumps
-  along with the music), Smoke, Kaleidoscope, Paint, Liquid, and Origins. It
+  along with the music), Smoke, Kaleidoscope, Paint, Liquid, Origins,
+  Sponge, Crystal and Tangle. It
   runs at 30 fps by default to keep the GPU cool (15 to 60 fps, or Max).
 - **Show on a screen** — the visualizer full screen on a second display (an
   Apple TV as an AirPlay display, a projector, a monitor), drawn by the Mac,

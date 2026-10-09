@@ -3,7 +3,7 @@
 // them. Registered from ipc.ts.
 import { app, ipcMain, dialog, BrowserWindow, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
 import { basename, dirname, join } from 'node:path'
-import { writeFileSync, readFileSync, existsSync } from 'node:fs'
+import { writeFileSync, readFileSync, existsSync, statSync } from 'node:fs'
 import { getCollectionFolder, getPlaylistImportFolder, setPlaylistImportFolder, getRekordboxCompareFile, setRekordboxCompareFile } from './config'
 import { compareWithRekordbox, loadMcoSide } from './rekordboxCompare'
 import { deleteHotCue, getHotCueCounts, getTrackCues, importRekordboxCues, setHotCue, updateHotCue } from './cues'
@@ -28,13 +28,13 @@ import {
   rekordboxTxtToTree,
   playlistToM3u,
   folderPlaylists,
+  rememberPathAliases,
 } from './playlists'
 import {
   decodeRekordboxText,
   parseM3uEntries,
   parseRekordboxTxt,
   readRekordboxCollection,
-  parseRekordboxXml,
   type RekordboxCollection,
   type RekordboxNode,
 } from './rekordboxXml'
@@ -73,10 +73,24 @@ export function registerPlaylistIpc(db: AppDatabase): void {
   })
   // Rekordbox: the whole collection's XML export (File menu), or single
   // playlists exported as .m3u8 (paths) or .txt (titles) — several at once.
+  // A collection export is a few megabytes of XML, and an import asks for
+  // it several times (the plan, the counts, then the import itself): read
+  // and parsed once per file, until the file changes.
+  const collections = new Map<string, { mtimeMs: number; size: number; collection: RekordboxCollection }>()
+  const loadCollection = (filePath: string): RekordboxCollection => {
+    const stats = statSync(filePath)
+    const cached = collections.get(filePath)
+    if (cached && cached.mtimeMs === stats.mtimeMs && cached.size === stats.size) return cached.collection
+    const collection = readRekordboxCollection(decodeRekordboxText(readFileSync(filePath)))
+    // One export at a time is all that's worth keeping.
+    collections.clear()
+    collections.set(filePath, { mtimeMs: stats.mtimeMs, size: stats.size, collection })
+    return collection
+  }
   const readRekordboxFiles = (filePaths: string[]): RekordboxNode[] =>
     filePaths.flatMap((filePath): RekordboxNode[] => {
+      if (/\.xml$/i.test(filePath)) return loadCollection(filePath).tree
       const text = decodeRekordboxText(readFileSync(filePath))
-      if (/\.xml$/i.test(filePath)) return parseRekordboxXml(text)
       const name = basename(filePath).replace(/\.[^.]+$/, '')
       if (/\.m3u8?$/i.test(filePath)) {
         const entries = parseM3uEntries(text)
@@ -86,7 +100,7 @@ export function registerPlaylistIpc(db: AppDatabase): void {
     })
   // The collection exports (xml) among the picked files, with their tracks' cues and tempos.
   const readRekordboxCollections = (filePaths: string[]): RekordboxCollection[] =>
-    filePaths.filter((filePath) => /\.xml$/i.test(filePath)).map((filePath) => readRekordboxCollection(decodeRekordboxText(readFileSync(filePath))))
+    filePaths.filter((filePath) => /\.xml$/i.test(filePath)).map(loadCollection)
   ipcMain.handle(
     'playlists:pickRekordbox',
     async (event): Promise<{ filePaths: string[]; plan: RekordboxImportPlan } | { error: string } | null> => {
@@ -143,7 +157,7 @@ export function registerPlaylistIpc(db: AppDatabase): void {
         file = result.filePaths[0]
       }
       try {
-        const collection = readRekordboxCollection(decodeRekordboxText(readFileSync(file)))
+        const collection = loadCollection(file)
         if (collection.tracks.length === 0) return { error: "That file has no songs — it needs Rekordbox's whole-collection export." }
         setRekordboxCompareFile(file)
         return { report: compareWithRekordbox(file, collection, loadMcoSide(db, getCollectionFolder())) }
@@ -172,7 +186,7 @@ export function registerPlaylistIpc(db: AppDatabase): void {
     const file = getRekordboxCompareFile()
     if (!file || !existsSync(file)) return { error: 'Compare with Rekordbox first — the export file is gone.' }
     try {
-      return importRekordboxCues(db, readRekordboxCollection(decodeRekordboxText(readFileSync(file))), trackMatcher(db))
+      return importRekordboxCues(db, loadCollection(file), trackMatcher(db))
     } catch (err) {
       return { error: err instanceof Error ? err.message : String(err) }
     }
@@ -194,6 +208,8 @@ export function registerPlaylistIpc(db: AppDatabase): void {
       choices: RekordboxImportChoices = { playlists: true, cues: false, bpm: false }
     ): RekordboxImportResult => {
       if (choices.playlists) applyRekordboxImport(db, readRekordboxFiles(filePaths), relinks, duplicates, destination)
+      // Without the playlists the confirmed paths still decide which songs the cues and tempos go to.
+      else rememberPathAliases(db, relinks)
       const cues = { songs: 0, cues: 0 }
       const bpm = { songs: 0 }
       if (choices.cues || choices.bpm) {

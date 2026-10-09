@@ -45,7 +45,9 @@ nothing in it says what frequencies a slice holds.
 - **Require a re-analysis**: hours for a collection, for a display option.
 
 ## Consequences
-- `tracks.waveform_bands` adds about 8 kB of JSON per track that has it.
+- `tracks.waveform_bands` adds about 3.2 kB per track that has it: one byte a level, the three
+  bands end to end, in base64 (`encodeWaveformBands`). It was 8 kB of JSON at first, and rows
+  written then are still read.
 - The first load of an older track with a coloured style decodes the file once in the main
   process (88 ms on a 48 s demo track; a full-length track takes longer — not measured).
 - The second screen and the Cast receiver still draw their own single-colour waveform.

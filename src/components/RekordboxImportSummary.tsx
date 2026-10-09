@@ -49,19 +49,23 @@ export function RekordboxImportSummary({
   // the same size however long an import is. It opens on the first list
   // that asks for a decision.
   type Tab = 'playlists' | 'duplicates' | 'relinks' | 'gone'
-  const tabs: { id: Tab; label: string; count: number }[] = [
+  const allTabs: { id: Tab; label: string; count: number }[] = [
     { id: 'playlists' as const, label: 'Playlists', count: plan.playlists.length },
     { id: 'duplicates' as const, label: 'Already in MCO', count: duplicates.length },
     { id: 'relinks' as const, label: 'Different path', count: plan.relinks.length },
     { id: 'gone' as const, label: 'Not in this export', count: plan.gone.length },
   ].filter((t) => t.id === 'playlists' || t.count > 0)
-  const [tab, setTab] = useState<Tab>(duplicates.length > 0 ? 'duplicates' : plan.relinks.length > 0 ? 'relinks' : 'playlists')
+  const [pickedTab, setTab] = useState<Tab>(duplicates.length > 0 ? 'duplicates' : plan.relinks.length > 0 ? 'relinks' : 'playlists')
   const used = plan.relinks.filter((r) => !rejected.has(r.from)).length
   const note: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-dim)' }
   const ellipsis: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
   const extras = plan.extras ?? null
   // With a collection export the playlists can be left out; a playlist file has nothing else.
   const takePlaylists = !extras || choices.playlists
+  // Without the playlists only the songs found at another path still
+  // matter: they decide which songs the cues and tempos go to.
+  const tabs = takePlaylists ? allTabs : allTabs.filter((t) => t.id === 'relinks')
+  const tab: Tab | null = tabs.some((t) => t.id === pickedTab) ? pickedTab : (tabs[0]?.id ?? null)
   const choice = (key: keyof RekordboxImportChoices, label: string, detail: string, available: boolean) => (
     <label key={key} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', opacity: available ? 1 : 0.5 }}>
       <input
@@ -88,9 +92,9 @@ export function RekordboxImportSummary({
             'cues',
             'Hot cues, memory cues and loops',
             extras.cues.songs > 0
-              ? `${count(extras.cues.cues, 'cue')} on ${count(extras.cues.songs, 'song')} with none in MCO yet.${extras.cues.skipped > 0 ? ` ${count(extras.cues.skipped, 'song')} that already ${extras.cues.skipped === 1 ? 'has' : 'have'} cues in MCO ${extras.cues.skipped === 1 ? 'is' : 'are'} left as ${extras.cues.skipped === 1 ? 'it is' : 'they are'}.` : ''}`
+              ? `${count(extras.cues.cues, 'cue')} on ${count(extras.cues.songs, 'song')}. A song that already has cues in MCO keeps them: only its empty pads are filled.${extras.cues.skipped > 0 ? ` ${count(extras.cues.skipped, 'song')} with cues on both sides ${extras.cues.skipped === 1 ? 'gets' : 'get'} nothing new.` : ''}`
               : extras.cues.skipped > 0
-                ? `Nothing to bring: the ${count(extras.cues.skipped, 'song')} with cues in Rekordbox already ${extras.cues.skipped === 1 ? 'has' : 'have'} cues in MCO.`
+                ? `Nothing to bring: the ${count(extras.cues.skipped, 'song')} with cues in Rekordbox already ${extras.cues.skipped === 1 ? 'has' : 'have'} them in MCO.`
                 : 'No cues in this export for songs in your collection.',
             extras.cues.songs > 0
           )}
@@ -104,7 +108,9 @@ export function RekordboxImportSummary({
           )}
         </div>
       )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', ...(takePlaylists ? {} : { opacity: 0.4, pointerEvents: 'none' }) }} aria-hidden={!takePlaylists}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {takePlaylists && (
+        <>
       <p style={{ margin: 0 }}>
         {count(plan.playlists.length, 'playlist')}
         {plan.folders > 0 ? ` in ${count(plan.folders, 'folder')}` : ''} — {fresh} new
@@ -172,6 +178,12 @@ export function RekordboxImportSummary({
       {refreshed > 0 && (
         <p style={{ margin: 0 }}>Refreshed playlists get Rekordbox's songs; changes you made to them in MCO are replaced.</p>
       )}
+        </>
+      )}
+      {!takePlaylists && tab === 'relinks' && (
+        <p style={{ margin: 0 }}>The playlists are left out. Songs found at a different path still get what you ticked above:</p>
+      )}
+      {tab !== null && (
       <div>
         <div role="tablist" style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', borderBottom: '1px solid var(--color-border)' }}>
           {tabs.map((t) => (
@@ -297,6 +309,7 @@ export function RekordboxImportSummary({
             ))}
         </div>
       </div>
+      )}
       </div>
     </div>
   )

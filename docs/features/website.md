@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-02
+updated: 2026-10-09
 adrs: [0054, 0056, 0057]
 ---
 # Website
@@ -35,6 +35,9 @@ with the download button going to the latest GitHub release.
 
 ## Tests
 - The capture run itself is the check: it fails when a step's button or row isn't found.
+- **A promo video** (about a minute, captions and music) is recorded the same way by
+  `website/capture/promo.mjs`; its script and how to record it again are in
+  [`website/capture/promo.md`](../../website/capture/promo.md). It isn't on the website.
 - Checked in Chromium at 1440 and 390 px wide: no missing files, no horizontal scroll.
 
 ## Limits & open questions

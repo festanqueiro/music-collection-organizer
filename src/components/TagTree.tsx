@@ -4,6 +4,8 @@ import { matchesTagFilter, type TagFilterMode, type TagFilterState } from '../st
 import type { Track } from '../types'
 import { TagColorPopover } from './TagColorPopover'
 import { ContextMenu } from './ContextMenu'
+import { writeStored } from '../state/stored'
+import { ipcErrorMessage } from '../ipcError'
 
 // Drops any id from `ids` that no longer exists in `existing` — e.g. after
 // deleteGenre removes a genre out from under a still-checked checkbox, so
@@ -54,11 +56,7 @@ function loadExpandedTags(): Set<number> {
   }
 }
 function saveExpandedTags(expanded: Set<number>): void {
-  try {
-    localStorage.setItem(EXPANDED_TAGS_KEY, JSON.stringify([...expanded]))
-  } catch {
-    // Non-essential preference — fine to lose.
-  }
+  writeStored(EXPANDED_TAGS_KEY, JSON.stringify([...expanded]))
 }
 
 type ContextMenuTarget = { kind: 'genre'; id: number; name: string } | { kind: 'subgenre'; id: number; name: string }
@@ -85,6 +83,7 @@ export function TagTree({
   const deleteGenre = useCollectionStore((s) => s.deleteGenre)
   const deleteSubgenre = useCollectionStore((s) => s.deleteSubgenre)
   const renameGenre = useCollectionStore((s) => s.renameGenre)
+  const showToast = useCollectionStore((s) => s.showToast)
   const renameSubgenre = useCollectionStore((s) => s.renameSubgenre)
   const setGenreColor = useCollectionStore((s) => s.setGenreColor)
   const setSubgenreColor = useCollectionStore((s) => s.setSubgenreColor)
@@ -191,8 +190,13 @@ export function TagTree({
       if (!proceed) return
     }
 
-    if (target.kind === 'genre') await renameGenre(target.id, newName.trim())
-    else await renameSubgenre(target.id, newName.trim())
+    try {
+      if (target.kind === 'genre') await renameGenre(target.id, newName.trim())
+      else await renameSubgenre(target.id, newName.trim())
+    } catch (err) {
+      // A name another Tag already has, whatever its capitals.
+      showToast(ipcErrorMessage(err))
+    }
   }
 
   async function handleDelete(target: ContextMenuTarget) {
@@ -360,7 +364,7 @@ export function TagTree({
       })}
 
       {contextMenu && (
-        <ContextMenu x={contextMenu.x} y={contextMenu.y}>
+        <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
           <button
             onClick={() => {
               handleRename(contextMenu.target)

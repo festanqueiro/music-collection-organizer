@@ -21,6 +21,13 @@ can be created inline.
 If the file has an ID3 genre that isn't one of your genres yet, the panel
 offers it as a one-click suggestion.
 
+**Names are the same whatever their capitals**: a Tag can't be called `house` while `House`
+exists, and a Tag can't have two Subtags that differ only that way (two Tags can each have a
+*Deep*). Creating or renaming to a taken name is refused with a message naming the one that's
+there; changing only the capitals of a name is an ordinary rename. Checked in `tags.ts`
+(`TagNameTakenError`) and kept by unique indexes (`COLLATE NOCASE`). A collection that already
+holds two such names keeps both — nothing is merged — and goes without the index.
+
 **Suggested from its playlists**: under the Tag and Subtag boxes, the panel suggests the Tags
 and Subtags named in the playlists the track is in, and not on it yet — a track in
 `2022-08-HOSPICE-DUBTECHNO-120` gets **+ Dub Techno**.

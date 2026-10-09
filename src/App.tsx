@@ -35,6 +35,7 @@ import type { Track } from './types'
 import { isInFolder } from './paths'
 import { onMenuCommand, runMenuCommand } from './menuCommands'
 import type { MenuCommand } from './types'
+import { writeStored } from './state/stored'
 
 type LeftView = 'folders' | 'tags' | 'subtags' | 'filters'
 type TreeView = Exclude<LeftView, 'filters'>
@@ -84,11 +85,7 @@ function loadSidebarState(): SidebarState {
 }
 
 function saveSidebarState(state: SidebarState): void {
-  try {
-    localStorage.setItem(SIDEBAR_STATE_KEY, JSON.stringify(state))
-  } catch {
-    // Non-essential — fine to lose.
-  }
+  writeStored(SIDEBAR_STATE_KEY, JSON.stringify(state))
 }
 
 const LEFT_COLLAPSED_KEY = 'leftSidebarCollapsed'
@@ -180,7 +177,7 @@ export default function App() {
   const [treeView, setTreeView] = useState<TreeView>(() => loadSidebarState().treeView)
   const activeFilterCount = useCollectionStore(
     (s) =>
-      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.energyFilter !== null) + Number(s.duplicatesFilter) + Number(s.missingMetadataFilter) + Number(s.missingTracksFilter) + Number(s.cloudOnlyFilter) + Number(s.mcoTagsFilter !== 'all')
+      Number(s.compatibleFilter) + Number(s.analysedFilter !== 'all') + Number(s.energyFilter !== null) + Number(s.duplicatesFilter) + Number(s.slowBpmFilter) + Number(s.missingMetadataFilter) + Number(s.missingTracksFilter) + Number(s.cloudOnlyFilter) + Number(s.mcoTagsFilter !== 'all')
   )
   const [leftCollapsed, setLeftCollapsedState] = useState(() => {
     try {
@@ -191,27 +188,15 @@ export default function App() {
   })
   function setLeftCollapsed(collapsed: boolean) {
     setLeftCollapsedState(collapsed)
-    try {
-      localStorage.setItem(LEFT_COLLAPSED_KEY, String(collapsed))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(LEFT_COLLAPSED_KEY, String(collapsed))
   }
   const [detailWidth, setDetailWidth] = useState(loadDetailWidth)
   useEffect(() => {
-    try {
-      localStorage.setItem(DETAIL_WIDTH_KEY, String(detailWidth))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(DETAIL_WIDTH_KEY, String(detailWidth))
   }, [detailWidth])
   const [leftWidth, setLeftWidth] = useState(loadLeftWidth)
   useEffect(() => {
-    try {
-      localStorage.setItem(LEFT_WIDTH_KEY, String(leftWidth))
-    } catch {
-      // Non-essential preference — fine to lose.
-    }
+    writeStored(LEFT_WIDTH_KEY, String(leftWidth))
   }, [leftWidth])
   // The details are on the right, so dragging left makes them wider; the
   // sidebar is on the left, so dragging right does.
@@ -328,6 +313,23 @@ export default function App() {
         if (waiting === 0) return store().showToast('Every local track is analysed')
         if (!window.confirm(`Analyse ${waiting} track${waiting === 1 ? '' : 's'} now? It can take a while and can be stopped.`)) return
         store().runAnalysis().catch((err) => console.error('analysing the collection failed', err))
+      },
+      'remeasure-bpms': () => {
+        // Only tempos analysis found, of files that are here: a BPM set by hand stays.
+        const ids = store()
+          .tracks.filter((t) => t.cloudStatus === 'local' && !!t.bpm && !t.bpmEdited)
+          .map((t) => t.id)
+        if (ids.length === 0) return store().showToast('No analysed BPM to measure again')
+        const minutes = Math.max(1, Math.round(ids.length / 60))
+        if (
+          !window.confirm(
+            `Measure the BPM of ${ids.length} track${ids.length === 1 ? '' : 's'} again? Only the BPM changes; the ones you set stay. About a second a track (${minutes} minute${minutes === 1 ? '' : 's'}), and Bulk Operations → Stop ends it.`
+          )
+        )
+          return
+        store()
+          .changeTracksBpm(ids, { kind: 'measure' })
+          .catch((err) => console.error('measuring every BPM again failed', err))
       },
       'stop-analysis': () => void store().stopAnalysis(),
       'play-pause': () => store().playbackControls?.toggle(),

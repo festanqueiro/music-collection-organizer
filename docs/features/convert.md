@@ -39,11 +39,14 @@ take the original's place in the collection.
   Tags, Subtags, hot cues, start, playlists, play count, analysis and waveform — and the original
   goes to the **Trash** (recoverable). If a different file already has the new name, that track
   is not converted. A lossless file already in the format, depth and frequency asked for is
-  skipped.
+  skipped. With the same file name (only the depth or frequency changes) the original has to go to
+  the Trash before the new file can take its name; if that last step fails the converted file is
+  kept next to it under its temporary name and the message says so — nothing is deleted.
 - **What's carried over**: the file's tags (title, artist, album, genre, year…) and, except into
   WAV, the cover.
-- **While it runs**: one file at a time, with *Converting 3 of 20…*, the file's name and a bar.
-  **Stop** finishes the file in hand and stops. Then a summary: how many were converted, and each
+- **While it runs**: three files at a time, with *Converting 3 of 20…*, a file's name and a bar.
+  **Stop** finishes the files in hand and starts no more. Two files that would get the same name
+  in one folder never do: the second takes ` (2)`. Then a summary: how many were converted, and each
   one that wasn't or needs a word, with why (cloud-only, missing, name taken, ffmpeg's error, the
   original that wouldn't go to the Trash). For one copy, **Show in Finder**.
 - Tracks that aren't downloaded, or whose file is missing, aren't converted.

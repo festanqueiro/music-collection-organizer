@@ -8,6 +8,7 @@ import { useCollectionStore } from '../state/store'
 import { parentPath } from '../paths'
 import { REVEAL_IN_FILE_MANAGER } from '../platform'
 import type { AudioInfo, ConvertFormat, ConvertOptions, ConvertProgress, ConvertResult } from '../types'
+import { writeStored } from '../state/stored'
 
 const OPTIONS_KEY = 'convertOptions'
 const FORMATS: { id: ConvertFormat; label: string; lossy: boolean }[] = [
@@ -108,11 +109,7 @@ export function ConvertDialog({ trackIds, onClose }: { trackIds: number[]; onClo
   function update(patch: Partial<Remembered>) {
     setOptions((current) => {
       const next = { ...current, ...patch }
-      try {
-        localStorage.setItem(OPTIONS_KEY, JSON.stringify(next))
-      } catch {
-        // Not remembered; the defaults come back next time.
-      }
+      writeStored(OPTIONS_KEY, JSON.stringify(next))
       return next
     })
   }

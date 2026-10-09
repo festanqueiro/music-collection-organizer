@@ -4,6 +4,7 @@ import { buildFolderTree, type FolderTreeNode } from '../state/folderTree'
 import type { Track } from '../types'
 import { isInFolder, parentPath } from '../paths'
 import { ContextMenu } from './ContextMenu'
+import { writeStored } from '../state/stored'
 
 const folderContextMenuItemStyle = {
   display: 'flex',
@@ -144,11 +145,7 @@ function loadExpanded(): Set<string> {
 }
 
 function saveExpanded(expanded: Set<string>): void {
-  try {
-    localStorage.setItem(EXPANDED_FOLDERS_KEY, JSON.stringify([...expanded]))
-  } catch {
-    // Non-essential — fine to lose.
-  }
+  writeStored(EXPANDED_FOLDERS_KEY, JSON.stringify([...expanded]))
 }
 
 // A track belongs to `folder` if it's directly in it or in any subfolder —
@@ -279,7 +276,7 @@ export function FolderTree({
         }}
       />
       {contextMenu && (
-        <ContextMenu x={contextMenu.x} y={contextMenu.y}>
+        <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
           <button
             onClick={() => {
               // Same status filter as the collection-wide analysis run

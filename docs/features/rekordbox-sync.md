@@ -216,7 +216,8 @@ Rekordbox" is automatic. Phase 0 measures it; until then the spec assumes:
      also at half/double time; keys compared as Camelot codes in any notation.
    - *Cue points*: songs whose cues differ — only in Rekordbox, only in MCO, or different (same
      slot, time within 10 ms and colour count as the same) — with both sides' cues; **Bring
-     Rekordbox's cues into MCO** copies them for songs with none in MCO ([Hot cues](hot-cues.md)).
+     Rekordbox's cues into MCO** copies them — all for a song with none, the empty pads of one with
+     its own ([Hot cues](hot-cues.md)).
    - *Files*: outside the collection folder, in it but not scanned, gone from disk, only in MCO,
      missing in MCO.
    Still to do for phase 1: no snapshot yet (every difference is two-sided), and no paging past

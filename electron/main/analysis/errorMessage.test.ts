@@ -6,6 +6,7 @@ describe('describeAnalysisError', () => {
     expect(describeAnalysisError(new Error("ENOENT: no such file or directory, open '/x.aiff'"))).toMatch(/isn't there any more/)
     expect(describeAnalysisError(new Error('ffmpeg exited with code 1: ...\n/x.mp3: Invalid data found when processing input\n'))).toMatch(/damaged/)
     expect(describeAnalysisError(new Error('EDEADLK: resource deadlock avoided, read'))).toMatch(/Google Drive/)
+    expect(describeAnalysisError(new Error('End-Of-Stream'))).toMatch(/still syncing with the cloud/)
   })
 
   it("otherwise keeps the last line of ffmpeg's log, without its prefix", () => {

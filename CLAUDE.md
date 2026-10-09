@@ -27,7 +27,12 @@ macOS first; releases also ship an untested, unsigned Windows installer
 - Prefer small, focused commits with clear messages; open one PR per logical
   batch of work rather than one PR per tiny change.
 - Always verify with `npx tsc -b --noEmit` (see gotcha below) and `npm test`
-  before considering a change done.
+  before considering a change done. `tsc` also fails on unused imports,
+  variables and parameters (`noUnusedLocals`, `noUnusedParameters`).
+- For anything a unit test can't see — menus, popovers, the player — run
+  `npm run test:app`: the built app driven with Playwright on the demo
+  collection (`tests/app/smoke.mjs`; needs `npm i -g playwright`; a window
+  opens; not in CI). Add a check there with the feature.
 - **Document as you go, in the vault (`docs/`, see `docs/README.md`)**:
   - every user-facing change → `CHANGELOG.md`'s **Unreleased** section (Added /
     Changed / Fixed), in plain words; label it with the upcoming version inside
@@ -139,3 +144,8 @@ Keeping it current:
   delete it, the graph isn't tracked.
 - A `git pull` doesn't fire the hook. **When preparing a release**, after the PR is merged and
   `main` is pulled, run `graphify update .` so the graph matches what was released.
+- The skill in `.claude/skills/graphify/` is a copy from Graphify 0.9.80
+  (`.graphify_version`). To update it: upgrade the `graphifyy` package, run
+  `graphify install --project --platform claude`, discard what it writes to
+  `.claude/settings.json` (its hooks, see above) and delete `.gitattributes`, then commit the
+  skill's files.

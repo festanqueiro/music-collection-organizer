@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-09
 adrs: []
 ---
 # DJ tools
@@ -70,9 +70,17 @@ of all…**) ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)):
 - **Double**, **Halve**, **Two-thirds fix (× 1.5)** — for one track each shows what it gives
   (`≈ 159.87`). The result is then sharpened on the track's audio near that value, so 106.58 × 1.5
   becomes 160; if the audio doesn't agree within 3.5 % the plain product is kept.
+- **Measure it again** — the tempo part of the analysis alone, from the stored BPM: sharpened,
+  moved to 1.5× when two thirds was stored, doubled when below the slowest tempo (Settings →
+  Library, [ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)). About a second a track, and
+  the result stays the analysis's own. This is how tracks analysed before these rules are fixed
+  without a full re-analysis; a BPM set by hand is left alone (*Detect it again* first).
 - **Set the BPM…** — type it (a comma works as the decimal point); taken as typed, to two decimals.
+- A batch is measured in a worker thread, one track at a time (`createTempoMeasurer` in
+  `analysis/queue.ts`), so the window stays usable; a toast counts *Refining the BPM: 3 of 40…*.
 - 30 to 300 BPM; anything else is refused with a message. A track with no BPM yet can only be set.
-- A BPM changed this way is **yours**: the menu's header says *set by you*, and analysing the
+- A BPM changed this way is **yours**: the menu's header says *set by you*, a dot follows it in
+  the table's BPM column and the details say so, and analysing the
   track again updates everything else but keeps it. **Detect it again** (shown for such tracks)
   forgets it and re-analyses.
 - The bar counter, the suggested cues, the Compatible filter's tempo match and the Rekordbox
@@ -82,8 +90,12 @@ How it works: `changeTrackBpm` (`electron/main/bpmEdit.ts`), IPC `tracks:changeB
 tracks as they are now), `tracks.bpm_edited`; `refineBpm(…, threeHalves = false)` does the
 sharpening. UI: `src/components/RefineBpmMenu.tsx`, opened from `TrackTable`'s menus.
 
-The analysis itself now catches the two-thirds case in most tracks
-([measurements](../research/bpm-accuracy.md)); half time is left to you.
+The analysis itself now catches the two-thirds case in most tracks, and doubles a tempo below
+the **slowest tempo** (90 BPM unless changed) — half time
+([measurements](../research/bpm-accuracy.md)). For the tracks already analysed, the **Slow BPM**
+filter ([Filters](filters.md)) lists the ones below it: check them, right-click → *Refine BPM of
+all…* → *Measure it again* or *Double*. For every analysed track at once: **Bulk Operations → Measure Every BPM
+Again…** in the [menu bar](menu-bar.md), which *Stop* there ends.
 
 ## Headphone pre-listen (cue)
 

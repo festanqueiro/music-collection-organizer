@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { onsetEnvelope, refineBpm } from './tempoRefine'
+import { analysedBpm, doubleIfSlow, onsetEnvelope, refineBpm } from './tempoRefine'
 
 const SR = 44100
 
@@ -86,6 +86,37 @@ describe('refineBpm, when the tracker reports two thirds of the tempo', () => {
 
   it('never goes past 200 BPM', () => {
     expect(refineBpm(clickTrack(210, 60), 140)).toBe(140)
+  })
+})
+
+describe('half time: a tempo slower than the slowest mixed at is doubled', () => {
+  it('doubles a slow tempo and sharpens it on the audio', () => {
+    expect(doubleIfSlow(clickTrack(165, 60), 82.37, 90)).toBe(165)
+    expect(doubleIfSlow(clickTrack(140, 60), 70.01, 90)).toBe(140)
+  })
+
+  it('leaves a tempo at or above the limit, and everything when there is no limit', () => {
+    expect(doubleIfSlow(clickTrack(128, 60), 128, 90)).toBe(128)
+    expect(doubleIfSlow(clickTrack(90, 60), 90, 90)).toBe(90)
+    expect(doubleIfSlow(clickTrack(165, 60), 82.5, null)).toBe(82.5)
+    expect(doubleIfSlow(clickTrack(165, 60), 82.5, 0)).toBe(82.5)
+  })
+
+  it('keeps the plain double when the audio says nothing near it', () => {
+    expect(doubleIfSlow(new Float32Array(SR * 30), 82.37, 90)).toBe(164.74)
+  })
+
+  it('never doubles past 200 BPM', () => {
+    expect(doubleIfSlow(clickTrack(110, 60), 110, 120)).toBe(110)
+  })
+
+  it('is the last step of the analysed tempo: sharpened, two thirds caught, then doubled', () => {
+    // The tracker says 82.37 for a 165 BPM tune: half time.
+    expect(analysedBpm(clickTrack(165, 60), 82.37, 90)).toBe(165)
+    // Two thirds of 160: moved to 1.5×, which is fast enough to stay.
+    expect(analysedBpm(brokenBeat(160, 60), 106.67, 90)).toBe(160)
+    // Without a limit it is only sharpened.
+    expect(analysedBpm(clickTrack(165, 60), 82.37)).toBe(82.5)
   })
 })
 

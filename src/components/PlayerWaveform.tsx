@@ -4,7 +4,7 @@
 // which is also the seek bar: the bars in the chosen style, the beat grid,
 // the playhead and the cue point. Drawn in one SVG stretched to the width
 // — a slice is one unit wide and the height is 0–100.
-import { useMemo } from 'react'
+import { useId, useMemo } from 'react'
 import { formatDuration } from '../format'
 import { waveformGridLines } from '../state/waveformGrid'
 import type { WaveformBands, WaveformStyle } from '../types'
@@ -71,6 +71,14 @@ export function PlayerWaveform({
         .map((band) => <rect key={`${i}-${band.key}`} x={i} y={50 - band.h / 2} width={1} height={band.h} fill={band.color} />)
     )
   }, [coloured, bands, peaks, style])
+  // Classic: the bars once in the dim colour and once lit, the lit ones
+  // shown only as far as the track has played — so playback moves one
+  // clip edge, not the colour of 800 bars.
+  const classicBars = useMemo(
+    () => (coloured ? null : peaks.map((peak, i) => <rect key={i} x={i} y={50 - peak * 50} width={1} height={peak * 100} />)),
+    [coloured, peaks]
+  )
+  const playedClip = useId()
   const grid = useMemo(() => (showGrid ? waveformGridLines(duration, bpm, gridStart) : []), [showGrid, duration, bpm, gridStart])
   const marker = Math.max(1, count / 400)
   return (
@@ -94,9 +102,15 @@ export function PlayerWaveform({
           <rect x={progress * count} y={0} width={Math.max(0, count - progress * count)} height={100} fill="var(--color-bg)" opacity={0.55} />
         </>
       ) : (
-        peaks.map((peak, i) => (
-          <rect key={i} x={i} y={50 - peak * 50} width={1} height={peak * 100} fill={i / count <= progress ? 'var(--color-accent)' : 'var(--color-border)'} />
-        ))
+        <>
+          <clipPath id={playedClip}>
+            <rect x={0} y={0} width={Math.min(count, Math.floor(progress * count) + 1)} height={100} />
+          </clipPath>
+          <g fill="var(--color-border)">{classicBars}</g>
+          <g fill="var(--color-accent)" clipPath={`url(#${playedClip})`}>
+            {classicBars}
+          </g>
+        </>
       )}
       {duration > 0 &&
         grid.map((line) => (

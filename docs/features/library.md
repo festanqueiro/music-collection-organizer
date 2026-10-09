@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-09
 adrs: [0004, 0005, 0006, 0009, 0024, 0027, 0030, 0031]
 ---
 # Library
@@ -67,7 +67,9 @@ bars drift ([ADR 0062](../adr/0062-tempo-measured-over-the-whole-track.md),
 [measurements](../research/bpm-accuracy.md)). Tracks analysed before 2026-10-08 keep their old BPM
 until re-analysed. On broken beats the tracker can report two thirds of the tempo (108 for 162): the
 analysis also tries the tempo 1.5 times faster and takes it when the track is clearly stronger
-there ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)). A BPM set by hand (*Refine BPM*,
+there ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)). Half time is settled by a **slowest tempo** (Settings → Library → Tempo: 90 BPM by default, or 70,
+80, 100, none): a BPM analysed below it is doubled
+([ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)). A BPM set by hand (*Refine BPM*,
 [DJ tools](dj-tools.md#refine-bpm)) or taken from Rekordbox is kept by later analyses.
 Start it from the folder tree's menu (**Analyse collection / this folder** — pending and failed only),
 the selection toolbar or a row's menu (**Analyse / Re-analyse track** — always re-runs), the Update
@@ -77,7 +79,7 @@ to *pending*, failed ones show a red icon.
 
 **Why it failed** is kept (`tracks.analysis_error`, in plain words by
 `electron/main/analysis/errorMessage.ts`: the file is gone, can't be read, is damaged or not audio, or
-— for cloud files — not fully downloaded; otherwise the last line of ffmpeg's log). It shows in the red
+— for cloud files — not fully downloaded, or ends too early (`End-Of-Stream`: probably still syncing); otherwise the last line of ffmpeg's log). It shows in the red
 icon's tooltip and as a note in the track's details with **Try again**; a later successful analysis
 clears it. Failures from before this was kept say no reason was recorded.
 
@@ -189,7 +191,7 @@ Drag rows straight to Finder, a DAW or any app — a normal file drag of the ori
 
 - Analysis interrupted by quitting: tracks still marked `analyzing` at startup go back to
   `pending` (`resetInterruptedAnalysis`, `analysis/queue.ts`), so they lose their spinner and the
-  next *Analyse Collection* includes them.
+  next *Bulk Operations → Analyse Tracks Not Analysed Yet* includes them.
 
 ## Tests
 - `scan.test.ts`, `scanDiff.test.ts`, `folderWalk.test.ts`, `folderWatcher.test.ts`,

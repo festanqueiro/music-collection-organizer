@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeWaveformBands, computeWaveformPeaks } from './waveform'
+import { computeWaveformBands, computeWaveformPeaks, decodeWaveformBands, encodeWaveformBands } from './waveform'
 
 describe('computeWaveformPeaks', () => {
   it('returns the requested number of peaks', () => {
@@ -50,3 +50,25 @@ describe('computeWaveformBands', () => {
     expect(loudest(computeWaveformBands(half, 22050, 20))).toBe('low')
   })
 })
+
+describe('the bands as stored', () => {
+  const bands = { low: [0, 0.5, 1, 0.715], mid: [0.25, 1.023, 0, 0.1], high: [0.283, 0, 0.004, 1] }
+
+  it('come back as they went in, to a 255th, in under half the text', () => {
+    const stored = encodeWaveformBands(bands)
+    const back = decodeWaveformBands(stored)!
+    for (const key of ['low', 'mid', 'high'] as const) {
+      expect(back[key]).toHaveLength(4)
+      back[key].forEach((v, i) => expect(Math.abs(v - Math.min(1, bands[key][i]))).toBeLessThan(0.003))
+    }
+    const real = { low: Array(800).fill(0.715), mid: Array(800).fill(0.283), high: Array(800).fill(0.041) }
+    expect(encodeWaveformBands(real).length).toBeLessThan(JSON.stringify(real).length / 2)
+  })
+
+  it('still reads the JSON that rows written before hold, and nothing from rubbish', () => {
+    expect(decodeWaveformBands(JSON.stringify(bands))).toEqual(bands)
+    expect(decodeWaveformBands('not json')).toBeNull()
+    expect(decodeWaveformBands('b64:')).toBeNull()
+  })
+})
+

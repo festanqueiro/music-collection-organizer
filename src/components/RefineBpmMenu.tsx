@@ -47,7 +47,7 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
   )
 
   return (
-    <ContextMenu x={x} y={y} style={{ minWidth: '220px' }}>
+    <ContextMenu x={x} y={y} onClose={onClose} style={{ minWidth: '220px' }}>
       <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>
         {single ? `BPM ${bpm ? show(bpm) : '—'}${single.bpmEdited ? ' · set by you' : ''}` : `BPM of ${trackIds.length} tracks`}
       </div>
@@ -81,6 +81,17 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
           Set the BPM…
         </button>
       )}
+      <button
+        onClick={() => apply({ kind: 'measure' })}
+        disabled={withBpm === 0}
+        title="Measures the tempo on the audio again with today's rules — sharper, two thirds caught, doubled below the slowest tempo — without the rest of the analysis. About a second a track; cues, key and everything else stay. A BPM set by hand is left alone."
+        style={contextMenuItemStyle}
+      >
+        <span className="material-symbols-outlined" style={contextMenuIconStyle}>
+          straighten
+        </span>
+        Measure it again
+      </button>
       {edited && (
         <button
           onClick={() => apply({ kind: 'detect' })}

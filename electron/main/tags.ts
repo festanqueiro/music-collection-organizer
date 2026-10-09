@@ -2,9 +2,27 @@ import { runInTransaction, type AppDatabase } from './db'
 import type { SubgenreDeletionSnapshot } from '../../src/types'
 import { nextTagColor } from '../../src/tagColors'
 
+// Tag names are one name whatever the capitals: "House" and "house" can't
+// both exist, and neither can two Subtags of one Tag that differ only so.
+// Thrown with a message meant for the user.
+export class TagNameTakenError extends Error {}
+
+function assertGenreNameFree(db: AppDatabase, name: string, exceptId: number | null): void {
+  const taken = db.prepare('SELECT id, name FROM genres WHERE name = ? COLLATE NOCASE AND id IS NOT ?').get(name, exceptId) as { id: number; name: string } | undefined
+  if (taken) throw new TagNameTakenError(`There is already a Tag called "${taken.name}"`)
+}
+
+function assertSubgenreNameFree(db: AppDatabase, name: string, genreId: number, exceptId: number | null): void {
+  const taken = db
+    .prepare('SELECT id, name FROM subgenres WHERE genre_id = ? AND name = ? COLLATE NOCASE AND id IS NOT ?')
+    .get(genreId, name, exceptId) as { id: number; name: string } | undefined
+  if (taken) throw new TagNameTakenError(`This Tag already has a Subtag called "${taken.name}"`)
+}
+
 // A new genre gets the palette colour fewest genres use, unless a colour
 // (or null, for none) is given — e.g. when undoing a delete.
 export function createGenre(db: AppDatabase, name: string, color?: string | null): number {
+  assertGenreNameFree(db, name, null)
   const assigned =
     color !== undefined
       ? color
@@ -15,6 +33,7 @@ export function createGenre(db: AppDatabase, name: string, color?: string | null
 // Like createGenre: the palette colour fewest sub-genres use, unless one
 // (or null) is given.
 export function createSubgenre(db: AppDatabase, name: string, genreId: number, color?: string | null): number {
+  assertSubgenreNameFree(db, name, genreId, null)
   const assigned =
     color !== undefined
       ? color
@@ -36,11 +55,15 @@ export function deleteSubgenre(db: AppDatabase, subgenreId: number): void {
   db.prepare('DELETE FROM subgenres WHERE id = ?').run(subgenreId)
 }
 
+// Changing only the capitals of a name ("house" → "House") is a rename like any other.
 export function renameGenre(db: AppDatabase, genreId: number, name: string): void {
+  assertGenreNameFree(db, name, genreId)
   db.prepare('UPDATE genres SET name = ? WHERE id = ?').run(name, genreId)
 }
 
 export function renameSubgenre(db: AppDatabase, subgenreId: number, name: string): void {
+  const own = db.prepare('SELECT genre_id FROM subgenres WHERE id = ?').get(subgenreId) as { genre_id: number } | undefined
+  if (own) assertSubgenreNameFree(db, name, own.genre_id, subgenreId)
   db.prepare('UPDATE subgenres SET name = ? WHERE id = ?').run(name, subgenreId)
 }
 

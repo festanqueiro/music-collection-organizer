@@ -10,6 +10,7 @@ const KNOWN: [RegExp, string][] = [
     "The file is damaged or isn't really audio — ffmpeg couldn't read it."],
   [/Resource deadlock avoided|EDEADLK|Operation timed out|ETIMEDOUT/i,
     "The file couldn't be read — if it's in Google Drive or iCloud, it may not be fully downloaded yet."],
+  [/End-Of-Stream/i, "The file ends before it should — it's probably still syncing with the cloud. Try again once it's done."],
   [/does not contain any stream|Output file #0 does not contain any stream|no audio/i, 'The file has no audio in it.'],
 ]
 

@@ -17,6 +17,8 @@ import { RefineBpmMenu } from './RefineBpmMenu'
 import { LOSSY_FORMATS, LOW_BITRATE_KBPS } from '../state/collectionStats'
 import { tracksById } from '../state/tracksById'
 import { ContextMenu } from './ContextMenu'
+import { writeStored } from '../state/stored'
+import { isSlowBpm } from '../state/trackFilters'
 
 type SortKey = TrackTableColumnKey
 
@@ -197,6 +199,9 @@ export function TrackTable({
   const setEnergyFilter = useCollectionStore((s) => s.setEnergyFilter)
   const duplicatesFilter = useCollectionStore((s) => s.duplicatesFilter)
   const setDuplicatesFilter = useCollectionStore((s) => s.setDuplicatesFilter)
+  const slowBpmFilter = useCollectionStore((s) => s.slowBpmFilter)
+  const setSlowBpmFilter = useCollectionStore((s) => s.setSlowBpmFilter)
+  const slowestBpm = useCollectionStore((s) => s.slowestBpm)
   const mcoTagsFilter = useCollectionStore((s) => s.mcoTagsFilter)
   const setMcoTagsFilter = useCollectionStore((s) => s.setMcoTagsFilter)
   const missingMetadataFilter = useCollectionStore((s) => s.missingMetadataFilter)
@@ -269,12 +274,7 @@ export function TrackTable({
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
       setColumnWidths((prev) => {
-        try {
-          localStorage.setItem(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
-        } catch {
-          // Best-effort persistence — losing a resize on a full/blocked
-          // localStorage isn't worth surfacing to the user.
-        }
+        writeStored(COLUMN_WIDTHS_STORAGE_KEY, JSON.stringify(prev))
         return prev
       })
     }
@@ -404,6 +404,7 @@ export function TrackTable({
             : t.analysisStatus !== 'done'
       )
       .filter((t) => matchesEnergy(t.energy, energyFilter))
+      .filter((t) => !slowBpmFilter || isSlowBpm(t, slowestBpm))
       .filter((t) => !duplicates || duplicates.has(t.id))
       .filter((t) => !missingMetadataFilter || isMissingId3Metadata(t))
       .filter((t) => !cloudOnlyFilter || t.cloudStatus === 'cloud_only')
@@ -443,6 +444,8 @@ export function TrackTable({
     currentTrack,
     analysedFilter,
     energyFilter,
+    slowBpmFilter,
+    slowestBpm,
     hotCueCounts,
     duplicates,
     missingMetadataFilter,
@@ -743,7 +746,16 @@ export function TrackTable({
         )
       }
       case 'bpm':
-        return track.bpm?.toFixed(0) ?? '—'
+        // A dot after a BPM that was set by hand or taken from Rekordbox:
+        // analysis leaves that one alone.
+        return track.bpm && track.bpmEdited ? (
+          <span title="Set by you (or taken from Rekordbox): analysis keeps it. Refine BPM… → Detect it again hands it back.">
+            {track.bpm.toFixed(0)}
+            <span style={{ color: 'var(--color-accent)', marginLeft: '2px' }}>•</span>
+          </span>
+        ) : (
+          (track.bpm?.toFixed(0) ?? '—')
+        )
       case 'musicalKey': {
         const camelot = toCamelot(track.musicalKey)
         const label = formatKey(track.musicalKey, keyNotation)
@@ -932,6 +944,7 @@ export function TrackTable({
           />
         )}
         {duplicatesFilter && <FilterChip icon="content_copy" label="Duplicates" onClear={() => setDuplicatesFilter(false)} />}
+        {slowBpmFilter && <FilterChip icon="speed" label={`Below ${slowestBpm} BPM`} onClear={() => setSlowBpmFilter(false)} />}
         {mcoTagsFilter !== 'all' && (
           <FilterChip
             icon="sell"
@@ -1165,7 +1178,7 @@ export function TrackTable({
           </tbody>
         </table>
         {columnsMenu && (
-          <ContextMenu x={columnsMenu.x} y={columnsMenu.y}>
+          <ContextMenu x={columnsMenu.x} y={columnsMenu.y} onClose={() => setColumnsMenu(null)}>
             <div style={{ padding: '4px 8px', fontSize: '11px', color: 'var(--color-text-dim)' }}>Columns</div>
             {columnOrder.map((key) => (
               <label key={key} style={{ ...contextMenuItemStyle, cursor: key === 'title' ? 'default' : 'pointer' }}>
@@ -1181,7 +1194,7 @@ export function TrackTable({
           </ContextMenu>
         )}
         {contextMenu && (
-          <ContextMenu x={contextMenu.x} y={contextMenu.y}>
+          <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
             {menuOnMissing && selectedPlaylistId !== null ? (
               // A song whose file is gone: all it can do is leave the playlist.
               <button

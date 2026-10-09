@@ -4,8 +4,11 @@ import { existsSync } from 'node:fs'
 import type { AppDatabase } from '../db'
 import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
-import type { WorkerResult, WorkerTask } from './worker'
+import type { TempoTask, WorkerResult, WorkerTask } from './worker'
+import { decodeToPcm } from './decode'
+import { analysedBpm, refineBpm } from './tempoRefine'
 import { describeAnalysisError } from './errorMessage'
+import { encodeWaveformBands } from './waveform'
 
 // Tracks an analysis run was part-way through when the app last closed are
 // still marked 'analyzing': nothing is analysing them, and a bulk run only
@@ -43,7 +46,7 @@ function writeAnalysisResult(
     first_beat: result.firstBeat,
     musical_key: result.musicalKey,
     waveform_peaks: JSON.stringify(result.waveformPeaks),
-    waveform_bands: JSON.stringify(result.waveformBands),
+    waveform_bands: encodeWaveformBands(result.waveformBands),
     loudness: result.loudness,
     energy: result.energy,
     analyzed_at: Date.now(),
@@ -57,7 +60,8 @@ function writeAnalysisResult(
 export async function analyzeTrack(
   db: AppDatabase,
   track: { id: number; path: string },
-  cacheDir: string
+  cacheDir: string,
+  slowestBpm: number | null = null
 ): Promise<void> {
   db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
   try {
@@ -70,7 +74,7 @@ export async function analyzeTrack(
     // etc.), where two concurrent reads of a not-fully-synced file can
     // race each other.
     const playablePath = await getPlayableFilePath(track.path, cacheDir)
-    const result = await runAnalysisPipeline(playablePath, track.path)
+    const result = await runAnalysisPipeline(playablePath, track.path, undefined, slowestBpm)
     writeAnalysisResult(db, track, result)
   } catch (err) {
     markFailed(db, track.id, describeAnalysisError(err))
@@ -82,6 +86,54 @@ export async function analyzeTrack(
 // relative to index.js's location, not to this source file's location.
 const WORKER_ENTRY = fileURLToPath(new URL('./analysis/worker.js', import.meta.url))
 
+// Refine BPM sharpens a tempo on the track's audio: a decode and a few
+// hundred milliseconds of arithmetic per track, which froze the window when
+// done in the main process for a batch. One worker, kept for the batch,
+// answers one track at a time; `close` ends it. Without the built worker
+// (under Vitest) it's measured in-process.
+// `mode`: 'near' sharpens a tempo the user multiplied; 'again' measures as
+// analysis would, starting from the stored tempo.
+export function createTempoMeasurer(
+  cacheDir: string,
+  slowestBpm: number | null = null
+): { measure: (path: string, target: number, mode?: 'near' | 'again') => Promise<number | null>; close: () => void } {
+  if (!existsSync(WORKER_ENTRY)) {
+    return {
+      measure: async (path, target, mode = 'near') => {
+        const pcm = await decodeToPcm(await getPlayableFilePath(path, cacheDir))
+        const refined = mode === 'again' ? analysedBpm(pcm, target, slowestBpm) : refineBpm(pcm, target, 44100, false)
+        return refined === target ? null : refined
+      },
+      close: () => {},
+    }
+  }
+  const worker = new Worker(WORKER_ENTRY)
+  const waiting = new Map<number, (bpm: number | null) => void>()
+  let nextId = 1
+  const giveUp = () => {
+    for (const resolve of waiting.values()) resolve(null)
+    waiting.clear()
+  }
+  worker.on('message', (msg: WorkerResult) => {
+    if (msg.status !== 'tempo') return
+    waiting.get(msg.id)?.(msg.bpm)
+    waiting.delete(msg.id)
+  })
+  // A tempo that couldn't be measured is just not sharpened.
+  worker.on('error', giveUp)
+  worker.on('exit', giveUp)
+  return {
+    measure: (path, target, mode = 'near') =>
+      new Promise((resolve) => {
+        const id = nextId++
+        waiting.set(id, resolve)
+        const task: TempoTask = { kind: 'tempo', id, path, cacheDir, target, mode, slowestBpm }
+        worker.postMessage(task)
+      }),
+    close: () => void worker.terminate(),
+  }
+}
+
 // Sequential in-process fallback, used when the built worker chunk isn't
 // present (e.g. under Vitest, which runs this module's TS source directly
 // rather than the bundled out/main/ output). Functionally correct — just
@@ -91,6 +143,8 @@ async function runAnalysisQueueInProcess(
   tracks: { id: number; path: string }[],
   options: {
     cacheDir: string
+    // Below it the tempo is doubled (the Library setting); null leaves it.
+    slowestBpm?: number | null
     onProgress?: (progress: { done: number; total: number }) => void
     signal?: AbortSignal
   }
@@ -99,7 +153,7 @@ async function runAnalysisQueueInProcess(
   let done = 0
   for (const track of tracks) {
     if (options.signal?.aborted) break
-    await analyzeTrack(db, track, options.cacheDir)
+    await analyzeTrack(db, track, options.cacheDir, options.slowestBpm ?? null)
     done++
     options.onProgress?.({ done, total })
   }
@@ -122,6 +176,8 @@ export async function runAnalysisQueue(
   options: {
     concurrency: number
     cacheDir: string
+    // Below it the tempo is doubled (the Library setting); null leaves it.
+    slowestBpm?: number | null
     // done may be fractional: it includes how far the in-flight tracks are.
     onProgress?: (progress: { done: number; total: number }) => void
     signal?: AbortSignal
@@ -195,7 +251,7 @@ export async function runAnalysisQueue(
       const track = tracks[nextIndex++]
       db.prepare("UPDATE tracks SET analysis_status = 'analyzing' WHERE id = ?").run(track.id)
       inFlightTrackIds.add(track.id)
-      const task: WorkerTask = { id: track.id, path: track.path, cacheDir }
+      const task: WorkerTask = { id: track.id, path: track.path, cacheDir, slowestBpm: options.slowestBpm ?? null }
       worker.postMessage(task)
     }
 
@@ -217,6 +273,8 @@ export async function runAnalysisQueue(
           reportProgress()
           return
         }
+        // An answer to a tempo question: not asked of these workers.
+        if (msg.status === 'tempo') return
         partial.delete(msg.id)
 
         const track = tracksById.get(msg.id)!

@@ -151,3 +151,27 @@ export function refineBpm(pcm: Float32Array, roughBpm: number, sampleRate = 4410
   const whole = Math.round(found.bpm)
   return Math.abs(found.bpm - whole) <= 0.03 ? whole : Math.round(found.bpm * 100) / 100
 }
+
+// Half time. A tune at 165 BPM is as honestly 82.5: the tracker picks
+// either, and nothing in the audio settles it — measured against a
+// Rekordbox collection, the doubled tempo is no stronger in the tracks
+// Rekordbox doubles than in the ones it leaves (docs/research/bpm-accuracy.md).
+// So it is a convention, the one DJ software uses: a slowest tempo, below
+// which the BPM is doubled. The doubled tempo is then sharpened on the
+// audio like any other (82.37 × 2 → 165), unless the audio lands somewhere
+// else, in which case the plain product is kept.
+export const DEFAULT_SLOWEST_BPM = 90
+
+export function doubleIfSlow(pcm: Float32Array, bpm: number, slowestBpm: number | null, sampleRate = 44100): number {
+  if (!slowestBpm || !(bpm > 0) || bpm >= slowestBpm || bpm * 2 > FASTEST_BPM) return bpm
+  const doubled = bpm * 2
+  const measured = refineBpm(pcm, doubled, sampleRate, false)
+  return Math.abs(measured / doubled - 1) <= SEARCH && measured !== doubled ? measured : Math.round(doubled * 100) / 100
+}
+
+// The tempo analysis stores: the tracker's, sharpened over the whole track
+// (and moved to 1.5× when it reported two thirds), then doubled if it is
+// slower than the slowest tempo the user mixes at.
+export function analysedBpm(pcm: Float32Array, trackerBpm: number, slowestBpm: number | null = null, sampleRate = 44100): number {
+  return doubleIfSlow(pcm, refineBpm(pcm, trackerBpm, sampleRate), slowestBpm, sampleRate)
+}

@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-01
+updated: 2026-10-08
 adrs: [0014, 0045]
 ---
 # Visualizer
@@ -25,7 +25,8 @@ duration, so they move at the same speed at any rate (threejs-visualisers
 Options, as dropdowns in the bar along the bottom right (the track's title and artist have the top row) (the theme's own options saved per theme):
 
 - **Theme** — Nebula, Warp, Horizon, Sound System, Smoke, Kaleidoscope,
-  Paint, Liquid, or Origins (keys **1–9** switch while it's open);
+  Paint, Liquid, Origins, Sponge, Crystal or Tangle (keys **1–9** switch to
+  the first nine while it's open; the last three are in the list);
 - **Frame rate** — 15, 24, 30 (default), 60 fps or Max;
 - **Hide track info** — hides the title/artist overlay;
 - per-theme options (below).
@@ -63,6 +64,16 @@ Options, as dropdowns in the bar along the bottom right (the track's title and a
   illustration. Mids speed the flight and wind the spiral, bass swells
   travel down it, kicks pulse the spheres. **Colours**: *Dream*, *Candy*,
   *Noir*, *Shifting* (threejs-visualisers 0.3.0).
+- **Sponge** — a flight down a corridor of an endless Menger sponge, with
+  wiggly tubes running alongside. Mids speed and roll the flight, bass
+  breathes the holes wider, each kick sends a band of light down the
+  corridor. A **Colours** option (threejs-visualisers 0.4.0).
+- **Crystal** — a folding fractal crystal turning in the dark, orbited by
+  squiggly ribbons. Mids keep re-forming it, bass swells it, kicks snap the
+  fold on a step. A **Colours** option (0.4.0).
+- **Tangle** — a torus knot orbited by smaller knots, each orbited by
+  smaller ones again. Bass thickens the tubes, mids spin the orbits, highs
+  ripple them, kicks throw the rings outward. A **Colours** option (0.4.0).
 
 While casting to a TV, this visualizer is off: the button is dimmed and says to pick one in the
 Cast menu, where the TV's own visualizers are ([casting](casting.md),

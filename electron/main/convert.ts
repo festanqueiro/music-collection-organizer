@@ -161,13 +161,17 @@ export interface ConvertDeps {
   probe: (path: string) => Promise<AudioInfo | null>
   ffmpeg: (args: string[]) => Promise<{ code: number | null; stderr: string }>
   trash: (path: string) => Promise<void>
+  // Puts the finished file under its name (fs.rename; replaced in tests).
+  rename: (from: string, to: string) => Promise<void>
 }
 
-export const defaultConvertDeps = (trash: (path: string) => Promise<void>): ConvertDeps => ({ probe: probeAudio, ffmpeg: runFfmpeg, trash })
+export const defaultConvertDeps = (trash: (path: string) => Promise<void>): ConvertDeps => ({ probe: probeAudio, ffmpeg: runFfmpeg, trash, rename })
 
 const lastLine = (text: string) => text.trim().split('\n').pop()?.trim() || 'ffmpeg failed'
 
-async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, options: ConvertOptions): Promise<ConvertResult> {
+// `taken`: the names this run has already given out — two files converted
+// at once must not both be told a name is free.
+async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, options: ConvertOptions, taken: Set<string>): Promise<ConvertResult> {
   const row = db.prepare('SELECT path, filename, present, cloud_status FROM tracks WHERE id = ?').get(trackId) as
     | { path: string; filename: string; present: number; cloud_status: string }
     | undefined
@@ -184,19 +188,23 @@ async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, o
   if (replace && alreadyConverted(row.path, options.format, target, info)) {
     return { trackId, name, status: 'skipped', message: 'Already in that format' }
   }
-  const planned = planOutput(row.path, replace ? null : options.folder, options.format, replace, existsSync)
+  const planned = planOutput(row.path, replace ? null : options.folder, options.format, replace, (path) => existsSync(path) || taken.has(path.toLowerCase()))
   if ('conflict' in planned) return fail(`${basename(planned.conflict)} is already there`)
   const out = planned.path
+  taken.add(out.toLowerCase())
   await mkdir(dirname(out), { recursive: true })
   // Not an audio extension, so a scan never takes the half-written file for a track.
   const tmp = `${out}.${randomBytes(4).toString('hex')}.mcotmp`
+  // Once the original is in the Trash the converted file is the only copy
+  // in place: it's kept whatever goes wrong after that.
+  let keepTmp = false
   try {
     let run = await deps.ffmpeg(buildConvertArgs(row.path, tmp, options.format, target, info, true))
     // A cover the format's writer refuses shouldn't stop the audio.
     if (run.code !== 0 && options.format !== 'wav') run = await deps.ffmpeg(buildConvertArgs(row.path, tmp, options.format, target, info, false))
     if (run.code !== 0) throw new Error(lastLine(run.stderr))
     if (!replace) {
-      await rename(tmp, out)
+      await deps.rename(tmp, out)
       return { trackId, name, status: 'converted', path: out, replaced: false }
     }
     // The row follows the file (as when a file is moved): same id, so its
@@ -210,11 +218,17 @@ async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, o
     if (planned.inPlace) {
       // Same name: the original has to leave before the new file can have it.
       await deps.trash(row.path)
-      await rename(tmp, out)
+      keepTmp = true
+      try {
+        await deps.rename(tmp, out)
+      } catch (err) {
+        console.error('convert: the converted file could not take the name of the original', tmp, err)
+        throw new Error(`The original is in the Trash, but the converted file couldn't take its name. It's kept next to it as ${basename(tmp)}: rename it to ${basename(out)}, or restore the original`)
+      }
       await record()
       return { trackId, name, status: 'converted', path: out, replaced: true }
     }
-    await rename(tmp, out)
+    await deps.rename(tmp, out)
     await record()
     try {
       await deps.trash(row.path)
@@ -224,28 +238,44 @@ async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, o
     }
     return { trackId, name, status: 'converted', path: out, replaced: true }
   } catch (err) {
-    await unlink(tmp).catch(() => {})
+    if (!keepTmp) await unlink(tmp).catch(() => {})
     return fail(err instanceof Error ? err.message : String(err))
   }
 }
 
-// One file at a time (ffmpeg uses the cores it needs), reporting after
-// each; `shouldStop` is asked between files.
+// How many files are converted at once: ffmpeg's encoders here are mostly
+// single-threaded, so a few side by side finish a batch sooner without
+// taking the whole machine.
+export const CONVERT_AT_ONCE = 3
+
+// A few files at a time, in the order given, reporting as each starts and
+// ends; `shouldStop` is asked before each file starts (those under way
+// finish). The results come back in the tracks' order, without the ones
+// never started.
 export async function convertTracks(
   db: AppDatabase,
   deps: ConvertDeps,
   trackIds: number[],
   options: ConvertOptions,
   onProgress: (progress: ConvertProgress) => void = () => {},
-  shouldStop: () => boolean = () => false
+  shouldStop: () => boolean = () => false,
+  atOnce = CONVERT_AT_ONCE
 ): Promise<ConvertResult[]> {
-  const results: ConvertResult[] = []
-  for (const [index, trackId] of trackIds.entries()) {
-    if (shouldStop()) break
-    const row = db.prepare('SELECT filename FROM tracks WHERE id = ?').get(trackId) as { filename: string } | undefined
-    onProgress({ done: index, total: trackIds.length, name: row?.filename ?? '' })
-    results.push(await convertOne(db, deps, trackId, options))
+  const results: (ConvertResult | undefined)[] = new Array(trackIds.length)
+  const taken = new Set<string>()
+  let next = 0
+  let done = 0
+  const worker = async () => {
+    while (next < trackIds.length && !shouldStop()) {
+      const index = next++
+      const trackId = trackIds[index]
+      const row = db.prepare('SELECT filename FROM tracks WHERE id = ?').get(trackId) as { filename: string } | undefined
+      onProgress({ done, total: trackIds.length, name: row?.filename ?? '' })
+      results[index] = await convertOne(db, deps, trackId, options, taken)
+      done++
+    }
   }
-  onProgress({ done: results.length, total: trackIds.length, name: '' })
-  return results
+  await Promise.all(Array.from({ length: Math.max(1, Math.min(atOnce, trackIds.length)) }, worker))
+  onProgress({ done, total: trackIds.length, name: '' })
+  return results.filter((r): r is ConvertResult => r !== undefined)
 }

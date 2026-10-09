@@ -5,8 +5,7 @@ import { applyMoves, planMove, type MovedTrack } from './moveTracks'
 import { showOpenDialog, showSaveDialog } from './ipcDialogs'
 import { changeTrackBpm } from './bpmEdit'
 import { decodeToPcm } from './analysis/decode'
-import { computeWaveformBands, type WaveformBands } from './analysis/waveform'
-import { refineBpm } from './analysis/tempoRefine'
+import { computeWaveformBands, decodeWaveformBands, encodeWaveformBands, type WaveformBands } from './analysis/waveform'
 import { registerTagIpc } from './ipcTags'
 import { registerPlaylistIpc } from './ipcPlaylists'
 import { registerConvertIpc } from './ipcConvert'
@@ -42,6 +41,8 @@ import {
   getLastExternalBackup,
   setLastExternalBackup,
   getAutoAnalyseNewTracks,
+  getSlowestBpm,
+  setSlowestBpm,
   setAutoAnalyseNewTracks,
   setAppThemeId,
 } from './config'
@@ -54,7 +55,7 @@ import { migrateDataFolder } from './dataMigration'
 import { runScan, type ScanResult } from './scan'
 import { downloadTrack } from './cloudDownload'
 import { getDragIcon } from './dragIcon'
-import { runAnalysisQueue } from './analysis/queue'
+import { createTempoMeasurer, runAnalysisQueue } from './analysis/queue'
 import { extractArtwork } from './analysis/metadata'
 import { writeTags, supportsTagEditing, TagWriteError } from './tagWriter'
 import { TagReader, readFileTags, saveFileTags } from './tagReader'
@@ -189,6 +190,9 @@ export function registerIpcHandlers(
   // triggered by loading a track into the player). analysis:stop aborts
   // all of them.
   const activeAnalysisControllers = new Set<AbortController>()
+  // Goes up on every analysis:stop: a tracks:changeBpm batch that sees it
+  // change stops after the track it is on.
+  let stopRequests = 0
   // Progress summed across every in-flight analysis:run call. They all
   // report on the one scan:progress channel, and the renderer treats
   // done === total as "finished" and hides the bar — so per-run numbers
@@ -475,14 +479,16 @@ export function registerIpcHandlers(
     for (const win of BrowserWindow.getAllWindows()) win.setBackgroundColor(getAppTheme(id).background)
   })
 
-  ipcMain.handle('config:getLibrarySettings', (): { watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean } => ({
+  ipcMain.handle('config:getLibrarySettings', (): { watchCollectionFolder: boolean; autoAnalyseNewTracks: boolean; slowestBpm: number } => ({
     watchCollectionFolder: getWatchCollectionFolder(),
     autoAnalyseNewTracks: getAutoAnalyseNewTracks(),
+    slowestBpm: getSlowestBpm(),
   }))
   ipcMain.handle('config:setWatchCollectionFolder', (_e, enabled: boolean): void => {
     setWatchCollectionFolder(enabled === true)
     syncFolderWatcher()
   })
+  ipcMain.handle('config:setSlowestBpm', (_e, bpm: number): void => setSlowestBpm(bpm))
   ipcMain.handle('config:setAutoAnalyseNewTracks', (_e, enabled: boolean): void =>
     setAutoAnalyseNewTracks(enabled === true)
   )
@@ -562,6 +568,7 @@ export function registerIpcHandlers(
       await runAnalysisQueue(db, tracks, {
         concurrency: 4,
         cacheDir: getMediaCacheDir(),
+        slowestBpm: getSlowestBpm() || null,
         onProgress: (progress) => {
           analysisProgress.done += progress.done - runDone
           runDone = progress.done
@@ -586,6 +593,7 @@ export function registerIpcHandlers(
   })
 
   ipcMain.handle('analysis:stop', (): void => {
+    stopRequests++
     for (const controller of activeAnalysisControllers) controller.abort()
   })
 
@@ -612,7 +620,8 @@ export function registerIpcHandlers(
       | { path: string; waveform_bands: string | null; present: number; cloud_status: string }
       | undefined
     if (!row) return Promise.resolve(null)
-    if (row.waveform_bands) return Promise.resolve(JSON.parse(row.waveform_bands) as WaveformBands)
+    const stored = row.waveform_bands ? decodeWaveformBands(row.waveform_bands) : null
+    if (stored) return Promise.resolve(stored)
     if (!row.present || row.cloud_status !== 'local') return Promise.resolve(null)
     const running = bandsInFlight.get(trackId)
     if (running) return running
@@ -620,7 +629,7 @@ export function registerIpcHandlers(
       try {
         const pcm = await decodeToPcm(await getPlayableFilePath(row.path, getMediaCacheDir()), 22050)
         const bands = computeWaveformBands(pcm, 22050)
-        db.prepare('UPDATE tracks SET waveform_bands = ? WHERE id = ?').run(JSON.stringify(bands), trackId)
+        db.prepare('UPDATE tracks SET waveform_bands = ? WHERE id = ?').run(encodeWaveformBands(bands), trackId)
         return bands
       } catch (err) {
         console.error('waveform bands failed', row.path, err)
@@ -758,17 +767,22 @@ export function registerIpcHandlers(
   ipcMain.handle(
     'tracks:changeBpm',
     async (_e, trackIds: number[], change: BpmChange): Promise<{ tracks: Track[]; skipped: { trackId: number; reason: string }[] }> => {
-      const measure = async (path: string, target: number): Promise<number | null> => {
-        const pcm = await decodeToPcm(await getPlayableFilePath(path, getMediaCacheDir()))
-        const refined = refineBpm(pcm, target, 44100, false)
-        return refined === target ? null : refined
-      }
+      // Only a multiplied tempo is measured on the audio — in a worker, so a
+      // batch doesn't freeze the window — and the renderer is told how far it is.
+      const measurer = change.kind === 'factor' || change.kind === 'measure' ? createTempoMeasurer(getMediaCacheDir(), getSlowestBpm() || null) : null
       const skipped: { trackId: number; reason: string }[] = []
       const changed: number[] = []
-      for (const trackId of trackIds) {
-        const result = await changeTrackBpm(db, trackId, change, measure)
-        if (result.ok) changed.push(trackId)
-        else skipped.push({ trackId, reason: result.reason })
+      const stopsAtStart = stopRequests
+      try {
+        for (const [index, trackId] of trackIds.entries()) {
+          if (stopRequests !== stopsAtStart) break
+          if (measurer && trackIds.length > 1) sendToRenderer('tracks:bpmProgress', { done: index, total: trackIds.length })
+          const result = await changeTrackBpm(db, trackId, change, measurer ? measurer.measure : async () => null)
+          if (result.ok) changed.push(trackId)
+          else skipped.push({ trackId, reason: result.reason })
+        }
+      } finally {
+        measurer?.close()
       }
       const tracks = changed
         .map((id) => db.prepare(`SELECT ${trackListColumns} FROM tracks WHERE id = ?`).get(id) as unknown as TrackRow | undefined)

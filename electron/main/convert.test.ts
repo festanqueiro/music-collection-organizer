@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { rename } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase, type AppDatabase } from './db'
@@ -143,6 +144,7 @@ describe('convertTracks', () => {
         trashed.push(path)
         rmSync(path)
       },
+      rename: (from, to) => rename(from, to),
     }
   })
   afterEach(() => rmSync(dir, { recursive: true, force: true }))
@@ -178,6 +180,27 @@ describe('convertTracks', () => {
     expect(trashed).toEqual([join(dir, 'Song.wav')])
     expect(readFileSync(join(dir, 'Song.wav'), 'utf8')).toBe('converted!')
     expect(row()).toMatchObject({ path: join(dir, 'Song.wav'), size: 10 })
+  })
+
+  it('keeps the converted file when it cannot take the name of an original already in the Trash', async () => {
+    deps.rename = async () => {
+      throw new Error('EPERM')
+    }
+    const [result] = await convertTracks(db, deps, [id], options({ format: 'wav', bitDepth: 16, replace: true }))
+    expect(result.status).toBe('failed')
+    expect(result.message).toMatch(/kept next to it as Song\.wav\.[0-9a-f]+\.mcotmp/)
+    expect(trashed).toEqual([join(dir, 'Song.wav')])
+    const left = readdirSync(dir)
+    expect(left).toHaveLength(1)
+    expect(readFileSync(join(dir, left[0]), 'utf8')).toBe('converted!')
+  })
+
+  it('leaves no half-made file when a copy cannot be put in place', async () => {
+    deps.rename = async () => {
+      throw new Error('EPERM')
+    }
+    expect((await convertTracks(db, deps, [id], options()))[0].status).toBe('failed')
+    expect(readdirSync(dir)).toEqual(['Song.wav'])
   })
 
   it('skips a replace that would change nothing, and refuses to overwrite another file', async () => {
@@ -222,6 +245,32 @@ describe('convertTracks', () => {
     expect(row().path).toBe(join(dir, 'Song.aiff'))
   })
 
+  it('converts a few files at once, in order, and never gives two of them the same name', async () => {
+    // Three more tracks with the same file name in other folders, all copied into one folder.
+    const ids = [id]
+    for (const sub of ['b', 'c', 'd']) {
+      const folder = join(dir, sub)
+      mkdirSync(folder)
+      writeFileSync(join(folder, 'Song.wav'), 'original')
+      ids.push(db.prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES (?, 'Song.wav', ?, 'wav', 8, 1)`).run(join(folder, 'Song.wav'), folder).lastInsertRowid as number)
+    }
+    let running = 0
+    let most = 0
+    deps.ffmpeg = async (args) => {
+      most = Math.max(most, ++running)
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      writeFileSync(args[args.length - 1], 'converted!')
+      running--
+      return { code: 0, stderr: '' }
+    }
+    const out = join(dir, 'out')
+    const results = await convertTracks(db, deps, ids, options({ folder: out }))
+    expect(most).toBe(3)
+    expect(results.map((r) => r.trackId)).toEqual(ids)
+    expect(results.every((r) => r.status === 'converted')).toBe(true)
+    expect(readdirSync(out).sort()).toEqual(['Song (2).aiff', 'Song (3).aiff', 'Song (4).aiff', 'Song.aiff'])
+  })
+
   it("doesn't convert missing or cloud-only tracks, and stops between files when asked", async () => {
     db.prepare("UPDATE tracks SET cloud_status = 'cloud_only' WHERE id = ?").run(id)
     expect((await convertTracks(db, deps, [id], options()))[0]).toMatchObject({ status: 'failed' })
@@ -230,7 +279,7 @@ describe('convertTracks', () => {
     db.prepare('UPDATE tracks SET present = 1 WHERE id = ?').run(id)
     const progress: number[] = []
     let asked = 0
-    const results = await convertTracks(db, deps, [id, id, id], options(), (p) => progress.push(p.done), () => asked++ >= 1)
+    const results = await convertTracks(db, deps, [id, id, id], options(), (p) => progress.push(p.done), () => asked++ >= 1, 1)
     expect(results).toHaveLength(1)
     expect(progress).toEqual([0, 1])
   })

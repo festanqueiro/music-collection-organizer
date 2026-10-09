@@ -110,13 +110,16 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
 - **What to import** — when the files include a collection export (xml), the summary starts with
   three ticks, each saying how much it would bring:
   - **Playlists** (on by default) — everything described below.
-  - **Hot cues, memory cues and loops** (off by default) — for songs with no cues in MCO yet;
-    songs that already have cues in MCO are left as they are, and counted.
+  - **Hot cues, memory cues and loops** (off by default) — a song with no cues in MCO gets them
+    all. A song that already has cues keeps every one, and only its **empty pads** are filled with
+    Rekordbox's hot cues (not one at the same moment as a hot cue of MCO's; no memory cues or
+    loops). Importing again adds nothing twice.
   - **BPM** (off by default) — Rekordbox's BPM for songs where MCO has none or a different one
     (more than 0.05 apart). It replaces MCO's and, like a BPM set with *Refine BPM*, is kept when
     the song is analysed again ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)).
-  A tick with nothing to bring is greyed out. With *Playlists* off the playlist details below are
-  dimmed and nothing is done to playlists. What was ticked is remembered per computer
+  A tick with nothing to bring is greyed out. With *Playlists* off nothing is done to playlists and
+  their details are hidden — except the **Different path** list, which stays to confirm: the songs
+  ticked there still get the cues and BPM, and are remembered. What was ticked is remembered per computer
   (`rekordboxImportChoices`). Playlist files (m3u8, txt) hold nothing else, so they show no ticks
   and always import their playlists. Key, genre, comments and the other fields aren't offered.
 - Before anything changes, a summary dialog: the folders and playlists found, how many songs

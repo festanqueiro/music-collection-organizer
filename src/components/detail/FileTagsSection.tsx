@@ -117,7 +117,7 @@ export function FullId3Section({ track }: { track: Track }) {
     ['Album', track.album ? decodeHtmlEntities(track.album) : null],
     ['Genre (ID3)', track.genreTag ? decodeHtmlEntities(track.genreTag) : null],
     ['Year', track.year],
-    ['BPM', track.bpm ? Math.round(track.bpm) : null],
+    ['BPM', track.bpm ? `${Math.round(track.bpm * 100) / 100}${track.bpmEdited ? ' · set by you' : ''}` : null],
     ['Key', formatKey(track.musicalKey, keyNotation)],
     ['Energy', track.energy !== null ? `${track.energy} / 10` : null],
     ['Loudness', track.loudness !== null ? `${formatLufs(track.loudness)} LUFS` : null],

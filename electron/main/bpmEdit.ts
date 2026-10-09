@@ -12,7 +12,10 @@ export const FASTEST_BPM = 300
 
 // The tempo the track's audio agrees on near `target`, or null when it
 // can't be measured (analysis/tempoRefine.ts, without the jump to 1.5×).
-export type MeasureNear = (path: string, target: number) => Promise<number | null>
+// With 'again' it is measured as analysis would, starting from `target`
+// (1.5× when two thirds was stored, doubled when slower than the user's
+// slowest tempo).
+export type MeasureNear = (path: string, target: number, mode?: 'near' | 'again') => Promise<number | null>
 
 const round2 = (bpm: number) => Math.round(bpm * 100) / 100
 
@@ -28,6 +31,16 @@ export async function changeTrackBpm(
   if (!row) return { ok: false, reason: 'No longer in the collection' }
   if (change.kind === 'detect') {
     db.prepare('UPDATE tracks SET bpm_edited = 0 WHERE id = ?').run(trackId)
+    return { ok: true }
+  }
+  if (change.kind === 'measure') {
+    // The analysed tempo, measured again with today's rules — not the user's own.
+    const edited = (db.prepare('SELECT bpm_edited FROM tracks WHERE id = ?').get(trackId) as { bpm_edited: number }).bpm_edited === 1
+    if (edited) return { ok: false, reason: 'The BPM was set by hand: use Detect it again to hand it back first' }
+    if (!row.bpm) return { ok: false, reason: 'No BPM yet — analyse it' }
+    if (!row.present || row.cloud_status !== 'local') return { ok: false, reason: 'The file is not on this computer' }
+    const measured = await measure(row.path, row.bpm, 'again').catch(() => null)
+    if (measured && measured >= SLOWEST_BPM && measured <= FASTEST_BPM) db.prepare('UPDATE tracks SET bpm = ? WHERE id = ?').run(measured, trackId)
     return { ok: true }
   }
   let bpm: number

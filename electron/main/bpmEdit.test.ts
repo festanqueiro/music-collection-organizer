@@ -55,6 +55,31 @@ describe('changeTrackBpm', () => {
     expect((await changeTrackBpm(db, 999, { kind: 'set', bpm: 120 }, whole)).ok).toBe(false)
   })
 
+  it('measures the analysed tempo again, as analysis would, and leaves it the analysis\'s', async () => {
+    const asked: string[] = []
+    const again: MeasureNear = async (_path, target, mode) => {
+      asked.push(`${target} ${mode}`)
+      return 160
+    }
+    expect(await changeTrackBpm(db, id, { kind: 'measure' }, again)).toEqual({ ok: true })
+    expect(asked).toEqual(['106.58 again'])
+    expect(row()).toEqual({ bpm: 160, bpm_edited: 0 })
+    // Nothing clearer in the audio: as it was.
+    await changeTrackBpm(db, id, { kind: 'measure' }, none)
+    expect(row().bpm).toBe(160)
+  })
+
+  it('does not measure over a BPM set by hand, a track with none, or a file that is not here', async () => {
+    await changeTrackBpm(db, id, { kind: 'set', bpm: 170 }, whole)
+    expect((await changeTrackBpm(db, id, { kind: 'measure' }, async () => 85)).ok).toBe(false)
+    expect(row()).toEqual({ bpm: 170, bpm_edited: 1 })
+    await changeTrackBpm(db, id, { kind: 'detect' }, whole)
+    db.prepare("UPDATE tracks SET cloud_status = 'cloud_only' WHERE id = ?").run(id)
+    expect((await changeTrackBpm(db, id, { kind: 'measure' }, async () => 85)).ok).toBe(false)
+    db.prepare("UPDATE tracks SET cloud_status = 'local', bpm = NULL WHERE id = ?").run(id)
+    expect((await changeTrackBpm(db, id, { kind: 'measure' }, async () => 85)).ok).toBe(false)
+  })
+
   it('hands the tempo back to analysis on "detect"', async () => {
     await changeTrackBpm(db, id, { kind: 'set', bpm: 170 }, whole)
     expect(await changeTrackBpm(db, id, { kind: 'detect' }, whole)).toEqual({ ok: true })

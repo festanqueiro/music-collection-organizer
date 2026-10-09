@@ -4,6 +4,59 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.61 — 2026-10-09
+
+### Added
+- **Half time handled in the analysis**: a tune at 165 BPM could be analysed
+  as 82.5. Analysis now doubles a BPM below a **slowest tempo** (90 BPM;
+  change it, or turn it off, in Settings → Library → Tempo).
+- **For tracks already in the collection**: a **Slow BPM** filter lists the
+  ones below the slowest tempo, and **Refine BPM → Measure it again**
+  re-measures the tempo of the tracks you choose in about a second each —
+  sharper, two thirds caught, slow tempos doubled — keeping everything
+  else. A BPM you set by hand is left alone.
+- **A dot after a BPM you set** (or took from Rekordbox) in the table, and
+  *set by you* in the track details: the ones analysis leaves alone.
+- **Three new visualizer themes**: **Sponge** (a flight down an endless
+  fractal corridor), **Crystal** (a folding fractal crystal) and **Tangle**
+  (knots orbiting knots), from threejs-visualisers 0.4.0.
+- **A Bulk Operations menu**, for work on the whole collection:
+  **Analyse Tracks Not Analysed Yet** (it was *File → Analyse Collection*)
+  and **Measure Every BPM Again**, which re-measures the BPM of every
+  analysed track and changes nothing else — about a second a track, BPMs
+  you set are left alone. **Stop** ends either.
+
+### Fixed
+- **Tag names no longer depend on capitals**: `house` can't be created
+  next to `House`, nor two Subtags of one Tag that differ only that way.
+  The message says which name is already there.
+- **Convert → Replace the original, same file name** (only the bit depth
+  or sampling frequency changes): if the converted file couldn't be put in
+  place after the original went to the Trash, it was deleted. It is now
+  kept next to it, and the message says where.
+- **Refine BPM of all…** no longer freezes the window while it works
+  through the tracks, and says how far it is.
+- **Importing cues or BPM from a Rekordbox collection without its
+  playlists** skipped the songs found at a different path. They are now
+  included, and the list of them stays visible to confirm.
+
+### Changed
+- **Importing cues from Rekordbox fills empty pads**: a song that already
+  has cues in MCO keeps them all and gets Rekordbox's hot cues on its
+  empty pads only. Before, such a song got nothing.
+- The coloured waveform's data takes less than half the space in the
+  database.
+- **Esc closes right-click menus.** The hot cue pads' menus and the
+  waveform's stay inside the window like the others.
+- **A Rekordbox collection export is read once per import** instead of
+  three or four times.
+- The Classic waveform does less work while a track plays.
+- **Convert works on three files at a time**, so a batch finishes sooner.
+- **Analysis failed: End-Of-Stream** now says what it most likely means:
+  the file ends before it should, so it's probably still syncing with the
+  cloud — try again once it's done.
+- Electron 43.7.9, React 19.3 and other updates within their versions.
+
 ## 1.0.60 — 2026-10-08
 
 ### Added

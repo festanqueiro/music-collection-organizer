@@ -14,6 +14,8 @@ import { filterPlaylistNodes } from '../state/savedPlaylist'
 import { songs } from '../format'
 import { RekordboxImportSummary } from './RekordboxImportSummary'
 import { ContextMenu } from './ContextMenu'
+import { writeStored } from '../state/stored'
+import { ipcErrorMessage } from '../ipcError'
 
 const LAYOUT_KEY = 'playlistsBox'
 // What was last ticked in a collection import, per computer. Playlists
@@ -55,11 +57,7 @@ function loadLayout(): Layout {
 // sidebar comes back (it isn't mounted while collapsed, and reads its
 // layout on mount).
 export function expandPlaylistsBoxOnNextOpen(): void {
-  try {
-    localStorage.setItem(LAYOUT_KEY, JSON.stringify({ ...loadLayout(), collapsed: false }))
-  } catch {
-    // The box keeps its last state.
-  }
+  writeStored(LAYOUT_KEY, JSON.stringify({ ...loadLayout(), collapsed: false }))
 }
 
 // A name being typed: a new node under `parentId`, or a rename of `id`.
@@ -84,11 +82,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
 
   const [layout, setLayout] = useState(loadLayout)
   useEffect(() => {
-    try {
-      localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout))
-    } catch {
-      // Not saved; the defaults come back next time.
-    }
+    writeStored(LAYOUT_KEY, JSON.stringify(layout))
   }, [layout])
   const closed = useMemo(() => new Set(layout.closed), [layout.closed])
 
@@ -106,7 +100,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
       useCollectionStore.setState({ playlistNodes: await window.api.movePlaylistNode(id, targetId, where) })
       if (where === 'into' && targetId !== null && closed.has(targetId)) toggleFolder(targetId)
     } catch (err) {
-      showToast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+      showToast(ipcErrorMessage(err))
     }
   }
 
@@ -130,11 +124,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
   // What to take from a collection export: the playlists, its cues, its tempos.
   const [choices, setChoices] = useState<RekordboxImportChoices>(loadImportChoices)
   useEffect(() => {
-    try {
-      localStorage.setItem(IMPORT_CHOICES_KEY, JSON.stringify(choices))
-    } catch {
-      // Not remembered; playlists only next time.
-    }
+    writeStored(IMPORT_CHOICES_KEY, JSON.stringify(choices))
   }, [choices])
 
   async function pickImport() {
@@ -173,7 +163,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
       ].filter(Boolean)
       showToast(`Imported from Rekordbox${extras.length > 0 ? `: ${take.playlists ? 'the playlists, ' : ''}${extras.join(', ')}` : ''}`)
     } catch (err) {
-      showToast(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+      showToast(ipcErrorMessage(err))
     }
   }
 
@@ -589,7 +579,7 @@ export function PlaylistsBox({ onSelectPlaylist }: { onSelectPlaylist: (id: numb
       )}
 
       {menu && (
-        <ContextMenu x={menu.x} y={menu.y}>
+        <ContextMenu x={menu.x} y={menu.y} onClose={() => setMenu(null)}>
           {menu.node === null ? (
             <>
               {menuItem('queue_music', 'New playlist', () => startCreate('playlist', null))}

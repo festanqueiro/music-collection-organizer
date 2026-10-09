@@ -5,7 +5,7 @@ adrs: [0012]
 ---
 # Queue
 
-MCO has a play **queue**, not saved playlists. It's first-in, first-out:
+MCO has a play **queue**, next to its saved [playlists](playlists.md). It's first-in, first-out:
 the track playing is always at the top, and once it finishes (or you skip)
 it leaves the queue.
 

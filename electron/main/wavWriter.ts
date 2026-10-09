@@ -36,7 +36,7 @@ export class WavWriter {
 
   constructor(
     readonly path: string,
-    private sampleRate: number,
+    sampleRate: number,
     private channels: number,
     private bitsPerSample: number
   ) {

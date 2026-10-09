@@ -36,11 +36,13 @@ export interface AnalysisPipelineResult {
 export async function runAnalysisPipeline(
   path: string,
   metadataPath = path,
-  onStep?: (fraction: number) => void
+  onStep?: (fraction: number) => void,
+  // Below it the tempo is doubled (the Library setting); null leaves it.
+  slowestBpm: number | null = null
 ): Promise<AnalysisPipelineResult> {
   const [metadata, pcm] = await Promise.all([extractMetadata(metadataPath), decodeToPcm(path)])
   onStep?.(0.4)
-  const { bpm, firstBeat, key, scale } = detectBpmAndKey(pcm)
+  const { bpm, firstBeat, key, scale } = detectBpmAndKey(pcm, slowestBpm)
   onStep?.(0.8)
   const peaks = computeWaveformPeaks(pcm)
   const bands = computeWaveformBands(pcm)
