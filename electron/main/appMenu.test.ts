@@ -17,9 +17,9 @@ const labels = (menu: MenuItemConstructorOptions[]) => menu.map((m) => m.label ?
 
 describe('buildAppMenuTemplate', () => {
   it('has the app menu first on macOS only', () => {
-    expect(labels(buildAppMenuTemplate(options()))).toEqual(['MCO', 'File', 'Edit', 'Playback', 'View', 'windowMenu', 'help'])
+    expect(labels(buildAppMenuTemplate(options()))).toEqual(['MCO', 'File', 'Edit', 'Playback', 'View', 'Bulk Operations', 'windowMenu', 'help'])
     const windows = buildAppMenuTemplate(options({ isMac: false }))
-    expect(labels(windows)).toEqual(['File', 'Edit', 'Playback', 'View', 'windowMenu', 'help'])
+    expect(labels(windows)).toEqual(['File', 'Edit', 'Playback', 'View', 'Bulk Operations', 'windowMenu', 'help'])
     // Settings and updates move to File and Help there.
     expect(items(windows).filter((i) => i.label === 'Settings…')).toHaveLength(1)
     expect(items(windows).filter((i) => i.label === 'Check for Updates…')).toHaveLength(1)
@@ -34,7 +34,19 @@ describe('buildAppMenuTemplate', () => {
     click('Queue')
     click('Import from Rekordbox (xml)…')
     click('Export Collection to Rekordbox (xml)…')
-    expect(send.mock.calls.map((c) => c[0])).toEqual(['settings', 'update-collection', 'show-queue', 'import-rekordbox', 'export-rekordbox'])
+    click('Analyse Tracks Not Analysed Yet…')
+    click('Measure Every BPM Again…')
+    click('Stop')
+    expect(send.mock.calls.map((c) => c[0])).toEqual([
+      'settings',
+      'update-collection',
+      'show-queue',
+      'import-rekordbox',
+      'export-rekordbox',
+      'analyse-collection',
+      'remeasure-bpms',
+      'stop-analysis',
+    ])
   })
 
   it('gives no two items the same shortcut, and none a bare key', () => {

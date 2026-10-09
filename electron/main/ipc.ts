@@ -190,6 +190,9 @@ export function registerIpcHandlers(
   // triggered by loading a track into the player). analysis:stop aborts
   // all of them.
   const activeAnalysisControllers = new Set<AbortController>()
+  // Goes up on every analysis:stop: a tracks:changeBpm batch that sees it
+  // change stops after the track it is on.
+  let stopRequests = 0
   // Progress summed across every in-flight analysis:run call. They all
   // report on the one scan:progress channel, and the renderer treats
   // done === total as "finished" and hides the bar — so per-run numbers
@@ -590,6 +593,7 @@ export function registerIpcHandlers(
   })
 
   ipcMain.handle('analysis:stop', (): void => {
+    stopRequests++
     for (const controller of activeAnalysisControllers) controller.abort()
   })
 
@@ -768,8 +772,10 @@ export function registerIpcHandlers(
       const measurer = change.kind === 'factor' || change.kind === 'measure' ? createTempoMeasurer(getMediaCacheDir(), getSlowestBpm() || null) : null
       const skipped: { trackId: number; reason: string }[] = []
       const changed: number[] = []
+      const stopsAtStart = stopRequests
       try {
         for (const [index, trackId] of trackIds.entries()) {
+          if (stopRequests !== stopsAtStart) break
           if (measurer && trackIds.length > 1) sendToRenderer('tracks:bpmProgress', { done: index, total: trackIds.length })
           const result = await changeTrackBpm(db, trackId, change, measurer ? measurer.measure : async () => null)
           if (result.ok) changed.push(trackId)

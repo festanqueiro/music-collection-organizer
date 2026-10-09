@@ -314,6 +314,23 @@ export default function App() {
         if (!window.confirm(`Analyse ${waiting} track${waiting === 1 ? '' : 's'} now? It can take a while and can be stopped.`)) return
         store().runAnalysis().catch((err) => console.error('analysing the collection failed', err))
       },
+      'remeasure-bpms': () => {
+        // Only tempos analysis found, of files that are here: a BPM set by hand stays.
+        const ids = store()
+          .tracks.filter((t) => t.cloudStatus === 'local' && !!t.bpm && !t.bpmEdited)
+          .map((t) => t.id)
+        if (ids.length === 0) return store().showToast('No analysed BPM to measure again')
+        const minutes = Math.max(1, Math.round(ids.length / 60))
+        if (
+          !window.confirm(
+            `Measure the BPM of ${ids.length} track${ids.length === 1 ? '' : 's'} again? Only the BPM changes; the ones you set stay. About a second a track (${minutes} minute${minutes === 1 ? '' : 's'}), and Bulk Operations → Stop ends it.`
+          )
+        )
+          return
+        store()
+          .changeTracksBpm(ids, { kind: 'measure' })
+          .catch((err) => console.error('measuring every BPM again failed', err))
+      },
       'stop-analysis': () => void store().stopAnalysis(),
       'play-pause': () => store().playbackControls?.toggle(),
       'next-track': () => void store().advanceToNext(),

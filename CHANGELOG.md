@@ -21,6 +21,12 @@ installed copies update themselves.
   fractal corridor), **Crystal** (a folding fractal crystal) and **Tangle**
   (knots orbiting knots), from threejs-visualisers 0.4.0.
 
+- **A Bulk Operations menu**, for work on the whole collection:
+  **Analyse Tracks Not Analysed Yet** (it was *File → Analyse Collection*)
+  and **Measure Every BPM Again**, which re-measures the BPM of every
+  analysed track and changes nothing else — about a second a track, BPMs
+  you set are left alone. **Stop** ends either.
+
 ### Fixed
 - **Tag names no longer depend on capitals**: `house` can't be created
   next to `House`, nor two Subtags of one Tag that differ only that way.
@@ -47,6 +53,9 @@ installed copies update themselves.
   three or four times.
 - The Classic waveform does less work while a track plays.
 - **Convert works on three files at a time**, so a batch finishes sooner.
+- **Analysis failed: End-Of-Stream** now says what it most likely means:
+  the file ends before it should, so it's probably still syncing with the
+  cloud — try again once it's done.
 - Electron 43.7.9, React 19.3 and other updates within their versions.
 
 ## 1.0.60 — 2026-10-08

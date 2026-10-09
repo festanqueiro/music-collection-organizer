@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-09
 adrs: []
 ---
 # DJ tools
@@ -94,7 +94,8 @@ The analysis itself now catches the two-thirds case in most tracks, and doubles 
 the **slowest tempo** (90 BPM unless changed) — half time
 ([measurements](../research/bpm-accuracy.md)). For the tracks already analysed, the **Slow BPM**
 filter ([Filters](filters.md)) lists the ones below it: check them, right-click → *Refine BPM of
-all…* → *Measure it again* or *Double*.
+all…* → *Measure it again* or *Double*. For every analysed track at once: **Bulk Operations → Measure Every BPM
+Again…** in the [menu bar](menu-bar.md), which *Stop* there ends.
 
 ## Headphone pre-listen (cue)
 

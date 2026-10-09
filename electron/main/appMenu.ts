@@ -58,8 +58,6 @@ export function buildAppMenuTemplate(options: AppMenuOptions): MenuItemConstruct
         command('Export Collection to Rekordbox (xml)…', 'export-rekordbox'),
         separator,
         command('Update Collection…', 'update-collection', 'CmdOrCtrl+U'),
-        command('Analyse Collection…', 'analyse-collection'),
-        command('Stop Analysis', 'stop-analysis'),
         separator,
         { label: isMac ? 'Show Collection Folder in Finder' : 'Show Collection Folder', click: showCollectionFolder },
         separator,
@@ -107,6 +105,16 @@ export function buildAppMenuTemplate(options: AppMenuOptions): MenuItemConstruct
         separator,
         { role: 'togglefullscreen' },
         ...(isDev ? [separator, { role: 'reload' } as const, { role: 'toggleDevTools' } as const] : []),
+      ],
+    },
+    {
+      // Work on the whole collection: each asks first, and Stop ends it.
+      label: 'Bulk Operations',
+      submenu: [
+        command('Analyse Tracks Not Analysed Yet…', 'analyse-collection'),
+        command('Measure Every BPM Again…', 'remeasure-bpms'),
+        separator,
+        command('Stop', 'stop-analysis'),
       ],
     },
     { role: 'windowMenu' },

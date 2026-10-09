@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-09
 adrs: [0004, 0005, 0006, 0009, 0024, 0027, 0030, 0031]
 ---
 # Library
@@ -79,7 +79,7 @@ to *pending*, failed ones show a red icon.
 
 **Why it failed** is kept (`tracks.analysis_error`, in plain words by
 `electron/main/analysis/errorMessage.ts`: the file is gone, can't be read, is damaged or not audio, or
-— for cloud files — not fully downloaded; otherwise the last line of ffmpeg's log). It shows in the red
+— for cloud files — not fully downloaded, or ends too early (`End-Of-Stream`: probably still syncing); otherwise the last line of ffmpeg's log). It shows in the red
 icon's tooltip and as a note in the track's details with **Try again**; a later successful analysis
 clears it. Failures from before this was kept say no reason was recorded.
 
@@ -191,7 +191,7 @@ Drag rows straight to Finder, a DAW or any app — a normal file drag of the ori
 
 - Analysis interrupted by quitting: tracks still marked `analyzing` at startup go back to
   `pending` (`resetInterruptedAnalysis`, `analysis/queue.ts`), so they lose their spinner and the
-  next *Analyse Collection* includes them.
+  next *Bulk Operations → Analyse Tracks Not Analysed Yet* includes them.
 
 ## Tests
 - `scan.test.ts`, `scanDiff.test.ts`, `folderWalk.test.ts`, `folderWatcher.test.ts`,

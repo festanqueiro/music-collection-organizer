@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-09
 adrs: []
 ---
 # Menu bar
@@ -19,8 +19,6 @@ Electron's default one: the standard items plus MCO's main actions, with shortcu
 | | Import from Rekordbox (xml)… | | The Playlists box's import: Rekordbox's collection export (xml) or playlist files (m3u8, txt) — its playlists, after a preview |
 | | Export Collection to Rekordbox (xml)… | | Saves the whole collection as a `rekordbox.xml` — the same file as Settings → Import & export |
 | | Update Collection… | ⌘U | The toolbar's Update Collection dialog |
-| | Analyse Collection… | | Asks, then analyses every local track still waiting (or that failed) |
-| | Stop Analysis | | Stops the runs in progress |
 | | Show Collection Folder in Finder | | Opens the collection folder |
 | Edit | Undo … Select All | standard | Text editing |
 | | Find | ⌘F | Focuses the search box |
@@ -32,6 +30,9 @@ Electron's default one: the standard items plus MCO's main actions, with shortcu
 | | Stats | ⌘I | Opens Stats |
 | | Show / Hide Sidebar | ⌘B | Collapses or reopens the sidebar |
 | | Enter Full Screen | standard | |
+| Bulk Operations | Analyse Tracks Not Analysed Yet… | | Asks, then analyses every local track still waiting (or that failed). Was *File → Analyse Collection…* |
+| | Measure Every BPM Again… | | Asks, then measures the BPM of every local analysed track again — [Refine BPM](dj-tools.md)'s *Measure it again* on the whole collection: only the BPM changes, a BPM set by hand stays. About a second a track, with a count in a toast |
+| | Stop | | Stops the analysis runs in progress, and a BPM batch after the track it is on (the ones done keep their new BPM) |
 | Window | standard | | Minimise, zoom, bring to front |
 | Help | MCO Website, Release Notes | | Open in the browser |
 
@@ -55,7 +56,10 @@ Electron's default one: the standard items plus MCO's main actions, with shortcu
 - `appMenu.test.ts`: the menus per platform, each action sending its command, no two items with
   the same shortcut and none with a bare key, no Reload / developer tools when installed.
 - Checked in the BETA build by sending the commands to the page.
+- `npm run test:app` (`tests/app/smoke.mjs`): the Bulk Operations menu has its three items, and
+  *Measure Every BPM Again…* asks first, with the number of tracks.
 
 ## Limits & open questions
+- *Measure Every BPM Again* works on one track at a time: an hour for 3,600 tracks.
 - Items aren't greyed out when they don't apply (nothing playing, no analysis running).
 - Not offered yet: the tag export / import and Rekordbox export (in Settings → Transfer).

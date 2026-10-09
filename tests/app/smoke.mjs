@@ -307,6 +307,32 @@ await group('visualizer', async () => {
   await wait(400)
 })
 
+await group('bulk operations menu', async () => {
+  const labels = await app.evaluate(({ Menu }) => {
+    const bulk = Menu.getApplicationMenu()?.items.find((i) => i.label === 'Bulk Operations')
+    return bulk?.submenu?.items.filter((i) => i.type !== 'separator').map((i) => i.label) ?? null
+  })
+  check('Bulk Operations: analyse, measure every BPM again, Stop', JSON.stringify(labels) === JSON.stringify(['Analyse Tracks Not Analysed Yet…', 'Measure Every BPM Again…', 'Stop']), JSON.stringify(labels))
+  // Measure Every BPM Again asks first, with the number of tracks; answered
+  // no here, so no BPM changes.
+  const expected = await win.evaluate(async () => (await window.api.getTracks()).filter((t) => t.cloudStatus === 'local' && !!t.bpm && !t.bpmEdited).length)
+  const asked = new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 5000)
+    win.once('dialog', async (dialog) => {
+      clearTimeout(timer)
+      const message = dialog.message()
+      await dialog.dismiss()
+      resolve(message)
+    })
+  })
+  await app.evaluate(({ Menu }) => {
+    const bulk = Menu.getApplicationMenu()?.items.find((i) => i.label === 'Bulk Operations')
+    bulk?.submenu?.items.find((i) => i.label === 'Measure Every BPM Again…')?.click()
+  })
+  const message = await asked
+  check('Measure Every BPM Again asks, with the count', expected > 0 && !!message && message.startsWith(`Measure the BPM of ${expected} track`), JSON.stringify({ expected, message }))
+})
+
 check('no errors in the page', errors.length === 0, errors.slice(0, 5).join(' | '))
 await app.close()
 console.log(failed === 0 ? '\nAll checks passed.' : `\n${failed} check(s) failed.`)

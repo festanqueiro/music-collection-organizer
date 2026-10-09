@@ -296,6 +296,7 @@ export type MenuCommand =
   | 'export-rekordbox'
   | 'update-collection'
   | 'analyse-collection'
+  | 'remeasure-bpms'
   | 'stop-analysis'
   | 'find'
   | 'play-pause'
