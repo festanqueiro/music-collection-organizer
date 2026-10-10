@@ -12,6 +12,7 @@ export interface AnalysisPipelineResult {
   year: number | null
   duration: number | null
   bitrate: number | null
+  bitDepth: number | null
   bpm: number
   firstBeat: number
   musicalKey: string
@@ -57,6 +58,7 @@ export async function runAnalysisPipeline(
     year: metadata.year,
     duration: metadata.duration,
     bitrate: metadata.bitrate,
+    bitDepth: metadata.bitDepth,
     bpm,
     firstBeat,
     musicalKey: `${key} ${scale}`,

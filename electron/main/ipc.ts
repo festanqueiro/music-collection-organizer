@@ -99,6 +99,7 @@ interface TrackRow {
   birthtime: number | null
   duration: number | null
   bitrate: number | null
+  bit_depth: number | null
   title: string | null
   artist: string | null
   album: string | null
@@ -132,6 +133,7 @@ function rowToTrack(row: TrackRow): Track {
     birthtime: row.birthtime,
     duration: row.duration,
     bitrate: row.bitrate,
+    bitDepth: row.bit_depth || null,
     title: row.title,
     artist: row.artist,
     album: row.album,

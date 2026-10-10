@@ -37,6 +37,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   cues: 64,
   format: 80,
   bitrate: 90,
+  bitDepth: 80,
   duration: 90,
   dateAdded: 120,
   dateModified: 120,
@@ -375,6 +376,7 @@ export function TrackTable({
     if (key === 'loudness') return track.loudness ?? -Infinity
     if (key === 'gain') return gainToMatch(track.loudness, loudnessTarget) ?? Infinity
     if (key === 'cues') return hotCueCounts[track.id] ?? 0
+    if (key === 'bitDepth') return track.bitDepth ?? 0
     return track[key] ?? ''
   }
 
@@ -573,6 +575,7 @@ export function TrackTable({
     cues: 'Cues',
     format: 'Format',
     bitrate: 'Bitrate',
+    bitDepth: 'Bit depth',
     duration: 'Duration',
     dateAdded: 'Date Added',
     dateModified: 'Date Modified',
@@ -824,6 +827,8 @@ export function TrackTable({
           </span>
         )
       }
+      case 'bitDepth':
+        return track.bitDepth ? `${track.bitDepth}-bit` : '—'
       case 'duration':
         return track.duration ? formatDuration(track.duration) : '—'
       case 'dateAdded':

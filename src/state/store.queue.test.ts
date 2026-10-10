@@ -22,6 +22,7 @@ function track(id: number, overrides: Partial<Track> = {}): Track {
     birthtime: null,
     duration: 180,
     bitrate: null,
+    bitDepth: null,
     title: null,
     artist: null,
     album: null,

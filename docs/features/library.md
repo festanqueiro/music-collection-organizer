@@ -110,7 +110,7 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 
 ### Track table
 - Columns: Title, Filename, Artist, Album, **Tags**, **Subtags**, BPM, Key, **Energy**, **LUFS**,
-  **Volume Score**, Format, Bitrate, Duration, Date added, Date modified.
+  **Volume Score**, Format, Bitrate, Bit depth, Duration, Date added, Date modified.
   - **Energy**: the 1–10 rating as a number and a small cool-to-hot bar.
   - **LUFS**: integrated loudness (EBU R128) from analysis, e.g. −8.4; closer to 0 is louder.
   - **Volume Score**: the gain that would bring the track to the **collection's median loudness**
@@ -125,6 +125,11 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
   (`hiddenColumns`; `config:getHiddenColumns`/`setHiddenColumns`); hidden columns keep their place
   in the order.
 - Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted in Bitrate.
+- **Bit depth** (`tracks.bit_depth`) is the sample size of a lossless file, a dash for a lossy one. It
+  is read from the file's header together with its tags (`tagReader.ts`, `bitDepthOf`), and by analysis
+  and Convert. `NULL` means not looked at yet, `0` looked at and none: the background tag reader takes
+  every local track still at `NULL`, which is how a collection from before the column is filled in,
+  once (`tagReader.test.ts`).
 - The Key column shows colour-coded Camelot keys ([DJ tools](dj-tools.md#harmonic-mixing)).
 - Click a row for its details; the play icon starts it (pause/resume on the playing track); the
   queue icon adds it to the end of the queue (lit, as a tick, while it's waiting there — a click

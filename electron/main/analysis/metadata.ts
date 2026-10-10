@@ -1,5 +1,5 @@
 // electron/main/analysis/metadata.ts
-import { parseFile } from 'music-metadata'
+import { parseFile, type IFormat } from 'music-metadata'
 
 export interface ExtractedMetadata {
   title: string | null
@@ -11,6 +11,14 @@ export interface ExtractedMetadata {
   // kbps, rounded — what the file was encoded at (lossy) or averages
   // (lossless). Null when the container doesn't say.
   bitrate: number | null
+  bitDepth: number | null
+}
+
+// Bits a sample, for the formats where that says something: a lossless
+// file's (16, 24…). A lossy file has none worth showing.
+export function bitDepthOf(format: Pick<IFormat, 'bitsPerSample' | 'lossless'>): number | null {
+  if (format.lossless === false) return null
+  return format.bitsPerSample && format.bitsPerSample > 0 ? format.bitsPerSample : null
 }
 
 export async function extractMetadata(filePath: string): Promise<ExtractedMetadata> {
@@ -23,6 +31,7 @@ export async function extractMetadata(filePath: string): Promise<ExtractedMetada
     year: result.common.year ?? null,
     duration: result.format.duration ?? null,
     bitrate: result.format.bitrate ? Math.round(result.format.bitrate / 1000) : null,
+    bitDepth: bitDepthOf(result.format),
   }
 }
 

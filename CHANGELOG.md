@@ -6,6 +6,12 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Added
+- **A Bit depth column** in the collection table (16-bit, 24-bit…), for
+  lossless files; a lossy file shows a dash. Tracks already in the
+  collection get theirs in the background the first time the app opens,
+  from the file's header — nothing is written to the files.
+
 ### Fixed
 - **The last track in the table is no longer half hidden** by the
   horizontal scrollbar: there is a little room under it.

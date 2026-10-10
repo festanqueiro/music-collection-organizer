@@ -6,6 +6,7 @@
 // in the background after a scan, over the tracks whose tags_read_at is
 // still NULL (new, or changed since last read).
 import { parseFile } from 'music-metadata'
+import { bitDepthOf } from './analysis/metadata'
 import type { AppDatabase } from './db'
 
 export interface FileTags {
@@ -14,23 +15,32 @@ export interface FileTags {
   album: string | null
   genre: string | null
   year: number | null
+  // Read with the tags, from the same header (see bitDepthOf).
+  bitDepth: number | null
 }
 
 export async function readFileTags(path: string): Promise<FileTags> {
-  const { common } = await parseFile(path, { skipCovers: true, duration: false })
+  const { common, format } = await parseFile(path, { skipCovers: true, duration: false })
   return {
     title: common.title ?? null,
     artist: common.artist ?? null,
     album: common.album ?? null,
     genre: common.genre?.[0] ?? null,
     year: common.year ?? null,
+    bitDepth: bitDepthOf(format),
   }
 }
 
+// tracks.bit_depth for a file that was looked at and has none (a lossy
+// file, or one that couldn't be read). NULL means not looked at yet: the
+// reader below takes those too, which is how the tracks of a collection
+// from before the column get theirs.
+export const NO_BIT_DEPTH = 0
+
 export function saveFileTags(db: AppDatabase, trackId: number, tags: FileTags): void {
   db.prepare(
-    'UPDATE tracks SET title = ?, artist = ?, album = ?, genre_tag = ?, year = ?, tags_read_at = ? WHERE id = ?'
-  ).run(tags.title, tags.artist, tags.album, tags.genre, tags.year, Date.now(), trackId)
+    'UPDATE tracks SET title = ?, artist = ?, album = ?, genre_tag = ?, year = ?, bit_depth = ?, tags_read_at = ? WHERE id = ?'
+  ).run(tags.title, tags.artist, tags.album, tags.genre, tags.year, tags.bitDepth ?? NO_BIT_DEPTH, Date.now(), trackId)
 }
 
 // Tells the renderer how many tracks are left, and when tags changed.
@@ -67,7 +77,7 @@ export class TagReader {
   private async pass(): Promise<void> {
     const pending = this.db
       .prepare(
-        "SELECT id, path FROM tracks WHERE tags_read_at IS NULL AND present = 1 AND cloud_status = 'local'"
+        "SELECT id, path FROM tracks WHERE (tags_read_at IS NULL OR bit_depth IS NULL) AND present = 1 AND cloud_status = 'local'"
       )
       .all() as { id: number; path: string }[]
     if (pending.length === 0) return
@@ -78,7 +88,7 @@ export class TagReader {
         saveFileTags(this.db, id, await readFileTags(path))
       } catch {
         // Unreadable tags: mark it read anyway, so it isn't retried forever.
-        this.db.prepare('UPDATE tracks SET tags_read_at = ? WHERE id = ?').run(Date.now(), id)
+        this.db.prepare('UPDATE tracks SET tags_read_at = ?, bit_depth = COALESCE(bit_depth, ?) WHERE id = ?').run(Date.now(), NO_BIT_DEPTH, id)
       }
       if (Date.now() - lastReport > 2000) {
         lastReport = Date.now()

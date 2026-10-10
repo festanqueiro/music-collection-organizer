@@ -307,6 +307,15 @@ await group('visualizer', async () => {
   await wait(400)
 })
 
+await group('bit depth column', async () => {
+  // The demo library was saved before the column existed: the background
+  // tag reader fills it in after launch.
+  const header = await win.locator('th:has-text("Bit depth")').count()
+  const depths = await win.evaluate(async () => (await window.api.getTracks()).map((t) => t.bitDepth))
+  const shown = await win.locator('tbody td:text-matches("^(16|24|32)-bit$")').count()
+  check('Bit depth column: a header, a value for the lossless tracks, shown in the rows', header === 1 && depths.some((d) => d === 16 || d === 24) && shown > 0, JSON.stringify({ header, depths: [...new Set(depths)], shown }))
+})
+
 await group('last row', async () => {
   // Scrolled to the end, the last track sits clear of the bottom edge, where
   // macOS draws the horizontal scrollbar over the table.

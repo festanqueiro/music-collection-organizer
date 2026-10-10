@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS tracks (
   birthtime INTEGER,
   duration REAL,
   bitrate INTEGER,
+  bit_depth INTEGER,
   title TEXT,
   artist TEXT,
   album TEXT,
@@ -140,6 +141,12 @@ function migrate(db: AppDatabase): void {
   // get it the next time they're analysed).
   if (!trackColumnNames.has('bitrate')) {
     db.exec('ALTER TABLE tracks ADD COLUMN bitrate INTEGER')
+  }
+
+  // Bits a sample of a lossless file, read with the tags (tagReader.ts):
+  // NULL until the file has been looked at, 0 when it has none.
+  if (!trackColumnNames.has('bit_depth')) {
+    db.exec('ALTER TABLE tracks ADD COLUMN bit_depth INTEGER')
   }
 
   if (!trackColumnNames.has('birthtime')) {

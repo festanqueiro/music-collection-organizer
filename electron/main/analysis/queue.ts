@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import type { AppDatabase } from '../db'
 import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
+import { NO_BIT_DEPTH } from '../tagReader'
 import type { TempoTask, WorkerResult, WorkerTask } from './worker'
 import { decodeToPcm } from './decode'
 import { analysedBpm, refineBpm } from './tempoRefine'
@@ -28,7 +29,7 @@ function writeAnalysisResult(
 ): void {
   db.prepare(
     `UPDATE tracks SET
-      title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate,
+      title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate, bit_depth = @bit_depth,
       bpm = CASE WHEN bpm_edited = 1 THEN bpm ELSE @bpm END, first_beat = @first_beat, musical_key = @musical_key, waveform_peaks = @waveform_peaks, waveform_bands = @waveform_bands,
       loudness = @loudness, energy = @energy,
       analysis_status = 'done', analysis_error = NULL, analyzed_at = @analyzed_at, tags_read_at = @analyzed_at
@@ -42,6 +43,7 @@ function writeAnalysisResult(
     year: result.year,
     duration: result.duration,
     bitrate: result.bitrate,
+    bit_depth: result.bitDepth ?? NO_BIT_DEPTH,
     bpm: result.bpm,
     first_beat: result.firstBeat,
     musical_key: result.musicalKey,
