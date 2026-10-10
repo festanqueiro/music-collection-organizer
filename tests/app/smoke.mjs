@@ -112,7 +112,7 @@ await group('toolbar popovers', async () => {
 
 await group('row menu', async () => {
   const footerTop = await win.evaluate(() => [...document.querySelectorAll('div')].find((d) => d.style.gridArea === 'footer').getBoundingClientRect().top)
-  const rows = await win.locator('tbody tr').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ y: r.y, h: r.height })))
+  const rows = await win.locator('tbody tr:not([aria-hidden])').evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ y: r.y, h: r.height })))
   const last = rows.filter((r) => r.y > 100 && r.y + r.h <= footerTop).pop()
   await win.mouse.click(500, last.y + last.h / 2, { button: 'right' })
   await wait(400)
@@ -179,7 +179,7 @@ await group('half time', async () => {
   await wait(400)
   await win.locator('text=Only tracks below the slowest tempo').click()
   await wait(500)
-  const listed = await win.locator('tbody tr').count()
+  const listed = await win.locator('tbody tr:not([aria-hidden])').count()
   const hasIt = (await win.locator(`td:has-text("${track.title}")`).count()) > 0
   check('Slow BPM filter lists the half-time track', listed >= 1 && listed <= 3 && hasIt, `${listed} rows`)
   await win.locator('text=Only tracks below the slowest tempo').click()
@@ -305,6 +305,23 @@ await group('visualizer', async () => {
   check('the new themes draw without errors', !!canvas && canvas.w > 0 && canvas.h > 0 && errors.length === before, JSON.stringify({ canvas, errors: errors.slice(before, before + 2) }))
   await win.keyboard.press('Escape')
   await wait(400)
+})
+
+await group('last row', async () => {
+  // Scrolled to the end, the last track sits clear of the bottom edge, where
+  // macOS draws the horizontal scrollbar over the table.
+  const gap = await win.evaluate(async () => {
+    const table = document.querySelector('table')
+    const scroller = table.parentElement
+    scroller.scrollTop = scroller.scrollHeight
+    await new Promise((r) => setTimeout(r, 400))
+    const rows = [...table.querySelectorAll('tbody tr:not([aria-hidden])')]
+    const gap = scroller.getBoundingClientRect().top + scroller.clientHeight - rows[rows.length - 1].getBoundingClientRect().bottom
+    scroller.scrollTop = 0
+    return gap
+  })
+  check('the last row ends above where the horizontal scrollbar is drawn', gap >= 14, `${gap}px`)
+  await wait(300)
 })
 
 await group('bulk operations menu', async () => {

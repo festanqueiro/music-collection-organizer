@@ -54,6 +54,9 @@ const ROW_HEIGHT = 36
 // Rows rendered beyond each edge of the viewport, so a fast scroll doesn't
 // flash empty space before React catches up.
 const OVERSCAN_ROWS = 15
+// Empty space under the last row: macOS draws the horizontal scrollbar over
+// the content (it takes no room of its own), which hid part of that row.
+const SCROLLBAR_ROOM = 16
 // Per-viewer sizing convenience, not collection data — plain localStorage
 // rather than the electron-store-backed column *order*, which is shared
 // config synced through the main process.
@@ -1170,9 +1173,9 @@ export function TrackTable({
                 </td>
               </tr>
             ))}
-            {lastRendered < visibleTracks.length && (
-              <tr aria-hidden style={{ height: (visibleTracks.length - lastRendered) * ROW_HEIGHT }}>
-                <td colSpan={orderedColumns.length + 4} style={{ padding: 0 }} />
+            {visibleTracks.length > 0 && (
+              <tr aria-hidden style={{ height: (visibleTracks.length - lastRendered) * ROW_HEIGHT + SCROLLBAR_ROOM }}>
+                <td colSpan={orderedColumns.length + 4} style={{ padding: 0, border: 'none' }} />
               </tr>
             )}
           </tbody>

@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-09
+updated: 2026-10-10
 adrs: [0004, 0005, 0006, 0009, 0024, 0027, 0030, 0031]
 ---
 # Library
@@ -132,6 +132,8 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
   All three sit in a fixed column of their own, right after the checkbox, whatever the column order.
 - Only the rows on screen are drawn, at a fixed height, so it stays at ~120 fps with thousands of
   tracks ([ADR 0024](../adr/0024-virtualised-track-table.md)).
+- There are 16 px of empty space under the last row: macOS draws the horizontal scrollbar over the
+  table rather than beside it, and it covered part of that row (`SCROLLBAR_ROOM`, `TrackTable.tsx`).
 - Right-click a row: **Play track now**, **Add to queue**, **Add to top of the queue**, **Pre-listen
   in headphones**, **Analyse/Re-analyse track**, **Refine BPM…** ([DJ tools](dj-tools.md#refine-bpm)), **Convert to…** ([Convert](convert.md)), **Show in Finder** (*Show in File Explorer* on Windows), **Show in Folder
   Tree View**.

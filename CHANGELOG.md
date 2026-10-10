@@ -4,6 +4,12 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## Unreleased
+
+### Fixed
+- **The last track in the table is no longer half hidden** by the
+  horizontal scrollbar: there is a little room under it.
+
 ## 1.0.61 — 2026-10-09
 
 ### Added
