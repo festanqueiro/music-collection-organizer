@@ -509,6 +509,14 @@ export function TrackTable({
       if (modalOpen) return
       const target = e.target as HTMLElement
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return
+      // ⌘A (Ctrl+A on Windows): check every track listed, as the header's
+      // checkbox does. In a text box it selects the text as usual (the
+      // check above), and handled here it never reaches Edit → Select All.
+      if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+        e.preventDefault()
+        if (visibleTracks.length > 0) setTracksChecked(visibleTracks.map((t) => t.id), true)
+        return
+      }
       // P: pre-listen to the selected row in the headphones (toggles).
       if ((e.key === 'p' || e.key === 'P') && !e.metaKey && !e.ctrlKey && !e.altKey) {
         if (selectedTrackId != null) {
@@ -558,6 +566,7 @@ export function TrackTable({
     selectedPlaylistId,
     selectedPlaylistTrackIds,
     checkedTrackIds,
+    setTracksChecked,
     removeTracksFromSelectedPlaylist,
   ])
 

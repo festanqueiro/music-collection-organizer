@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-09
+updated: 2026-10-10
 adrs: []
 ---
 # Menu bar
@@ -20,7 +20,7 @@ Electron's default one: the standard items plus MCO's main actions, with shortcu
 | | Export Collection to Rekordbox (xml)… | | Saves the whole collection as a `rekordbox.xml` — the same file as Settings → Import & export |
 | | Update Collection… | ⌘U | The toolbar's Update Collection dialog |
 | | Show Collection Folder in Finder | | Opens the collection folder |
-| Edit | Undo … Select All | standard | Text editing |
+| Edit | Undo … Select All | standard | Text editing. With the table in focus, ⌘A checks every track listed instead ([Library](library.md)) |
 | | Find | ⌘F | Focuses the search box |
 | Playback | Play / Pause | | The player's toggle |
 | | Next Track | ⌥⌘→ | Plays the next queued track |

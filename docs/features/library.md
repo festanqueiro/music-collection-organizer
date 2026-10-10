@@ -124,6 +124,10 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
   header, opens a checklist to show or hide each column (Title always stays). Saved in the config
   (`hiddenColumns`; `config:getHiddenColumns`/`setHiddenColumns`); hidden columns keep their place
   in the order.
+- **⌘A** (Ctrl+A on Windows) checks every track listed — what the header's checkbox does — when
+  the table is in focus, that is, when the cursor isn't in a text box, a menu or on a button. In a
+  text box it selects the text as usual. It is handled in the table's key handler
+  (`TrackTable.tsx`), before Edit → Select All sees it.
 - Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted in Bitrate.
 - **Bit depth** (`tracks.bit_depth`) is the sample size of a lossless file, a dash for a lossy one. It
   is read from the file's header together with its tags (`tagReader.ts`, `bitDepthOf`), and by analysis

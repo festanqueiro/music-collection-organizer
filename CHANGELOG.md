@@ -13,6 +13,8 @@ installed copies update themselves.
   possible are a harmonic move (same key, a step round the wheel, or the
   relative major/minor). It says how many changes mix, and **Undo** brings
   the old order back.
+- **⌘A selects every track in the table** (checks them all) when the
+  table is in focus; in a text box it still selects the text.
 - **A Bit depth column** in the collection table (16-bit, 24-bit…), for
   lossless files; a lossy file shows a dash. Tracks already in the
   collection get theirs in the background the first time the app opens,

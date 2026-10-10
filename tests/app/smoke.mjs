@@ -307,6 +307,31 @@ await group('visualizer', async () => {
   await wait(400)
 })
 
+await group('select all', async () => {
+  // With the table in focus (a row clicked), ⌘A checks every track listed.
+  await row().click()
+  await wait(300)
+  const boxes = () => win.evaluate(() => {
+    const all = [...document.querySelectorAll('tbody tr:not([aria-hidden]) input[type="checkbox"]')]
+    return { all: all.length, checked: all.filter((b) => b.checked).length, header: document.querySelector('thead input[type="checkbox"]').checked }
+  })
+  const before = await boxes()
+  await win.keyboard.press('ControlOrMeta+a')
+  await wait(300)
+  const after = await boxes()
+  check('⌘A checks every track in the table', before.checked < before.all && after.checked === after.all && after.all > 0 && after.header, JSON.stringify({ before, after }))
+  // In the search box it selects the text instead.
+  await win.locator('thead input[type="checkbox"]').click()
+  await wait(200)
+  const search = win.locator('input[type="search"], input[placeholder*="Search"]').first()
+  await search.fill('abc')
+  await search.press('ControlOrMeta+a')
+  const inSearch = await win.evaluate(() => ({ selected: document.activeElement.selectionEnd - document.activeElement.selectionStart, checked: [...document.querySelectorAll('tbody input[type="checkbox"]')].filter((b) => b.checked).length }))
+  check('in the search box ⌘A selects the text, not the tracks', inSearch.selected === 3 && inSearch.checked === 0, JSON.stringify(inSearch))
+  await search.fill('')
+  await wait(300)
+})
+
 await group('order by harmonic mixing', async () => {
   const playlist = await win.evaluate(async () => {
     const tracks = new Map((await window.api.getTracks()).map((t) => [t.id, t]))
@@ -334,7 +359,8 @@ await group('order by harmonic mixing', async () => {
     await win.evaluate(({ id, ids }) => window.api.setPlaylistTrackIds(id, ids), playlist)
   }
   const toast = await win.evaluate(() => /Ordered by harmonic mixing: \d+ of \d+ key changes? mix harmonically|Already in harmonic order/.test(document.body.innerText))
-  const rows = await win.locator('tbody tr:not([aria-hidden])').count()
+  // The collection table's own rows (the details panel can list tracks too).
+  const rows = await win.locator('table:has(th:has-text("Bit depth")) tbody tr:not([aria-hidden])').count()
   check('it reorders the playlist, keeps every song, and says how many changes mix', toast && [...after].sort().join() === [...before].sort().join() && rows === after.length, JSON.stringify({ toast, before, after, rows }))
   if (after.join() !== before.join()) {
     await win.locator('button:has-text("Undo")').first().click()
