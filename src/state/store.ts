@@ -373,6 +373,11 @@ export interface CollectionState {
   // Drag-reorder in the playlist being viewed: `trackIds` land before or
   // after `targetId`, keeping their own order.
   moveTracksInSelectedPlaylist: (trackIds: number[], targetId: number, where: 'before' | 'after') => Promise<void>
+  // Order by Harmonic Mixing: rewrites the order of the playlist being
+  // viewed so its key changes mix best (harmonicOrder.ts); Undo puts the
+  // old order back.
+  orderSelectedPlaylistByKey: () => Promise<void>
+  // `removed` is empty for a reorder: Undo then restores the order.
   playlistUndo: { message: string; playlistId: number; previous: number[]; removed: number[] } | null
   undoPlaylistRemove: () => Promise<void>
   dismissPlaylistUndo: () => void

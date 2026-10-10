@@ -4,7 +4,8 @@
 // because `playlist` in the store is the queue: the tree, the playlist
 // being viewed and its songs, adding, removing and reordering with Undo,
 // and playing a playlist or folder (which replaces the queue, with Undo).
-import { moveTracksInPlaylist, restoreRemovedTracks } from './savedPlaylist'
+import { moveTracksInPlaylist, restoreOrder, restoreRemovedTracks } from './savedPlaylist'
+import { harmonicChanges, orderByHarmonicMixing } from './harmonicOrder'
 import type { StoreApi } from 'zustand'
 import type { CollectionState } from './store'
 import { downloadBeforePlaying, prefetchUpcoming, triggerBackgroundAnalysisForMany } from './playbackHelpers'
@@ -47,6 +48,7 @@ type SavedPlaylistSliceKeys =
   | 'addTracksToSavedPlaylist'
   | 'removeTracksFromSelectedPlaylist'
   | 'moveTracksInSelectedPlaylist'
+  | 'orderSelectedPlaylistByKey'
   | 'playlistUndo'
   | 'undoPlaylistRemove'
   | 'dismissPlaylistUndo'
@@ -137,6 +139,33 @@ export function createSavedPlaylistSlice(set: Set, get: Get): Pick<CollectionSta
         get().showToast(`Couldn't reorder: ${err instanceof Error ? err.message : String(err)}`)
       }
     },
+    orderSelectedPlaylistByKey: async () => {
+      const playlistId = get().selectedPlaylistId
+      if (playlistId === null) return
+      const before = get().selectedPlaylistTrackIds
+      const byId = new Map(get().tracks.map((t) => [t.id, t]))
+      // A song whose file is gone has no key here: it goes last with the others that have none.
+      const keyed = (ids: number[]) => ids.map((id) => ({ id, musicalKey: byId.get(id)?.musicalKey ?? null, bpm: byId.get(id)?.bpm ?? null }))
+      if (!keyed(before).some((t) => t.musicalKey)) return get().showToast('No song here has a key yet — analyse them first')
+      const order = orderByHarmonicMixing(keyed(before))
+      const { inKey, total } = harmonicChanges(keyed(order))
+      const summary = `${inKey} of ${total} key change${total === 1 ? '' : 's'} mix harmonically`
+      if (order.every((id, i) => id === before[i])) return get().showToast(`Already in harmonic order: ${summary}`)
+      set({ selectedPlaylistTrackIds: order })
+      try {
+        const result = await window.api.setPlaylistTrackIds(playlistId, order)
+        set({ playlistNodes: result.nodes })
+        if (get().selectedPlaylistId === playlistId) set({ selectedPlaylistTrackIds: result.trackIds })
+      } catch (err) {
+        if (get().selectedPlaylistId === playlistId) set({ selectedPlaylistTrackIds: before })
+        return get().showToast(`Couldn't reorder: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      get().dismissQueueUndo()
+      get().dismissCueUndo()
+      if (playlistUndoTimeout) clearTimeout(playlistUndoTimeout)
+      set({ playlistUndo: { message: `Ordered by harmonic mixing: ${summary}`, playlistId, previous: before, removed: [] } })
+      playlistUndoTimeout = setTimeout(() => set({ playlistUndo: null }), 8000)
+    },
     playlistUndo: null,
     undoPlaylistRemove: async () => {
       const undo = get().playlistUndo
@@ -145,7 +174,7 @@ export function createSavedPlaylistSlice(set: Set, get: Get): Pick<CollectionSta
       const current = await window.api.getPlaylistTrackIds(undo.playlistId)
       const result = await window.api.setPlaylistTrackIds(
         undo.playlistId,
-        restoreRemovedTracks(current, undo.previous, undo.removed)
+        undo.removed.length === 0 ? restoreOrder(current, undo.previous) : restoreRemovedTracks(current, undo.previous, undo.removed)
       )
       set({ playlistNodes: result.nodes })
       if (get().selectedPlaylistId === undo.playlistId) set({ selectedPlaylistTrackIds: result.trackIds })

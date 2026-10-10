@@ -243,6 +243,7 @@ export function TrackTable({
   const selectPlaylist = useCollectionStore((s) => s.selectPlaylist)
   const removeTracksFromSelectedPlaylist = useCollectionStore((s) => s.removeTracksFromSelectedPlaylist)
   const moveTracksInSelectedPlaylist = useCollectionStore((s) => s.moveTracksInSelectedPlaylist)
+  const orderSelectedPlaylistByKey = useCollectionStore((s) => s.orderSelectedPlaylistByKey)
   // Where dragged rows will land while reordering a playlist.
   const [rowDrop, setRowDrop] = useState<{ id: number; where: 'before' | 'after' } | null>(null)
   const [playlistOrder, setPlaylistOrder] = useState(true)
@@ -916,6 +917,22 @@ export function TrackTable({
         {tagFilterChip && <FilterChip icon={tagFilterChip.icon} label={tagFilterChip.label} onClear={onClearTagFilter} />}
         {selectedPlaylistId !== null && selectedPlaylistName && (
           <FilterChip icon="queue_music" label={selectedPlaylistName} onClear={() => void selectPlaylist(null)} />
+        )}
+        {selectedPlaylistId !== null && selectedPlaylistTrackIds.length > 1 && (
+          <button
+            onClick={() => {
+              // The new order is the playlist's own: show that, not a column's sort.
+              setPlaylistOrder(true)
+              void orderSelectedPlaylistByKey()
+            }}
+            title="Reorder this playlist so each song's key mixes with the next one's — songs in one key together, slowest first. Undo puts the old order back."
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+              piano
+            </span>
+            Order by Harmonic Mixing
+          </button>
         )}
         {selectedPlaylistId !== null && !playlistOrder && (
           <button

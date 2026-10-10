@@ -7,6 +7,12 @@ installed copies update themselves.
 ## Unreleased
 
 ### Added
+- **Order by Harmonic Mixing**, a button above a playlist: it puts the
+  songs in the order whose key changes mix best — songs in one key
+  together, slowest first, then the keys so that as many changes as
+  possible are a harmonic move (same key, a step round the wheel, or the
+  relative major/minor). It says how many changes mix, and **Undo** brings
+  the old order back.
 - **A Bit depth column** in the collection table (16-bit, 24-bit…), for
   lossless files; a lossy file shows a dash. Tracks already in the
   collection get theirs in the background the first time the app opens,

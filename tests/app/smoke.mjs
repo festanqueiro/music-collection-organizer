@@ -307,6 +307,45 @@ await group('visualizer', async () => {
   await wait(400)
 })
 
+await group('order by harmonic mixing', async () => {
+  const playlist = await win.evaluate(async () => {
+    const tracks = new Map((await window.api.getTracks()).map((t) => [t.id, t]))
+    for (const node of await window.api.getPlaylistNodes()) {
+      if (node.kind !== 'playlist') continue
+      const ids = await window.api.getPlaylistTrackIds(node.id)
+      if (ids.filter((id) => tracks.get(id)?.musicalKey).length >= 3) return { id: node.id, name: node.name, ids }
+    }
+    return null
+  })
+  if (!playlist) return check('a demo playlist with three analysed songs', false)
+  // Start from an order that isn't the harmonic one: reversed twice can't both be it.
+  await win.evaluate(({ id, ids }) => window.api.setPlaylistTrackIds(id, [...ids].reverse()), playlist)
+  await win.locator(`text="${playlist.name}"`).first().click()
+  await wait(600)
+  const button = win.locator('button:has-text("Order by Harmonic Mixing")')
+  check('a playlist shows Order by Harmonic Mixing', (await button.count()) === 1)
+  const order = () => win.evaluate((id) => window.api.getPlaylistTrackIds(id), playlist.id)
+  const before = await order()
+  await button.click()
+  await wait(600)
+  let after = await order()
+  if (after.join() === before.join()) {
+    // The reversed order happened to be the harmonic one: the other way round isn't.
+    await win.evaluate(({ id, ids }) => window.api.setPlaylistTrackIds(id, ids), playlist)
+  }
+  const toast = await win.evaluate(() => /Ordered by harmonic mixing: \d+ of \d+ key changes? mix harmonically|Already in harmonic order/.test(document.body.innerText))
+  const rows = await win.locator('tbody tr:not([aria-hidden])').count()
+  check('it reorders the playlist, keeps every song, and says how many changes mix', toast && [...after].sort().join() === [...before].sort().join() && rows === after.length, JSON.stringify({ toast, before, after, rows }))
+  if (after.join() !== before.join()) {
+    await win.locator('button:has-text("Undo")').first().click()
+    await wait(600)
+    check('Undo puts the old order back', (await order()).join() === before.join())
+  }
+  await win.evaluate(({ id, ids }) => window.api.setPlaylistTrackIds(id, ids), playlist)
+  await win.locator('button[aria-label^="Remove the"]').first().click()
+  await wait(400)
+})
+
 await group('bit depth column', async () => {
   // The demo library was saved before the column existed: the background
   // tag reader fills it in after launch.

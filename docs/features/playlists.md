@@ -1,7 +1,7 @@
 ---
 status: shipped
-updated: 2026-10-08
-adrs: [0050]
+updated: 2026-10-10
+adrs: [0050, 0067]
 ---
 # Playlists
 
@@ -56,6 +56,13 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
 - Sorting by another column works as usual; clicking `#` returns to the playlist's order.
 - Songs whose file is missing stay in the list, greyed as elsewhere
   ([ADR 0004](../adr/0004-never-delete-track-rows.md)), and are skipped when playing.
+- **Order by Harmonic Mixing** (a button above the table, for a playlist of two songs or more)
+  rewrites the playlist's order so each song's key mixes with the next one's: songs in one key
+  together (slowest first), the keys in the order with the most harmonic moves — same key, a step
+  round the Camelot wheel, relative major/minor
+  ([ADR 0067](../adr/0067-harmonic-order-over-keys-not-songs.md)). Songs with no key go last. A
+  toast says how many of the key changes mix harmonically, with **Undo** for the old order. It
+  says so when the playlist is already in that order, or when no song has a key yet.
 
 ### Right-click menus
 - **Playlist**: **Play playlist** (replaces the queue with the playlist from its first playable
@@ -234,6 +241,11 @@ the m3u8 export and songs found at a different path.
    MCO's Rekordbox XML export. Built in #99. ⌥ to add a duplicate was dropped (see Limits). (S–M)
 
 ## Tests
+- `harmonicOrder.test.ts`: the cost of a key change agrees with `areKeysCompatible`; the wheel
+  walked upwards; every song kept once; one key's songs together by tempo; no key last; the same
+  result whatever order the songs came in; the cheapest of every order of seven keys; all 24 keys
+  with every change harmonic. `savedPlaylist.test.ts`: Undo's `restoreOrder`.
+- `npm run test:app`: the button on a demo playlist, the reorder, the toast, Undo.
 - `playlists.test.ts`: folders first by name (numbers, case), playlists after in their order.
 - `playlists.test.ts`, a track's playlists: several, one, none, and after a removal.
 - `rekordboxExport.test.ts`: the MCO Playlists folder — nesting, order, empty folders, missing
@@ -272,6 +284,9 @@ the m3u8 export and songs found at a different path.
 - In BETA: import that export through the app and check the counts against Rekordbox.
 
 ## Limits & open questions
+- Order by Harmonic Mixing looks at keys only: tempo orders the songs inside a key, not the keys
+  themselves, so a jump in BPM between keys is possible. With more than 16 different keys the
+  order is very good rather than proven best (ADR 0067).
 - Reading Rekordbox's `master.db` directly (no export step) is left out: it's SQLCipher-encrypted
   and `node:sqlite` can't open it — see the ADR.
 - Absolute paths: a collection moved to another path breaks matches (roadmap Next #2), as it does
