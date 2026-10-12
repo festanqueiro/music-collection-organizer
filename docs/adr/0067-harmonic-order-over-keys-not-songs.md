@@ -28,9 +28,27 @@ decided is the order of the *keys present*, at most 24 and usually far fewer.
 - The button rewrites the playlist's stored order, with **Undo** (the previous order, kept in the
   store's `playlistUndo`).
 
+## Note, 2026-10-12: what "best" is, and how far it is exact
+The claim above — the lowest total cost is the order with the most harmonic moves — was false: one
+clash (8) is cheaper than two diagonal steps (3 + 3) and leaves one more change in key. 9A 11B 9B
+10B 7B 12B came out with 3 of 5 changes harmonic where 4 of 5 exists (52 of 600 random sets). The
+button reports how many changes mix, so that count is now what is maximised first: an order is
+judged by `orderingCost`, where a change that isn't a harmonic move weighs more (100 +) than all the
+harmonic ones together, and the old costs only decide between orders with the same count.
+
+Every order is now weighed up to **18** keys (4.7 million entries, about 0.1 s; 20 keys take 0.6 s
+and 60 MB, more than a click should). With **19 to 24**: an exact search for the fewest changes
+out of key (a walk over the harmonic moves allowing 0, 1, 2… other changes — each key has three
+harmonic neighbours, so it is small), then that order and a nearest-key walk from every start are
+improved by reversing stretches and moving stretches of one to three keys, and by 150 rounds of
+shaking the best one and improving it again (a fixed seed: the same playlist always gives the same
+order). Measured against the exact answer on random sets of keys: 17 keys 30 of 30 equal, 19 keys
+30 of 30, 21 keys 14 of 14, 22 keys 6 of 6; 0.1 to 1 s. Before, with the old search, 17 to 20 keys
+were one harmonic change short in up to 4 of 12 sets.
+
 ## Consequences
-- "The best possible" is exact for the order of keys with up to 16 of them; with more it is a very
-  good order, not a proven best. All 24 keys come out with every change harmonic (tested).
+- "The best possible" is exact for the order of keys with up to 18 of them (16 until 2026-10-12);
+  with more, the number of harmonic changes is exact and the rest a very good order, not a proven best. All 24 keys come out with every change harmonic (tested).
 - Keeping a key's songs together gives up the rare order where splitting them would save a
   clash — the same key visited twice to bridge two branches.
 - Tempo isn't weighed between keys: a harmonic order can jump in BPM.

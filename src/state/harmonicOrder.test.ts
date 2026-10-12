@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { harmonicChanges, keyChangeCost, orderByHarmonicMixing, type KeyedTrack } from './harmonicOrder'
+import { harmonicChanges, keyChangeCost, orderByHarmonicMixing, orderOfKeys, orderingCost, type KeyedTrack } from './harmonicOrder'
 import { areKeysCompatible, toCamelot } from './harmonic'
 
 // Camelot code → the key name analysis stores.
@@ -59,15 +59,42 @@ describe('orderByHarmonicMixing', () => {
   })
 
   // Every order of seven keys, weighed one by one.
-  it('finds the cheapest order there is', () => {
+  it('finds the best order there is', () => {
     const tracks = ['1A', '8B', '3A', '9B', '2A', '8A', '5B'].map((code, i) => track(i + 1, code))
+    const judged = (order: number[]) => {
+      const keys = order.map((id) => toCamelot(tracks.find((t) => t.id === id)!.musicalKey)!)
+      return keys.slice(1).reduce((sum, key, i) => sum + orderingCost(keys[i], key), 0)
+    }
     let cheapest = Infinity
     const permute = (rest: number[], done: number[]) => {
-      if (rest.length === 0) cheapest = Math.min(cheapest, cost(tracks, done))
+      if (rest.length === 0) cheapest = Math.min(cheapest, judged(done))
       rest.forEach((id, i) => permute([...rest.slice(0, i), ...rest.slice(i + 1)], [...done, id]))
     }
     permute(tracks.map((t) => t.id), [])
-    expect(cost(tracks, orderByHarmonicMixing(tracks))).toBe(cheapest)
+    expect(judged(orderByHarmonicMixing(tracks))).toBe(cheapest)
+  })
+
+  it('takes one more change in key over a smoother order with fewer', () => {
+    // The smoothest order of these has 3 of 5 changes in key; 4 of 5 exists.
+    const tracks = ['9A', '11B', '9B', '10B', '7B', '12B'].map((code, i) => track(i + 1, code))
+    const order = orderByHarmonicMixing(tracks)
+    expect(harmonicChanges(order.map((id) => tracks.find((t) => t.id === id)!))).toEqual({ inKey: 4, total: 5 })
+  })
+
+  // Past the keys every order is weighed for (18), the search is checked
+  // against that exact answer — and below it too, where both can run.
+  it('matches the exact answer with 13 to 19 keys', () => {
+    const wheel = ALL_KEYS.map((key) => toCamelot(key)!)
+    let seed = 99
+    const random = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
+    for (const count of [13, 14, 16, 17, 17, 18, 19]) {
+      const keys = [...wheel].sort(() => random() - 0.5).slice(0, count)
+      const costs = keys.map((a) => keys.map((b) => orderingCost(a, b)))
+      const total = (order: number[]) => order.slice(1).reduce((sum, key, i) => sum + costs[order[i]][key], 0)
+      const searched = orderOfKeys(costs, 0)
+      expect([...searched].sort((a, b) => a - b)).toEqual(keys.map((_, i) => i))
+      expect(total(searched)).toBe(total(orderOfKeys(costs, 24)))
+    }
   })
 
   it('orders all 24 keys with every change in key', () => {
