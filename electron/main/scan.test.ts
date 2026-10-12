@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, writeFileSync, rmSync, unlinkSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, rmSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { openDatabase, type AppDatabase } from './db'
@@ -82,6 +82,24 @@ describe('runScan', () => {
     expect((db.prepare('SELECT present FROM tracks').get() as any).present).toBe(0)
   })
 
+  it('removeMissing leaves the tracks of a folder that could not be read', () => {
+    mkdirSync(join(root, 'locked'))
+    writeFileSync(join(root, 'locked', 'kept.wav'), 'x'.repeat(1000))
+    writeFileSync(join(root, 'here.wav'), 'x'.repeat(1000))
+    writeFileSync(join(root, 'gone.wav'), 'x'.repeat(1000))
+    runScan(db, root)
+    unlinkSync(join(root, 'gone.wav'))
+    chmodSync(join(root, 'locked'), 0o000)
+    try {
+      const result = runScan(db, root, { removeMissing: true })
+      expect(result.removed).toBe(1)
+      const paths = (db.prepare('SELECT path FROM tracks ORDER BY path').all() as any[]).map((r) => r.path)
+      expect(paths).toEqual([join(root, 'here.wav'), join(root, 'locked', 'kept.wav')])
+    } finally {
+      chmodSync(join(root, 'locked'), 0o755)
+    }
+  })
+
   it('clears a stale cloud-only flag once the file is downloaded, even though it looks unchanged', () => {
     writeFileSync(join(root, 'c.wav'), 'x'.repeat(5000))
     runScan(db, root)
@@ -127,5 +145,68 @@ describe('runScan', () => {
     const second = runScan(db, root)
     expect(second.inserted).toBe(0)
     expect(second.updated).toBe(0)
+  })
+
+  describe('a collection that moved', () => {
+    let other: string
+    beforeEach(() => {
+      other = mkdtempSync(join(tmpdir(), 'scan-moved-'))
+    })
+    afterEach(() => rmSync(other, { recursive: true, force: true }))
+
+    const put = (base: string, inside: string, bytes: number) => {
+      mkdirSync(join(base, inside, '..'), { recursive: true })
+      writeFileSync(join(base, inside), 'x'.repeat(bytes))
+    }
+
+    it('keeps each track, with what is on it, at its new path', () => {
+      put(root, 'House/a.wav', 1000)
+      put(root, 'b.wav', 2000)
+      runScan(db, root)
+      db.prepare("UPDATE tracks SET analysis_status = 'done', bpm = 124").run()
+      const before = db.prepare('SELECT id, filename FROM tracks ORDER BY filename').all() as any[]
+
+      put(other, 'House/a.wav', 1000)
+      put(other, 'b.wav', 2000)
+      const result = runScan(db, other)
+
+      expect(result).toMatchObject({ moved: 2, inserted: 0, missing: 0 })
+      const rows = db.prepare('SELECT id, filename, path, folder, bpm, analysis_status, present FROM tracks ORDER BY filename').all() as any[]
+      expect(rows.map((r) => r.id)).toEqual(before.map((r) => r.id))
+      expect(rows.map((r) => r.path)).toEqual([join(other, 'House/a.wav'), join(other, 'b.wav')])
+      expect(rows[0].folder).toBe(join(other, 'House'))
+      expect(rows.every((r) => r.bpm === 124 && r.analysis_status === 'done' && r.present === 1)).toBe(true)
+      // And nothing more to do on the next scan.
+      expect(runScan(db, other)).toMatchObject({ moved: 0, inserted: 0, updated: 0, missing: 0 })
+    })
+
+    it('takes a file of another size, or at another place inside the folder, as new', () => {
+      put(root, 'House/a.wav', 1000)
+      put(root, 'House/b.wav', 1000)
+      runScan(db, root)
+      put(other, 'House/a.wav', 1001)
+      put(other, 'Techno/b.wav', 1000)
+      expect(runScan(db, other)).toMatchObject({ moved: 0, inserted: 2 })
+      expect((db.prepare('SELECT COUNT(*) AS n FROM tracks').get() as any).n).toBe(4)
+    })
+
+    it('does not guess between two tracks it could be', () => {
+      put(root, 'a.wav', 1000)
+      put(other, 'a.wav', 1000)
+      runScan(db, root)
+      runScan(db, other)
+      // Both known, at root and at other (which took root's row): a third
+      // place has two candidates once neither is on disk.
+      db.prepare('INSERT INTO tracks (path, filename, folder, format, size, mtime, birthtime, cloud_status, analysis_status) VALUES (?, ?, ?, ?, ?, 0, 0, ?, ?)').run(
+        join(root, 'a.wav'), 'a.wav', root, 'wav', 1000, 'local', 'pending'
+      )
+      const third = mkdtempSync(join(tmpdir(), 'scan-third-'))
+      try {
+        put(third, 'a.wav', 1000)
+        expect(runScan(db, third)).toMatchObject({ moved: 0, inserted: 1 })
+      } finally {
+        rmSync(third, { recursive: true, force: true })
+      }
+    })
   })
 })

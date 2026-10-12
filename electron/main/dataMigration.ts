@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, copyFileSync } from 'node:fs'
+import { existsSync, mkdirSync, copyFileSync, renameSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import Store from 'electron-store'
 
@@ -39,14 +39,32 @@ export function migrateDataFolder({
 
   if (!alreadyHasData) {
     mkdirSync(newDataFolder, { recursive: true })
-    if (existsSync(oldDbPath)) copyFileSync(oldDbPath, newDbPath)
-    if (existsSync(oldConfigPath)) copyFileSync(oldConfigPath, join(newDataFolder, 'config.json'))
+    // Copied under another name and renamed when whole: a copy that stops
+    // half way (disk full, the drive pulled) must not leave a
+    // "collection.db" behind, which the next attempt would adopt as data
+    // that was already there.
+    const copyWhole = (from: string, to: string) => {
+      const partial = `${to}.copying`
+      try {
+        copyFileSync(from, partial)
+        renameSync(partial, to)
+      } catch (err) {
+        rmSync(partial, { force: true })
+        throw err
+      }
+    }
+    // The settings first, so the database — what "already has data" looks
+    // for — is the last thing to appear.
+    if (existsSync(oldConfigPath)) copyWhole(oldConfigPath, join(newDataFolder, 'config.json'))
+    if (existsSync(oldDbPath)) copyWhole(oldDbPath, newDbPath)
   }
 
   if (collectionFolderToStamp) {
-    new Store<{ collectionFolder?: string }>({ name: 'config', cwd: newDataFolder }).set(
-      'collectionFolder',
-      collectionFolderToStamp
-    )
+    const config = new Store<{ collectionFolder?: string; rescanAtLaunch?: boolean }>({ name: 'config', cwd: newDataFolder })
+    // Data that was already there, for a collection that was somewhere else
+    // (another computer, another drive): the next launch scans, so its
+    // tracks are found at their new place (scan.ts) before anything shows.
+    if (alreadyHasData && config.get('collectionFolder') !== collectionFolderToStamp) config.set('rescanAtLaunch', true)
+    config.set('collectionFolder', collectionFolderToStamp)
   }
 }

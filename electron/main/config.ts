@@ -17,6 +17,9 @@ import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../../src/appT
 
 interface ConfigSchema {
   collectionFolder?: string
+  // Set by dataMigration.ts when existing data is adopted for a collection
+  // that moved; read once at the next launch.
+  rescanAtLaunch?: boolean
   lastBackupAt?: string
   lastBackupError?: string
   effectsSettings?: EffectsSettings
@@ -67,6 +70,14 @@ export function getCollectionFolder(): string | null {
 
 export function setCollectionFolder(path: string): void {
   getStore().set('collectionFolder', path)
+}
+
+// True once, on the launch after existing data was adopted for a collection
+// that moved.
+export function takeRescanAtLaunch(): boolean {
+  const wanted = getStore().get('rescanAtLaunch') === true
+  if (wanted) getStore().delete('rescanAtLaunch')
+  return wanted
 }
 
 export function getLastBackupAt(): string | null {
