@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
-import { SubtagRing, TREE_CHECKBOX_STYLE, TREE_INDENT_PX, TREE_ROW_PX } from './TagTree'
+import { SubtagRing, TagTrackCount, TREE_CHECKBOX_STYLE, TREE_INDENT_PX, TREE_ROW_PX } from './TagTree'
+import { countTracksByTag } from '../state/tagFilter'
 
 // Groups by actual track co-tagging, not the schema's own subgenre->genre
 // parent link — a subtag like "5 Stars" is typically its own genre's
@@ -27,20 +28,14 @@ export function SubtagTree({
 
   const genreNameById = useMemo(() => new Map(genres.map((g) => [g.id, g.name])), [genres])
 
-  // For every subgenre id, the distinct set of genre ids any track tagged
-  // with it also carries — computed once per trackTags change rather than
-  // re-scanning the whole map on every row expand/collapse.
-  const genreIdsBySubgenreId = useMemo(() => {
-    const map = new Map<number, Set<number>>()
-    for (const tags of trackTags.values()) {
-      for (const subgenreId of tags.subgenreIds) {
-        if (!map.has(subgenreId)) map.set(subgenreId, new Set())
-        const set = map.get(subgenreId)!
-        for (const genreId of tags.genreIds) set.add(genreId)
-      }
-    }
-    return map
-  }, [trackTags])
+  // For every subgenre, how many tracks have it, and how many have it with
+  // each genre — computed once per change rather than re-scanning the
+  // whole map on every row expand/collapse.
+  const tracks = useCollectionStore((s) => s.tracks)
+  const trackCounts = useMemo(
+    () => countTracksByTag(tracks.map((t) => t.id), trackTags, subgenres),
+    [tracks, trackTags, subgenres]
+  )
 
   function applyFilter(next: { subgenreId: number; genreId: number | null } | null) {
     setSelection(next)
@@ -57,6 +52,15 @@ export function SubtagTree({
       return true
     }, label)
   }
+
+  // The filter above matches against the tags as they were when it was
+  // made: handed over again when they change, so a track tagged or untagged
+  // since joins or leaves the list. A subtag that was deleted is deselected.
+  useEffect(() => {
+    if (!selection) return
+    applyFilter(subgenres.some((sg) => sg.id === selection.subgenreId) ? selection : null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackTags, subgenres, genres])
 
   useEffect(() => {
     if (clearSignal !== 0) applyFilter(null)
@@ -84,7 +88,7 @@ export function SubtagTree({
         <div style={{ color: 'var(--color-text-dim)', fontSize: '12px' }}>No subtags yet.</div>
       )}
       {subgenres.map((sg) => {
-        const genreIds = [...(genreIdsBySubgenreId.get(sg.id) ?? [])].sort((a, b) =>
+        const genreIds = [...(trackCounts.genresWithSubgenre.get(sg.id)?.keys() ?? [])].sort((a, b) =>
           (genreNameById.get(a) ?? '').localeCompare(genreNameById.get(b) ?? '')
         )
         const isExpanded = expandedSubgenreId === sg.id
@@ -115,6 +119,8 @@ export function SubtagTree({
                     ({genreNameById.get(sg.genreId)})
                   </span>
                 )}
+                <span style={{ flex: 1 }} />
+                <TagTrackCount count={trackCounts.subgenres.get(sg.id) ?? 0} />
               </label>
             </div>
             {isExpanded &&
@@ -130,7 +136,8 @@ export function SubtagTree({
                     checked={selection?.subgenreId === sg.id && selection.genreId === genreId}
                     onChange={() => toggleGenreFilter(sg.id, genreId)}
                   />
-                  {genreNameById.get(genreId) ?? `Tag ${genreId}`}
+                  <span style={{ flex: 1 }}>{genreNameById.get(genreId) ?? `Tag ${genreId}`}</span>
+                  <TagTrackCount count={trackCounts.genresWithSubgenre.get(sg.id)?.get(genreId) ?? 0} />
                 </label>
               ))}
           </div>

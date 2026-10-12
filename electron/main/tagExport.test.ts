@@ -176,4 +176,25 @@ describe('importTagData', () => {
       .all()
     expect(subgenres).toHaveLength(2) // both "Deep" sub-genres created, not merged
   })
+
+  it('takes a name in other capitals for the Tag that is already there', () => {
+    const houseId = createGenre(db, 'House')
+    createSubgenre(db, 'Deep', houseId)
+    const trackId = db
+      .prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/caps.wav','caps.wav','/', 'wav', 1, 1)`)
+      .run().lastInsertRowid as number
+
+    const result = importTagData(db, {
+      version: 1,
+      genres: [{ name: 'HOUSE' }],
+      subgenres: [{ name: 'deep', genreName: 'house' }],
+      tracks: [{ path: '/caps.wav', genres: ['house'], subgenres: [{ name: 'DEEP', genreName: 'HOUSE' }] }],
+    })
+
+    expect(result.matchedTracks).toBe(1)
+    expect(db.prepare('SELECT name FROM genres').all()).toEqual([{ name: 'House' }])
+    expect(db.prepare('SELECT name FROM subgenres').all()).toEqual([{ name: 'Deep' }])
+    expect(getTrackTagIds(db, trackId).genreIds).toEqual([houseId])
+    expect(getTrackTagIds(db, trackId).subgenreIds).toHaveLength(1)
+  })
 })

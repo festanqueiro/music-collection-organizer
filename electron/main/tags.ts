@@ -107,11 +107,18 @@ export function captureSubgenreDeletionSnapshot(db: AppDatabase, subgenreId: num
   }
 }
 
+// Undo puts a tag back on the tracks it was on — those still there: a track
+// removed meanwhile (Update Collection, within the Undo's 8 seconds) is
+// skipped rather than failing the whole Undo on its foreign key.
+function restoreTrackSubgenre(db: AppDatabase, trackId: number, subgenreId: number): void {
+  db.prepare('INSERT INTO track_subgenres (track_id, subgenre_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM tracks WHERE id = ?)').run(trackId, subgenreId, trackId)
+}
+
 export function undoSubgenreDeletion(db: AppDatabase, snapshot: SubgenreDeletionSnapshot): void {
   runInTransaction(db, () => {
     const newSubgenreId = createSubgenre(db, snapshot.subgenreName, snapshot.genreId, snapshot.subgenreColor)
     for (const { trackId } of snapshot.trackSubgenreAssociations) {
-      db.prepare('INSERT INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(trackId, newSubgenreId)
+      restoreTrackSubgenre(db, trackId, newSubgenreId)
     }
   })
 }
@@ -166,13 +173,13 @@ export function undoGenreDeletion(db: AppDatabase, snapshot: GenreDeletionSnapsh
   runInTransaction(db, () => {
     const newGenreId = createGenre(db, snapshot.genreName, snapshot.genreColor)
     for (const { trackId } of snapshot.trackGenreAssociations) {
-      db.prepare('INSERT INTO track_genres (track_id, genre_id) VALUES (?, ?)').run(trackId, newGenreId)
+      db.prepare('INSERT INTO track_genres (track_id, genre_id) SELECT ?, ? WHERE EXISTS (SELECT 1 FROM tracks WHERE id = ?)').run(trackId, newGenreId, trackId)
     }
     for (const sg of snapshot.subgenres) {
       const newSubgenreId = createSubgenre(db, sg.name, newGenreId, sg.color)
       const trackIds = snapshot.trackSubgenreAssociationsByName[sg.name] ?? []
       for (const trackId of trackIds) {
-        db.prepare('INSERT INTO track_subgenres (track_id, subgenre_id) VALUES (?, ?)').run(trackId, newSubgenreId)
+        restoreTrackSubgenre(db, trackId, newSubgenreId)
       }
     }
   })
