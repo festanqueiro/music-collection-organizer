@@ -57,6 +57,16 @@ export function triggerBackgroundAnalysisForMany(get: StoreApi<CollectionState>[
 // before it goes into the player (the player reading a file that's still
 // only in the cloud stalled playback). Returns false if the download
 // failed, so the caller can leave the player alone.
+// "Play this now" can wait on a download; whatever was asked for last
+// wins. Each request takes a ticket and, once its download is in, plays
+// only if no later request was made — so a slow download doesn't cut off
+// what the user started meanwhile.
+let latestPlayRequest = 0
+export function newPlayRequest(): () => boolean {
+  const ticket = ++latestPlayRequest
+  return () => ticket === latestPlayRequest
+}
+
 export async function downloadBeforePlaying(get: StoreApi<CollectionState>['getState'], trackId: number): Promise<boolean> {
   const track = get().tracks.find((t) => t.id === trackId)
   if (!track) return false
