@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-10
+updated: 2026-10-12
 adrs: [0050, 0067]
 ---
 # Playlists
@@ -62,7 +62,10 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   round the Camelot wheel, relative major/minor
   ([ADR 0067](../adr/0067-harmonic-order-over-keys-not-songs.md)). Songs with no key go last. A
   toast says how many of the key changes mix harmonically, with **Undo** for the old order. It
-  says so when the playlist is already in that order, or when no song has a key yet.
+  says so when the playlist is already in that order, or when no song has a key yet. The button
+  isn't shown while the Duplicates or Missing Tracks filter is on (the table can't show the
+  playlist's order then), and dragging a song afterwards withdraws the Undo, which would throw the
+  drag away.
 
 ### Right-click menus
 - **Playlist**: **Play playlist** (replaces the queue with the playlist from its first playable
@@ -75,14 +78,14 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
   name get a warning when importing (see below).
 
 ### Adding and removing songs
-- Drag rows (one or the checked batch) onto a playlist in the box; it lights up on hover. A
+- Drag rows (one or the selected ones) onto a playlist in the box; it lights up on hover. A
   toast says "Added N songs to *name*"; songs already in it are skipped and the toast says how
   many. A playlist holds each song once (see Limits).
 - Row right-click → **Add to playlist…** (the three playlists last added to first, then every
   playlist, then *New playlist…*; the recent ones are remembered per computer in localStorage).
-  The batch bar has the same **Add to playlist** button for the checked songs, in table order.
+  The batch bar has the same **Add to playlist** button for the selected songs, in table order.
 - While viewing a playlist: **Remove from playlist** in the row menu.
-- **⌫ (Delete) removes** the selected song, or every checked one, from the playlist being viewed,
+- **⌫ (Delete) removes** the selected song, or every selected one, from the playlist being viewed,
   with an *Undo* toast ("Removed N songs from *name*") that puts them back in the same places.
   Only in a playlist — elsewhere ⌫ does nothing (it never deletes files).
 - **Songs whose file is missing** stay in the list, greyed, and can be removed like any other:
@@ -90,7 +93,7 @@ Rekordbox on this computer, from the XML Rekordbox exports, and importing again 
 - **Reorder** by dragging rows up and down while the table is in the playlist's order (not when
   sorted by a column — the *Playlist order* button brings it back — nor with the Duplicates
   filter on). A line shows where they land (top half of a row: before it; bottom half: after);
-  dragging checked rows moves them together, keeping their order. Dragging rows out of the table
+  dragging several selected rows moves them together, keeping their order. Dragging rows out of the table
   still works as before (to Finder, a folder, another playlist): the rows' drag is the same
   native file drag, and a drop on a row is matched back to tracks by path. Songs whose file is
   missing can't be dragged (there's no file to drag), so they stay where they are.
@@ -244,8 +247,12 @@ the m3u8 export and songs found at a different path.
 - `harmonicOrder.test.ts`: the cost of a key change agrees with `areKeysCompatible`; the wheel
   walked upwards; every song kept once; one key's songs together by tempo; no key last; the same
   result whatever order the songs came in; the cheapest of every order of seven keys; all 24 keys
-  with every change harmonic. `savedPlaylist.test.ts`: Undo's `restoreOrder`.
-- `npm run test:app`: the button on a demo playlist, the reorder, the toast, Undo.
+  with every change harmonic; one more change in key preferred to a smoother order with fewer; the
+  search for many keys against the exact answer (13 to 19 keys). `savedPlaylist.test.ts`: Undo's
+  `restoreOrder`. `store.playlistOrder.test.ts`: the action writes the order, Undo restores it, a
+  drag withdraws that Undo.
+- `npm run test:app`: the button on a demo playlist; the order really changes and the table's rows
+  follow it; the toast; Undo, in the table too.
 - `playlists.test.ts`: folders first by name (numbers, case), playlists after in their order.
 - `playlists.test.ts`, a track's playlists: several, one, none, and after a removal.
 - `rekordboxExport.test.ts`: the MCO Playlists folder — nesting, order, empty folders, missing
@@ -301,3 +308,7 @@ the m3u8 export and songs found at a different path.
 - Two-way sync with Rekordbox (playlists, music info, cue points, files) is planned separately:
   [Rekordbox sync](rekordbox-sync.md), [ADR 0052](../adr/0052-two-way-rekordbox-sync-with-a-merge-wizard.md).
   Until then playlists go there as m3u8 files or in the XML export.
+- An `.m3u`/`.m3u8` entry written relative to the playlist's folder is matched as the file next to
+  it (2026-10-12; no test yet). A Rekordbox `.txt` row with a blank or symbol-only title matches nothing.
+- Reordering (a drag, Order by Harmonic Mixing) is ignored for the instant between picking another
+  playlist and its songs arriving: the last playlist's songs were written into the new one.

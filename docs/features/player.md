@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-12
 adrs: [0010, 0012, 0023, 0025, 0058]
 ---
 # Player
@@ -55,7 +55,13 @@ interrupts playback.
   on; the Queue shows its count and Rec the running time while recording (`.bar-group` in
   `theme.css`, `PlayerScreenButtons.tsx`).
 - **Volume** slider with a **mute** button that remembers the previous
-  level.
+  level, from one track to the next; the volume is kept across launches (never muted at launch).
+- A file that won't play (moved, its drive unplugged, unreadable) is skipped, with a toast, *Couldn't
+  play … — skipped*, where the end of a track would have gone on to the next (so not with
+  Continuous play off, nor on the last track). After three in a row the queue stops there and the
+  toast asks whether the drive is connected (`src/state/unplayable.ts`).
+- The same track queued twice in a row plays twice; a track that left the collection leaves the
+  queue; a download that finishes late no longer cuts off what was started meanwhile.
 - **Track info** — click the title for the track's details; click the
   artist to search the collection for that artist.
 - On the right, in this order: **Cast** (play on a TV or speaker — see

@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-12
 adrs: [0008, 0030]
 ---
 # Tags
@@ -52,7 +52,8 @@ and Subtags named in the playlists the track is in, and not on it yet — a trac
 In the **Tags** (genres) and **Subtags** tabs of the left panel,
 right-click a tag to:
 
-- **Rename** it (shows how many tracks are affected);
+- **Rename** it, in its row like a playlist — Enter or a click elsewhere keeps the name, Esc
+  drops it (shows how many tracks are affected);
 - **Choose color…** — pick one of 12 colours, a **Custom…** one, or
   **No colour**. In the table, a tag's badge is filled with its colour
   and a subtag's is outlined in its own. New tags and subtags get a
@@ -68,12 +69,22 @@ In the Tags tab, each tag with subtags has a chevron to show or hide them, like 
 the open ones are remembered, they start collapsed, and **Collapse all** (in the header) closes them
 all. A collapsed tag shows how many of its subtags are ticked.
 
+Each row ends with **how many tracks it would list**, dim, written like a playlist's song count
+(hover: "12 tracks"). A tag counts the tracks that have it *or one of its subtags* — what ticking
+it lists — so it can be more than the tracks carrying the tag itself. In the Subtags tab a subtag
+shows its tracks, and each tag under it the tracks that have both. Only tracks in the collection
+count (not tags kept on a missing file), whatever folder, search or filter is on; the numbers
+follow tagging at once. `countTracksByTag` (`src/state/tagFilter.ts`, pure, one pass over the
+tracks), shown by `TagTrackCount` in `TagTree.tsx`.
+
 Check tags in the Tags or Subtags tab to filter the table. The **OR / AND**
 switch picks between "tracks with any selected tag" and "tracks with all
 selected tags". The selection shows as a chip above the table ("Dub or
 House", "Deep in House"); its × unticks everything. Switching between
 Folders, Tags and Subtags resets the selection; opening Filters doesn't
-([ADR 0030](../adr/0030-filters-combine-with-sidebar-views.md)).
+([ADR 0030](../adr/0030-filters-combine-with-sidebar-views.md)). Tagging a track while a tag is
+ticked keeps the rows you have selected, and the list follows the tags as they are now, in the
+Subtags tab too.
 
 The table has separate **Tags** and **Subtags** columns (Tags filled with
 their colour, Subtags outlined), each sortable.
@@ -83,7 +94,8 @@ Code: `src/components/TagTree.tsx`, `SubtagTree.tsx`,
 
 ## Batch tagging
 
-Check several tracks in the table (shift-click checks a range). The batch
+Select several tracks in the table (shift-click, ⌘-click, shift-arrows:
+[Library](library.md#selecting-several-tracks)). The batch
 bar then lets you add a genre or sub-genre to all of them at once, or
 analyse them. Batch adds are additive only — they never remove existing
 tags — and adding a sub-genre also adds its parent genre.
@@ -102,4 +114,6 @@ Code: `electron/main/tagExport.ts`.
 ## Tests
 - `src/state/playlistTagSuggestions.test.ts`: whole words, case/accents/separators, what the
   track already has, a Subtag with its Tag, Subtags of the same name, the playlists listed.
-- `src/state/tagFilter.test.ts`, `electron/main/tags.test.ts`, `tagExport.test.ts`.
+- `src/state/tagFilter.test.ts` (the filter, and the per-tag track counts), `electron/main/tags.test.ts`,
+  `tagExport.test.ts`.
+- `npm run test:app`: the Tags view shows one track count per Tag.

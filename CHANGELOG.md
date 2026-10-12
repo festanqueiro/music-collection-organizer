@@ -4,23 +4,111 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
-## Unreleased
+## 1.0.62 — 2026-10-12
 
 ### Added
+- **How many tracks each Tag has**, at the end of its row in the Tags and
+  Subtags views, like a playlist's song count: the number of tracks
+  ticking it would list (a Tag counts the tracks of its Subtags too).
 - **Order by Harmonic Mixing**, a button above a playlist: it puts the
   songs in the order whose key changes mix best — songs in one key
   together, slowest first, then the keys so that as many changes as
   possible are a harmonic move (same key, a step round the wheel, or the
   relative major/minor). It says how many changes mix, and **Undo** brings
   the old order back.
-- **⌘A selects every track in the table** (checks them all) when the
-  table is in focus; in a text box it still selects the text.
+- **⌘A selects every track in the table** when the table is in focus;
+  in a text box it still selects the text.
 - **A Bit depth column** in the collection table (16-bit, 24-bit…), for
   lossless files; a lossy file shows a dash. Tracks already in the
   collection get theirs in the background the first time the app opens,
   from the file's header — nothing is written to the files.
 
+- **A collection that moved keeps everything.** Copy the collection
+  folder to another computer or drive, or rename it, and pick it there:
+  each track is found at its new place with its analysis, cues, tags,
+  playlists and play counts, and nothing is analysed again. Before, the
+  files came in as new, blank tracks.
+
+### Changed
+- **A track that can't play is skipped**, with a toast saying which one
+  (*Couldn't play … — skipped*), where the queue used to wait. After three
+  in a row the queue stops and asks whether the drive is connected,
+  rather than running through to the end. With Continuous play off, as
+  at the end of a track, nothing is skipped.
+- **No more checkboxes in the track table.** Tracks are selected as in
+  Finder: a click selects one, shift-click (or shift with the arrow
+  keys) selects a run of them, ⌘-click adds or takes out one, ⌘A selects
+  them all and Esc goes back to one. The toolbar for several tracks and
+  the "… all" items of the right-click menu work on the selection as
+  before.
+- **Refine BPM…**: *Two-thirds fix (× 1.5)* is now called **One and a
+  half times (× 1.5)** — it multiplies, so the old name read as the wrong
+  number — and there is a real **Two thirds (× ⅔)** for a tempo found one
+  and a half times too fast. The number beside each of the four is now
+  the BPM it will set, measured on the track's audio (it shows the plain
+  product, with "≈", for the second that takes): before it was only the
+  multiplication, so it was usually a little off the tempo that was then
+  set.
+
 ### Fixed
+- **Safer with your files and data:**
+  - Dragging two files whose names differ only by capitals into a
+    folder could overwrite one with the other. A file is now never
+    moved onto another.
+  - Hot cue pads could look empty after the collection reloaded, and a
+    press then moved the cue that was there.
+  - Editing a track's ID3 tags and clicking another track quickly could
+    save the first track's tags into the second file.
+  - **Update Collection** no longer removes the tracks (and tags) of a
+    subfolder it couldn't read.
+  - **Restore** checks the backup first, keeps the collection as it was
+    (before-restore-…, next to the backups), and can't leave a half
+    copied database; the same for moving the data folder.
+  - If MCO is closed while saving tags, the next launch offers to put
+    the file back as it was.
+  - Switching playlist and reordering at once could write one
+    playlist's songs into the other.
+  - ⌫ and the other table keys are off while a confirmation is showing,
+    and a selection never includes tracks that are no longer listed.
+  - A warning at launch when the collection looks open on another
+    computer (data folder in a synced folder).
+- **Order by Harmonic Mixing** now really gives the order with the most
+  key changes that mix (it could settle for one fewer), also for
+  playlists with many different keys; its Undo is withdrawn once a song
+  is dragged, and the button isn't shown where the table can't show the
+  playlist's order.
+- **Bit depth** was missing or wrong for some lossless files: AIFF-C,
+  32-bit float WAV, and 24-bit Apple Lossless from Music (shown as 16).
+  Files on a drive that wasn't connected are read when it is.
+- **Renaming a Tag or Subtag did nothing.** It is now renamed in its row.
+- **The queue**: the same track twice in a row plays twice; a track that
+  left the collection no longer blocks the ones after it; a slow download
+  no longer cuts off what you started meanwhile, or stops the queue.
+- **A track that can't be played says so**, instead of silently stopping.
+- **Unmute** goes back to the volume before the mute after a track
+  change too, and the volume is remembered between launches.
+- **Tracks longer than about 45 minutes** can be analysed.
+- **MCO says what is wrong when it can't start** (database or settings
+  unreadable, data folder not connected) instead of opening no window,
+  and a file or link dropped on the window no longer replaces the app.
+- **The table went blank** when a filter shortened the list while it was
+  scrolled far down.
+- **Tagging while a tag is ticked** no longer drops the selected tracks,
+  and the Subtags view follows tag changes.
+- **Duplicates** no longer lists unrelated tracks with titles in
+  non-Latin scripts as copies of each other.
+- **Undo of a deleted Tag** works when one of its tracks is gone.
+- **Imports**: tag data with names in other capitals; Rekordbox cue
+  names; a Rekordbox text export's blank title no longer matches an
+  arbitrary track; playlist files with relative paths.
+- **Add to playlist… in Similar tracks** closed as it opened.
+- **Two Undo messages at once** no longer sit on top of each other.
+- **⌘S and ⌘T** no longer leave the siren or the mic's Talk on.
+- **Daily backup** on a second computer sharing the data folder.
+- **The table's keys (⌘A, ⌫, the arrows, P) stopped working after a click
+  on a button** in a row, until something else was clicked.
+- **The table's keys no longer act while Queue, FX, Live or the
+  visualizer is in front of it.**
 - **The last track in the table is no longer half hidden** by the
   horizontal scrollbar: there is a little room under it.
 

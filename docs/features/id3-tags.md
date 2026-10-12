@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-12
 adrs: [0026, 0027, 0028, 0008]
 ---
 # ID3 tags (file tags)
@@ -37,7 +37,12 @@ suggests them from the filename; nothing is written until you press **Save to fi
   tag, AIFF's `ID3 ` chunk, WAV's `id3 ` chunk, added if missing), keeps WAV LIST/INFO, AIFF NAME/AUTH
   and MP3 ID3v1 in step, copies every other frame and chunk byte for byte, re-parses the result and
   checks tags, duration and sample count, then overwrites the file in place (same inode) with a backup
-  restored on failure ([ADR 0026](../adr/0026-write-tags-byte-for-byte.md)). IPC `tracks:writeTags`
+  restored on failure ([ADR 0026](../adr/0026-write-tags-byte-for-byte.md)). The backup is kept in
+  `<userData>/tag-edit-recovery/` until the write is whole; if MCO is closed mid-save, the next
+  launch offers to put the original back
+  ([ADR 0070](../adr/0070-interrupted-tag-save-offers-the-original-back.md)).
+- The editor belongs to one track: selecting another closes it, so a save can't land in the wrong
+  file (it could, when the next track was clicked while the first one's tags were still being read). IPC `tracks:writeTags`
   updates the DB (tags, size, mtime, `tags_read_at`).
 - Reading: `electron/main/tagReader.ts`, IPC `tracks:readFileTags` ([ADR 0027](../adr/0027-read-file-tags-in-background.md)).
 - Suggestions: `src/state/filenameTags.ts`; UI in `src/components/detail/FileTagsSection.tsx`.

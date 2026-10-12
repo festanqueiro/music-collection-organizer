@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-12
 adrs: [0061]
 ---
 # Convert to…
@@ -12,7 +12,9 @@ for a phone. The converted file is saved next to the original (or in a folder yo
 take the original's place in the collection.
 
 ## Behaviour
-- **Where**: a row's right-click menu, **Convert to…**; with several rows checked, **Convert all
+- A name that is free on disk but recorded for a missing track (hidden until Update Collection) is
+  refused before converting, not after.
+- **Where**: a row's right-click menu, **Convert to…**; with several rows selected, **Convert all
   to…** converts them all with the same settings.
 - **The dialog**:
   - **Format**: WAV, AIFF, FLAC, Apple Lossless (.m4a), MP3, AAC (.m4a) — the formats a CDJ reads.

@@ -13,8 +13,10 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 - [Roadmap](product/roadmap.md): shipped, in progress, next; known issues.
 - [Glossary](product/glossary.md): the words we use (collection, Tags/Subtags, cue, receiver…).
 - [Changelog](../CHANGELOG.md): what changed in each release, newest first.
-- [Latest session](log/2026-10-08-session.md): releases 1.0.56–1.0.58, and a duplication and
-  performance check ([previous](log/2026-10-02-session.md)).
+- [Latest session](log/2026-10-12-session.md): no checkboxes in the table, track counts on tags,
+  and sections 1 and 2 of the code review ([previous](log/2026-10-08-session.md)).
+- [Whole-app code review, 2026-10-11](log/2026-10-11-whole-app-review.md): the findings still to
+  fix, as a checklist (sections 1 and 2 done on 2026-10-12).
 
 ## Sections
 | Folder | Holds | One file per |
@@ -135,6 +137,10 @@ links, so it reads on GitHub and opens as an [Obsidian](https://obsidian.md) vau
 | [0065](adr/0065-coloured-waveforms-from-three-bands.md) | Coloured waveforms from three bands, kept per track and filled in on demand | accepted |
 | [0066](adr/0066-half-time-is-a-slowest-tempo.md) | Half time is settled by a slowest tempo, not by the audio | accepted |
 | [0067](adr/0067-harmonic-order-over-keys-not-songs.md) | Order by Harmonic Mixing orders the keys, not the songs | accepted |
+| [0068](adr/0068-select-rows-without-checkboxes.md) | Select rows in the track table without checkboxes | accepted |
+| [0069](adr/0069-warn-when-open-on-another-computer.md) | Warn when the collection is open on another computer | accepted |
+| [0070](adr/0070-interrupted-tag-save-offers-the-original-back.md) | An interrupted tag save offers the original back, and never restores it unasked | accepted |
+| [0071](adr/0071-a-moved-collection-keeps-its-tracks.md) | A collection that moved keeps its tracks: the scan finds them at their new paths | accepted |
 
 ## Keyboard shortcuts
 | Key | Where | Action |

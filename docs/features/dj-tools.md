@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-09
+updated: 2026-10-12
 adrs: []
 ---
 # DJ tools
@@ -64,12 +64,15 @@ list and the tags, and skipped while the section is collapsed. Only the rows sho
 ## Refine BPM
 
 The analysis can be an octave out (85 for 170), or report two thirds of the tempo on broken
-beats (108 for 162). Right-click a track → **Refine BPM…** (with several rows checked, **Refine BPM
+beats (108 for 162). Right-click a track → **Refine BPM…** (with several rows selected, **Refine BPM
 of all…**) ([ADR 0064](../adr/0064-bpm-two-thirds-and-set-by-hand.md)):
 
-- **Double**, **Halve**, **Two-thirds fix (× 1.5)** — for one track each shows what it gives
-  (`≈ 159.87`). The result is then sharpened on the track's audio near that value, so 106.58 × 1.5
-  becomes 160; if the audio doesn't agree within 3.5 % the plain product is kept.
+- **Double**, **Halve**, **One and a half times (× 1.5)** (for a tempo found at two thirds: 108 for
+  162) and **Two thirds (× ⅔)** (the other way: 162 for 108) — the result is sharpened on the track's audio near that value, so 106.58 × 1.5
+  becomes 160; if the audio doesn't agree within 3.5 % the plain product is kept. For one track
+  each item shows the BPM it will set: the plain product at first (`≈ 159.87`), then, about a
+  second later, the measured one (`160`) — the same measurement as the change (`multipliedBpm` in
+  `bpmEdit.ts`, `tracks:previewBpm`; the four are measured on one decode).
 - **Measure it again** — the tempo part of the analysis alone, from the stored BPM: sharpened,
   moved to 1.5× when two thirds was stored, doubled when below the slowest tempo (Settings →
   Library, [ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)). About a second a track, and
@@ -93,9 +96,13 @@ sharpening. UI: `src/components/RefineBpmMenu.tsx`, opened from `TrackTable`'s m
 The analysis itself now catches the two-thirds case in most tracks, and doubles a tempo below
 the **slowest tempo** (90 BPM unless changed) — half time
 ([measurements](../research/bpm-accuracy.md)). For the tracks already analysed, the **Slow BPM**
-filter ([Filters](filters.md)) lists the ones below it: check them, right-click → *Refine BPM of
+filter ([Filters](filters.md)) lists the ones below it: select them (⌘A), right-click → *Refine BPM of
 all…* → *Measure it again* or *Double*. For every analysed track at once: **Bulk Operations → Measure Every BPM
 Again…** in the [menu bar](menu-bar.md), which *Stop* there ends.
+
+A file longer than 20 minutes (a mix, a recording) has its tempo and key read from its first 20
+minutes — the analysis library runs out of memory past about 45 — and the tempo is still sharpened
+over all of it.
 
 ## Headphone pre-listen (cue)
 

@@ -1,7 +1,7 @@
 ---
 status: shipped
-updated: 2026-10-10
-adrs: [0004, 0005, 0006, 0009, 0024, 0027, 0030, 0031]
+updated: 2026-10-12
+adrs: [0004, 0005, 0006, 0009, 0024, 0027, 0030, 0031, 0068]
 ---
 # Library
 
@@ -26,11 +26,17 @@ folder for audio files (WAV, AIFF, FLAC, MP3, M4A/AAC, OGG, Opus) and compares t
 - changed files (size or modified time) are reset to *pending* and their tags re-read;
 - files that disappeared are **removed**, with their tags — the ones gone since the last scan and
   any already in Missing Tracks, but only inside the collection folder, and not at all if the scan
-  finds no files (an unmounted drive). The dialog says so, with the current missing count
+  finds no files (an unmounted drive), nor for the tracks of a subfolder that couldn't be read on
+  that scan (permissions, a mount that dropped). The dialog says so, with the current missing count
   ([ADR 0040](../adr/0040-update-collection-removes-missing-tracks.md)).
 - the background rescans (folder watcher) and switching collection folder only **hide** missing
   files, so their tags survive a temporary move or a drive that isn't mounted yet; the same path
   found again brings the track back ([ADR 0004](../adr/0004-never-delete-track-rows.md)).
+- a **collection that moved** (another computer or drive, a renamed folder) keeps its tracks: a
+  new file at the same place inside the collection folder, and of the same size, as exactly one
+  track whose file isn't there is that track. It takes the new path and keeps its analysis, cues,
+  tags, playlists and date added; a toast says how many were found
+  ([ADR 0071](../adr/0071-a-moved-collection-keeps-its-tracks.md)).
 
 ### Watching the folder
 MCO watches the collection folder, subfolders included. A few seconds after files are added, removed
@@ -98,7 +104,9 @@ one line, cut with "…" when it's too long for the sidebar; hover it for the fu
 highlights). If any of them are in another folder, MCO asks *"Do you want to move this song to this
 folder?"* (or *these N songs*); on **Move**, the files move on disk and their rows keep everything
 (same track: tags, play count, queue position). Tracks already in that folder are left alone; a file
-whose name is already taken there isn't moved (said in the message and a toast); the playing and
+whose name is already taken there isn't moved (said in the message and a toast) — names that differ
+only by capitals, or by how an accent is stored, count as the same, and a file is never moved onto
+one that is there; the playing and
 pre-listened tracks aren't moved. Only folders inside the collection accept drops. The database is
 updated before each file is renamed (and put back if the rename fails), so the folder watcher's rescan
 finds nothing new or missing (`electron/main/moveTracks.ts`, `tracks:moveToFolder`).
@@ -124,8 +132,8 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
   header, opens a checklist to show or hide each column (Title always stays). Saved in the config
   (`hiddenColumns`; `config:getHiddenColumns`/`setHiddenColumns`); hidden columns keep their place
   in the order.
-- **⌘A** (Ctrl+A on Windows) checks every track listed — what the header's checkbox does — when
-  the table is in focus, that is, when the cursor isn't in a text box, a menu or on a button. In a
+- **⌘A** (Ctrl+A on Windows) selects every track listed when the table is in focus, that is, when
+  the cursor isn't in a text box, a menu or on a slider (a button just clicked doesn't count). In a
   text box it selects the text as usual. It is handled in the table's key handler
   (`TrackTable.tsx`), before Edit → Select All sees it.
 - Lossy files (MP3, M4A/AAC, OGG, Opus) under 192 kbps are highlighted in Bitrate.
@@ -133,12 +141,20 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
   is read from the file's header together with its tags (`tagReader.ts`, `bitDepthOf`), and by analysis
   and Convert. `NULL` means not looked at yet, `0` looked at and none: the background tag reader takes
   every local track still at `NULL`, which is how a collection from before the column is filled in,
-  once (`tagReader.test.ts`).
+  once (`tagReader.test.ts`). The tag library is corrected in three places (`readBitDepth`,
+  `analysis/metadata.ts`): AIFF-C and float WAV, which it takes for lossy, are told by container and
+  codec; a 24-bit Apple Lossless file from Apple's encoder, which it reads as 16, has its depth read
+  from the codec's own box in the file. A file that isn't there when the reader runs (its drive
+  unplugged) is left for later rather than marked "none", and tags read from a file that was saved
+  or converted meanwhile are dropped and read again. Tracks stored wrong by the first builds are
+  read again once (`PRAGMA user_version` 1 in `db.ts`).
+- A filter that shortens the list while it is scrolled far down no longer leaves the table blank
+  (the first drawn row is kept inside the list).
 - The Key column shows colour-coded Camelot keys ([DJ tools](dj-tools.md#harmonic-mixing)).
 - Click a row for its details; the play icon starts it (pause/resume on the playing track); the
   queue icon adds it to the end of the queue (lit, as a tick, while it's waiting there — a click
   adds it again); the headphones icon pre-listens ([DJ tools](dj-tools.md#headphone-pre-listen-cue)).
-  All three sit in a fixed column of their own, right after the checkbox, whatever the column order.
+  All three sit in a fixed column of their own, the first, whatever the column order.
 - Only the rows on screen are drawn, at a fixed height, so it stays at ~120 fps with thousands of
   tracks ([ADR 0024](../adr/0024-virtualised-track-table.md)).
 - There are 16 px of empty space under the last row: macOS draws the horizontal scrollbar over the
@@ -152,10 +168,19 @@ and each [filter](filters.md) ([ADR 0030](../adr/0030-filters-combine-with-sideb
 - **Add all to queue** queues everything visible ([Queue](queue.md)).
 
 ### Selecting several tracks
-Check rows (shift-click checks a range) for the selection toolbar: add tags, analyse, queue
-([Tags](tags.md#batch-tagging)). Checked rows get the same highlight as the selected row. With more
-than one checked, the details panel
-steps aside, and right-clicking a checked row acts on the whole selection in table order — **Add all
+Rows are selected as in Finder; there are no checkboxes
+([ADR 0068](../adr/0068-select-rows-without-checkboxes.md)):
+- a **click** selects one row;
+- **shift-click**, or **shift** with ↑ ↓ Home End Page Up / Page Down, selects from the last row
+  clicked (or moved to without shift) to that one;
+- **⌘-click** (Ctrl-click on Windows) puts a row in or takes it out;
+- **⌘A** selects every row listed, **Esc** goes back to one row, and a plain click or arrow does too.
+
+The table's keys are off while Queue, FX, Live or the visualizer covers it.
+
+With more than one row selected the selection toolbar appears above the table — add tags, analyse,
+queue ([Tags](tags.md#batch-tagging)) — the details panel
+steps aside, and right-clicking a selected row acts on the whole selection in table order — **Add all
 to queue**, **Add all to top of the queue**, **Analyse all**, **Clear selection**.
 
 ### Track details
