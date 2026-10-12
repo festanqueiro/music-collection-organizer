@@ -89,6 +89,16 @@ await group('track details', async () => {
   }
   const file = await win.evaluate(() => ({ synced: /Synced locally/.test(document.body.innerText), re: [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Re-analyse') }))
   check('File section: synced locally, Re-analyse', file.synced && file.re, JSON.stringify(file))
+  // Similar tracks → Add to playlist…: the menu stays open after the click that opens it.
+  const add = win.locator('button[title="Add to playlist…"]').first()
+  if ((await add.count()) > 0) {
+    await add.click()
+    await wait(300)
+    check('Similar tracks: Add to playlist… opens its menu', (await win.locator('button:has-text("New playlist…")').count()) > 0)
+    await win.keyboard.press('Escape')
+    await win.mouse.click(700, 300)
+    await wait(200)
+  }
 })
 
 await group('toolbar popovers', async () => {
@@ -144,8 +154,23 @@ await group('Refine BPM', async () => {
   await wait(300)
   await win.locator('button:has-text("Refine BPM…")').click()
   await wait(300)
-  const items = await win.locator('button:has-text("Double"), button:has-text("Halve"), button:has-text("Two-thirds fix"), button:has-text("Set the BPM…"), button:has-text("Measure it again")').count()
-  check('Refine BPM menu: Double, Halve, Two-thirds fix, Set the BPM…, Measure it again', items === 5, `${items} items`)
+  const items = await win.locator('button:has-text("Double"), button:has-text("Halve"), button:has-text("One and a half times"), button:has-text("Two thirds (× ⅔)"), button:has-text("Set the BPM…"), button:has-text("Measure it again")').count()
+  check('Refine BPM menu: Double, Halve, One and a half times, Two thirds, Set the BPM…, Measure it again', items === 6, `${items} items`)
+  // The numbers beside the multiplications are measured on the audio, as
+  // the change itself is: "≈" (the plain product) only until they arrive.
+  let previews = []
+  for (let i = 0; i < 20; i++) {
+    previews = await win.locator('[data-bpm-preview]').allTextContents()
+    if (previews.length === 4 && previews.every((p) => !p.includes('≈'))) break
+    await wait(500)
+  }
+  const doubled = await win.evaluate(async (t) => {
+    const r = await window.api.changeTracksBpm([t.id], { kind: 'factor', factor: 2 })
+    await window.api.changeTracksBpm([t.id], { kind: 'set', bpm: t.bpm })
+    await window.api.changeTracksBpm([t.id], { kind: 'detect' })
+    return r.tracks[0]?.bpm
+  }, track)
+  check('Refine BPM previews are measured, and Double sets the number it showed', previews.length === 4 && previews.every((p) => !p.includes('≈')) && Number(previews[0]) === doubled, `${JSON.stringify(previews)} vs ${doubled}`)
   await win.mouse.click(700, 300)
 })
 
@@ -208,6 +233,27 @@ await group('tag names', async () => {
     return { name: first.name, flipped, refused, count: (await window.api.getGenres()).length }
   })
   check('a Tag name in other capitals is the same name', /already a Tag called/.test(r.refused), JSON.stringify(r))
+})
+
+await group('tag track counts', async () => {
+  await win.locator('button[aria-label="Tags"]').first().click()
+  await wait(400)
+  const r = await win.evaluate(async () => {
+    const shown = [...document.querySelectorAll('span[title$=" track"], span[title$=" tracks"]')].map((el) => Number(el.textContent))
+    return { shown, genres: (await window.api.getGenres()).length }
+  })
+  // Subtags start collapsed: one count per Tag, and the demo's Tags are all used.
+  check('each Tag shows how many tracks it has', r.shown.length === r.genres && r.shown.some((n) => n > 0), JSON.stringify(r))
+  // Rename is typed in the row (Electron has no window.prompt).
+  await win.locator('label:has(input[type="checkbox"])').first().click({ button: 'right' })
+  await wait(300)
+  await win.locator('button:has-text("Rename")').click()
+  await wait(300)
+  check('Rename a Tag: a field in its row', (await win.locator('input[aria-label^="New name for"]').count()) === 1)
+  await win.keyboard.press('Escape')
+  await wait(200)
+  await win.locator('button[aria-label="Folders"]').first().click()
+  await wait(300)
 })
 
 await group('player', async () => {
@@ -307,27 +353,47 @@ await group('visualizer', async () => {
   await wait(400)
 })
 
-await group('select all', async () => {
-  // With the table in focus (a row clicked), ⌘A checks every track listed.
-  await row().click()
-  await wait(300)
-  const boxes = () => win.evaluate(() => {
-    const all = [...document.querySelectorAll('tbody tr:not([aria-hidden]) input[type="checkbox"]')]
-    return { all: all.length, checked: all.filter((b) => b.checked).length, header: document.querySelector('thead input[type="checkbox"]').checked }
+await group('selecting rows', async () => {
+  const rows = () => win.evaluate(() => {
+    const all = [...document.querySelectorAll('tbody tr[data-track-id]')]
+    return { all: all.length, selected: all.filter((r) => r.getAttribute('aria-selected') === 'true').length, boxes: document.querySelectorAll('table input[type="checkbox"]').length }
   })
-  const before = await boxes()
+  const nth = (n) => win.locator('tbody tr[data-track-id]').nth(n)
+  await nth(0).click()
+  await wait(200)
+  const one = await rows()
+  check('a click selects one row, and the table has no checkboxes', one.selected === 1 && one.boxes === 0, JSON.stringify(one))
+  await nth(3).click({ modifiers: ['Shift'] })
+  await wait(200)
+  check('shift-click selects the rows in between', (await rows()).selected === 4, JSON.stringify(await rows()))
+  await nth(1).click({ modifiers: ['ControlOrMeta'] })
+  await wait(200)
+  check('⌘-click takes a row out', (await rows()).selected === 3, JSON.stringify(await rows()))
+  await nth(0).click()
+  await win.keyboard.press('Shift+ArrowDown')
+  await win.keyboard.press('Shift+ArrowDown')
+  await wait(200)
+  check('shift-↓ extends the selection', (await rows()).selected === 3, JSON.stringify(await rows()))
+  await win.keyboard.press('Shift+ArrowUp')
+  await wait(200)
+  check('shift-↑ takes the last row back out', (await rows()).selected === 2, JSON.stringify(await rows()))
+  // ⌘A selects every track listed — also right after a click on a button
+  // in a row, which keeps the focus.
+  await nth(0).click()
+  await win.locator('button[aria-label="Choose columns"]').focus()
   await win.keyboard.press('ControlOrMeta+a')
   await wait(300)
-  const after = await boxes()
-  check('⌘A checks every track in the table', before.checked < before.all && after.checked === after.all && after.all > 0 && after.header, JSON.stringify({ before, after }))
-  // In the search box it selects the text instead.
-  await win.locator('thead input[type="checkbox"]').click()
+  const after = await rows()
+  check('⌘A selects every track in the table, with a button in focus', after.selected === after.all && after.all > 1, JSON.stringify(after))
+  await win.keyboard.press('Escape')
   await wait(200)
+  check('Esc goes back to one row', (await rows()).selected === 1, JSON.stringify(await rows()))
+  // In the search box it selects the text instead.
   const search = win.locator('input[type="search"], input[placeholder*="Search"]').first()
   await search.fill('abc')
   await search.press('ControlOrMeta+a')
-  const inSearch = await win.evaluate(() => ({ selected: document.activeElement.selectionEnd - document.activeElement.selectionStart, checked: [...document.querySelectorAll('tbody input[type="checkbox"]')].filter((b) => b.checked).length }))
-  check('in the search box ⌘A selects the text, not the tracks', inSearch.selected === 3 && inSearch.checked === 0, JSON.stringify(inSearch))
+  const inSearch = await win.evaluate(() => ({ selected: document.activeElement.selectionEnd - document.activeElement.selectionStart, rows: document.querySelectorAll('tbody tr[aria-selected="true"]').length }))
+  check('in the search box ⌘A selects the text, not the tracks', inSearch.selected === 3 && inSearch.rows <= 1, JSON.stringify(inSearch))
   await search.fill('')
   await wait(300)
 })
@@ -343,32 +409,36 @@ await group('order by harmonic mixing', async () => {
     return null
   })
   if (!playlist) return check('a demo playlist with three analysed songs', false)
-  // Start from an order that isn't the harmonic one: reversed twice can't both be it.
-  await win.evaluate(({ id, ids }) => window.api.setPlaylistTrackIds(id, [...ids].reverse()), playlist)
-  await win.locator(`text="${playlist.name}"`).first().click()
-  await wait(600)
   const button = win.locator('button:has-text("Order by Harmonic Mixing")')
-  check('a playlist shows Order by Harmonic Mixing', (await button.count()) === 1)
   const order = () => win.evaluate((id) => window.api.getPlaylistTrackIds(id), playlist.id)
-  const before = await order()
-  await button.click()
-  await wait(600)
-  let after = await order()
-  if (after.join() === before.join()) {
-    // The reversed order happened to be the harmonic one: the other way round isn't.
-    await win.evaluate(({ id, ids }) => window.api.setPlaylistTrackIds(id, ids), playlist)
-  }
-  const toast = await win.evaluate(() => /Ordered by harmonic mixing: \d+ of \d+ key changes? mix harmonically|Already in harmonic order/.test(document.body.innerText))
-  // The collection table's own rows (the details panel can list tracks too).
-  const rows = await win.locator('table:has(th:has-text("Bit depth")) tbody tr:not([aria-hidden])').count()
-  check('it reorders the playlist, keeps every song, and says how many changes mix', toast && [...after].sort().join() === [...before].sort().join() && rows === after.length, JSON.stringify({ toast, before, after, rows }))
-  if (after.join() !== before.join()) {
-    await win.locator('button:has-text("Undo")').first().click()
+  // The collection table's own rows (the details panel can list tracks too), top to bottom.
+  const shown = () => win.evaluate(() => [...document.querySelectorAll('table:has(th) tbody tr[data-track-id]')].map((r) => Number(r.dataset.trackId)))
+  const chip = win.locator(`button[aria-label="Remove the ${playlist.name} filter"]`)
+  // Start from an order that isn't the harmonic one: of an order and two
+  // others (reversed, first song last) at most one can be.
+  let before = []
+  let after = []
+  for (const start of [[...playlist.ids].reverse(), playlist.ids, [...playlist.ids.slice(1), playlist.ids[0]]]) {
+    if ((await chip.count()) > 0) await chip.click()
+    await win.evaluate(({ id, ids }) => window.api.setPlaylistTrackIds(id, ids), { id: playlist.id, ids: start })
+    await win.locator(`text="${playlist.name}"`).first().click()
     await wait(600)
-    check('Undo puts the old order back', (await order()).join() === before.join())
+    if (before.length === 0) check('a playlist shows Order by Harmonic Mixing', (await button.count()) === 1)
+    before = await order()
+    await button.click()
+    await wait(600)
+    after = await order()
+    if (after.join() !== before.join()) break
   }
+  const toast = await win.evaluate(() => /Ordered by harmonic mixing: \d+ of \d+ key changes? mix harmonically/.test(document.body.innerText))
+  const changed = after.join() !== before.join()
+  check('it reorders the playlist, keeps every song, and says how many changes mix', changed && toast && [...after].sort().join() === [...before].sort().join(), JSON.stringify({ toast, before, after }))
+  check('the table lists the songs in the new order', (await shown()).join() === after.join(), JSON.stringify({ shown: await shown(), after }))
+  await win.locator('button:has-text("Undo")').first().click()
+  await wait(600)
+  check('Undo puts the old order back, in the table too', (await order()).join() === before.join() && (await shown()).join() === before.join())
   await win.evaluate(({ id, ids }) => window.api.setPlaylistTrackIds(id, ids), playlist)
-  await win.locator('button[aria-label^="Remove the"]').first().click()
+  await chip.click()
   await wait(400)
 })
 

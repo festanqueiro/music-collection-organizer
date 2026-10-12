@@ -103,6 +103,7 @@ const api = {
   getMissingTracks: (): Promise<Track[]> => ipcRenderer.invoke('tracks:getMissing'),
   changeTracksBpm: (trackIds: number[], change: BpmChange): Promise<{ tracks: Track[]; skipped: { trackId: number; reason: string }[] }> =>
     ipcRenderer.invoke('tracks:changeBpm', trackIds, change),
+  previewTrackBpm: (trackId: number, factors: number[]): Promise<number[] | null> => ipcRenderer.invoke('tracks:previewBpm', trackId, factors),
   onBpmProgress: (cb: (progress: { done: number; total: number }) => void): (() => void) => {
     const listener = (_e: unknown, progress: { done: number; total: number }) => cb(progress)
     ipcRenderer.on('tracks:bpmProgress', listener)

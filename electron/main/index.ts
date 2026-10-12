@@ -1,7 +1,8 @@
-import { app, BrowserWindow, Menu, net, protocol, session, shell } from 'electron'
-import { join } from 'node:path'
+import { app, BrowserWindow, dialog, Menu, net, protocol, session, shell } from 'electron'
+import { dirname, join } from 'node:path'
+import { hostname } from 'node:os'
 import { fileURLToPath } from 'node:url'
-import { createReadStream, statSync } from 'node:fs'
+import { createReadStream, existsSync, statSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { openDatabase } from './db'
 import { resetInterruptedAnalysis } from './analysis/queue'
@@ -18,10 +19,13 @@ import {
 import { APP_THEME_ARG, getAppTheme } from '../../src/appThemes'
 import { Updater, appBundlePathFromExecPath } from './updater'
 import { getDbFilePath } from './dbPath'
+import { getDataFolder } from './bootstrap'
+import { clearOpenMarker, isOpenElsewhere, readOpenMarker, writeOpenMarker } from './openElsewhere'
 import { mediaUrlToFilePath } from './mediaProtocol'
 import { attachScreenWindowPolicy } from './screenWindow'
 import { getPlayableFilePath, pruneMediaCache } from './audioTranscode'
-import { getMediaCacheDir } from './mediaCacheDir'
+import { getMediaCacheDir, getTagEditRecoveryDir } from './mediaCacheDir'
+import { discardInterruptedTagWrite, interruptedTagWrites, restoreInterruptedTagWrite } from './tagWriter'
 import { parseRangeHeader } from './rangeHeader'
 import { mimeTypeFor } from './mediaTypes'
 import { runBackupIfNeeded, getBackupFolder } from './backup'
@@ -203,6 +207,14 @@ function createWindow(onShown?: () => void): void {
     if (currentWindow === mainWindow) currentWindow = null
   })
 
+  // The window only ever shows MCO's own page. Without this a file or a
+  // link dropped outside a drop area would replace the app with it — and
+  // that page would get the preload's API.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const samePage = (a: string) => a.split('#')[0]
+    if (samePage(url) !== samePage(mainWindow.webContents.getURL())) event.preventDefault()
+  })
+
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
     onShown?.()
@@ -268,6 +280,73 @@ app.whenReady().then(() => {
     console.error('media cache prune failed', err)
   }
 
+  // A tag save cut short by a quit, a crash or a power cut: the file may be
+  // half written, and its original is waiting. Asked, never done unasked —
+  // MCO writes to an audio file only when told to.
+  for (const write of interruptedTagWrites(getTagEditRecoveryDir())) {
+    if (!write.changed) {
+      discardInterruptedTagWrite(write)
+      continue
+    }
+    const restore = dialog.showMessageBoxSync({
+      type: 'warning',
+      buttons: ['Put the Original Back', 'Keep the File As It Is'],
+      defaultId: 0,
+      cancelId: 1,
+      message: 'MCO was closed while saving tags to a file',
+      detail: `${write.path}\n\nThe file may be incomplete. MCO kept its original from before the save and can put it back; the tags you were saving will then be the old ones.`,
+    })
+    try {
+      if (restore === 0) restoreInterruptedTagWrite(write)
+      else discardInterruptedTagWrite(write)
+    } catch (err) {
+      dialog.showErrorBox('The original could not be put back', `${err instanceof Error ? err.message : String(err)}\n\nIt is kept at:\n${write.backupPath}`)
+    }
+  }
+
+  // The data folder was moved somewhere of the user's (an external or a
+  // synced drive) and the database isn't in it: not plugged in, or not
+  // synced yet. Opening would quietly make a new, empty one there.
+  const movedDataFolder = getDataFolder()
+  if (movedDataFolder && !existsSync(getDbFilePath())) {
+    const startEmpty = dialog.showMessageBoxSync({
+      type: 'warning',
+      buttons: ['Quit', 'Start With an Empty Collection'],
+      defaultId: 0,
+      cancelId: 0,
+      message: "MCO's database isn't where it should be",
+      detail: `No collection.db in ${movedDataFolder}.\n\nIf that folder is on a drive that isn't connected, or is still syncing, quit and try again when it is there. Starting empty makes a new database in that folder.`,
+    })
+    if (startEmpty !== 1) {
+      app.quit()
+      return
+    }
+  }
+
+  // The same collection open on another computer (a data folder in a
+  // synced folder): the two would overwrite each other's changes. A
+  // warning when the other's note is there; see openElsewhere.ts.
+  const dataFolder = dirname(getDbFilePath())
+  const host = hostname()
+  const other = readOpenMarker(dataFolder)
+  if (isOpenElsewhere(other, host, Date.now())) {
+    const openAnyway = dialog.showMessageBoxSync({
+      type: 'warning',
+      buttons: ['Quit', 'Open Anyway'],
+      defaultId: 0,
+      cancelId: 0,
+      message: `This collection looks open on another computer (${other!.host})`,
+      detail: 'Its data folder is shared between them. If both have it open, whichever syncs last replaces the other: tags, playlists and cues changed on one of them are lost.\n\nQuit MCO on the other computer, let the folder finish syncing, then open it here.',
+    })
+    if (openAnyway !== 1) {
+      app.quit()
+      return
+    }
+  }
+  writeOpenMarker(dataFolder, host, Date.now())
+  setInterval(() => writeOpenMarker(dataFolder, host, Date.now()), 60 * 1000)
+  app.on('will-quit', () => clearOpenMarker(dataFolder, host))
+
   const db = openDatabase(getDbFilePath())
   resetInterruptedAnalysis(db)
   setInterval(() => performBackupCheck(db), 60 * 60 * 1000)
@@ -326,6 +405,22 @@ app.whenReady().then(() => {
       createWindow(() => performBackupCheck(db))
     }
   })
+}).catch((err: unknown) => {
+  // The database or the settings file couldn't be opened (a drive
+  // unplugged, a damaged file): say so, rather than a Dock icon and no window.
+  console.error('startup failed', err)
+  const folder = (() => {
+    try {
+      return getDataFolder() ?? app.getPath('userData')
+    } catch {
+      return app.getPath('userData')
+    }
+  })()
+  dialog.showErrorBox(
+    'MCO could not start',
+    `${err instanceof Error ? err.message : String(err)}\n\nIts data (collection.db, config.json) is in:\n${folder}\n\nIf that is on a drive that isn't connected, connect it and open MCO again. A damaged file can be replaced by one from the backups folder.`
+  )
+  app.quit()
 })
 
 app.on('window-all-closed', () => {

@@ -3,7 +3,7 @@ import { basename, join, relative, isAbsolute } from 'node:path'
 import { writeFileSync, readFileSync, statSync, existsSync } from 'node:fs'
 import { applyMoves, planMove, type MovedTrack } from './moveTracks'
 import { showOpenDialog, showSaveDialog } from './ipcDialogs'
-import { changeTrackBpm } from './bpmEdit'
+import { changeTrackBpm, multipliedBpm } from './bpmEdit'
 import { decodeToPcm } from './analysis/decode'
 import { computeWaveformBands, decodeWaveformBands, encodeWaveformBands, type WaveformBands } from './analysis/waveform'
 import { registerTagIpc } from './ipcTags'
@@ -14,6 +14,7 @@ import type { AppDatabase } from './db'
 import {
   getCollectionFolder,
   setCollectionFolder,
+  takeRescanAtLaunch,
   getLastBackupAt,
   setLastBackupAt,
   getLastBackupError,
@@ -59,8 +60,8 @@ import { createTempoMeasurer, runAnalysisQueue } from './analysis/queue'
 import { extractArtwork } from './analysis/metadata'
 import { writeTags, supportsTagEditing, TagWriteError } from './tagWriter'
 import { TagReader, readFileTags, saveFileTags } from './tagReader'
-import { getMediaCacheDir } from './mediaCacheDir'
-import { listBackups, restoreBackup, runBackup } from './backup'
+import { getMediaCacheDir, getTagEditRecoveryDir } from './mediaCacheDir'
+import { checkBackup, keepCurrentBeforeRestore, listBackups, restoreBackup, runBackup } from './backup'
 import { checkDestination, runExternalBackup } from './externalBackup'
 import { buildMidiExport, parseMidiExportText } from './midiExport'
 import { CastController, type DirectMediaSources } from './cast/castSession'
@@ -370,13 +371,23 @@ export function registerIpcHandlers(
   ipcMain.handle('backup:restore', (_e, timestamp: string): void => {
     const entry = listBackups(backupFolder).find((e) => e.timestamp === timestamp)
     if (!entry) throw new Error(`No backup found for timestamp ${timestamp}`)
+    // Before the live database is touched: the backup opens and is sound,
+    // and the collection as it is now is kept (before-restore-…).
+    checkBackup(entry)
+    keepCurrentBeforeRestore(db, getConfigFilePath(), backupFolder, new Date())
     db.close()
     // Resolves through the same helper as the startup openDatabase() call
     // and config:chooseDbLocation below, so a restore always lands
     // wherever the DB is currently configured to live, not always userData
     // — otherwise relocating the DB and then restoring a backup would
     // silently resurrect a stale collection.db at the old default location.
-    restoreBackup(entry, getDbFilePath(), getConfigFilePath())
+    try {
+      restoreBackup(entry, getDbFilePath(), getConfigFilePath())
+    } catch (err) {
+      // The live files are whole (see restoreBackup); the database handle
+      // is closed, so the app restarts either way.
+      dialog.showErrorBox('The backup could not be restored', `${err instanceof Error ? err.message : String(err)}\n\nYour collection is as it was. MCO will restart.`)
+    }
     app.relaunch()
     app.exit()
   })
@@ -390,13 +401,19 @@ export function registerIpcHandlers(
   // already closed over.
   function relocateDataFolder(newDataFolder: string, collectionFolderToStamp: string | undefined): void {
     db.close()
-    migrateDataFolder({
-      newDataFolder,
-      oldDbPath: getDbFilePath(),
-      oldConfigPath: getConfigFilePath(),
-      collectionFolderToStamp,
-    })
-    setDataFolder(newDataFolder)
+    try {
+      migrateDataFolder({
+        newDataFolder,
+        oldDbPath: getDbFilePath(),
+        oldConfigPath: getConfigFilePath(),
+        collectionFolderToStamp,
+      })
+      setDataFolder(newDataFolder)
+    } catch (err) {
+      // The data stays where it was (nothing there is changed by a move);
+      // the database handle is closed, so the app restarts either way.
+      dialog.showErrorBox("MCO's data could not be moved", `${err instanceof Error ? err.message : String(err)}\n\nIt is still where it was. MCO will restart.`)
+    }
     app.relaunch()
     app.exit()
   }
@@ -451,6 +468,16 @@ export function registerIpcHandlers(
   // Reads files' own tags in the background (see tagReader.ts) — at
   // startup, and after every scan picks up new or changed files.
   const tagReader = new TagReader(db, (progress) => sendToRenderer('tags:progress', progress))
+  // A collection that moved, with its data (dataMigration.ts): its tracks
+  // take their new paths before the window lists them.
+  if (takeRescanAtLaunch()) {
+    const folder = getCollectionFolder()
+    try {
+      if (folder) runScan(db, folder)
+    } catch (err) {
+      console.error('scan after the collection moved failed', err)
+    }
+  }
   tagReader.run()
 
   const folderWatcher = new FolderWatcher({
@@ -460,7 +487,7 @@ export function registerIpcHandlers(
       if (!folder || scanInProgress) return
       try {
         const result = runScan(db, folder)
-        if (result.inserted || result.updated || result.missing) sendToRenderer('library:changed', result)
+        if (result.inserted || result.updated || result.missing || result.moved) sendToRenderer('library:changed', result)
         if (result.inserted || result.updated) tagReader.run()
       } catch (err) {
         console.error('background scan failed', err)
@@ -794,6 +821,24 @@ export function registerIpcHandlers(
     }
   )
 
+  // What each of Refine BPM's multiplications would set for one track,
+  // measured on its audio as the change itself is: the menu shows these,
+  // not the plain product. null when there is nothing to measure.
+  ipcMain.handle('tracks:previewBpm', async (_e, trackId: number, factors: number[]): Promise<number[] | null> => {
+    const row = db.prepare('SELECT path, bpm, present, cloud_status FROM tracks WHERE id = ?').get(trackId) as
+      | { path: string; bpm: number | null; present: number; cloud_status: string }
+      | undefined
+    if (!row?.bpm || !row.present || row.cloud_status !== 'local') return null
+    const targets = factors.map((factor) => row.bpm! * factor)
+    const measurer = createTempoMeasurer(getMediaCacheDir(), getSlowestBpm() || null)
+    try {
+      const measured = await measurer.measureAll(row.path, targets)
+      return targets.map((target, i) => multipliedBpm(target, measured[i] ?? null))
+    } finally {
+      measurer.close()
+    }
+  })
+
   // One play of a track: bumps its count and returns the new totals, for
   // the renderer to patch into its copy of the track.
   ipcMain.handle('tracks:recordPlay', (_e, trackId: number): { playCount: number; lastPlayedAt: number } | null => {
@@ -823,7 +868,7 @@ export function registerIpcHandlers(
       year: tags.year && Number.isInteger(tags.year) && tags.year > 0 ? tags.year : null,
     }
     try {
-      await writeTags(row.path, row.format, next, getMediaCacheDir())
+      await writeTags(row.path, row.format, next, getTagEditRecoveryDir())
     } catch (err) {
       console.error('writing tags failed', row.path, err)
       return { ok: false, error: err instanceof TagWriteError ? err.message : "Couldn't write to the file" }

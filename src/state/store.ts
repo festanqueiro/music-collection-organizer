@@ -58,12 +58,12 @@ import {
 } from './playlist'
 import { baseName } from '../paths'
 import type { EnergyRange } from './trackFilters'
-import { writeStored, readStoredFlag } from './stored'
+import { writeStored, readStored, readStoredFlag } from './stored'
 import { createCueSlice } from './cueSlice'
 import { createSavedPlaylistSlice } from './savedPlaylistSlice'
 import { createMidiSlice } from './midiSlice'
 import { createTagSlice } from './tagSlice'
-import { downloadBeforePlaying, prefetchUpcoming, tracksNeedingAnalysis, triggerBackgroundAnalysis, triggerBackgroundAnalysisForMany } from './playbackHelpers'
+import { downloadBeforePlaying, newPlayRequest, prefetchUpcoming, tracksNeedingAnalysis, triggerBackgroundAnalysis, triggerBackgroundAnalysisForMany } from './playbackHelpers'
 
 // Debounced rather than saved on every slider tick — dragging a knob fires
 // onChange continuously, and writing to electron-store on every tick would
@@ -314,6 +314,9 @@ export interface CollectionState {
   // every timeupdate so the queue view (a sibling, not a descendant of
   // Player) can render a progress line under the currently-playing row.
   playbackProgress: number
+  // Goes up each time the queue moves on, so the player starts afresh even
+  // when the next track is the same one again.
+  playTurn: number
   setPlaybackProgress: (progress: number) => void
   // Whether the dub siren's trigger is currently held down — shared here
   // (not local component state) since mouse, the hold-S key, and a bound
@@ -439,7 +442,7 @@ export interface CollectionState {
   loadLibrarySettings: () => Promise<void>
   setWatchCollectionFolder: (enabled: boolean) => Promise<void>
   setAutoAnalyseNewTracks: (enabled: boolean) => Promise<void>
-  handleLibraryChanged: (result: { inserted: number; updated: number; missing: number }) => Promise<void>
+  handleLibraryChanged: (result: { inserted: number; updated: number; missing: number; moved?: number }) => Promise<void>
   startMidiLearn: (control: MidiControlKey) => void
   cancelMidiLearn: () => void
   clearMidiMapping: (control: MidiControlKey) => void
@@ -496,6 +499,9 @@ export interface CollectionState {
   dismissSubgenreDeletionUndo: () => void
   toggleTrackChecked: (trackId: number) => void
   setTracksChecked: (trackIds: number[], checked: boolean) => void
+  // The rows selected together in the table are exactly these (none when
+  // one row or no row is selected).
+  replaceCheckedTracks: (trackIds: number[]) => void
   clearCheckedTracks: () => void
   addTagsToCheckedTracks: (tagIds: { genreIds: number[]; subgenreIds: number[] }) => Promise<void>
   exportTagData: () => Promise<{ path: string } | null>
@@ -570,6 +576,11 @@ function loadVisualizerThemeOptions(): Partial<Record<AnyVisualizerThemeId, Reco
   }
 }
 
+const PLAYER_VOLUME_KEY = 'playerVolume'
+function loadPlayerVolume(): number {
+  const stored = Number(readStored(PLAYER_VOLUME_KEY))
+  return stored > 0 && stored <= 1 ? stored : 1
+}
 const VISUALIZER_HIDE_TRACK_INFO_KEY = 'visualizerHideTrackInfo'
 const loadVisualizerHideTrackInfo = (): boolean => readStoredFlag(VISUALIZER_HIDE_TRACK_INFO_KEY, false)
 
@@ -731,8 +742,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   modalOpen: false,
   appVersion: null,
   effectsSettings: DEFAULT_EFFECTS_SETTINGS,
-  playerVolume: 1,
+  playerVolume: loadPlayerVolume(),
   playbackProgress: 0,
+  playTurn: 0,
   sirenTriggered: false,
   toastMessage: null,
   playbackControls: null,
@@ -795,7 +807,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     }, 300)
   },
 
-  setPlayerVolume: (volume) => set({ playerVolume: volume }),
+  setPlayerVolume: (volume) => {
+    set({ playerVolume: volume })
+    // Kept across launches; muted (0) isn't, so the app never opens silent.
+    if (volume > 0) writeStored(PLAYER_VOLUME_KEY, String(volume))
+  },
 
   setPlaybackProgress: (progress) => set({ playbackProgress: progress }),
 
@@ -1061,7 +1077,16 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
     // that no longer exist, e.g. after a rescan marked them missing.
     const trackIds = new Set(tracks.map((t) => t.id))
     const checkedTrackIds = new Set([...get().checkedTrackIds].filter((id) => trackIds.has(id)))
-    set({ tracks, genres, subgenres, trackTags, checkedTrackIds, missingTracks, playlistNodes, hotCueCounts, trackCues: new Map() })
+    // The same for the queue: a track that is gone can't play, and left in
+    // it would stop the queue there ("Nothing queued" with more waiting).
+    const queued = get().playlist
+    const playlist = queued.every((id) => trackIds.has(id)) ? queued : queued.filter((id) => trackIds.has(id))
+    // The cues already read (the playing track's, a pre-listened one's) stay
+    // until read again just below. Emptied, the player's pads looked free
+    // after any reload, and the next press on one moved the cue stored there.
+    const trackCues = new Map([...get().trackCues].filter(([id]) => trackIds.has(id)))
+    set({ tracks, genres, subgenres, trackTags, checkedTrackIds, playlist, missingTracks, playlistNodes, hotCueCounts, trackCues })
+    for (const id of trackCues.keys()) void get().loadTrackCues(id)
     const playlistId = get().selectedPlaylistId
     if (playlistId !== null) await get().selectPlaylist(playlistNodes.some((n) => n.id === playlistId) ? playlistId : null)
   },
@@ -1075,7 +1100,9 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   // details on other tracks doesn't interrupt whatever's currently
   // loaded and playing. Only these explicit actions change it.
   playTrackNow: async (trackId) => {
+    const stillWanted = newPlayRequest()
     if (!(await downloadBeforePlaying(get, trackId))) return
+    if (!stillWanted()) return
     set({ playlist: playTrackNowPure(get().playlist, trackId) })
     triggerBackgroundAnalysis(get, trackId)
     prefetchUpcoming(get)
@@ -1154,17 +1181,26 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   },
 
   advanceToNext: async () => {
-    const before = get().playlist
-    const after = advanceToNextPure(before)
-    if (after === before) return
-    // Usually already prefetched; if not, it plays once it's down (a failed
-    // download still moves on, and the player reports the error).
-    if (after.length > 0) await downloadBeforePlaying(get, after[0])
-    // Left alone if the queue was changed while downloading.
-    if (get().playlist !== before) return
-    set({ playlist: after })
-    if (after.length > 0) triggerBackgroundAnalysis(get, after[0])
-    prefetchUpcoming(get)
+    const ended = get().playlist[0]
+    // The queue can change while the next track downloads (a song added,
+    // the next one moved): then the step is worked out again on the queue
+    // as it is, rather than given up.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const before = get().playlist
+      // Something else was put on meanwhile: that plays, nothing to advance.
+      if (before[0] !== ended) return
+      const after = advanceToNextPure(before)
+      if (after === before) return
+      // Usually already prefetched; if not, it plays once it's down (a failed
+      // download still moves on, and the player reports the error).
+      if (after.length > 0) await downloadBeforePlaying(get, after[0])
+      if (get().playlist !== before) continue
+      // playTurn: the same track queued twice in a row is a new play of it.
+      set({ playlist: after, playTurn: get().playTurn + 1 })
+      if (after.length > 0) triggerBackgroundAnalysis(get, after[0])
+      prefetchUpcoming(get)
+      return
+    }
   },
 
   setContinuousPlay: (value) => set({ continuousPlay: value }),
@@ -1296,8 +1332,11 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
 
   runScan: async (opts) => {
     const before = new Set(get().tracks.map((t) => t.id))
-    await window.api.scanCollection({ removeMissing: opts?.removeMissing })
+    const result = await window.api.scanCollection({ removeMissing: opts?.removeMissing })
     await get().loadAll()
+    if (result.moved) {
+      get().showToast(`${result.moved} ${result.moved === 1 ? 'track' : 'tracks'} found at a new place, with analysis, cues and playlists kept`)
+    }
     if (!opts?.analyseNew) return
     const added = get()
       .tracks.filter((t) => !before.has(t.id) && t.analysisStatus !== 'done')

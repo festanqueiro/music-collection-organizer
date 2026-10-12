@@ -200,7 +200,10 @@ export function DetailPanel({
       )}
 
       <CoverSection artworkUrl={artworkUrl} />
-      <FullId3Section track={track} />
+      {/* Built anew for each track: an editor opened on one track (its read
+          still on the way, or a save) must never end up on the next one,
+          where Save would write the first track's tags into its file. */}
+      <FullId3Section key={track.id} track={track} />
 
       <DetailSection title="Tags" count={tags.genreIds.length + tags.subgenreIds.length} open={tagsOpen} onToggle={toggleTagsOpen}>
         {suggestedGenreName && !suggestedGenreAlreadyApplied && (
