@@ -233,6 +233,15 @@ describe('rekordbox import', () => {
     expect(node.kind === 'playlist' && node.paths.slice(0, 2)).toEqual(['/m/a.wav', '/m/b.wav'])
     expect(planRekordboxImport(db, [node]).matched).toBe(2)
   })
+
+  it('matches a text export row with a blank or symbol-only title to nothing', () => {
+    db.prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/m/untitled.wav','???.wav','/m', 'wav', 1, 1)`).run()
+    const [node] = rekordboxTxtToTree(db, 'Blank', [
+      { title: '', artist: '' },
+      { title: '***', artist: 'Someone' },
+    ])
+    expect(node.kind === 'playlist' && node.paths.every((p) => p.startsWith('\0unmatched:'))).toBe(true)
+  })
 })
 
 describe('playlists MCO already has', () => {

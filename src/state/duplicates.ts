@@ -10,7 +10,9 @@ function normalise(text: string): string {
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '') // accents
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '')
+    // Letters and digits of any script: with a-z only, every title in
+    // Cyrillic, Greek, Japanese… came out empty, and all of them "the same".
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, '')
 }
 
 // The key two copies of the same song share, or null if there's nothing to

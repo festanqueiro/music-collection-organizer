@@ -211,6 +211,8 @@ export interface RekordboxCue {
   start: number
   end?: number
   color: [number, number, number] | null
+  // The cue's label, when it has one.
+  name?: string
 }
 
 export interface RekordboxTrack {
@@ -257,6 +259,7 @@ export function readRekordboxCollection(xml: string): RekordboxCollection {
           start: Number(c.Start ?? 0),
           ...(c.End !== undefined ? { end: Number(c.End) } : {}),
           color: rgb,
+          ...(c.Name ? { name: c.Name } : {}),
         }
       })
       const year = num(a.Year)
