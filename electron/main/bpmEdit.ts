@@ -19,6 +19,14 @@ export type MeasureNear = (path: string, target: number, mode?: 'near' | 'again'
 
 const round2 = (bpm: number) => Math.round(bpm * 100) / 100
 
+// What multiplying a tempo gives: 106.58 × 1.5 is 159.87, the audio says
+// 160. The measured tempo is kept only if it stays close to what was asked
+// for. The menu's previews and the change itself both go through here, so
+// the number shown is the number set.
+export function multipliedBpm(target: number, measured: number | null): number {
+  return measured && Math.abs(measured / target - 1) <= 0.035 ? measured : round2(target)
+}
+
 export async function changeTrackBpm(
   db: AppDatabase,
   trackId: number,
@@ -51,10 +59,7 @@ export async function changeTrackBpm(
     const target = row.bpm * change.factor
     bpm = round2(target)
     if (bpm >= SLOWEST_BPM && bpm <= FASTEST_BPM && row.present && row.cloud_status === 'local') {
-      // 106.58 × 1.5 is 159.87: the audio says 160. Kept only if it stays
-      // close to what was asked for.
-      const measured = await measure(row.path, target).catch(() => null)
-      if (measured && Math.abs(measured / target - 1) <= 0.035) bpm = measured
+      bpm = multipliedBpm(target, await measure(row.path, target).catch(() => null))
     }
   }
   if (!Number.isFinite(bpm) || bpm < SLOWEST_BPM || bpm > FASTEST_BPM) {

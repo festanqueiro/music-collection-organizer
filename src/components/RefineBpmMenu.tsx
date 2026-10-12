@@ -2,8 +2,8 @@
 //
 // "Refine BPM…" from a row's right-click menu (docs/features/dj-tools.md):
 // the beat tracker can be an octave out, or report two thirds of the tempo
-// on broken beats. Doubles it, halves it, multiplies it by one and a half,
-// or sets the BPM typed — for one track, or every checked one.
+// on broken beats. Doubles it, halves it, multiplies it by one and a half
+// or by two thirds, or sets the BPM typed — for one track, or every checked one.
 import { useEffect, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { tracksById } from '../state/tracksById'
@@ -12,6 +12,9 @@ import type { BpmChange } from '../types'
 import { ContextMenu } from './ContextMenu'
 
 const show = (bpm: number) => String(Math.round(bpm * 100) / 100)
+
+// The multiplications offered, in the menu's order.
+const FACTORS = [2, 0.5, 1.5, 2 / 3]
 
 export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: number; trackIds: number[]; onClose: () => void }) {
   const tracks = useCollectionStore((s) => s.tracks)
@@ -30,6 +33,30 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
   const withBpm = chosen.filter((t) => t.bpm).length
   const edited = chosen.some((t) => t.bpmEdited)
 
+  // What each multiplication would set, measured on the audio as the change
+  // itself is (106.58 × 1.5 is 159.87; the audio says 160). Until it
+  // arrives — about a second — the plain product is shown, as "≈".
+  const singleId = single?.id ?? null
+  const [measured, setMeasured] = useState<number[] | null>(null)
+  useEffect(() => {
+    setMeasured(null)
+    if (singleId === null || !bpm) return
+    let stale = false
+    window.api
+      .previewTrackBpm(singleId, FACTORS)
+      .then((values) => {
+        if (!stale) setMeasured(values)
+      })
+      .catch(() => {})
+    return () => {
+      stale = true
+    }
+  }, [singleId, bpm])
+  const preview = (by: number) => {
+    const value = measured?.[FACTORS.indexOf(by)]
+    return value ? show(value) : `≈ ${show((bpm ?? 0) * by)}`
+  }
+
   function apply(change: BpmChange) {
     onClose()
     changeTracksBpm(trackIds, change).catch((err) => showToast(err instanceof Error ? err.message : String(err)))
@@ -42,7 +69,7 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
         {icon}
       </span>
       <span>{label}</span>
-      {bpm && <span style={{ color: 'var(--color-text-dim)', fontSize: '11px', fontVariantNumeric: 'tabular-nums' }}>≈ {show(bpm * by)}</span>}
+      {bpm && <span data-bpm-preview style={{ color: 'var(--color-text-dim)', fontSize: '11px', fontVariantNumeric: 'tabular-nums' }}>{preview(by)}</span>}
     </button>
   )
 
@@ -53,7 +80,8 @@ export function RefineBpmMenu({ x, y, trackIds, onClose }: { x: number; y: numbe
       </div>
       {factor('keyboard_double_arrow_up', 'Double', 2, 'The tracker found half the tempo (85 for 170)')}
       {factor('keyboard_double_arrow_down', 'Halve', 0.5, 'The tracker found twice the tempo (140 for 70)')}
-      {factor('timeline', 'Two-thirds fix (× 1.5)', 1.5, 'The tracker found two thirds of the tempo (108 for 162), as it can on broken beats')}
+      {factor('timeline', 'One and a half times (× 1.5)', 1.5, 'The tracker found two thirds of the tempo (108 for 162), as it can on broken beats')}
+      {factor('timeline', 'Two thirds (× ⅔)', 2 / 3, 'The tracker found one and a half times the tempo (162 for 108)')}
       {typing ? (
         <input
           autoFocus
