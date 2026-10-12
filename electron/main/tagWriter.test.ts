@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { parseBuffer } from 'music-metadata'
-import { applyTags, parseId3, updateId3, TagWriteError } from './tagWriter'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { applyTags, discardInterruptedTagWrite, interruptedTagWrites, parseId3, restoreInterruptedTagWrite, updateId3, writeTags, TagWriteError } from './tagWriter'
 import type { EditableTags } from '../../src/types'
 
 const TAGS: EditableTags = { title: 'Tïtle ✓', artist: 'Artist', album: 'Album', genre: 'House, Deep House', year: 2024 }
@@ -137,3 +140,68 @@ describe('applyTags', () => {
     expect(() => applyTags(Buffer.from('fLaC'), 'flac', TAGS)).toThrow(TagWriteError)
   })
 })
+
+describe('writeTags and its safety copy', () => {
+  it('writes into the same file and leaves no copy behind', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tagwrite-'))
+    try {
+      const path = join(dir, 'song.wav')
+      writeFileSync(path, wav([]))
+      const inode = statSync(path).ino
+      const recovery = join(dir, 'recovery')
+
+      await writeTags(path, 'wav', TAGS, recovery)
+
+      expect((await parseBuffer(readFileSync(path), { mimeType: 'audio/wav' })).common.title).toBe(TAGS.title)
+      expect(statSync(path).ino).toBe(inode)
+      expect(readdirSync(recovery)).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('finds a save that never finished, and puts the original back into the same file', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tagwrite-'))
+    try {
+      const path = join(dir, 'song.wav')
+      const original = wav([])
+      // As a crash mid-write leaves things: the copy and its note saved,
+      // the file half new.
+      writeFileSync(join(dir, 'tag-edit-backup-1-1'), original)
+      writeFileSync(join(dir, 'tag-edit-backup-1-1.json'), JSON.stringify({ path }))
+      writeFileSync(path, Buffer.concat([original.subarray(0, 100), Buffer.from('torn')]))
+      const inode = statSync(path).ino
+      // A note whose copy never made it to disk is no use, and is cleared.
+      writeFileSync(join(dir, 'tag-edit-backup-2-2.json'), JSON.stringify({ path }))
+
+      const [write, ...others] = interruptedTagWrites(dir)
+      expect(others).toEqual([])
+      expect(write).toMatchObject({ path, changed: true })
+      expect(existsSync(join(dir, 'tag-edit-backup-2-2.json'))).toBe(false)
+
+      restoreInterruptedTagWrite(write)
+      expect(readFileSync(path).equals(original)).toBe(true)
+      expect(statSync(path).ino).toBe(inode)
+      expect(interruptedTagWrites(dir)).toEqual([])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('says when the file is still its original, and can let the copy go', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tagwrite-'))
+    try {
+      const path = join(dir, 'song.wav')
+      writeFileSync(path, wav([]))
+      writeFileSync(join(dir, 'tag-edit-backup-1-1'), wav([]))
+      writeFileSync(join(dir, 'tag-edit-backup-1-1.json'), JSON.stringify({ path }))
+      const [write] = interruptedTagWrites(dir)
+      expect(write.changed).toBe(false)
+      discardInterruptedTagWrite(write)
+      expect(readdirSync(dir)).toEqual(['song.wav'])
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+

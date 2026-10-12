@@ -3,7 +3,8 @@
 // file — same id, so tags, play counts and queue positions stay — and it's
 // updated before the file is renamed, so the folder watcher's rescan finds
 // the new path already known and the old one simply gone.
-import { copyFile, rename, unlink } from 'node:fs/promises'
+import { constants } from 'node:fs'
+import { access, copyFile, rename, unlink } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import type { DatabaseSync } from 'node:sqlite'
 
@@ -23,6 +24,10 @@ export interface MovePlan {
 
 export function planMove(tracks: TrackLocation[], destination: string, exists: (path: string) => boolean): MovePlan {
   const plan: MovePlan = { moves: [], alreadyThere: [], conflicts: [] }
+  // Names are compared as the disk compares them on macOS and Windows:
+  // "Song.wav" and "song.wav" (or the same name with its accents written
+  // the other way) are one file there, and the second would overwrite the first.
+  const sameName = (path: string) => path.normalize('NFC').toLowerCase()
   const taken = new Set<string>()
   for (const track of tracks) {
     if (dirname(track.path) === destination) {
@@ -31,11 +36,11 @@ export function planMove(tracks: TrackLocation[], destination: string, exists: (
     }
     const to = join(destination, basename(track.path))
     // Two dragged files with the same name can't both land there either.
-    if (exists(to) || taken.has(to)) {
+    if (exists(to) || taken.has(sameName(to))) {
       plan.conflicts.push({ id: track.id, path: track.path })
       continue
     }
-    taken.add(to)
+    taken.add(sameName(to))
     plan.moves.push({ id: track.id, from: track.path, to })
   }
   return plan
@@ -43,12 +48,20 @@ export function planMove(tracks: TrackLocation[], destination: string, exists: (
 
 // Renames, or copies then deletes across volumes (an external drive, a
 // different cloud).
+// Never onto a file that is there: `rename` replaces it without a word, and
+// not through the Trash. The plan has checked already; this is for a file
+// that appeared since, or a name the plan took for free.
 async function moveFile(from: string, to: string): Promise<void> {
+  const there = await access(to).then(
+    () => true,
+    () => false
+  )
+  if (there) throw new Error('A file of that name is already there')
   try {
     await rename(from, to)
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'EXDEV') throw err
-    await copyFile(from, to)
+    await copyFile(from, to, constants.COPYFILE_EXCL)
     await unlink(from)
   }
 }
@@ -71,7 +84,16 @@ export async function applyMoves(
   const failed: { id: number; path: string; error: string }[] = []
   for (const { id, from, to } of plan.moves) {
     const folder = dirname(to)
-    update.run(to, folder, id)
+    try {
+      update.run(to, folder, id)
+    } catch (err) {
+      // The path is another row's: a track recorded there whose file is
+      // gone (kept, hidden, until Update Collection). This file stays where
+      // it is, and the rest of the batch goes on.
+      const taken = /UNIQUE/i.test(String(err))
+      failed.push({ id, path: from, error: taken ? 'A missing track is recorded at that place — run Update Collection first' : err instanceof Error ? err.message : String(err) })
+      continue
+    }
     try {
       await moveFile(from, to)
       moved.push({ id, path: to, folder })

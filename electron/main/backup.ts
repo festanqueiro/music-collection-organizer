@@ -1,7 +1,8 @@
-import { mkdirSync, copyFileSync, readdirSync, unlinkSync } from 'node:fs'
+import { mkdirSync, copyFileSync, readdirSync, renameSync, rmSync, unlinkSync } from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import type { AppDatabase } from './db'
-import { getLastBackupAt, setLastBackupAt } from './config'
+import { setLastBackupAt } from './config'
 
 export function getBackupFolder(userDataPath: string): string {
   return join(userDataPath, 'backups')
@@ -82,6 +83,13 @@ export function pruneOldBackups(backupFolder: string, keep: number): void {
   }
 }
 
+// "2026-10-12T18-23-13-000Z" in a backup's name, back to a date.
+export function newestBackupAt(backupFolder: string): string | null {
+  const newest = listBackups(backupFolder)[0]?.timestamp
+  const iso = newest?.replace(/T(\d\d)-(\d\d)-(\d\d)-(\d+)Z$/, 'T$1:$2:$3.$4Z')
+  return iso && !Number.isNaN(new Date(iso).getTime()) ? iso : null
+}
+
 export function runBackupIfNeeded(
   db: AppDatabase,
   configFilePath: string,
@@ -89,7 +97,11 @@ export function runBackupIfNeeded(
   now: Date,
   keep = 30
 ): void {
-  if (!shouldBackupToday(getLastBackupAt(), now)) return
+  // When *this computer* last backed up is its newest backup: the backups
+  // are kept on each computer, but the config (and its lastBackupAt) is
+  // shared when the data folder is in a synced folder — the second computer
+  // to open it that day would never take one.
+  if (!shouldBackupToday(newestBackupAt(backupFolder), now)) return
   runBackup(db, configFilePath, backupFolder, now)
   setLastBackupAt(now.toISOString())
   try {
@@ -132,7 +144,61 @@ export function listBackups(backupFolder: string): BackupEntry[] {
     }))
 }
 
+// Whether a backup is a database MCO can open: read through by SQLite
+// itself, and with the tracks table in it. Throws with the reason if not —
+// before anything of the live collection is touched.
+export function checkBackup(entry: BackupEntry): void {
+  let backup: DatabaseSync | null = null
+  try {
+    backup = new DatabaseSync(entry.dbPath, { readOnly: true })
+    const check = backup.prepare('PRAGMA integrity_check').get() as { integrity_check?: string } | undefined
+    if (check?.integrity_check !== 'ok') throw new Error(String(check?.integrity_check ?? 'unreadable'))
+    backup.prepare('SELECT count(*) FROM tracks').get()
+  } catch (err) {
+    throw new Error(`That backup can't be used — it is damaged (${err instanceof Error ? err.message : String(err)}). Nothing was changed.`)
+  } finally {
+    backup?.close()
+  }
+}
+
+// The collection as it is right before a restore, kept next to the backups
+// (as before-restore-<time>.db/.json: not listed as a backup, the last
+// three kept) — the way back if the restore was a mistake.
+const BEFORE_RESTORE_KEPT = 3
+export function keepCurrentBeforeRestore(db: AppDatabase, configFilePath: string, backupFolder: string, now: Date): string {
+  mkdirSync(backupFolder, { recursive: true })
+  const stamp = timestampForFilename(now)
+  const dbCopy = join(backupFolder, `before-restore-${stamp}.db`)
+  db.exec(`VACUUM INTO '${dbCopy.replace(/'/g, "''")}'`)
+  try {
+    copyFileSync(configFilePath, join(backupFolder, `before-restore-${stamp}.json`))
+  } catch {
+    // No settings file yet: the database is what matters.
+  }
+  const kept = readdirSync(backupFolder)
+    .filter((f) => /^before-restore-.+\.db$/.test(f))
+    .sort()
+    .reverse()
+  for (const old of kept.slice(BEFORE_RESTORE_KEPT)) {
+    rmSync(join(backupFolder, old), { force: true })
+    rmSync(join(backupFolder, old.replace(/\.db$/, '.json')), { force: true })
+  }
+  return dbCopy
+}
+
+// Puts a backup in place of the live files. Each is copied next to its
+// target first and then renamed over it, so a copy that fails half way
+// (disk full, a drive pulled) leaves the live file whole.
 export function restoreBackup(entry: BackupEntry, dbFilePath: string, configFilePath: string): void {
-  copyFileSync(entry.dbPath, dbFilePath)
-  copyFileSync(entry.configPath, configFilePath)
+  const copies: [string, string][] = [
+    [entry.dbPath, dbFilePath],
+    [entry.configPath, configFilePath],
+  ]
+  try {
+    for (const [from, to] of copies) copyFileSync(from, `${to}.restoring`)
+  } catch (err) {
+    for (const [, to] of copies) rmSync(`${to}.restoring`, { force: true })
+    throw err
+  }
+  for (const [, to] of copies) renameSync(`${to}.restoring`, to)
 }

@@ -12,7 +12,9 @@ export interface DiskFileWithBlocks extends DiskFile {
   blocks?: number
 }
 
-export function walkAudioFiles(rootPath: string): DiskFileWithBlocks[] {
+// `unreadable`, when given, collects the folders and files that couldn't be
+// read: what is under them is unknown, not gone (scan.ts never removes it).
+export function walkAudioFiles(rootPath: string, unreadable?: string[]): DiskFileWithBlocks[] {
   const results: DiskFileWithBlocks[] = []
 
   function walk(dir: string) {
@@ -23,6 +25,7 @@ export function walkAudioFiles(rootPath: string): DiskFileWithBlocks[] {
       entries = readdirSync(dir, { withFileTypes: true })
     } catch (err) {
       console.warn(`walkAudioFiles: skipping unreadable directory ${dir}`, err)
+      unreadable?.push(dir)
       return
     }
 
@@ -50,6 +53,7 @@ export function walkAudioFiles(rootPath: string): DiskFileWithBlocks[] {
           })
         } catch (err) {
           console.warn(`walkAudioFiles: skipping unreadable file ${fullPath}`, err)
+          unreadable?.push(fullPath)
         }
       }
     }
