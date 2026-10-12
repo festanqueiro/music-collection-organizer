@@ -19,6 +19,7 @@ import { tracksById } from '../state/tracksById'
 import { ContextMenu } from './ContextMenu'
 import { writeStored } from '../state/stored'
 import { isSlowBpm } from '../state/trackFilters'
+import { keysBelongToFocus, rangeBetween, toggleInSelection } from '../state/rowSelection'
 
 type SortKey = TrackTableColumnKey
 
@@ -43,7 +44,6 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
   dateModified: 120,
 }
 const MIN_COLUMN_WIDTH = 50
-const CHECKBOX_COL_WIDTH = 36
 // Just fits its three 16px icons (play, add to queue, pre-listen) with
 // 4px padding and gaps.
 const PLAY_COL_WIDTH = 64
@@ -169,9 +169,11 @@ export function TrackTable({
   const searchText = useCollectionStore((s) => s.searchText)
   const setSearchText = useCollectionStore((s) => s.setSearchText)
   const checkedTrackIds = useCollectionStore((s) => s.checkedTrackIds)
-  const toggleTrackChecked = useCollectionStore((s) => s.toggleTrackChecked)
+  const replaceCheckedTracks = useCollectionStore((s) => s.replaceCheckedTracks)
   const setTracksChecked = useCollectionStore((s) => s.setTracksChecked)
   const modalOpen = useCollectionStore((s) => s.modalOpen)
+  // Queue, FX, Live or the visualizer covers the table: its keys are off.
+  const tableCovered = useCollectionStore((s) => s.playerScreen !== null || s.visualizerOpen)
   const playlist = useCollectionStore((s) => s.playlist)
   const showToast = useCollectionStore((s) => s.showToast)
   // Up next (the first entry is the loaded track), for the rows' queue icon.
@@ -250,16 +252,9 @@ export function TrackTable({
   useEffect(() => setPlaylistOrder(true), [selectedPlaylistId])
   // Show/hide columns: from the columns button or a right-click on any header.
   const [columnsMenu, setColumnsMenu] = useState<{ x: number; y: number } | null>(null)
-  // Anchor for shift-click range checking — the last row whose checkbox
-  // was explicitly clicked (not the one currently selected/detail-panel
-  // focused, so shift-click ranges follow checkbox clicks specifically).
-  const [lastCheckedTrackId, setLastCheckedTrackId] = useState<number | null>(null)
-  // Captured on mousedown (not read from the click/change event itself) so
-  // the checkbox can keep its native toggle behavior — onChange just reads
-  // this instead of us calling preventDefault() and re-implementing the
-  // toggle ourselves, which is a fragile pattern for something as basic as
-  // a checkbox click.
-  const shiftKeyRef = useRef(false)
+  // Where a shift-click or shift-arrow range starts: the last row clicked
+  // or moved to without shift.
+  const [anchorTrackId, setAnchorTrackId] = useState<number | null>(null)
   const [columnWidths, setColumnWidths] = useState<Record<TrackTableColumnKey, number>>(loadColumnWidths)
 
   // Drag-to-resize a column's header border. Reads/writes columnWidths via
@@ -464,6 +459,16 @@ export function TrackTable({
     playlistOrder,
   ])
   const visibleTrackIds = useMemo(() => visibleTracks.map((t) => t.id), [visibleTracks])
+  // The selection is of rows that are listed. When the list changes under
+  // it (another folder, the Compatible filter following the playing track,
+  // a tag taken off), the rows that left are no longer selected — or
+  // "Convert all", a drag or Refine BPM would act on tracks out of sight.
+  useEffect(() => {
+    if (checkedTrackIds.size === 0) return
+    const listed = new Set(visibleTrackIds)
+    const still = [...checkedTrackIds].filter((id) => listed.has(id))
+    if (still.length !== checkedTrackIds.size) replaceCheckedTracks(still.length > 1 ? still : [])
+  }, [visibleTrackIds, checkedTrackIds, replaceCheckedTracks])
   // Rows can be dragged up and down while a playlist shows in its own order.
   const canReorder = selectedPlaylistId !== null && playlistOrder && !duplicates && !missingTracksFilter
   const trackIdsByPath = useMemo(() => new Map(tracks.map((t) => [t.path, t.id])), [tracks])
@@ -487,7 +492,13 @@ export function TrackTable({
     return () => observer.disconnect()
   }, [])
 
-  const firstRendered = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN_ROWS)
+  // Never past the end: when a filter shortens the list while it is
+  // scrolled far down, the rows would be drawn nowhere and the spacer above
+  // them would keep the table at its old height — blank until scrolled back.
+  const firstRendered = Math.max(
+    0,
+    Math.min(Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN_ROWS, visibleTracks.length - Math.ceil(viewportHeight / ROW_HEIGHT) - OVERSCAN_ROWS)
+  )
   const lastRendered = Math.min(visibleTracks.length, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN_ROWS)
   const renderedTracks = visibleTracks.slice(firstRendered, lastRendered)
 
@@ -506,15 +517,22 @@ export function TrackTable({
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (modalOpen) return
-      const target = e.target as HTMLElement
-      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return
-      // ⌘A (Ctrl+A on Windows): check every track listed, as the header's
-      // checkbox does. In a text box it selects the text as usual (the
-      // check above), and handled here it never reaches Edit → Select All.
+      if (modalOpen || tableCovered) return
+      // A clicked button keeps the focus and uses none of these keys; a
+      // field, a menu or a slider keeps its own.
+      if (keysBelongToFocus(e.target as HTMLElement | null)) return
+      // ⌘A (Ctrl+A on Windows): select every track listed. In a text box
+      // it selects the text as usual (the check above), and handled here it
+      // never reaches Edit → Select All.
       if ((e.key === 'a' || e.key === 'A') && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
         e.preventDefault()
-        if (visibleTracks.length > 0) setTracksChecked(visibleTracks.map((t) => t.id), true)
+        if (visibleTracks.length > 1) replaceCheckedTracks(visibleTracks.map((t) => t.id))
+        else if (visibleTracks.length === 1) selectOnly(visibleTracks[0])
+        return
+      }
+      // Esc: back from several rows to the one last moved to.
+      if (e.key === 'Escape' && checkedTrackIds.size > 0 && !contextMenu) {
+        replaceCheckedTracks([])
         return
       }
       // P: pre-listen to the selected row in the headphones (toggles).
@@ -553,7 +571,9 @@ export function TrackTable({
       else if (e.key === 'End') nextIndex = visibleTracks.length - 1
       else if (e.key === 'PageDown') nextIndex = Math.min(visibleTracks.length - 1, currentIndex + PAGE_SIZE)
       else if (e.key === 'PageUp') nextIndex = Math.max(0, currentIndex - PAGE_SIZE)
-      onSelect(visibleTracks[nextIndex])
+      // With shift the selection grows or shrinks from the anchor.
+      if (e.shiftKey) extendTo(visibleTracks[nextIndex])
+      else selectOnly(visibleTracks[nextIndex])
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -562,12 +582,15 @@ export function TrackTable({
     selectedTrackId,
     onSelect,
     modalOpen,
+    tableCovered,
     previewTrack,
     selectedPlaylistId,
     selectedPlaylistTrackIds,
     checkedTrackIds,
-    setTracksChecked,
+    replaceCheckedTracks,
     removeTracksFromSelectedPlaylist,
+    anchorTrackId,
+    contextMenu,
   ])
 
   const columnLabels: Record<TrackTableColumnKey, string> = {
@@ -601,41 +624,51 @@ export function TrackTable({
   // scrolled-past rows don't show through.
   const stickyHeaderStyle = { position: 'sticky' as const, top: 0, background: 'var(--color-bg)', zIndex: 1 }
 
-  // Checks every row between anchorId and trackId (inclusive), matching
-  // Finder/Explorer range selection. Returns false (no-op) if either
-  // endpoint isn't in the current filtered/sorted view, so callers can
-  // fall back to their own single-row behavior.
-  function checkRange(anchorId: number, trackId: number): boolean {
-    const fromIndex = visibleTracks.findIndex((t) => t.id === anchorId)
-    const toIndex = visibleTracks.findIndex((t) => t.id === trackId)
-    if (fromIndex === -1 || toIndex === -1) return false
-    const [start, end] = fromIndex <= toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex]
-    const rangeIds = visibleTracks.slice(start, end + 1).map((t) => t.id)
-    setTracksChecked(rangeIds, true)
-    setLastCheckedTrackId(trackId)
-    return true
-  }
-
-  // Shift-clicking a row's checkbox checks every row between it and the
-  // last-clicked checkbox (inclusive) — falls back to a plain toggle if
-  // there's no prior anchor or the range check couldn't resolve.
-  function handleCheckboxClick(trackId: number, shiftKey: boolean) {
-    if (shiftKey && lastCheckedTrackId != null && checkRange(lastCheckedTrackId, trackId)) return
-    toggleTrackChecked(trackId)
-    setLastCheckedTrackId(trackId)
-  }
-
-  // Shift-clicking a row itself (not just its checkbox) also range-checks,
-  // anchored off the last checkbox click, falling back to the currently
-  // selected row so a shift-click works even before any checkbox was
-  // touched. A plain click still just moves the detail-panel selection.
-  function handleRowClick(track: Track, shiftKey: boolean) {
-    const anchorId = lastCheckedTrackId ?? selectedTrackId
-    if (shiftKey && anchorId != null) checkRange(anchorId, track.id)
+  // Rows are selected as in Finder, with no checkboxes (ADR 0068). One row
+  // selected is `selectedTrackId` (the details panel's); several are
+  // `checkedTrackIds`, which is empty otherwise.
+  function selectOnly(track: Track) {
+    setAnchorTrackId(track.id)
+    replaceCheckedTracks([])
     onSelect(track)
   }
 
-  // Play and pre-listen: their own fixed column after the checkbox, never reordered
+  // Shift: every row from the anchor to this one, replacing what was selected.
+  function extendTo(track: Track) {
+    const range = rangeBetween(visibleTracks.map((t) => t.id), anchorTrackId ?? selectedTrackId, track.id)
+    if (!range || range.length < 2) {
+      // The anchor stays where it is, so the range can grow again.
+      if (!range) setAnchorTrackId(track.id)
+      replaceCheckedTracks([])
+    } else {
+      replaceCheckedTracks(range)
+    }
+    onSelect(track)
+  }
+
+  // ⌘ (Ctrl on Windows): this row in or out of the selection.
+  function toggleRow(track: Track) {
+    const ids = toggleInSelection(visibleTracks.map((t) => t.id), checkedTrackIds, selectedTrackId, track.id)
+    setAnchorTrackId(track.id)
+    replaceCheckedTracks(ids.length > 1 ? ids : [])
+    if (ids.includes(track.id)) {
+      onSelect(track)
+      return
+    }
+    // Taken out: the details go to a row that is still selected.
+    const left = visibleTracks.find((t) => t.id === ids[0])
+    if (left) onSelect(left)
+  }
+
+  const isRowSelected = (trackId: number) => (checkedTrackIds.size > 0 ? checkedTrackIds.has(trackId) : trackId === selectedTrackId)
+
+  function handleRowClick(track: Track, e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }) {
+    if (e.shiftKey) extendTo(track)
+    else if (e.metaKey || e.ctrlKey) toggleRow(track)
+    else selectOnly(track)
+  }
+
+  // Play and pre-listen: their own fixed column, first, never reordered
   // with the others. A missing track's file is gone — nothing to play.
   function renderPlayCell(track: Track) {
     if (track.missing) return null
@@ -927,7 +960,8 @@ export function TrackTable({
         {selectedPlaylistId !== null && selectedPlaylistName && (
           <FilterChip icon="queue_music" label={selectedPlaylistName} onClear={() => void selectPlaylist(null)} />
         )}
-        {selectedPlaylistId !== null && selectedPlaylistTrackIds.length > 1 && (
+        {/* Not where the table can't show the playlist's order (Duplicates, Missing Tracks). */}
+        {selectedPlaylistId !== null && selectedPlaylistTrackIds.length > 1 && !duplicates && !missingTracksFilter && (
           <button
             onClick={() => {
               // The new order is the playlist's own: show that, not a column's sort.
@@ -1010,7 +1044,6 @@ export function TrackTable({
             tableLayout: 'fixed',
             width:
               PLAY_COL_WIDTH +
-              CHECKBOX_COL_WIDTH +
               orderedColumns.reduce((sum, col) => sum + columnWidths[col.key], 0) +
               STATUS_COL_WIDTH +
               CLOUD_COL_WIDTH,
@@ -1018,13 +1051,6 @@ export function TrackTable({
         >
           <thead>
             <tr>
-              <th style={{ ...cellStyle, width: CHECKBOX_COL_WIDTH, ...stickyHeaderStyle }}>
-                <input
-                  type="checkbox"
-                  checked={visibleTracks.length > 0 && visibleTracks.every((t) => checkedTrackIds.has(t.id))}
-                  onChange={(e) => setTracksChecked(visibleTracks.map((t) => t.id), e.target.checked)}
-                />
-              </th>
               <th style={{ ...cellStyle, width: PLAY_COL_WIDTH, ...stickyHeaderStyle, padding: '4px' }}>
                 <button
                   onClick={openColumnsMenu}
@@ -1044,6 +1070,8 @@ export function TrackTable({
                   onContextMenu={openColumnsMenu}
                   draggable
                   onDragStart={() => setDraggedColumn(col.key)}
+                  // Dropped nowhere, or Esc: no longer dimmed.
+                  onDragEnd={() => setDraggedColumn(null)}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault()
@@ -1090,7 +1118,7 @@ export function TrackTable({
             {tracks.length > 0 && visibleTracks.length === 0 && (
               <tr>
                 <td
-                  colSpan={orderedColumns.length + 4}
+                  colSpan={orderedColumns.length + 3}
                   style={{ padding: '24px', textAlign: 'center', color: 'var(--color-text-dim)' }}
                 >
                   {selectedPlaylistId !== null && selectedPlaylistTrackIds.length === 0
@@ -1101,17 +1129,18 @@ export function TrackTable({
             )}
             {firstRendered > 0 && (
               <tr aria-hidden style={{ height: firstRendered * ROW_HEIGHT }}>
-                <td colSpan={orderedColumns.length + 4} style={{ padding: 0 }} />
+                <td colSpan={orderedColumns.length + 3} style={{ padding: 0 }} />
               </tr>
             )}
             {renderedTracks.map((track) => (
               <tr
                 key={track.id}
                 data-track-id={track.id}
-                // Checked rows share the selected row's highlight, so a
-                // multi-selection reads as one group.
-                className={`track-row${track.id === selectedTrackId || checkedTrackIds.has(track.id) ? ' selected' : ''}`}
-                onClick={(e) => handleRowClick(track, e.shiftKey)}
+                // Several rows selected: those; otherwise the one the
+                // details panel shows.
+                className={`track-row${isRowSelected(track.id) ? ' selected' : ''}`}
+                aria-selected={isRowSelected(track.id)}
+                onClick={(e) => handleRowClick(track, e)}
                 onContextMenu={(e) => {
                   e.preventDefault()
                   e.stopPropagation()
@@ -1162,16 +1191,6 @@ export function TrackTable({
                     : {}),
                 }}
               >
-                <td style={cellStyle} onClick={(e) => e.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={checkedTrackIds.has(track.id)}
-                    onMouseDown={(e) => {
-                      shiftKeyRef.current = e.shiftKey
-                    }}
-                    onChange={() => handleCheckboxClick(track.id, shiftKeyRef.current)}
-                  />
-                </td>
                 <td style={{ ...cellStyle, padding: '8px 4px', overflow: 'hidden' }}>{renderPlayCell(track)}</td>
                 {orderedColumns.map((col) => (
                   <td key={col.key} style={cellStyleFor(col.key)}>
@@ -1206,7 +1225,7 @@ export function TrackTable({
             ))}
             {visibleTracks.length > 0 && (
               <tr aria-hidden style={{ height: (visibleTracks.length - lastRendered) * ROW_HEIGHT + SCROLLBAR_ROOM }}>
-                <td colSpan={orderedColumns.length + 4} style={{ padding: 0, border: 'none' }} />
+                <td colSpan={orderedColumns.length + 3} style={{ padding: 0, border: 'none' }} />
               </tr>
             )}
           </tbody>

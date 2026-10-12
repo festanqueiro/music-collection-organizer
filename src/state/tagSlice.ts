@@ -26,6 +26,7 @@ type TagSliceKeys =
   | 'dismissSubgenreDeletionUndo'
   | 'toggleTrackChecked'
   | 'setTracksChecked'
+  | 'replaceCheckedTracks'
   | 'clearCheckedTracks'
   | 'addTagsToCheckedTracks'
   | 'exportTagData'
@@ -140,6 +141,8 @@ export function createTagSlice(set: Set, get: Get): Pick<CollectionState, TagSli
       }
       set({ checkedTrackIds: next })
     },
+
+    replaceCheckedTracks: (trackIds) => set({ checkedTrackIds: new Set(trackIds) }),
 
     clearCheckedTracks: () => set({ checkedTrackIds: new Set() }),
 

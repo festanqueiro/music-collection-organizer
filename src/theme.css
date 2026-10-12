@@ -120,6 +120,12 @@ h6 {
   border-right: none;
 }
 
+.track-row {
+  /* Shift-click selects rows, not their text. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .track-row:hover {
   background: var(--color-surface-raised);
 }
