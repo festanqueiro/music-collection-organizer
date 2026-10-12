@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterPlaylistNodes, moveTracksInPlaylist, playlistFolders, restoreRemovedTracks } from './savedPlaylist'
+import { filterPlaylistNodes, moveTracksInPlaylist, playlistFolders, restoreOrder, restoreRemovedTracks } from './savedPlaylist'
 
 describe('moveTracksInPlaylist', () => {
   const order = [1, 2, 3, 4, 5]
@@ -31,6 +31,13 @@ describe('moveTracksInPlaylist', () => {
     expect(moveTracksInPlaylist(order, [9], 3, 'after')).toBe(order)
     expect(moveTracksInPlaylist(order, [9, 1], 3, 'after')).toEqual([2, 3, 1, 4, 5])
     expect(moveTracksInPlaylist(order, [1], 9, 'after')).toBe(order)
+  })
+})
+
+describe('restoreOrder', () => {
+  it('puts the old order back, keeping what was added since and leaving out what was removed', () => {
+    expect(restoreOrder([3, 1, 2], [1, 2, 3])).toEqual([1, 2, 3])
+    expect(restoreOrder([3, 9, 1], [1, 2, 3])).toEqual([1, 3, 9])
   })
 })
 

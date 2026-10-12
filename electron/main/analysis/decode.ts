@@ -28,8 +28,15 @@ export function decodeToPcm(filePath: string, sampleRate = 44100, range?: { star
         return
       }
       const buffer = Buffer.concat(chunks)
-      const floatArray = new Float32Array(buffer.buffer, buffer.byteOffset, buffer.length / 4)
-      resolve(new Float32Array(floatArray)) // copy out of the shared buffer
+      // The pieces aren't needed any more: an hour of audio is 635 MB, and
+      // was held three times over (pieces, joined, copied).
+      chunks.length = 0
+      const samples = Math.floor(buffer.length / 4)
+      // Joined into a buffer of its own (anything this size is): used as it
+      // is. Only a small one can sit in Node's shared pool, and is copied out.
+      const ownBuffer = buffer.byteOffset % 4 === 0 && buffer.buffer.byteLength === buffer.length
+      const floatArray = new Float32Array(buffer.buffer, buffer.byteOffset, samples)
+      resolve(ownBuffer ? floatArray : new Float32Array(floatArray))
     })
   })
 }

@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-12
 adrs: [0030, 0032, 0027]
 ---
 # Filters
@@ -21,11 +21,12 @@ with the folder or tag selection and the search.
   *From … to …*. Tracks not rated yet (not analysed) are left out while it's on. Shows how many tracks
   are rated and how many fall in the range; the chip reads *Energy 5–7*.
 - **Duplicates** — the same song more than once, in any folder or format: same artist and title, or
-  the same filename when either tag is missing; case, accents and punctuation ignored. Copies are
+  the same filename when either tag is missing; case, accents and punctuation ignored, in any
+  script (titles in Cyrillic, Greek, Japanese… used to all count as the same). Copies are
   listed next to each other ([ADR 0032](../adr/0032-duplicates-by-normalised-names.md)).
 - **Slow BPM** — tracks analysed below the **slowest tempo** (Settings → Library → Tempo; 90 BPM
   unless changed) whose BPM wasn't set by hand: the ones probably at half time (82.5 for 165).
-  Shows how many. Check them, right-click → *Refine BPM of all…* → *Measure it again* or *Double*
+  Shows how many. Select them (⌘A), right-click → *Refine BPM of all…* → *Measure it again* or *Double*
   ([DJ tools](dj-tools.md#refine-bpm), [ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)).
   The chip reads *Below 90 BPM*. Off when no slowest tempo is set.
 - **MCO tags** — All / **No Tags** (no MCO Tags at all, so no Subtags either) / **No Subtags** (no

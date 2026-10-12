@@ -21,7 +21,7 @@ import { AnalysisProgressBar } from './components/AnalysisProgressBar'
 import { SettingsModal } from './components/SettingsModal'
 import { StatsView } from './components/StatsView'
 import { PlaylistsBox, expandPlaylistsBoxOnNextOpen } from './components/PlaylistsBox'
-import { UndoToast } from './components/UndoToast'
+import { UndoToast, UndoToasts } from './components/UndoToast'
 import { Toast } from './components/Toast'
 import { subscribeToMidiCc } from './audio/midi'
 import { getDubSirenEngine } from './audio/sirenEngine'
@@ -244,6 +244,18 @@ export default function App() {
   // and a counter the chip's × bumps to make that view clear itself.
   const [tagFilterLabel, setTagFilterLabel] = useState<string | null>(null)
   const [tagClearSignal, setTagClearSignal] = useState(0)
+  // The Tags and Subtags views hand over their filter again whenever a tag
+  // changes (so it matches on the tags as they are now). Only a change of
+  // what is ticked is a new list in the table, which drops the selection.
+  const tagFilterLabelRef = useRef<string | null>(null)
+  function applyTagFilter(filter: (track: Track) => boolean, label: string | null) {
+    setTagFilter(() => filter)
+    setTagFilterLabel(label)
+    if (label === tagFilterLabelRef.current) return
+    tagFilterLabelRef.current = label
+    if (label) void selectPlaylist(null)
+    clearCheckedTracks()
+  }
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(false)
   const selectPlaylist = useCollectionStore((s) => s.selectPlaylist)
@@ -482,6 +494,9 @@ export default function App() {
     }
     function handleKeyDown(e: KeyboardEvent) {
       if (modalOpen || isTypingTarget(e.target) || e.repeat) return
+      // ⌘S, ⌘T and the like are shortcuts, not the siren or Talk: their
+      // key-up often never arrives, which left the sound or the mic on.
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       if (e.key === 't') {
         if (useCollectionStore.getState().micSettings.enabled) useCollectionStore.getState().micTalkDown()
         return
@@ -587,6 +602,7 @@ export default function App() {
   const cueTrackId = useCollectionStore((s) => s.cueTrackId)
   const cueTrack = cueTrackId != null ? (tracks.find((t) => t.id === cueTrackId) ?? null) : null
   const currentTrackId = playlist[0]
+  const playTurn = useCollectionStore((s) => s.playTurn)
   const currentTrack = currentTrackId != null ? (tracks.find((t) => t.id === currentTrackId) ?? null) : null
 
   return (
@@ -612,26 +628,28 @@ export default function App() {
           }}
         />
       )}
-      {queueUndo && <UndoToast message={queueUndo.message} onUndo={undoQueueReplace} onDismiss={dismissQueueUndo} />}
-      {cueUndo && <UndoToast message={cueUndo.message} onUndo={() => void undoCueRemove()} onDismiss={dismissCueUndo} />}
-      {playlistUndo && (
-        <UndoToast message={playlistUndo.message} onUndo={() => void undoPlaylistRemove()} onDismiss={dismissPlaylistUndo} />
-      )}
-      {pendingGenreDeletion && (
-        <UndoToast
-          message={`Deleted "${pendingGenreDeletion.snapshot.genreName}"`}
-          onUndo={undoGenreDeletion}
-          onDismiss={dismissGenreDeletionUndo}
-        />
-      )}
-      {pendingSubgenreDeletion && (
-        <UndoToast
-          message={`Deleted "${pendingSubgenreDeletion.snapshot.subgenreName}"`}
-          onUndo={undoSubgenreDeletion}
-          onDismiss={dismissSubgenreDeletionUndo}
-        />
-      )}
-      {toastMessage && <Toast message={toastMessage} />}
+      <UndoToasts>
+        {toastMessage && <Toast message={toastMessage} />}
+        {queueUndo && <UndoToast message={queueUndo.message} onUndo={undoQueueReplace} onDismiss={dismissQueueUndo} />}
+        {cueUndo && <UndoToast message={cueUndo.message} onUndo={() => void undoCueRemove()} onDismiss={dismissCueUndo} />}
+        {playlistUndo && (
+          <UndoToast message={playlistUndo.message} onUndo={() => void undoPlaylistRemove()} onDismiss={dismissPlaylistUndo} />
+        )}
+        {pendingGenreDeletion && (
+          <UndoToast
+            message={`Deleted "${pendingGenreDeletion.snapshot.genreName}"`}
+            onUndo={undoGenreDeletion}
+            onDismiss={dismissGenreDeletionUndo}
+          />
+        )}
+        {pendingSubgenreDeletion && (
+          <UndoToast
+            message={`Deleted "${pendingSubgenreDeletion.snapshot.subgenreName}"`}
+            onUndo={undoSubgenreDeletion}
+            onDismiss={dismissSubgenreDeletionUndo}
+          />
+        )}
+      </UndoToasts>
       <div
         className="app-layout"
         style={{
@@ -789,12 +807,7 @@ export default function App() {
                   <div hidden={leftView !== 'tags'}>
                     <TagTree
                       clearSignal={tagClearSignal}
-                      onFilterChange={(filter, label) => {
-                        setTagFilter(() => filter)
-                        setTagFilterLabel(label)
-                        if (label) void selectPlaylist(null)
-                        clearCheckedTracks()
-                      }}
+                      onFilterChange={applyTagFilter}
                     />
                   </div>
                 )}
@@ -802,12 +815,7 @@ export default function App() {
                   <div hidden={leftView !== 'subtags'}>
                     <SubtagTree
                       clearSignal={tagClearSignal}
-                      onFilterChange={(filter, label) => {
-                        setTagFilter(() => filter)
-                        setTagFilterLabel(label)
-                        if (label) void selectPlaylist(null)
-                        clearCheckedTracks()
-                      }}
+                      onFilterChange={applyTagFilter}
                     />
                   </div>
                 )}
@@ -879,7 +887,8 @@ export default function App() {
             // over from the previous track instead of resetting.
             return currentTrack ? (
               <Player
-                key={currentTrack.id}
+                // With the turn: the same track queued twice in a row starts again.
+                key={`${currentTrack.id}:${playTurn}`}
                 track={currentTrack}
                 onShowDetails={setSelectedTrack}
                 onFilterByArtist={(artist) => {

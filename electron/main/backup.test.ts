@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, unlinkSync, writeFileSync, readFileSync, readdirSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Store from 'electron-store'
 import { openDatabase, type AppDatabase } from './db'
-import { __setStoreForTests, getLastBackupAt } from './config'
-import { shouldBackupToday, runBackup, runBackupIfNeeded, getBackupFolder, pruneOldBackups, listBackups, restoreBackup } from './backup'
+import { __setStoreForTests, getLastBackupAt, setLastBackupAt } from './config'
+import { shouldBackupToday, runBackup, runBackupIfNeeded, getBackupFolder, pruneOldBackups, listBackups, restoreBackup, checkBackup, keepCurrentBeforeRestore } from './backup'
 
 describe('shouldBackupToday', () => {
   it('returns true when never backed up', () => {
@@ -76,6 +76,19 @@ describe('runBackup / runBackupIfNeeded', () => {
 
     const configCopy = JSON.parse(readFileSync(configBackupPath, 'utf-8'))
     expect(configCopy.collectionFolder).toBe('/Users/dj/Music')
+  })
+
+  it('runBackupIfNeeded goes by this computer\'s own backups, not the shared config', () => {
+    // Another computer on the same (synced) data folder backed up today:
+    // the config says so, but there is no backup here.
+    setLastBackupAt(new Date(2026, 7, 21, 6, 0, 0).toISOString())
+    runBackupIfNeeded(db, configFilePath, backupFolder, new Date(2026, 7, 21, 12, 0, 0))
+    expect(listBackups(backupFolder)).toHaveLength(1)
+    // And not a second one the same day.
+    runBackupIfNeeded(db, configFilePath, backupFolder, new Date(2026, 7, 21, 18, 0, 0))
+    expect(listBackups(backupFolder)).toHaveLength(1)
+    runBackupIfNeeded(db, configFilePath, backupFolder, new Date(2026, 7, 22, 9, 0, 0))
+    expect(listBackups(backupFolder)).toHaveLength(2)
   })
 
   it('runBackupIfNeeded backs up when none has run yet, and updates lastBackupAt', () => {
@@ -199,5 +212,52 @@ describe('listBackups / restoreBackup', () => {
 
     expect(readFileSync(liveDbPath, 'utf-8')).toBe('old-db')
     expect(readFileSync(liveConfigPath, 'utf-8')).toBe('{"old":true}')
+  })
+
+  it('restoreBackup leaves the live files whole when a copy fails', () => {
+    const entry = listBackups(backupFolder)[0]
+    unlinkSync(entry.configPath)
+    const liveDbPath = join(dir, 'collection.db')
+    const liveConfigPath = join(dir, 'config.json')
+    writeFileSync(liveDbPath, 'current-db')
+    writeFileSync(liveConfigPath, '{"current":true}')
+
+    expect(() => restoreBackup(entry, liveDbPath, liveConfigPath)).toThrow()
+
+    expect(readFileSync(liveDbPath, 'utf-8')).toBe('current-db')
+    expect(readFileSync(liveConfigPath, 'utf-8')).toBe('{"current":true}')
+    expect(readdirSync(dir).filter((f) => f.endsWith('.restoring'))).toEqual([])
+  })
+
+  it('checkBackup refuses a file that is not a sound database, and takes a real backup', () => {
+    expect(() => checkBackup(listBackups(backupFolder)[0])).toThrow(/damaged/)
+
+    const db = openDatabase(join(dir, 'live.db'))
+    const config = join(dir, 'config.json')
+    writeFileSync(config, '{}')
+    const real = runBackup(db, config, backupFolder, new Date('2026-09-01T00:00:00.000Z'))
+    const entry = listBackups(backupFolder).find((e) => e.dbPath === real.dbBackupPath)!
+    expect(() => checkBackup(entry)).not.toThrow()
+    // Cut short, as a copy that stopped half way would be.
+    writeFileSync(entry.dbPath, readFileSync(entry.dbPath).subarray(0, 5000))
+    expect(() => checkBackup(entry)).toThrow(/damaged/)
+    db.close()
+  })
+
+  it('keepCurrentBeforeRestore keeps the collection as it is, outside the list of backups, three at most', () => {
+    const db = openDatabase(join(dir, 'live.db'))
+    db.prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/a.wav','a.wav','/', 'wav', 1, 1)`).run()
+    const config = join(dir, 'config.json')
+    writeFileSync(config, '{"current":true}')
+    const listed = listBackups(backupFolder).length
+    for (let day = 1; day <= 5; day++) keepCurrentBeforeRestore(db, config, backupFolder, new Date(`2026-09-0${day}T00:00:00.000Z`))
+    db.close()
+
+    expect(listBackups(backupFolder)).toHaveLength(listed)
+    const kept = readdirSync(backupFolder).filter((f) => f.startsWith('before-restore-') && f.endsWith('.db')).sort()
+    expect(kept).toHaveLength(3)
+    const copy = openDatabase(join(backupFolder, kept[2]))
+    expect(copy.prepare('SELECT count(*) AS n FROM tracks').get()).toEqual({ n: 1 })
+    copy.close()
   })
 })

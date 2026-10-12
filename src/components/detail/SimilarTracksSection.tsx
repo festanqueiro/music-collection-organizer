@@ -155,7 +155,12 @@ export function SimilarTracksSection({ track, onSelectTrack }: { track: Track; o
                   </button>
                 )}
                 <button
-                  onClick={(e) => setPlaylistMenu({ trackIds: [other.id], x: e.clientX, y: e.clientY })}
+                  onClick={(e) => {
+                    // Not on to the window: the menu closes on a click there,
+                    // and this is the click that opens it.
+                    e.stopPropagation()
+                    setPlaylistMenu({ trackIds: [other.id], x: e.clientX, y: e.clientY })
+                  }}
                   title="Add to playlist…"
                   style={similarIconButtonStyle}
                 >

@@ -35,6 +35,14 @@ export function restoreRemovedTracks(current: number[], previous: number[], remo
   return out
 }
 
+// Undo for a reorder: the songs still in `current` back in the order they
+// had in `previous`; songs added since stay, after them.
+export function restoreOrder(current: number[], previous: number[]): number[] {
+  const present = new Set(current)
+  const known = new Set(previous)
+  return [...previous.filter((id) => present.has(id)), ...current.filter((id) => !known.has(id))]
+}
+
 // The Playlists box's search: the ids of the nodes to show for `query`,
 // or null when there's nothing to filter by. A node shows when its name
 // has every word of the query, with the folders it sits in; a folder that

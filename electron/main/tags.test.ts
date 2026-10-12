@@ -287,4 +287,29 @@ describe('tags', () => {
     // Deleting a sub-genre never touches the parent genre's own association.
     expect(getTrackTagIds(db, trackId).genreIds).toEqual([houseId])
   })
+
+  it('Undo of a delete skips a track that is gone meanwhile, and restores the rest', () => {
+    const other = db
+      .prepare(`INSERT INTO tracks (path, filename, folder, format, size, mtime) VALUES ('/gone.wav','gone.wav','/', 'wav', 1, 1)`)
+      .run().lastInsertRowid as number
+    const houseId = createGenre(db, 'House')
+    const deepHouseId = createSubgenre(db, 'Deep House', houseId)
+    for (const id of [trackId, other]) {
+      setTrackGenres(db, id, [houseId])
+      setTrackSubgenres(db, id, [deepHouseId])
+    }
+    const subSnapshot = captureSubgenreDeletionSnapshot(db, deepHouseId)
+    const snapshot = captureGenreDeletionSnapshot(db, houseId)
+    deleteGenre(db, houseId)
+    db.prepare('DELETE FROM tracks WHERE id = ?').run(other)
+
+    undoGenreDeletion(db, snapshot)
+    expect(getTrackTagIds(db, trackId).genreIds).toHaveLength(1)
+    expect(getTrackTagIds(db, trackId).subgenreIds).toHaveLength(1)
+
+    const restored = (db.prepare('SELECT id FROM subgenres').get() as { id: number }).id
+    deleteSubgenre(db, restored)
+    undoSubgenreDeletion(db, { ...subSnapshot, genreId: (db.prepare('SELECT id FROM genres').get() as { id: number }).id })
+    expect(getTrackTagIds(db, trackId).subgenreIds).toHaveLength(1)
+  })
 })

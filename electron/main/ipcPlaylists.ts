@@ -2,7 +2,7 @@
 // hot-cues.md), with the Rekordbox imports and exports that belong to
 // them. Registered from ipc.ts.
 import { app, ipcMain, dialog, BrowserWindow, type OpenDialogOptions, type SaveDialogOptions } from 'electron'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { writeFileSync, readFileSync, existsSync, statSync } from 'node:fs'
 import { getCollectionFolder, getPlaylistImportFolder, setPlaylistImportFolder, getRekordboxCompareFile, setRekordboxCompareFile } from './config'
 import { compareWithRekordbox, loadMcoSide } from './rekordboxCompare'
@@ -94,7 +94,11 @@ export function registerPlaylistIpc(db: AppDatabase): void {
       const name = basename(filePath).replace(/\.[^.]+$/, '')
       if (/\.m3u8?$/i.test(filePath)) {
         const entries = parseM3uEntries(text)
-        return [{ kind: 'playlist', name, paths: entries.map((e) => e.path), hints: entries.map((e) => e.hint) }]
+        // A path written relative to the playlist's own folder (as most
+        // players export them) is the file next to it.
+        const folder = dirname(filePath)
+        const fromPlaylist = (entry: string) => (isAbsolute(entry) || /^([a-zA-Z]:[\\/]|\\\\)/.test(entry) ? entry : resolve(folder, entry).normalize('NFC'))
+        return [{ kind: 'playlist', name, paths: entries.map((e) => fromPlaylist(e.path)), hints: entries.map((e) => e.hint) }]
       }
       return rekordboxTxtToTree(db, name, parseRekordboxTxt(text))
     })

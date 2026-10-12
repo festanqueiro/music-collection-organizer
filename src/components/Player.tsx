@@ -1,6 +1,7 @@
 // src/components/Player.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { trackPathToMediaUrl } from '../media'
+import { failedInARow, trackFailed, trackPlayed, UNPLAYABLE_IN_A_ROW } from '../state/unplayable'
 import { useCollectionStore } from '../state/store'
 import { listenedSeconds, playedThreshold } from '../state/playCount'
 import { EffectsChain } from '../audio/effectsChain'
@@ -32,6 +33,10 @@ function usePlayerSize() {
 }
 
 // In the player's header, before the screen buttons.
+// The volume to go back to on unmute. Outside the components: the player
+// is built again for each track, and would forget it.
+let volumeBeforeMute = 1
+
 function PlayerSizeButton() {
   const large = useCollectionStore((s) => s.playerLarge)
   const setLarge = useCollectionStore((s) => s.setPlayerLarge)
@@ -74,10 +79,6 @@ export function Player({
 }) {
   const size = usePlayerSize()
   const audioRef = useRef<HTMLAudioElement>(null)
-  // Remembers the volume to restore on unmute — a plain ref, not state,
-  // since it's write-only from the mute button's own perspective (never
-  // rendered) and shouldn't trigger a re-render on every volume change.
-  const lastVolumeRef = useRef(1)
   const effectsChainRef = useRef<EffectsChain | null>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0) // 0..1 fraction of duration played
@@ -100,6 +101,7 @@ export function Player({
   const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
   const continuousPlay = useCollectionStore((s) => s.continuousPlay)
   const advanceToNext = useCollectionStore((s) => s.advanceToNext)
+  const showToast = useCollectionStore((s) => s.showToast)
   const setPlaybackProgress = useCollectionStore((s) => s.setPlaybackProgress)
   const playlist = useCollectionStore((s) => s.playlist)
   const hasNext = playlist.length > 1
@@ -526,7 +528,23 @@ export function Player({
         // (the delay/reverb FX graph) would silently output silence.
         crossOrigin="anonymous"
         onEnded={handleTrackEnded}
-        onError={() => setPlaying(false)}
+        onPlaying={trackPlayed}
+        onError={() => {
+          // A file that won't play (unplugged, moved, a format the player
+          // can't read) is skipped, and said out loud — where the end of a
+          // track would have gone on to the next. Several in a row stop the
+          // queue (state/unplayable.ts).
+          setPlaying(false)
+          const name = track.title ?? track.filename
+          if (trackFailed(continuousPlay && hasNext) === 'skip') {
+            showToast(`Couldn't play ${name} — skipped`)
+            advanceToNext()
+          } else if (failedInARow() >= UNPLAYABLE_IN_A_ROW) {
+            showToast(`Couldn't play ${name} — ${UNPLAYABLE_IN_A_ROW} in a row, so the queue stopped here. Is the drive connected?`)
+          } else {
+            showToast(`Couldn't play ${name}`)
+          }
+        }}
         onTimeUpdate={(e) => {
           const audio = e.currentTarget
           setCurrentTime(audio.currentTime)
@@ -779,10 +797,10 @@ export function Player({
           <button
             onClick={() => {
               if (playerVolume > 0) {
-                lastVolumeRef.current = playerVolume
+                volumeBeforeMute = playerVolume
                 setPlayerVolume(0)
               } else {
-                setPlayerVolume(lastVolumeRef.current || 1)
+                setPlayerVolume(volumeBeforeMute || 1)
               }
             }}
             title={playerVolume > 0 ? 'Mute' : 'Unmute'}
@@ -828,7 +846,6 @@ export function Player({
 export function EmptyPlayer() {
   const playerVolume = useCollectionStore((s) => s.playerVolume)
   const setPlayerVolume = useCollectionStore((s) => s.setPlayerVolume)
-  const lastVolumeRef = useRef(1)
   const size = usePlayerSize()
   return (
     <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -865,10 +882,10 @@ export function EmptyPlayer() {
           <button
             onClick={() => {
               if (playerVolume > 0) {
-                lastVolumeRef.current = playerVolume
+                volumeBeforeMute = playerVolume
                 setPlayerVolume(0)
               } else {
-                setPlayerVolume(lastVolumeRef.current || 1)
+                setPlayerVolume(volumeBeforeMute || 1)
               }
             }}
             title={playerVolume > 0 ? 'Mute' : 'Unmute'}

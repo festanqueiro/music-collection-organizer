@@ -12,6 +12,8 @@ import { randomBytes } from 'node:crypto'
 import { parseFile } from 'music-metadata'
 import type { AppDatabase } from './db'
 import { resolveFfmpegPath } from './ffmpegPath'
+import { readBitDepth } from './analysis/metadata'
+import { NO_BIT_DEPTH } from './tagReader'
 import type { AudioInfo, ConvertFormat, ConvertOptions, ConvertProgress, ConvertResult } from '../../src/types'
 
 const EXTENSION: Record<ConvertFormat, string> = { wav: '.wav', aiff: '.aiff', flac: '.flac', alac: '.m4a', mp3: '.mp3', aac: '.m4a' }
@@ -191,6 +193,12 @@ async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, o
   const planned = planOutput(row.path, replace ? null : options.folder, options.format, replace, (path) => existsSync(path) || taken.has(path.toLowerCase()))
   if ('conflict' in planned) return fail(`${basename(planned.conflict)} is already there`)
   const out = planned.path
+  // The name is free on disk, but a track can still be recorded there: one
+  // whose file is gone, kept hidden until Update Collection. Found out now —
+  // after the conversion the row couldn't take that path, with the
+  // original already in the Trash.
+  const recorded = db.prepare('SELECT id FROM tracks WHERE path = ? AND id != ?').get(out, trackId)
+  if (recorded) return fail(`A missing track is recorded as ${basename(out)} there — run Update Collection first`)
   taken.add(out.toLowerCase())
   await mkdir(dirname(out), { recursive: true })
   // Not an audio extension, so a scan never takes the half-written file for a track.
@@ -209,11 +217,12 @@ async function convertOne(db: AppDatabase, deps: ConvertDeps, trackId: number, o
     }
     // The row follows the file (as when a file is moved): same id, so its
     // tags, cues, playlists and analysis stay.
-    const update = db.prepare('UPDATE tracks SET path = ?, filename = ?, format = ?, size = ?, mtime = ?, bitrate = ? WHERE id = ?')
+    const update = db.prepare('UPDATE tracks SET path = ?, filename = ?, format = ?, size = ?, mtime = ?, bitrate = ?, bit_depth = ? WHERE id = ?')
     const record = async () => {
       const stats = await stat(out)
-      const bitrate = await parseFile(out, { skipCovers: true, duration: false }).then((m) => m.format.bitrate ?? null, () => null)
-      update.run(out, basename(out), extname(out).slice(1).toLowerCase(), stats.size, Math.floor(stats.mtimeMs), bitrate === null ? null : Math.round(bitrate), trackId)
+      const format = await parseFile(out, { skipCovers: true, duration: false }).then((m) => m.format, () => null)
+      const bitrate = format?.bitrate ?? null
+      update.run(out, basename(out), extname(out).slice(1).toLowerCase(), stats.size, Math.floor(stats.mtimeMs), bitrate === null ? null : Math.round(bitrate), format ? ((await readBitDepth(out, format)) ?? NO_BIT_DEPTH) : null, trackId)
     }
     if (planned.inPlace) {
       // Same name: the original has to leave before the new file can have it.

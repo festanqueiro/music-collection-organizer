@@ -25,4 +25,15 @@ describe('findDuplicates', () => {
     expect([...dupes.keys()].sort()).toEqual([1, 2])
     expect(dupes.get(1)).toBe(dupes.get(2))
   })
+
+  it('tells titles in other scripts apart, and still matches the same one', () => {
+    const dupes = findDuplicates([
+      t(1, 'a.mp3', 'Группа крови', 'Кино'),
+      t(2, 'b.mp3', 'Звезда по имени Солнце', 'Кино'),
+      t(3, 'c.flac', 'группа  крови!', 'КИНО'),
+      t(4, '東京.mp3'),
+      t(5, '大阪.mp3'),
+    ])
+    expect([...dupes.keys()].sort()).toEqual([1, 3])
+  })
 })

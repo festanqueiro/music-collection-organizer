@@ -65,13 +65,16 @@ export interface ImportResult {
 
 export function importTagData(db: AppDatabase, data: TagExportData): ImportResult {
   return runInTransaction(db, () => {
+    // Names are the same whatever their capitals (tags.ts): "house" in the
+    // file is the "House" already here, not a second Tag to create.
+    const same = (name: string) => name.toLowerCase()
     const genreIdByName = new Map<string, number>()
     for (const row of db.prepare('SELECT id, name FROM genres').all() as { id: number; name: string }[]) {
-      genreIdByName.set(row.name, row.id)
+      genreIdByName.set(same(row.name), row.id)
     }
     for (const g of data.genres) {
-      if (!genreIdByName.has(g.name)) {
-        genreIdByName.set(g.name, createGenre(db, g.name))
+      if (!genreIdByName.has(same(g.name))) {
+        genreIdByName.set(same(g.name), createGenre(db, g.name))
       }
     }
 
@@ -82,12 +85,12 @@ export function importTagData(db: AppDatabase, data: TagExportData): ImportResul
     for (const row of db
       .prepare(`SELECT s.id as id, s.name as name, g.name as genre_name FROM subgenres s JOIN genres g ON g.id = s.genre_id`)
       .all() as { id: number; name: string; genre_name: string }[]) {
-      subgenreIdByKey.set(`${row.genre_name}::${row.name}`, row.id)
+      subgenreIdByKey.set(same(`${row.genre_name}::${row.name}`), row.id)
     }
     for (const sg of data.subgenres) {
-      const key = `${sg.genreName}::${sg.name}`
+      const key = same(`${sg.genreName}::${sg.name}`)
       if (!subgenreIdByKey.has(key)) {
-        const genreId = genreIdByName.get(sg.genreName)
+        const genreId = genreIdByName.get(same(sg.genreName))
         if (genreId !== undefined) {
           subgenreIdByKey.set(key, createSubgenre(db, sg.name, genreId))
         }
@@ -105,10 +108,10 @@ export function importTagData(db: AppDatabase, data: TagExportData): ImportResul
       matchedTracks++
 
       const genreIds = t.genres
-        .map((name) => genreIdByName.get(name))
+        .map((name) => genreIdByName.get(same(name)))
         .filter((id): id is number => id !== undefined)
       const subgenreIds = t.subgenres
-        .map((sg) => subgenreIdByKey.get(`${sg.genreName}::${sg.name}`))
+        .map((sg) => subgenreIdByKey.get(same(`${sg.genreName}::${sg.name}`)))
         .filter((id): id is number => id !== undefined)
 
       if (genreIds.length) addGenresToTracks(db, [row.id], genreIds)

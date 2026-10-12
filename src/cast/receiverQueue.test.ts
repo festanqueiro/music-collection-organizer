@@ -14,6 +14,7 @@ function track(id: number, over: Partial<Track> = {}): Track {
     birthtime: null,
     duration: 300,
     bitrate: 320,
+    bitDepth: null,
     title: `Track ${id}`,
     artist: null,
     album: null,

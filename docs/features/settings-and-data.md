@@ -1,7 +1,7 @@
 ---
 status: shipped
-updated: 2026-09-26
-adrs: [0007, 0009, 0011, 0013, 0033]
+updated: 2026-10-12
+adrs: [0007, 0009, 0011, 0013, 0033, 0069, 0071]
 ---
 # Settings & data
 
@@ -49,8 +49,11 @@ moves them anywhere else. A move copies (never deletes) the old files, and
 if the destination already has a `collection.db` that one is adopted
 instead of overwritten. The app relaunches after a move.
 
-Tracks are stored by absolute path, so a moved collection keeps its tags
-only if it ends up at the same path (e.g. the same `/Volumes/<name>`).
+Tracks are stored by absolute path, but a collection that moved — another
+computer, another drive, a renamed folder — keeps its tracks: the scan finds
+each one at its new place, with its analysis, cues, tags and playlists
+([ADR 0071](../adr/0071-a-moved-collection-keeps-its-tracks.md)). Copy the
+collection folder with its `.mco` folder, and pick it in MCO.
 
 A few view preferences (visualizer theme and options, whether MIDI badges
 are shown) are kept in the window's local storage instead.
@@ -62,12 +65,23 @@ data is separate from production.
 
 - **Automatic**: once a day (checked at launch and hourly), MCO snapshots
   the database (`VACUUM INTO`) and the config file into
-  `<userData>/backups/`. The last 30 are kept.
+  `<userData>/backups/`. The last 30 are kept. "Today's backup" is this computer's own newest
+  one: with the data folder in a synced folder, each computer takes its own.
 - **Back up now** makes an extra snapshot immediately.
 - The Backups tab shows when the last backup ran and the error, if the
   last one failed.
 - **Restore** replaces the database and settings with a chosen snapshot
-  and relaunches the app.
+  and relaunches the app. First the snapshot is opened and checked (a damaged one is refused,
+  nothing changed), and the collection as it is now is kept beside the backups as
+  `before-restore-<time>.db`/`.json` (the last three; not in the list — copy one over
+  `collection.db` by hand to go back). Each file is copied next to its target and renamed over it,
+  so a copy that fails leaves the collection whole.
+- **Moving the data folder** copies each file under another name and renames it when whole: a move
+  that fails half way leaves nothing the next attempt would take for existing data, and the data
+  stays where it was.
+- **Open on another computer**: with the data folder in a synced folder, MCO warns at launch when
+  another computer seems to have the collection open
+  ([ADR 0069](../adr/0069-warn-when-open-on-another-computer.md)) — a hint, not a lock.
 
 ## Backup to an external disk
 
@@ -94,6 +108,13 @@ another disk, under `MCO Backup/` ([ADR 0033](../adr/0033-external-backup-to-ano
 Code: `src/components/SettingsModal.tsx`, `src/components/settings/DataPage.tsx`,
 `electron/main/config.ts`, `bootstrap.ts`, `dataMigration.ts`, `backup.ts`,
 `externalBackup.ts`.
+
+## When MCO can't start
+If the database or the settings file can't be opened (a damaged file, a drive that isn't
+connected), a message says what failed and where the data is, instead of no window. If the data
+folder was moved and has no `collection.db` in it, MCO asks before making a new, empty one
+(**Quit** is the default). The window only ever shows MCO's page: a file or link dropped outside a
+drop area does nothing (`will-navigate` in `index.ts`, and a document-level drop guard).
 
 ## Automatic updates
 

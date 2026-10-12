@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useCollectionStore } from '../state/store'
-import { matchesTagFilter, type TagFilterMode, type TagFilterState } from '../state/tagFilter'
+import { countTracksByTag, matchesTagFilter, type TagFilterMode, type TagFilterState } from '../state/tagFilter'
 import type { Track } from '../types'
 import { TagColorPopover } from './TagColorPopover'
 import { ContextMenu } from './ContextMenu'
@@ -33,6 +33,19 @@ export function SubtagRing({ color, inRow = false }: { color: string; inRow?: bo
         boxSizing: 'border-box',
       }}
     />
+  )
+}
+
+// How many tracks a tag's row would list, at the end of the row — written
+// like a playlist's song count in the Playlists box.
+export function TagTrackCount({ count }: { count: number }) {
+  return (
+    <span
+      title={`${count} track${count === 1 ? '' : 's'}`}
+      style={{ color: 'var(--color-text-dim)', fontSize: '11px', fontVariantNumeric: 'tabular-nums', margin: '0 4px 0 2px', flexShrink: 0 }}
+    >
+      {count}
+    </span>
   )
 }
 
@@ -80,6 +93,7 @@ export function TagTree({
   const genres = useCollectionStore((s) => s.genres)
   const subgenres = useCollectionStore((s) => s.subgenres)
   const trackTags = useCollectionStore((s) => s.trackTags)
+  const tracks = useCollectionStore((s) => s.tracks)
   const deleteGenre = useCollectionStore((s) => s.deleteGenre)
   const deleteSubgenre = useCollectionStore((s) => s.deleteSubgenre)
   const renameGenre = useCollectionStore((s) => s.renameGenre)
@@ -94,6 +108,7 @@ export function TagTree({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
   // "Choose color…" opens this where the menu was.
   const [colorPicker, setColorPicker] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
+  const [renaming, setRenaming] = useState<ContextMenuTarget | null>(null)
   const [expanded, setExpanded] = useState(loadExpandedTags)
   function updateExpanded(next: Set<number>) {
     setExpanded(next)
@@ -114,6 +129,11 @@ export function TagTree({
     }
     return map
   }, [subgenres])
+
+  const trackCounts = useMemo(
+    () => countTracksByTag(tracks.map((t) => t.id), trackTags, subgenres),
+    [tracks, trackTags, subgenres]
+  )
 
   function applyFilter(next: TagFilterState, mode: TagFilterMode) {
     const names = [
@@ -176,9 +196,15 @@ export function TagTree({
     applyFilter(filterState, filterMode)
   }
 
-  async function handleRename(target: ContextMenuTarget) {
-    const newName = window.prompt(`Rename "${target.name}" to:`, target.name)
-    if (!newName || !newName.trim() || newName.trim() === target.name) return
+  // Renamed in its row, like a playlist (Electron has no window.prompt).
+  // Enter and the blur that follows both commit; only the first counts.
+  const renamingRef = useRef<ContextMenuTarget | null>(null)
+  renamingRef.current = renaming
+  async function commitRename(newName: string) {
+    const target = renamingRef.current
+    renamingRef.current = null
+    setRenaming(null)
+    if (!target || !newName.trim() || newName.trim() === target.name) return
 
     const count =
       target.kind === 'genre'
@@ -222,6 +248,27 @@ export function TagTree({
     e.stopPropagation()
     setContextMenu({ x: e.clientX, y: e.clientY, target })
   }
+
+  const renameField = (name: string) => (
+    <input
+      autoFocus
+      defaultValue={name}
+      aria-label={`New name for ${name}`}
+      onFocus={(e) => e.currentTarget.select()}
+      // Not the row's tick box.
+      onClick={(e) => e.preventDefault()}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') void commitRename(e.currentTarget.value)
+        if (e.key === 'Escape') {
+          renamingRef.current = null
+          setRenaming(null)
+        }
+      }}
+      onBlur={(e) => void commitRename(e.currentTarget.value)}
+      style={{ flex: 1, minWidth: 0, height: '18px', padding: '0 4px', fontSize: 'inherit' }}
+    />
+  )
 
   const menuItemStyle = {
     display: 'flex',
@@ -329,7 +376,7 @@ export function TagTree({
                 }}
               />
             )}
-            <span style={{ flex: 1 }}>{genre.name}</span>
+            {renaming?.kind === 'genre' && renaming.id === genre.id ? renameField(genre.name) : <span style={{ flex: 1 }}>{genre.name}</span>}
             {tickedInside > 0 && (
               <span
                 title={`${tickedInside} subtag${tickedInside === 1 ? '' : 's'} ticked`}
@@ -338,6 +385,7 @@ export function TagTree({
                 {tickedInside}
               </span>
             )}
+            <TagTrackCount count={trackCounts.genres.get(genre.id) ?? 0} />
           </label>
           {open &&
             children.map((sg) => (
@@ -356,7 +404,8 @@ export function TagTree({
                   onChange={() => toggle(subgenreIds, sg.id, setSubgenreIds, 'subgenre')}
                 />{' '}
                 {sg.color && <SubtagRing color={sg.color} inRow />}
-                <span style={{ flex: 1 }}>{sg.name}</span>
+                {renaming?.kind === 'subgenre' && renaming.id === sg.id ? renameField(sg.name) : <span style={{ flex: 1 }}>{sg.name}</span>}
+                <TagTrackCount count={trackCounts.subgenres.get(sg.id) ?? 0} />
               </label>
             ))}
         </div>
@@ -367,7 +416,7 @@ export function TagTree({
         <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
           <button
             onClick={() => {
-              handleRename(contextMenu.target)
+              setRenaming(contextMenu.target)
               setContextMenu(null)
             }}
             style={menuItemStyle}

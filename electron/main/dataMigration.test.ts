@@ -91,4 +91,32 @@ describe('migrateDataFolder', () => {
     const written = JSON.parse(readFileSync(join(newDataFolder, 'config.json'), 'utf-8'))
     expect(written.collectionFolder).toBe('/brand/new')
   })
+
+  it('leaves no collection.db behind when the copy fails, so the next attempt does not adopt half of one', () => {
+    // The destination's collection.db can't be written: a folder is in its way.
+    mkdirSync(join(newDataFolder, 'collection.db.copying'), { recursive: true })
+    expect(() => migrateDataFolder({ newDataFolder, oldDbPath, oldConfigPath })).toThrow()
+    expect(existsSync(join(newDataFolder, 'collection.db'))).toBe(false)
+
+    rmSync(join(newDataFolder, 'collection.db.copying'), { recursive: true, force: true })
+    migrateDataFolder({ newDataFolder, oldDbPath, oldConfigPath })
+    expect(readFileSync(join(newDataFolder, 'collection.db'), 'utf-8')).toBe('old-db-contents')
+  })
+
+  it('asks for a scan at the next launch when it adopts the data of a collection that was elsewhere', () => {
+    mkdirSync(newDataFolder, { recursive: true })
+    writeFileSync(join(newDataFolder, 'collection.db'), 'data-that-came-with-the-collection')
+    writeFileSync(join(newDataFolder, 'config.json'), '{"collectionFolder":"/Users/before/Music"}')
+    migrateDataFolder({ newDataFolder, oldDbPath, oldConfigPath, collectionFolderToStamp: '/Users/now/Music' })
+    const written = JSON.parse(readFileSync(join(newDataFolder, 'config.json'), 'utf-8'))
+    expect(written).toMatchObject({ collectionFolder: '/Users/now/Music', rescanAtLaunch: true })
+    expect(readFileSync(join(newDataFolder, 'collection.db'), 'utf-8')).toBe('data-that-came-with-the-collection')
+  })
+
+  it('asks for no scan when the data is new, or the collection is where it was', () => {
+    migrateDataFolder({ newDataFolder, oldDbPath, oldConfigPath, collectionFolderToStamp: '/new/path' })
+    expect(JSON.parse(readFileSync(join(newDataFolder, 'config.json'), 'utf-8')).rescanAtLaunch).toBeUndefined()
+    migrateDataFolder({ newDataFolder, oldDbPath, oldConfigPath, collectionFolderToStamp: '/new/path' })
+    expect(JSON.parse(readFileSync(join(newDataFolder, 'config.json'), 'utf-8')).rescanAtLaunch).toBeUndefined()
+  })
 })

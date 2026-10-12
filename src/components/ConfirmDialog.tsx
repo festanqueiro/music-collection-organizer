@@ -1,5 +1,6 @@
 // src/components/ConfirmDialog.tsx
 import { useEffect, type ReactNode } from 'react'
+import { useCollectionStore } from '../state/store'
 
 // Generic confirmation popup for destructive actions. Cancel is the
 // focused default (so a stray Enter doesn't confirm), Esc and clicking
@@ -23,6 +24,15 @@ export function ConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
 }) {
+  // While it is up, the table's and the player's keys are off (⌫ would
+  // remove songs from the playlist underneath). Put back as it was after:
+  // the dialog can sit on another modal.
+  useEffect(() => {
+    const before = useCollectionStore.getState().modalOpen
+    useCollectionStore.getState().setModalOpen(true)
+    return () => useCollectionStore.getState().setModalOpen(before)
+  }, [])
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Escape') return

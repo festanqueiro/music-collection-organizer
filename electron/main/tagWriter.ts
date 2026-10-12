@@ -15,7 +15,8 @@
 //
 // Anything unusual (ID3v2.2, unsynchronised or extended-header tags,
 // malformed chunks, FLAC/M4A) is refused rather than guessed at.
-import { open, readFile, writeFile, unlink } from 'node:fs/promises'
+import { closeSync, existsSync, fsyncSync, ftruncateSync, openSync, readdirSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs'
+import { mkdir, open, readFile, writeFile, unlink, type FileHandle } from 'node:fs/promises'
 import { join } from 'node:path'
 import { parseBuffer } from 'music-metadata'
 import type { EditableTags } from '../../src/types'
@@ -322,30 +323,113 @@ async function verify(before: Buffer, after: Buffer, format: string, tags: Edita
   if (failed.length > 0) throw new TagWriteError(`The tags didn't write cleanly (${failed.join(', ')}) — the file was left unchanged`)
 }
 
+// All of `bytes` at the start of the file, and nothing after them. A write
+// can stop short without failing (a full disk, a network drive): it goes on
+// until every byte is down.
+async function writeWhole(handle: FileHandle, bytes: Buffer): Promise<void> {
+  for (let at = 0; at < bytes.length; ) {
+    const { bytesWritten } = await handle.write(bytes, at, bytes.length - at, at)
+    if (bytesWritten <= 0) throw new Error('The file could not be written to')
+    at += bytesWritten
+  }
+  await handle.truncate(bytes.length)
+  await handle.sync()
+}
+
 // Writes `tags` into the file at `path`, in place: the same file (inode)
 // is overwritten rather than replaced, so its creation date — MCO's Date
-// Added — is kept. The original bytes are saved to `backupDir` first and
-// put back if anything fails part-way.
+// Added — is kept. The original bytes are saved to `backupDir` first, with
+// a note of which file they are, and put back if anything fails part-way.
+// If MCO is closed during the write, the copy stays, and the next launch
+// offers it back (interruptedTagWrites).
 export async function writeTags(path: string, format: string, tags: EditableTags, backupDir: string): Promise<void> {
   const before = await readFile(path)
   const after = applyTags(before, format, tags)
   await verify(before, after, format, tags)
 
+  await mkdir(backupDir, { recursive: true })
   const backupPath = join(backupDir, `tag-edit-backup-${process.pid}-${Date.now()}`)
   await writeFile(backupPath, before)
+  await writeFile(`${backupPath}.json`, JSON.stringify({ path }))
   const handle = await open(path, 'r+')
   try {
     try {
-      await handle.write(after, 0, after.length, 0)
-      await handle.truncate(after.length)
-      await handle.sync()
+      await writeWhole(handle, after)
     } catch (err) {
-      await handle.write(before, 0, before.length, 0)
-      await handle.truncate(before.length)
+      try {
+        await writeWhole(handle, before)
+      } catch {
+        // Neither the new bytes nor the old ones are whole: the copy is
+        // all there is of the file, and is kept.
+        throw new TagWriteError(`The file couldn't be written, nor put back as it was. Its original is kept at ${backupPath}`)
+      }
+      await discardBackup(backupPath)
       throw err
     }
   } finally {
     await handle.close()
   }
+  await discardBackup(backupPath)
+}
+
+async function discardBackup(backupPath: string): Promise<void> {
   await unlink(backupPath).catch(() => {})
+  await unlink(`${backupPath}.json`).catch(() => {})
+}
+
+// A tag save that never finished: MCO quit, crashed or lost power between
+// saving the original and writing the new file. `changed` says whether the
+// file differs from its original (it may be half written) or is still it.
+export interface InterruptedTagWrite {
+  path: string
+  backupPath: string
+  changed: boolean
+}
+
+export function interruptedTagWrites(backupDir: string): InterruptedTagWrite[] {
+  let names: string[]
+  try {
+    names = readdirSync(backupDir)
+  } catch {
+    return []
+  }
+  const found: InterruptedTagWrite[] = []
+  for (const name of names.filter((n) => /^tag-edit-backup-.+\.json$/.test(n))) {
+    const backupPath = join(backupDir, name.replace(/\.json$/, ''))
+    try {
+      const { path } = JSON.parse(readFileSync(join(backupDir, name), 'utf8')) as { path: string }
+      const original = readFileSync(backupPath)
+      const changed = !existsSync(path) || !readFileSync(path).equals(original)
+      found.push({ path, backupPath, changed })
+    } catch {
+      // The note or the copy isn't whole (the crash came while saving them,
+      // before the file was touched): nothing to offer.
+      rmSync(backupPath, { force: true })
+      rmSync(join(backupDir, name), { force: true })
+    }
+  }
+  return found
+}
+
+// Puts the original back, into the same file when it is still there.
+export function restoreInterruptedTagWrite(write: InterruptedTagWrite): void {
+  const original = readFileSync(write.backupPath)
+  if (existsSync(write.path)) {
+    const fd = openSync(write.path, 'r+')
+    try {
+      for (let at = 0; at < original.length; ) at += writeSync(fd, original, at, original.length - at, at)
+      ftruncateSync(fd, original.length)
+      fsyncSync(fd)
+    } finally {
+      closeSync(fd)
+    }
+  } else {
+    writeFileSync(write.path, original)
+  }
+  discardInterruptedTagWrite(write)
+}
+
+export function discardInterruptedTagWrite(write: InterruptedTagWrite): void {
+  rmSync(write.backupPath, { force: true })
+  rmSync(`${write.backupPath}.json`, { force: true })
 }

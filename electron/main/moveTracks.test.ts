@@ -39,6 +39,21 @@ describe('planMove', () => {
     expect(plan.moves.map((m) => m.id)).toEqual([1])
     expect(plan.conflicts.map((c) => c.id)).toEqual([2, 3])
   })
+
+  it('takes names that differ only by capitals, or by how an accent is written, for the same file', () => {
+    const plan = planMove(
+      [
+        { id: 1, path: '/music/a/Song.wav' },
+        { id: 2, path: '/music/b/song.WAV' },
+        { id: 3, path: '/music/a/Caf\u00e9.wav' },
+        { id: 4, path: '/music/b/Cafe\u0301.wav' },
+      ],
+      '/music/dub',
+      none
+    )
+    expect(plan.moves.map((m) => m.id)).toEqual([1, 3])
+    expect(plan.conflicts.map((c) => c.id)).toEqual([2, 4])
+  })
 })
 
 describe('applyMoves', () => {
@@ -77,5 +92,39 @@ describe('applyMoves', () => {
     expect(result.moved).toEqual([])
     expect(result.failed.map((f) => f.id)).toEqual([1])
     expect(db.prepare('SELECT path FROM tracks WHERE id = 1').get()).toEqual({ path: from })
+  })
+
+  it('never moves a file onto one that is there, and goes on after a path another row has', async () => {
+    dir = mkdtempSync(join(tmpdir(), 'move-test-'))
+    for (const folder of ['a', 'b']) mkdirSync(join(dir, folder))
+    const db = new DatabaseSync(':memory:')
+    db.exec('CREATE TABLE tracks (id INTEGER PRIMARY KEY, path TEXT UNIQUE NOT NULL, folder TEXT NOT NULL)')
+    const add = (id: number, path: string, onDisk = true) => {
+      if (onDisk) writeFileSync(path, `audio ${id}`)
+      db.prepare('INSERT INTO tracks (id, path, folder) VALUES (?, ?, ?)').run(id, path, join(path, '..'))
+      return path
+    }
+    const kept = add(1, join(dir, 'b', 'kept.wav'))
+    const onto = add(2, join(dir, 'a', 'kept.wav').replace('kept', 'other'))
+    // A hidden row: recorded at b/ghost.wav, its file gone.
+    add(3, join(dir, 'b', 'ghost.wav'), false)
+    const ghost = add(4, join(dir, 'a', 'ghost.wav'))
+    const fine = add(5, join(dir, 'a', 'fine.wav'))
+
+    const result = await applyMoves(db, {
+      moves: [
+        { id: 2, from: onto, to: kept },
+        { id: 4, from: ghost, to: join(dir, 'b', 'ghost.wav') },
+        { id: 5, from: fine, to: join(dir, 'b', 'fine.wav') },
+      ],
+      alreadyThere: [],
+      conflicts: [],
+    })
+
+    expect(result.moved.map((m) => m.id)).toEqual([5])
+    expect(result.failed.map((f) => f.id)).toEqual([2, 4])
+    expect(readFileSync(kept, 'utf8')).toBe('audio 1')
+    expect(existsSync(onto) && existsSync(ghost)).toBe(true)
+    expect((db.prepare('SELECT path FROM tracks WHERE id = 4').get() as { path: string }).path).toBe(ghost)
   })
 })

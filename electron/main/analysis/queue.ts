@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import type { AppDatabase } from '../db'
 import { runAnalysisPipeline } from './pipeline'
 import { getPlayableFilePath } from '../audioTranscode'
+import { NO_BIT_DEPTH } from '../tagReader'
 import type { TempoTask, WorkerResult, WorkerTask } from './worker'
 import { decodeToPcm } from './decode'
 import { analysedBpm, refineBpm } from './tempoRefine'
@@ -28,7 +29,7 @@ function writeAnalysisResult(
 ): void {
   db.prepare(
     `UPDATE tracks SET
-      title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate,
+      title = @title, artist = @artist, album = @album, genre_tag = @genre, year = @year, duration = @duration, bitrate = @bitrate, bit_depth = @bit_depth,
       bpm = CASE WHEN bpm_edited = 1 THEN bpm ELSE @bpm END, first_beat = @first_beat, musical_key = @musical_key, waveform_peaks = @waveform_peaks, waveform_bands = @waveform_bands,
       loudness = @loudness, energy = @energy,
       analysis_status = 'done', analysis_error = NULL, analyzed_at = @analyzed_at, tags_read_at = @analyzed_at
@@ -42,6 +43,7 @@ function writeAnalysisResult(
     year: result.year,
     duration: result.duration,
     bitrate: result.bitrate,
+    bit_depth: result.bitDepth ?? NO_BIT_DEPTH,
     bpm: result.bpm,
     first_beat: result.firstBeat,
     musical_key: result.musicalKey,
@@ -96,42 +98,54 @@ const WORKER_ENTRY = fileURLToPath(new URL('./analysis/worker.js', import.meta.u
 export function createTempoMeasurer(
   cacheDir: string,
   slowestBpm: number | null = null
-): { measure: (path: string, target: number, mode?: 'near' | 'again') => Promise<number | null>; close: () => void } {
+): {
+  measure: (path: string, target: number, mode?: 'near' | 'again') => Promise<number | null>
+  // Several tempos of one track, for one decode.
+  measureAll: (path: string, targets: number[], mode?: 'near' | 'again') => Promise<(number | null)[]>
+  close: () => void
+} {
+  const withOne = (measureAll: (path: string, targets: number[], mode?: 'near' | 'again') => Promise<(number | null)[]>, close: () => void) => ({
+    measureAll,
+    measure: async (path: string, target: number, mode: 'near' | 'again' = 'near') => (await measureAll(path, [target], mode))[0] ?? null,
+    close,
+  })
   if (!existsSync(WORKER_ENTRY)) {
-    return {
-      measure: async (path, target, mode = 'near') => {
+    return withOne(
+      async (path, targets, mode = 'near') => {
         const pcm = await decodeToPcm(await getPlayableFilePath(path, cacheDir))
-        const refined = mode === 'again' ? analysedBpm(pcm, target, slowestBpm) : refineBpm(pcm, target, 44100, false)
-        return refined === target ? null : refined
+        return targets.map((target) => {
+          const refined = mode === 'again' ? analysedBpm(pcm, target, slowestBpm) : refineBpm(pcm, target, 44100, false)
+          return refined === target ? null : refined
+        })
       },
-      close: () => {},
-    }
+      () => {}
+    )
   }
   const worker = new Worker(WORKER_ENTRY)
-  const waiting = new Map<number, (bpm: number | null) => void>()
+  const waiting = new Map<number, { targets: number; resolve: (bpms: (number | null)[]) => void }>()
   let nextId = 1
   const giveUp = () => {
-    for (const resolve of waiting.values()) resolve(null)
+    for (const asked of waiting.values()) asked.resolve(Array(asked.targets).fill(null))
     waiting.clear()
   }
   worker.on('message', (msg: WorkerResult) => {
     if (msg.status !== 'tempo') return
-    waiting.get(msg.id)?.(msg.bpm)
+    waiting.get(msg.id)?.resolve(msg.bpms)
     waiting.delete(msg.id)
   })
   // A tempo that couldn't be measured is just not sharpened.
   worker.on('error', giveUp)
   worker.on('exit', giveUp)
-  return {
-    measure: (path, target, mode = 'near') =>
+  return withOne(
+    (path, targets, mode = 'near') =>
       new Promise((resolve) => {
         const id = nextId++
-        waiting.set(id, resolve)
-        const task: TempoTask = { kind: 'tempo', id, path, cacheDir, target, mode, slowestBpm }
+        waiting.set(id, { targets: targets.length, resolve })
+        const task: TempoTask = { kind: 'tempo', id, path, cacheDir, targets, mode, slowestBpm }
         worker.postMessage(task)
       }),
-    close: () => void worker.terminate(),
-  }
+    () => void worker.terminate()
+  )
 }
 
 // Sequential in-process fallback, used when the built worker chunk isn't

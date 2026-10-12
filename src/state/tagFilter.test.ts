@@ -1,6 +1,6 @@
 // src/state/tagFilter.test.ts
 import { describe, it, expect } from 'vitest'
-import { matchesTagFilter, type TagFilterState, type TrackTagIds } from './tagFilter'
+import { countTracksByTag, matchesTagFilter, type TagFilterState, type TrackTagIds } from './tagFilter'
 
 const HOUSE = 1
 const DEEP_HOUSE = 10
@@ -64,5 +64,34 @@ describe('matchesTagFilter', () => {
     expect(
       matchesTagFilter(track({ genreIds: [TECHNO] }), filter, subgenreIdsByGenreId, 'AND')
     ).toBe(false)
+  })
+})
+
+describe('countTracksByTag', () => {
+  const subgenres = [{ id: DEEP_HOUSE, genreId: HOUSE }]
+  const trackTags = new Map<number, TrackTagIds>([
+    [1, track({ trackId: 1, genreIds: [HOUSE] })],
+    [2, track({ trackId: 2, genreIds: [HOUSE, TECHNO], subgenreIds: [DEEP_HOUSE] })],
+    [3, track({ trackId: 3, subgenreIds: [DEEP_HOUSE] })],
+    [4, track({ trackId: 4, genreIds: [TECHNO] })],
+  ])
+
+  it('counts a tag as the filter lists it: its own tracks and its subtags\'', () => {
+    const counts = countTracksByTag([1, 2, 3, 4], trackTags, subgenres)
+    expect(counts.genres.get(HOUSE)).toBe(3)
+    expect(counts.genres.get(TECHNO)).toBe(2)
+    expect(counts.subgenres.get(DEEP_HOUSE)).toBe(2)
+  })
+
+  it('counts, per subtag, the tracks that carry each tag with it', () => {
+    const counts = countTracksByTag([1, 2, 3, 4], trackTags, subgenres)
+    expect(counts.genresWithSubgenre.get(DEEP_HOUSE)).toEqual(new Map([[HOUSE, 1], [TECHNO, 1]]))
+  })
+
+  it('leaves out tracks that are not in the collection, and tags nothing has', () => {
+    const counts = countTracksByTag([1, 99], trackTags, subgenres)
+    expect(counts.genres.get(HOUSE)).toBe(1)
+    expect(counts.genres.has(TECHNO)).toBe(false)
+    expect(counts.subgenres.has(DEEP_HOUSE)).toBe(false)
   })
 })

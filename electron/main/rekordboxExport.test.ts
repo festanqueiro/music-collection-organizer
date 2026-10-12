@@ -172,6 +172,8 @@ describe('buildRekordboxXml', () => {
       [0, 12.5, [255, 55, 111]],
       [3, 40, [0, 224, 255]],
     ])
+    // The label comes back too (an empty one as none).
+    expect(read.tracks[0].cues.map((c) => c.name)).toEqual([undefined, 'Drop & go'])
   })
 
   it('leaves tracks that are not exported out of playlists', () => {

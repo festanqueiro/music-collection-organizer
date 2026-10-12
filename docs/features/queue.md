@@ -52,7 +52,7 @@ The effects have their own screen: see [FX](fx.md).
 Code: `src/components/PlaylistView.tsx`, `QueueDialog.tsx`,
 `src/state/playlist.ts` (pure queue operations), `src/state/store.ts`.
 
-With several tracks checked, right-clicking one of them offers **Add all to
+With several tracks selected, right-clicking one of them offers **Add all to
 queue** and **Add all to top of the queue** (in table order).
 
 ## Tests

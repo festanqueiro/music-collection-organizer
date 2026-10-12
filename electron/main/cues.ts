@@ -104,7 +104,7 @@ export function importRekordboxCues(
         // Already a hot cue of MCO's, on another pad.
         if (kind === 'hot' && ownHot.some((mine) => Math.abs(mine.start - c.start) < SAME_CUE_SECONDS)) continue
         if (kind === 'hot') takenSlots.add(slot)
-        if (write) insert.run(id, kind, slot, Math.round(c.start * 1000) / 1000, c.end ?? null, c.color ? rgbToHex(c.color) : null, '')
+        if (write) insert.run(id, kind, slot, Math.round(c.start * 1000) / 1000, c.end ?? null, c.color ? rgbToHex(c.color) : null, c.name ?? '')
         added++
       }
       cues += added

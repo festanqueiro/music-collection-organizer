@@ -194,6 +194,7 @@ describe('config store', () => {
       'cues',
       'format',
       'bitrate',
+      'bitDepth',
       'duration',
       'filename',
       'tags',

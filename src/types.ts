@@ -13,6 +13,9 @@ export interface Track {
   duration: number | null
   // kbps; null until analysed (or when the file doesn't say)
   bitrate: number | null
+  // Bits a sample of a lossless file (16, 24…); null for a lossy one, or
+  // until the file's header has been read.
+  bitDepth: number | null
   title: string | null
   artist: string | null
   album: string | null
@@ -71,6 +74,7 @@ export type TrackTableColumnKey =
   | 'cues'
   | 'format'
   | 'bitrate'
+  | 'bitDepth'
   | 'duration'
   | 'dateAdded'
   | 'dateModified'
@@ -89,6 +93,7 @@ export const DEFAULT_TRACK_TABLE_COLUMN_ORDER: readonly TrackTableColumnKey[] = 
   'cues',
   'format',
   'bitrate',
+  'bitDepth',
   'duration',
   'dateAdded',
   'dateModified',

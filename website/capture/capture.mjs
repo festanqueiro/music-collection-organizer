@@ -254,10 +254,10 @@ async function clips() {
     await sleep(1800)
   })
 
-  // Playlists: check three songs, add them to a playlist, open it.
+  // Playlists: select three songs, add them to a playlist, open it.
   await clip('playlists', async (win, h) => {
     await sleep(500)
-    for (const title of ['Deep Water', 'Dreamer', 'Long Way Home (Dub)']) await h.click(h.row(title).locator('input[type=checkbox]'))
+    for (const title of ['Deep Water', 'Dreamer', 'Long Way Home (Dub)']) await h.click(h.row(title), { modifiers: ['ControlOrMeta'] })
     await sleep(500)
     await h.rightClick(h.row('Dreamer'))
     await h.click(win.getByRole('button', { name: /Add all to playlist/ }))

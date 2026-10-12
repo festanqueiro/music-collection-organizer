@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-12
 adrs: [0055, 0052, 0059]
 ---
 # Hot cues
@@ -74,16 +74,23 @@ export.
 - **Table**: a **Cues** column (from the columns menu) with how many hot cues a track has, sortable.
 - The CDJ-style **CUE** button is unchanged: one temporary cue point, set by pausing, not saved.
 
+- The pads keep showing a track's cues through a reload of the collection (a Tag created, the
+  folder watcher, a download). They used to look empty after one, and the next press on a pad moved
+  the cue stored there.
+
 ### With Rekordbox
 - **In**: Settings → Import & export → **Compare with Rekordbox…** → *Cue points* lists songs whose
   cues differ (only in Rekordbox, only in MCO, different — same slot, time within 10 ms and colour
   count as the same). **Bring Rekordbox's cues into MCO** copies them — hot cues, memory cues and
-  loops with their colours — for every matched song with no cues in MCO; a song **with its own cues keeps them** and only
+  loops with their colours and names — for every matched song with no cues in MCO; a song **with its own cues keeps them** and only
   has its empty pads filled with Rekordbox's hot cues. The user's 111 hot cues on 76 songs come in
   this way.
 - **Out, the start**: a track whose start is set (and has a BPM) is exported with a `TEMPO`
   (`Inizio` = the start, `Bpm`, `Metro="4/4"`, `Battito="1"`) — Rekordbox's beat grid; other
   tracks carry none. Not yet checked in Rekordbox itself.
+- **Positions are from the start of the file**: a cue's `Start` (and a loop's `End`) is seconds
+  from 0.0, the time the player was at when it was set — never relative to the track's start
+  (`grid_start`), which goes out separately as the `TEMPO`'s `Inizio`, also from 0.0.
 - **Out**: MCO's **Export to Rekordbox** writes each track's cues as `POSITION_MARK`s — hot cues
   `Num` 0–7 with their RGB colour and name, memory cues `Num -1`, loops `Type 4` with `End`. What
   Rekordbox does with them on songs it already has is what the

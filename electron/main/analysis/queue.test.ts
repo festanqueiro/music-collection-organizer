@@ -122,6 +122,7 @@ describe('analyzeTrack', () => {
     const row = db.prepare('SELECT * FROM tracks WHERE id = ?').get(id) as any
     expect(row.analysis_status).toBe('done')
     expect(row.bitrate).toBe(706)
+    expect(row.bit_depth).toBe(16)
   })
 
   it('marks a track as error if analysis throws', async () => {

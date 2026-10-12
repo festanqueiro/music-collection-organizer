@@ -475,12 +475,19 @@ export function rekordboxTxtToTree(db: AppDatabase, name: string, rows: Rekordbo
   // Songs without tags show their file name as the title in Rekordbox.
   const byFilename = new Map<string, string>()
   for (const t of tracks) {
-    byTitleArtist.set(`${key(t.title)}|${key(t.artist)}`, t.path)
-    byTitle.set(key(t.title), [...(byTitle.get(key(t.title)) ?? []), t.path])
-    byFilename.set(key(t.filename.replace(/\.[^.]+$/, '')), t.path)
+    // A track with no title isn't found by title: every one of them has
+    // the same (empty) key, and a row with a blank title would get one.
+    if (key(t.title)) {
+      byTitleArtist.set(`${key(t.title)}|${key(t.artist)}`, t.path)
+      byTitle.set(key(t.title), [...(byTitle.get(key(t.title)) ?? []), t.path])
+    }
+    const filename = key(t.filename.replace(/\.[^.]+$/, ''))
+    if (filename) byFilename.set(filename, t.path)
   }
   const paths = rows.map((row, i) => {
     if (row.path) return row.path
+    // Blank, or only symbols: nothing to match on.
+    if (!key(row.title)) return `\0unmatched:${i}`
     const both = byTitleArtist.get(`${key(row.title)}|${key(row.artist)}`)
     if (both) return both
     const titled = byTitle.get(key(row.title))
