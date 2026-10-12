@@ -11,6 +11,9 @@ function getEssentia(): any {
   return essentiaInstance
 }
 
+const ESSENTIA_MINUTES = 20
+const ESSENTIA_SAMPLES = ESSENTIA_MINUTES * 60 * 44100
+
 export interface BpmKeyResult {
   bpm: number
   // Where the first beat is (seconds) — where the beat grid starts, for
@@ -23,7 +26,12 @@ export interface BpmKeyResult {
 // slowestBpm: below it the tempo is doubled (half time); null leaves it.
 export function detectBpmAndKey(pcm: Float32Array, slowestBpm: number | null = null): BpmKeyResult {
   const essentia = getEssentia()
-  const vector = essentia.arrayToVector(pcm)
+  // Past about 45 minutes essentia runs out of memory and aborts, taking
+  // the whole analysis with it. A file that long is a mix or a recording:
+  // its tempo and key are read from its first ESSENTIA_MINUTES, and the
+  // tempo is still sharpened over all of it below.
+  const head = pcm.length > ESSENTIA_SAMPLES ? pcm.subarray(0, ESSENTIA_SAMPLES) : pcm
+  const vector = essentia.arrayToVector(head)
 
   try {
     const rhythm = essentia.RhythmExtractor2013(vector)

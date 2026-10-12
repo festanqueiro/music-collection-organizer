@@ -6,7 +6,8 @@
 // in the background after a scan, over the tracks whose tags_read_at is
 // still NULL (new, or changed since last read).
 import { parseFile } from 'music-metadata'
-import { bitDepthOf } from './analysis/metadata'
+import { existsSync } from 'node:fs'
+import { readBitDepth } from './analysis/metadata'
 import type { AppDatabase } from './db'
 
 export interface FileTags {
@@ -15,7 +16,7 @@ export interface FileTags {
   album: string | null
   genre: string | null
   year: number | null
-  // Read with the tags, from the same header (see bitDepthOf).
+  // Read with the tags, from the same header (see readBitDepth).
   bitDepth: number | null
 }
 
@@ -27,7 +28,7 @@ export async function readFileTags(path: string): Promise<FileTags> {
     album: common.album ?? null,
     genre: common.genre?.[0] ?? null,
     year: common.year ?? null,
-    bitDepth: bitDepthOf(format),
+    bitDepth: await readBitDepth(path, format),
   }
 }
 
@@ -42,6 +43,8 @@ export function saveFileTags(db: AppDatabase, trackId: number, tags: FileTags): 
     'UPDATE tracks SET title = ?, artist = ?, album = ?, genre_tag = ?, year = ?, bit_depth = ?, tags_read_at = ? WHERE id = ?'
   ).run(tags.title, tags.artist, tags.album, tags.genre, tags.year, tags.bitDepth ?? NO_BIT_DEPTH, Date.now(), trackId)
 }
+
+type PendingRow = { id: number; path: string; mtime: number; readAt: number | null }
 
 // Tells the renderer how many tracks are left, and when tags changed.
 export type TagReadProgress = { remaining: number; done: boolean }
@@ -74,21 +77,37 @@ export class TagReader {
       })
   }
 
+  // The row is still the file that was parsed: same path, same file
+  // (mtime), and nobody else has read or written its tags meanwhile.
+  private unchangedSince(row: PendingRow): boolean {
+    const now = this.db.prepare('SELECT path, mtime, tags_read_at AS readAt FROM tracks WHERE id = ?').get(row.id) as Omit<PendingRow, 'id'> | undefined
+    return !!now && now.path === row.path && now.mtime === row.mtime && now.readAt === row.readAt
+  }
+
   private async pass(): Promise<void> {
     const pending = this.db
       .prepare(
-        "SELECT id, path FROM tracks WHERE (tags_read_at IS NULL OR bit_depth IS NULL) AND present = 1 AND cloud_status = 'local'"
+        "SELECT id, path, mtime, tags_read_at AS readAt FROM tracks WHERE (tags_read_at IS NULL OR bit_depth IS NULL) AND present = 1 AND cloud_status = 'local'"
       )
-      .all() as { id: number; path: string }[]
+      .all() as PendingRow[]
     if (pending.length === 0) return
     let lastReport = Date.now()
     for (let i = 0; i < pending.length; i++) {
       const { id, path } = pending[i]
       try {
-        saveFileTags(this.db, id, await readFileTags(path))
+        const tags = await readFileTags(path)
+        // While it was being parsed the file may have been saved, converted
+        // or moved: what was read is then the old file's. Left for the
+        // next pass, which reads it as it is now.
+        if (!this.unchangedSince(pending[i])) this.again = true
+        else saveFileTags(this.db, id, tags)
       } catch {
-        // Unreadable tags: mark it read anyway, so it isn't retried forever.
-        this.db.prepare('UPDATE tracks SET tags_read_at = ?, bit_depth = COALESCE(bit_depth, ?) WHERE id = ?').run(Date.now(), NO_BIT_DEPTH, id)
+        // A file that isn't there (its drive unplugged, not synced yet) is
+        // read when it is back. One that can't be parsed is marked read,
+        // so it isn't tried again on every pass.
+        if (existsSync(path)) {
+          this.db.prepare('UPDATE tracks SET tags_read_at = ?, bit_depth = COALESCE(bit_depth, ?) WHERE id = ?').run(Date.now(), NO_BIT_DEPTH, id)
+        }
       }
       if (Date.now() - lastReport > 2000) {
         lastReport = Date.now()

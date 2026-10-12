@@ -148,6 +148,17 @@ function migrate(db: AppDatabase): void {
   if (!trackColumnNames.has('bit_depth')) {
     db.exec('ALTER TABLE tracks ADD COLUMN bit_depth INTEGER')
   }
+  // Once: the first builds with the Bit depth column read some lossless
+  // files as lossy (AIFF-C, float WAV), Apple Lossless at 24 bits as 16, and
+  // wrote "none" for a file that wasn't there. Those go back to "not looked
+  // at", and the background tag reader reads them again.
+  const { user_version: dataVersion } = db.prepare('PRAGMA user_version').get() as { user_version: number }
+  if (dataVersion < 1) {
+    db.exec(
+      "UPDATE tracks SET bit_depth = NULL WHERE (bit_depth = 0 AND lower(format) IN ('wav', 'aif', 'aiff', 'aifc')) OR (bit_depth = 16 AND lower(format) = 'm4a')"
+    )
+    db.exec('PRAGMA user_version = 1')
+  }
 
   if (!trackColumnNames.has('birthtime')) {
     db.exec('ALTER TABLE tracks ADD COLUMN birthtime INTEGER')
