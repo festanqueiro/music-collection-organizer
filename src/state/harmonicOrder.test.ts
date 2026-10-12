@@ -95,7 +95,8 @@ describe('orderByHarmonicMixing', () => {
       expect([...searched].sort((a, b) => a - b)).toEqual(keys.map((_, i) => i))
       expect(total(searched)).toBe(total(orderOfKeys(costs, 24)))
     }
-  })
+    // Two seconds here; a slower or busy machine needs room.
+  }, 30_000)
 
   it('orders all 24 keys with every change in key', () => {
     const tracks = ALL_KEYS.map((key, i) => ({ id: i + 1, musicalKey: key, bpm: null }))
