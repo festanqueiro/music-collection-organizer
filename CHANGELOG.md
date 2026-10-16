@@ -14,6 +14,8 @@ installed copies update themselves.
   written to the file until you press Save to file.
 
 ### Fixed
+- **Playing a track after editing its ID3 tags** no longer hangs the
+  player.
 - **Right-clicking a Subtag in the Subtags view** now opens the same menu
   as a Tag's — Rename, Choose color…, Delete — instead of nothing.
 

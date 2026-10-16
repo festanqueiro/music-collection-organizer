@@ -13,6 +13,9 @@ import type { Track } from '../types'
 // (keyed in App.tsx).
 export function CuePlayer({ track }: { track: Track }) {
   const audioRef = useRef<HTMLAudioElement>(null)
+  // Fixed for this mount (each new track remounts): a tag save on the
+  // playing track changes its mtime, and a new src would restart it.
+  const [src] = useState(() => trackPathToMediaUrl(track.path, track.mtime))
   const cueOutputDeviceId = useCollectionStore((s) => s.cueOutputDeviceId)
   const cueVolume = useCollectionStore((s) => s.cueVolume)
   const setCueVolume = useCollectionStore((s) => s.setCueVolume)
@@ -73,7 +76,7 @@ export function CuePlayer({ track }: { track: Track }) {
     >
       <audio
         ref={audioRef}
-        src={trackPathToMediaUrl(track.path)}
+        src={src}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={() => setPlaying(false)}
