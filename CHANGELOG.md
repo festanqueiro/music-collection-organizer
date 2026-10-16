@@ -4,6 +4,12 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## Unreleased
+
+### Fixed
+- **Right-clicking a Subtag in the Subtags view** now opens the same menu
+  as a Tag's — Rename, Choose color…, Delete — instead of nothing.
+
 ## 1.0.62 — 2026-10-12
 
 ### Added
