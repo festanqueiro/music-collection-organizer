@@ -10,6 +10,11 @@ installed copies update themselves.
 - **Right-clicking a Subtag in the Subtags view** now opens the same menu
   as a Tag's — Rename, Choose color…, Delete — instead of nothing.
 
+### Changed
+- **The play, queue and pre-listen icons** at the start of each table row
+  sit a little further from the edge and line up on one centre line (the
+  queue icon used to sit low).
+
 ## 1.0.62 — 2026-10-12
 
 ### Added
