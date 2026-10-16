@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-12
+updated: 2026-10-16
 adrs: [0026, 0027, 0028, 0008]
 ---
 # ID3 tags (file tags)
@@ -21,6 +21,18 @@ suggests them from the filename; nothing is written until you press **Save to fi
   ID3v2.2 tag are refused with a message.
 - Saving keeps the file's creation date (Date Added in MCO), and the track isn't marked for
   re-analysis.
+
+### Suggestion: normal capitals
+- A Title or Artist written ALL IN CAPITALS gets a **Suggested: normal capitals** box (same look as
+  the filename one): "BOOZOO BAJOU" → "Boozoo Bajou". **Review…** opens the editor with it filled in;
+  nothing is saved until **Save to file**.
+- Not flagged: short names that are capitals on purpose — one word under six letters ("ABBA",
+  "MGMT", "AC/DC").
+- Each word gets a capital (also after a hyphen, not after an apostrophe: "Jay-Z", "Don't");
+  abbreviations and Roman numerals stay in capitals (DJ, MC, UK, VIP, II…), and feat. / ft. / vs. / x
+  stay lower case after the first word.
+- How: `isAllUppercase` / `toTitleCase` in `src/state/titleCase.ts` (pure, tested in
+  `titleCase.test.ts`); the box is `SuggestionBox` in `src/components/detail/FileTagsSection.tsx`.
 
 ### Suggestions from the filename
 - For fields the file leaves empty, a **Suggested from the filename** box shows the guessed Artist /

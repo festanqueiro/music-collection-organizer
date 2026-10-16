@@ -6,6 +6,13 @@ installed copies update themselves.
 
 ## Unreleased
 
+### Added
+- **A suggestion to fix capitals**: when a track's Title or Artist is
+  written ALL IN CAPITALS, the ID3 tags section suggests it with normal
+  capitals ("BOOZOO BAJOU" → "Boozoo Bajou"), like the filename
+  suggestions. Review… opens the editor with it filled in; nothing is
+  written to the file until you press Save to file.
+
 ### Fixed
 - **Right-clicking a Subtag in the Subtags view** now opens the same menu
   as a Tag's — Rename, Choose color…, Delete — instead of nothing.
