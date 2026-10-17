@@ -14,6 +14,7 @@ import { useCollectionStore } from '../state/store'
 import { getAudioEngine } from '../audio/audioEngine'
 import { decodeHtmlEntities } from '../format'
 import { SecondScreenNowPlaying } from './SecondScreenNowPlaying'
+import { EngineQuality, resolveThemeOptions } from './visualizerQuality'
 import type { Track } from '../types'
 
 // Copies the page's styles (fonts, theme variables) into the child, with
@@ -106,19 +107,19 @@ function VisualizerView({ child }: { child: Window }) {
   const fps = useCollectionStore((s) => s.visualizerFps)
   const visualDelayMs = useCollectionStore((s) => s.visualDelayMs)
   const limiterRef = useRef(new FrameLimiter(fps))
+  // The same quality setting as the Visualizer, judged on this screen's
+  // own frames.
+  const quality = useCollectionStore((s) => s.visualizerQuality)
+  const qualityRef = useRef<EngineQuality | null>(null)
   useEffect(() => {
     limiterRef.current.fps = fps
+    qualityRef.current?.reset()
   }, [fps])
+  useEffect(() => {
+    qualityRef.current?.set(quality)
+  }, [quality])
 
-  const selectedOptions = useMemo(() => {
-    const options = getVisualizerTheme(themeId).options ?? []
-    return Object.fromEntries(
-      options.map((option) => {
-        const stored = storedOptions?.[option.id]
-        return [option.id, option.values.some((v) => v.id === stored) ? stored! : option.values[0].id]
-      })
-    )
-  }, [themeId, storedOptions])
+  const selectedOptions = useMemo(() => resolveThemeOptions(getVisualizerTheme(themeId), storedOptions), [themeId, storedOptions])
   const selectedOptionsRef = useRef(selectedOptions)
   selectedOptionsRef.current = selectedOptions
 
@@ -136,6 +137,9 @@ function VisualizerView({ child }: { child: Window }) {
     Object.assign(engine.canvas.style, { display: 'block', width: '100%', height: '100%' })
     host.appendChild(engine.canvas)
     engineRef.current = engine
+    const engineQuality = new EngineQuality(engine, Math.min(child.devicePixelRatio, 2))
+    engineQuality.set(useCollectionStore.getState().visualizerQuality)
+    qualityRef.current = engineQuality
     // The child's own ResizeObserver (not in TypeScript's Window type).
     const ChildResizeObserver = (child as Window & { ResizeObserver: typeof ResizeObserver }).ResizeObserver
     const resize = new ChildResizeObserver(() => engine.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight)))
@@ -148,12 +152,15 @@ function VisualizerView({ child }: { child: Window }) {
     const tick = () => {
       frame = child.requestAnimationFrame(tick)
       const now = performance.now()
-      if (limiterRef.current.shouldRender(now)) engine.render(now)
+      if (!limiterRef.current.shouldRender(now)) return
+      engine.render(now)
+      engineQuality.frame(now, limiterRef.current.fps)
     }
     frame = child.requestAnimationFrame(tick)
     return () => {
       child.cancelAnimationFrame(frame)
       resize.disconnect()
+      qualityRef.current = null
       engineRef.current = null
       engine.dispose()
     }
@@ -164,6 +171,7 @@ function VisualizerView({ child }: { child: Window }) {
     const instance = getVisualizerTheme(themeId).create()
     for (const [optionId, valueId] of Object.entries(selectedOptionsRef.current)) instance.setOption?.(optionId, valueId)
     engineRef.current?.setTheme(instance)
+    qualityRef.current?.reset()
     instanceRef.current = instance
     return () => {
       instanceRef.current = null

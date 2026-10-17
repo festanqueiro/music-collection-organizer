@@ -342,10 +342,15 @@ await group('visualizer', async () => {
   await win.locator('button[aria-label="Visualizer"]').first().click()
   await wait(1500)
   const names = await win.evaluate(() => [...document.querySelectorAll('select option')].map((o) => o.textContent.replace(/^\d+\s+/, '')))
-  check('visualizer lists Sponge, Crystal and Tangle', ['Sponge', 'Crystal', 'Tangle'].every((n) => names.includes(n)), names.join(', '))
-  // Each of the three draws: a canvas with a size, and nothing thrown.
+  check('visualizer lists Sponge, Crystal, Tangle and Ocean', ['Sponge', 'Crystal', 'Tangle', 'Ocean'].every((n) => names.includes(n)), names.join(', '))
+  const qualities = await win.evaluate(() => {
+    const select = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'hd'))
+    return select ? [...select.options].map((o) => o.value) : []
+  })
+  check('visualizer has a Quality picker (Auto, Low, High, HD)', qualities.join() === 'auto,low,high,hd', qualities.join(', '))
+  // Each of the newer themes draws: a canvas with a size, and nothing thrown.
   const before = errors.length
-  for (const id of ['sponge', 'crystal', 'tangle']) {
+  for (const id of ['sponge', 'crystal', 'tangle', 'ocean']) {
     await win.evaluate((theme) => {
       const select = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === theme))
       select.value = theme

@@ -38,7 +38,7 @@ export type RecordingState = 'idle' | 'starting' | 'recording' | 'stopping'
 // MCO's own tags: 'no-tags' = no Tags at all (so no Subtags either);
 // 'no-subtags' = no Subtag, whether or not it has Tags.
 export type McoTagsFilter = 'all' | 'no-tags' | 'no-subtags'
-import type { VisualizerThemeId } from 'threejs-visualisers'
+import type { VisualizerQuality, VisualizerThemeId } from 'threejs-visualisers'
 import { isCastScreen, type AnyVisualizerThemeId, type CastScreen } from '../cast/tvVisualizers'
 import type { KeyNotation } from './harmonic'
 import { DEFAULT_APP_THEME, isAppThemeId, type AppThemeId } from '../appThemes'
@@ -171,6 +171,11 @@ export interface CollectionState {
   // FPS_CHOICES); 0 is no cap, the display's refresh rate. Default 30.
   visualizerFps: number
   setVisualizerFps: (fps: number) => void
+  // Render quality for every visualizer theme (threejs-visualisers'
+  // QUALITY_CHOICES): a fixed level, or 'auto' — High, stepping down while
+  // the GPU can't keep up with the frame rate. Default 'auto'.
+  visualizerQuality: VisualizerQualitySetting
+  setVisualizerQuality: (quality: VisualizerQualitySetting) => void
   // Visual delay (ms, 0..MAX_VISUAL_DELAY_MS): holds the visualizers back to
   // match sound that reaches the room late (AirPlay, Bluetooth). App.tsx
   // applies it to the audio engine's visual tap (ADR 0047).
@@ -519,7 +524,7 @@ const VISUALIZER_THEME_KEY = 'visualizerTheme'
 const VISUALIZER_THEME_ID_SET: Record<VisualizerThemeId, true> = {
   nebula: true, warp: true, horizon: true, soundsystem: true, smoke: true,
   kaleidoscope: true, paint: true, liquid: true, origins: true,
-  sponge: true, crystal: true, tangle: true,
+  sponge: true, crystal: true, tangle: true, ocean: true,
 }
 const VISUALIZER_THEME_IDS = Object.keys(VISUALIZER_THEME_ID_SET) as VisualizerThemeId[]
 const CAST_SCREEN_KEY = 'castScreen'
@@ -619,6 +624,18 @@ function loadVisualizerFps(): number {
   }
 }
 
+export type VisualizerQualitySetting = VisualizerQuality | 'auto'
+const VISUALIZER_QUALITY_KEY = 'visualizerQuality'
+function loadVisualizerQuality(): VisualizerQualitySetting {
+  try {
+    const stored = localStorage.getItem(VISUALIZER_QUALITY_KEY)
+    if (stored === 'auto' || stored === 'low' || stored === 'high' || stored === 'hd') return stored
+  } catch {
+    // localStorage unavailable (e.g. under Vitest's node environment).
+  }
+  return 'auto'
+}
+
 const CAST_MUTE_LOCAL_KEY = 'castMuteLocal'
 const RECORDING_FORMAT_KEY = 'recordingFormat'
 function loadRecordingFormat(): RecordingFormat {
@@ -714,6 +731,7 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   castScreen: loadCastScreen(),
   visualizerHideTrackInfo: loadVisualizerHideTrackInfo(),
   visualizerFps: loadVisualizerFps(),
+  visualizerQuality: loadVisualizerQuality(),
   visualDelayMs: loadVisualDelayMs(),
   screenTarget: null,
   screenNowPlaying: loadBooleanPreference(SCREEN_NOW_PLAYING_KEY, false),
@@ -1238,6 +1256,10 @@ export const useCollectionStore = create<CollectionState>((set, get) => ({
   setVisualizerFps: (fps) => {
     set({ visualizerFps: fps })
     writeStored(VISUALIZER_FPS_KEY, String(fps))
+  },
+  setVisualizerQuality: (quality) => {
+    set({ visualizerQuality: quality })
+    writeStored(VISUALIZER_QUALITY_KEY, quality)
   },
 
   setPlayerLarge: (large) => {

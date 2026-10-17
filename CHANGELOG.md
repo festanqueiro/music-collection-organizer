@@ -12,6 +12,16 @@ installed copies update themselves.
   capitals ("BOOZOO BAJOU" → "Boozoo Bajou"), like the filename
   suggestions. Review… opens the editor with it filled in; nothing is
   written to the file until you press Save to file.
+- **A new visualizer, Ocean**: open sea riding the swell towards the sun,
+  with a choice of skies (sunset, morning, day, fog, night or a day cycle)
+  and film looks (colour, sepia, black & white).
+- **Sound System**: a *Dancing* mode for the Mais Baixo stack — the rig on
+  arms and legs, dancing to the beat — and *Original* colours, the real
+  rig's black and white with its diamond logo. Urban is now the default
+  background.
+- **Visualizer quality** (Auto, Low, High, HD) in the visualizer's bar.
+  Auto starts at High and steps down if the computer can't keep up; the
+  second screen follows the same setting.
 
 ### Fixed
 - **Playing a track after editing its ID3 tags** no longer hangs the
