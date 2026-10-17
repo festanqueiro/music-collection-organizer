@@ -4,7 +4,7 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
-## Unreleased
+## 1.0.63 — 2026-10-17
 
 ### Added
 - **A suggestion to fix capitals**: when a track's Title or Artist is
