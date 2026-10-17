@@ -4,6 +4,36 @@ What changed in each MCO release. Releases are on the
 [Releases page](https://github.com/festanqueiro/music-collection-organizer/releases);
 installed copies update themselves.
 
+## 1.0.63 — 2026-10-17
+
+### Added
+- **A suggestion to fix capitals**: when a track's Title or Artist is
+  written ALL IN CAPITALS, the ID3 tags section suggests it with normal
+  capitals ("BOOZOO BAJOU" → "Boozoo Bajou"), like the filename
+  suggestions. Review… opens the editor with it filled in; nothing is
+  written to the file until you press Save to file.
+- **A new visualizer, Ocean**: open sea riding the swell towards the sun,
+  with a choice of skies (sunset, morning, day, fog, night or a day cycle)
+  and film looks (colour, sepia, black & white).
+- **Sound System**: a *Dancing* mode for the Mais Baixo stack — the rig on
+  arms and legs, dancing to the beat — and *Original* colours, the real
+  rig's black and white with its diamond logo. Urban is now the default
+  background.
+- **Visualizer quality** (Auto, Low, High, HD) in the visualizer's bar.
+  Auto starts at High and steps down if the computer can't keep up; the
+  second screen follows the same setting.
+
+### Fixed
+- **Playing a track after editing its ID3 tags** no longer hangs the
+  player.
+- **Right-clicking a Subtag in the Subtags view** now opens the same menu
+  as a Tag's — Rename, Choose color…, Delete — instead of nothing.
+
+### Changed
+- **The play, queue and pre-listen icons** at the start of each table row
+  sit a little further from the edge and line up on one centre line (the
+  queue icon used to sit low).
+
 ## 1.0.62 — 2026-10-12
 
 ### Added

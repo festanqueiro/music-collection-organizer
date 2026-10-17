@@ -3,6 +3,7 @@ import { useCollectionStore } from '../state/store'
 import type { Track } from '../types'
 import { SubtagRing, TagTrackCount, TREE_CHECKBOX_STYLE, TREE_INDENT_PX, TREE_ROW_PX } from './TagTree'
 import { countTracksByTag } from '../state/tagFilter'
+import { useTagContextMenu } from './useTagContextMenu'
 
 // Groups by actual track co-tagging, not the schema's own subgenre->genre
 // parent link — a subtag like "5 Stars" is typically its own genre's
@@ -25,6 +26,9 @@ export function SubtagTree({
 
   const [expandedSubgenreId, setExpandedSubgenreId] = useState<number | null>(null)
   const [selection, setSelection] = useState<{ subgenreId: number; genreId: number | null } | null>(null)
+
+  // Right-click: the same menu as in the Tags view.
+  const { openContextMenu, isRenaming, renameField, menus } = useTagContextMenu()
 
   const genreNameById = useMemo(() => new Map(genres.map((g) => [g.id, g.name])), [genres])
 
@@ -97,7 +101,10 @@ export function SubtagTree({
           <div key={sg.id}>
             {/* Rows laid out like the Tags and Folders views' (same margin,
                 spacing and height). */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', minHeight: `${TREE_ROW_PX}px` }}>
+            <div
+              onContextMenu={(e) => openContextMenu(e, { kind: 'subgenre', id: sg.id, name: sg.name })}
+              style={{ display: 'flex', alignItems: 'center', gap: '2px', minHeight: `${TREE_ROW_PX}px` }}
+            >
               {genreIds.length > 0 ? (
                 <span
                   className="material-symbols-outlined"
@@ -113,7 +120,7 @@ export function SubtagTree({
               <label style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1, minWidth: 0, cursor: 'pointer' }}>
                 <input type="checkbox" style={TREE_CHECKBOX_STYLE} checked={isSelected} onChange={() => toggleSubgenreFilter(sg.id)} />
                 {sg.color && <SubtagRing color={sg.color} inRow />}
-                <span>{sg.name}</span>
+                {isRenaming('subgenre', sg.id) ? renameField(sg.name) : <span>{sg.name}</span>}
                 {genreNameById.get(sg.genreId) && (
                   <span style={{ color: 'var(--color-text-dim)', fontSize: '12px', marginLeft: '4px' }}>
                     ({genreNameById.get(sg.genreId)})
@@ -127,6 +134,7 @@ export function SubtagTree({
               genreIds.map((genreId) => (
                 <label
                   key={genreId}
+                  onContextMenu={(e) => openContextMenu(e, { kind: 'genre', id: genreId, name: genreNameById.get(genreId) ?? `Tag ${genreId}` })}
                   style={{ display: 'flex', alignItems: 'center', gap: '2px', minHeight: `${TREE_ROW_PX}px`, paddingLeft: `${TREE_INDENT_PX}px` }}
                 >
                   <span style={{ display: 'inline-block', width: '14px', flexShrink: 0 }} />
@@ -136,13 +144,19 @@ export function SubtagTree({
                     checked={selection?.subgenreId === sg.id && selection.genreId === genreId}
                     onChange={() => toggleGenreFilter(sg.id, genreId)}
                   />
-                  <span style={{ flex: 1 }}>{genreNameById.get(genreId) ?? `Tag ${genreId}`}</span>
+                  {isRenaming('genre', genreId) ? (
+                    renameField(genreNameById.get(genreId) ?? `Tag ${genreId}`)
+                  ) : (
+                    <span style={{ flex: 1 }}>{genreNameById.get(genreId) ?? `Tag ${genreId}`}</span>
+                  )}
                   <TagTrackCount count={trackCounts.genresWithSubgenre.get(sg.id)?.get(genreId) ?? 0} />
                 </label>
               ))}
           </div>
         )
       })}
+
+      {menus}
     </div>
   )
 }

@@ -46,7 +46,7 @@ const DEFAULT_COLUMN_WIDTHS: Record<TrackTableColumnKey, number> = {
 const MIN_COLUMN_WIDTH = 50
 // Just fits its three 16px icons (play, add to queue, pre-listen) with
 // 4px padding and gaps.
-const PLAY_COL_WIDTH = 64
+const PLAY_COL_WIDTH = 72
 const STATUS_COL_WIDTH = 90
 const CLOUD_COL_WIDTH = 70
 // Every row is exactly this tall (the tallest a one-line row gets, with a
@@ -672,8 +672,12 @@ export function TrackTable({
   // with the others. A missing track's file is gone — nothing to play.
   function renderPlayCell(track: Track) {
     if (track.missing) return null
+    const playTitle = track.id === currentTrackId && playerPlaying ? 'Pause' : track.id === currentTrackId ? 'Resume' : 'Play track now'
+    const queueTitle = queuedIds.has(track.id) ? 'In the queue — add it again' : 'Add to queue'
     return (
-      <>
+      // A flex row so the three icons share one centre line (inline, each
+      // glyph sat on its own baseline and the queue icon looked low).
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
         <button
           onClick={(e) => {
             e.stopPropagation()
@@ -687,17 +691,18 @@ export function TrackTable({
             if (track.id === currentTrackId && playbackControls) playbackControls.toggle()
             else playTrackNow(track.id)
           }}
-          title={track.id === currentTrackId && playerPlaying ? 'Pause' : track.id === currentTrackId ? 'Resume' : 'Play track now'}
+          title={playTitle}
+          aria-label={playTitle}
           style={{
             background: 'none',
             border: 'none',
-            padding: '0 4px 0 0',
+            padding: 0,
             cursor: 'pointer',
-            verticalAlign: 'middle',
+            display: 'flex',
             color: track.id === currentTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
           }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
             {track.id === currentTrackId && playerPlaying ? 'pause_circle' : 'play_circle'}
           </span>
         </button>
@@ -707,17 +712,18 @@ export function TrackTable({
             addToPlaylist(track.id)
             showToast(`Added "${decodeHtmlEntities(track.title ?? track.filename)}" to the queue`)
           }}
-          title={queuedIds.has(track.id) ? 'In the queue — add it again' : 'Add to queue'}
+          title={queueTitle}
+          aria-label={queueTitle}
           style={{
             background: 'none',
             border: 'none',
-            padding: '0 4px 0 0',
+            padding: 0,
             cursor: 'pointer',
-            verticalAlign: 'middle',
+            display: 'flex',
             color: queuedIds.has(track.id) ? 'var(--color-accent)' : 'var(--color-text-dim)',
           }}
         >
-          <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+          <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
             {queuedIds.has(track.id) ? 'playlist_add_check' : 'playlist_add'}
           </span>
         </button>
@@ -728,21 +734,22 @@ export function TrackTable({
               previewTrack(track.id)
             }}
             title={track.id === cueTrackId ? 'Stop pre-listen' : 'Pre-listen in headphones (P)'}
+            aria-label={track.id === cueTrackId ? 'Stop pre-listen' : 'Pre-listen in headphones'}
             style={{
               background: 'none',
               border: 'none',
               padding: 0,
               cursor: 'pointer',
-              verticalAlign: 'middle',
+              display: 'flex',
               color: track.id === cueTrackId ? 'var(--color-accent)' : 'var(--color-text-dim)',
             }}
           >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px', verticalAlign: 'middle' }}>
+            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
               headphones
             </span>
           </button>
         )}
-      </>
+      </div>
     )
   }
 
@@ -1051,7 +1058,7 @@ export function TrackTable({
         >
           <thead>
             <tr>
-              <th style={{ ...cellStyle, width: PLAY_COL_WIDTH, ...stickyHeaderStyle, padding: '4px' }}>
+              <th style={{ ...cellStyle, width: PLAY_COL_WIDTH, ...stickyHeaderStyle, padding: '4px 4px 4px 10px' }}>
                 <button
                   onClick={openColumnsMenu}
                   title="Choose columns (or right-click a column header)"
@@ -1191,7 +1198,7 @@ export function TrackTable({
                     : {}),
                 }}
               >
-                <td style={{ ...cellStyle, padding: '8px 4px', overflow: 'hidden' }}>{renderPlayCell(track)}</td>
+                <td style={{ ...cellStyle, padding: '8px 4px 8px 10px', overflow: 'hidden' }}>{renderPlayCell(track)}</td>
                 {orderedColumns.map((col) => (
                   <td key={col.key} style={cellStyleFor(col.key)}>
                     {renderCell(track, col.key)}

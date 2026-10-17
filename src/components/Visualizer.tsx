@@ -1,11 +1,12 @@
 // src/components/Visualizer.tsx
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { FPS_CHOICES, FrameLimiter, VISUALIZER_THEMES, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
-import { getAudioEngine } from '../audio/audioEngine'
+import { FPS_CHOICES, QUALITY_CHOICES, VISUALIZER_THEMES, getVisualizerTheme, type VisualizerQuality } from 'threejs-visualisers'
 import { useCollectionStore } from '../state/store'
 import { castingToAScreen } from '../cast/castSession'
 import { decodeHtmlEntities } from '../format'
 import { ToggleSwitch } from './ToggleSwitch'
+import { resolveThemeOptions, visibleThemeOptions } from './visualizerQuality'
+import { useVisualizerEngine } from './useVisualizerEngine'
 import type { Track } from '../types'
 
 const UI_HIDE_DELAY_MS = 2500
@@ -29,10 +30,11 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   // same, at about half the GPU load and heat of 60).
   const fps = useCollectionStore((s) => s.visualizerFps)
   const setFps = useCollectionStore((s) => s.setVisualizerFps)
-  const limiterRef = useRef(new FrameLimiter(fps))
-  useEffect(() => {
-    limiterRef.current.fps = fps
-  }, [fps])
+  // Render quality (Auto, Low, High, HD); under Auto, `autoQuality` is the
+  // level it has settled on, shown on the picker as "Auto (Low)".
+  const quality = useCollectionStore((s) => s.visualizerQuality)
+  const setQuality = useCollectionStore((s) => s.setVisualizerQuality)
+  const [autoQuality, setAutoQuality] = useState<VisualizerQuality>('high')
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   const castingToScreen = useCollectionStore((s) => castingToAScreen(s.castStatus))
@@ -48,26 +50,14 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
   const activeTheme = getVisualizerTheme(activeThemeId)
   const storedOptions = useCollectionStore((s) => s.visualizerThemeOptions[activeThemeId])
   const setThemeOption = useCollectionStore((s) => s.setVisualizerThemeOption)
-  const themeOptions = activeTheme.options ?? []
   const optionSlots = Math.max(
     ...VISUALIZER_THEMES.map((theme) => theme.options?.length ?? 0),
   )
-  const selectedOptions = useMemo(
-    () =>
-      Object.fromEntries(
-        themeOptions.map((option) => {
-          const stored = storedOptions?.[option.id]
-          return [option.id, option.values.some((v) => v.id === stored) ? stored! : option.values[0].id]
-        }),
-      ),
-    [themeOptions, storedOptions]
-  )
-  const selectedOptionsRef = useRef(selectedOptions)
-  selectedOptionsRef.current = selectedOptions
-  const instanceRef = useRef<ThemeInstance | null>(null)
+  const selectedOptions = useMemo(() => resolveThemeOptions(activeTheme, storedOptions), [activeTheme, storedOptions])
+  // Options that don't apply to the other choices (e.g. Sound System's Mode
+  // off the Mais Baixo stack) are hidden; their slot stays empty.
+  const themeOptions = visibleThemeOptions(activeTheme, selectedOptions)
   const fpsRef = useRef<HTMLSpanElement>(null)
-  // Set by the renderer effect; the theme effect swaps what it renders.
-  const rendererRef = useRef<VisualizerEngine | null>(null)
 
   // Fullscreen + exit handling. Esc while fullscreen is swallowed by the
   // browser to exit fullscreen (no keydown reaches us), so leaving
@@ -125,71 +115,24 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
     }
   }, [])
 
-  // Renderer, bloom and render loop — created once for the overlay's
-  // lifetime; themes are swapped underneath it.
-  useEffect(() => {
-    const host = canvasHostRef.current
-    if (!host) return
-
-    const engine = new VisualizerEngine({
-      width: host.clientWidth,
-      height: host.clientHeight,
-      pixelRatio: Math.min(window.devicePixelRatio, 2),
-      // The engine's visual tap: the music (track + siren), held back by the
-      // Visual delay (ADR 0047).
-      analyser: getAudioEngine().getVisualAnalyser(),
-    })
-    host.appendChild(engine.canvas)
-    rendererRef.current = engine
-
-    const resizeObserver = new ResizeObserver(() => engine.setSize(host.clientWidth, host.clientHeight))
-    resizeObserver.observe(host)
-
-    let raf = 0
-    // FPS readout: written straight to the DOM once a second rather than
-    // through React state, so it doesn't re-render the overlay.
-    let fpsFrames = 0
-    let fpsSince = performance.now()
-
-    function tick() {
-      raf = requestAnimationFrame(tick)
-      const nowMs = performance.now()
-      if (!limiterRef.current.shouldRender(nowMs)) return
-      fpsFrames++
-      if (nowMs - fpsSince >= 1000) {
-        if (fpsRef.current) fpsRef.current.textContent = `${Math.round((fpsFrames * 1000) / (nowMs - fpsSince))} fps`
-        fpsFrames = 0
-        fpsSince = nowMs
-      }
-      engine.render(nowMs)
-    }
-    tick()
-
-    return () => {
-      cancelAnimationFrame(raf)
-      resizeObserver.disconnect()
-      rendererRef.current = null
-      engine.dispose()
-    }
-  }, [])
-
-  // Declared after the renderer effect so it runs after it on mount.
-  useEffect(() => {
-    const instance = getVisualizerTheme(activeThemeId).create()
-    for (const [optionId, valueId] of Object.entries(selectedOptionsRef.current)) instance.setOption?.(optionId, valueId)
-    rendererRef.current?.setTheme(instance)
-    instanceRef.current = instance
-    return () => {
-      instanceRef.current = null
-      instance.dispose()
-    }
-  }, [activeThemeId])
-
-  // Changing an option updates the live instance in place. Themes make
-  // re-applying an unchanged value cheap, so this just re-sends them all.
-  useEffect(() => {
-    for (const [optionId, valueId] of Object.entries(selectedOptions)) instanceRef.current?.setOption?.(optionId, valueId)
-  }, [selectedOptions])
+  // FPS readout: written straight to the DOM once a second rather than
+  // through React state, so it doesn't re-render the overlay.
+  const fpsCount = useRef({ frames: 0, since: performance.now() })
+  useVisualizerEngine({
+    hostRef: canvasHostRef,
+    win: window,
+    themeId: activeThemeId,
+    options: selectedOptions,
+    onQualityChange: setAutoQuality,
+    onFrame: (nowMs) => {
+      const count = fpsCount.current
+      count.frames++
+      if (nowMs - count.since < 1000) return
+      if (fpsRef.current) fpsRef.current.textContent = `${Math.round((count.frames * 1000) / (nowMs - count.since))} fps`
+      count.frames = 0
+      count.since = nowMs
+    },
+  })
 
   return (
     <div
@@ -276,6 +219,16 @@ export function Visualizer({ track, onClose }: { track: Track | null; onClose: (
           title="Lower rates keep the GPU cooler"
           options={FPS_CHOICES.map((choice) => ({ id: String(choice.fps), name: choice.label }))}
           onChange={(value) => setFps(Number(value))}
+        />
+        <PickerSelect
+          label="Quality"
+          value={quality}
+          title="Auto starts at High and steps down if the GPU can't keep up"
+          options={[
+            { id: 'auto', name: `Auto (${QUALITY_CHOICES.find((c) => c.quality === autoQuality)?.label})` },
+            ...QUALITY_CHOICES.map((choice) => ({ id: choice.quality, name: choice.label })),
+          ]}
+          onChange={(value) => setQuality(value as typeof quality)}
         />
         <label
           style={{

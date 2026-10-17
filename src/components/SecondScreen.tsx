@@ -9,11 +9,12 @@
 // delay (ADR 0047), and the track info changes after the same delay.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FrameLimiter, VisualizerEngine, getVisualizerTheme, type ThemeInstance } from 'threejs-visualisers'
+import { getVisualizerTheme } from 'threejs-visualisers'
 import { useCollectionStore } from '../state/store'
-import { getAudioEngine } from '../audio/audioEngine'
 import { decodeHtmlEntities } from '../format'
 import { SecondScreenNowPlaying } from './SecondScreenNowPlaying'
+import { resolveThemeOptions } from './visualizerQuality'
+import { useVisualizerEngine } from './useVisualizerEngine'
 import type { Track } from '../types'
 
 // Copies the page's styles (fonts, theme variables) into the child, with
@@ -98,82 +99,15 @@ function useDelayed<T>(value: T, delayMs: number): T {
 
 function VisualizerView({ child }: { child: Window }) {
   const hostRef = useRef<HTMLDivElement>(null)
-  const engineRef = useRef<VisualizerEngine | null>(null)
-  const instanceRef = useRef<ThemeInstance | null>(null)
   const themeId = getVisualizerTheme(useCollectionStore((s) => s.screenTheme)).id
   const storedOptions = useCollectionStore((s) => s.visualizerThemeOptions[themeId])
   const hideTrackInfo = useCollectionStore((s) => s.screenHideTrackInfo)
-  const fps = useCollectionStore((s) => s.visualizerFps)
   const visualDelayMs = useCollectionStore((s) => s.visualDelayMs)
-  const limiterRef = useRef(new FrameLimiter(fps))
-  useEffect(() => {
-    limiterRef.current.fps = fps
-  }, [fps])
-
-  const selectedOptions = useMemo(() => {
-    const options = getVisualizerTheme(themeId).options ?? []
-    return Object.fromEntries(
-      options.map((option) => {
-        const stored = storedOptions?.[option.id]
-        return [option.id, option.values.some((v) => v.id === stored) ? stored! : option.values[0].id]
-      })
-    )
-  }, [themeId, storedOptions])
-  const selectedOptionsRef = useRef(selectedOptions)
-  selectedOptionsRef.current = selectedOptions
-
-  // The engine and the render loop, on the child's own animation frames and
-  // size (its display's refresh rate and resolution).
-  useEffect(() => {
-    const host = hostRef.current
-    if (!host) return
-    const engine = new VisualizerEngine({
-      width: Math.max(1, host.clientWidth),
-      height: Math.max(1, host.clientHeight),
-      pixelRatio: Math.min(child.devicePixelRatio, 2),
-      analyser: getAudioEngine().getVisualAnalyser(),
-    })
-    Object.assign(engine.canvas.style, { display: 'block', width: '100%', height: '100%' })
-    host.appendChild(engine.canvas)
-    engineRef.current = engine
-    // The child's own ResizeObserver (not in TypeScript's Window type).
-    const ChildResizeObserver = (child as Window & { ResizeObserver: typeof ResizeObserver }).ResizeObserver
-    const resize = new ChildResizeObserver(() => engine.setSize(Math.max(1, host.clientWidth), Math.max(1, host.clientHeight)))
-    resize.observe(host)
-    let frame = 0
-    // This page's clock, not the child's rAF timestamp: the child's clock
-    // starts when it opens, so the engine (created on this page's clock)
-    // would see time jump backwards and its smoothing blow up (a black or
-    // white screen).
-    const tick = () => {
-      frame = child.requestAnimationFrame(tick)
-      const now = performance.now()
-      if (limiterRef.current.shouldRender(now)) engine.render(now)
-    }
-    frame = child.requestAnimationFrame(tick)
-    return () => {
-      child.cancelAnimationFrame(frame)
-      resize.disconnect()
-      engineRef.current = null
-      engine.dispose()
-    }
-  }, [child])
-
-  // Declared after the engine's effect, so it runs after it on mount.
-  useEffect(() => {
-    const instance = getVisualizerTheme(themeId).create()
-    for (const [optionId, valueId] of Object.entries(selectedOptionsRef.current)) instance.setOption?.(optionId, valueId)
-    engineRef.current?.setTheme(instance)
-    instanceRef.current = instance
-    return () => {
-      instanceRef.current = null
-      instance.dispose()
-    }
-  }, [themeId])
-
-  useEffect(() => {
-    for (const [optionId, valueId] of Object.entries(selectedOptions)) instanceRef.current?.setOption?.(optionId, valueId)
-  }, [selectedOptions])
+  const selectedOptions = useMemo(() => resolveThemeOptions(getVisualizerTheme(themeId), storedOptions), [themeId, storedOptions])
+  // On the child's own animation frames and size (its display's refresh
+  // rate and resolution); the same quality setting as the Visualizer,
+  // judged on this screen's own frames.
+  useVisualizerEngine({ hostRef, win: child, themeId, options: selectedOptions })
 
   // The track info follows the music as the room hears it.
   const playlist = useCollectionStore((s) => s.playlist)

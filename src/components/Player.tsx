@@ -79,6 +79,9 @@ export function Player({
 }) {
   const size = usePlayerSize()
   const audioRef = useRef<HTMLAudioElement>(null)
+  // Fixed for this mount (each new track remounts): a tag save on the
+  // playing track changes its mtime, and a new src would restart it.
+  const [src] = useState(() => trackPathToMediaUrl(track.path, track.mtime))
   const effectsChainRef = useRef<EffectsChain | null>(null)
   const [playing, setPlaying] = useState(false)
   const [progress, setProgress] = useState(0) // 0..1 fraction of duration played
@@ -520,7 +523,7 @@ export function Player({
     <div style={{ padding: '8px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
       <audio
         ref={audioRef}
-        src={trackPathToMediaUrl(track.path)}
+        src={src}
         // Without this, the media load is a "no-cors" request and its
         // response is unconditionally opaque/tainted for Web Audio
         // purposes regardless of the media:// scheme's own corsEnabled

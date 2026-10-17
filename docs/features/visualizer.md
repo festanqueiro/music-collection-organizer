@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-08
+updated: 2026-10-17
 adrs: [0014, 0045]
 ---
 # Visualizer
@@ -21,13 +21,24 @@ rate). The choice is remembered; the fps readout bottom left shows the
 rate reached. The themes and audio smoothing follow each frame's real
 duration, so they move at the same speed at any rate (threejs-visualisers
 0.2.0: `FrameLimiter`, `FPS_CHOICES`).
+Its **Quality** sets the resolution for every theme: *Low* (0.6× the
+pixel ratio), *High* or *HD* (1.5×, supersampled, up to 3×), and themes
+with heavy shaders (Ocean) scale their own detail to match. *Auto*, the
+default, starts at High and steps down a level whenever frames keep coming
+in at under half the frame rate for a few seconds; the picker shows what
+it has settled on, e.g. *Auto (Low)*. It's remembered, and the second
+screen follows it too (judged on its own frames). threejs-visualisers
+0.5.0's `Visualizer` shell does this itself; MCO drives `VisualizerEngine`
+directly, so `src/components/visualizerQuality.ts` follows the same rules
+with the package's `QUALITY_CHOICES` and `StutterDetector`.
 
 Options, as dropdowns in the bar along the bottom right (the track's title and artist have the top row) (the theme's own options saved per theme):
 
 - **Theme** — Nebula, Warp, Horizon, Sound System, Smoke, Kaleidoscope,
-  Paint, Liquid, Origins, Sponge, Crystal or Tangle (keys **1–9** switch to
-  the first nine while it's open; the last three are in the list);
+  Paint, Liquid, Origins, Sponge, Crystal, Tangle or Ocean (keys **1–9**
+  switch to the first nine while it's open; the last four are in the list);
 - **Frame rate** — 15, 24, 30 (default), 60 fps or Max;
+- **Quality** — Auto (default), Low, High or HD;
 - **Hide track info** — hides the title/artist overlay;
 - per-theme options (below).
 
@@ -42,9 +53,13 @@ Options, as dropdowns in the bar along the bottom right (the track's title and a
   pressure rings and glows on the kicks. Its options:
   - **Stack**: *Classic* (built-in geometry) or *Mais Baixo* (a Blender
     model, loaded the first time it's picked);
-  - **Colours**: *MCO*, *Black & White*, or *Natural* (the model's own
-    wood textures);
-  - **Background**: *Field* or *Urban*.
+  - **Mode** (Mais Baixo only — hidden for Classic, via the option's
+    `when`): *Dancing* puts the rig on arms and legs, dancing on the
+    tracked beat (threejs-visualisers 0.5.0);
+  - **Colours**: *MCO*, *Black & White*, *Natural* (the model's own
+    wood textures), or *Original* (the real rig's black and white, with
+    the diamond logo; 0.5.0);
+  - **Background**: *Field* or *Urban* (the default since 0.5.0).
 - **Smoke** — a smoky club: smoke rolling up from a lamp that pumps with
   the kick, stage beams sweeping through it. **Colours**: *Shifting*,
   *Amber*, *Violet*, *Ghost*.
@@ -74,6 +89,13 @@ Options, as dropdowns in the bar along the bottom right (the track's title and a
 - **Tangle** — a torus knot orbited by smaller knots, each orbited by
   smaller ones again. Bass thickens the tubes, mids spin the orbits, highs
   ripple them, kicks throw the rings outward. A **Colours** option (0.4.0).
+- **Ocean** — open sea out to the horizon, riding the swell towards the
+  sun. Bass raises the swell and big kicks roll a wave in; mids add chop;
+  highs set the glitter and whitecaps; loud passages take the camera into
+  the troughs. **Sky**: *Sunset*, *Morning*, *Day*, *Fog*, *Night* (stars,
+  shooting stars on kicks, glowing foam) or *Day cycle*; **Film**:
+  *Colour*, *Sepia*, *Black & white* (0.5.0). Raymarched, so the heaviest
+  theme: Auto quality may step it down on a busy GPU.
 
 While casting to a TV, this visualizer is off: the button is dimmed and says to pick one in the
 Cast menu, where the TV's own visualizers are ([casting](casting.md),
@@ -87,7 +109,11 @@ The Mais Baixo model is exported from Blender by
 `scripts/blender/export-system-mb.py` into the threejs-visualisers repo
 (`src/assets/system-mb.glb`).
 
-Code: `src/components/Visualizer.tsx` (overlay, render loop, picker). The
+Code: `src/components/Visualizer.tsx` (overlay, render loop, picker);
+`src/components/useVisualizerEngine.ts` (engine, render loop, frame cap,
+quality and theme instance — shared with the second screen);
+`src/components/visualizerQuality.ts` (quality, option defaults and
+`when` filtering). The
 themes, the renderer and the spectrum/beat analysis are the
 [threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers)
 package; `src/audio/audioAnalysis.ts` only tracks which track's analyser

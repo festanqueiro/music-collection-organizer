@@ -252,6 +252,15 @@ await group('tag track counts', async () => {
   check('Rename a Tag: a field in its row', (await win.locator('input[aria-label^="New name for"]').count()) === 1)
   await win.keyboard.press('Escape')
   await wait(200)
+  // The Subtags view's rows have the same menu.
+  await win.locator('button[aria-label="Subtags"]').first().click()
+  await wait(400)
+  await win.locator('label:has(input[type="checkbox"])').first().click({ button: 'right' })
+  await wait(300)
+  const subMenu = await win.locator('button:has-text("Rename"), button:has-text("Choose color"), button:has-text("Delete")').count()
+  check('Right-click a Subtag: Rename, Choose color, Delete', subMenu === 3, String(subMenu))
+  await win.keyboard.press('Escape')
+  await wait(200)
   await win.locator('button[aria-label="Folders"]').first().click()
   await wait(300)
 })
@@ -333,10 +342,15 @@ await group('visualizer', async () => {
   await win.locator('button[aria-label="Visualizer"]').first().click()
   await wait(1500)
   const names = await win.evaluate(() => [...document.querySelectorAll('select option')].map((o) => o.textContent.replace(/^\d+\s+/, '')))
-  check('visualizer lists Sponge, Crystal and Tangle', ['Sponge', 'Crystal', 'Tangle'].every((n) => names.includes(n)), names.join(', '))
-  // Each of the three draws: a canvas with a size, and nothing thrown.
+  check('visualizer lists Sponge, Crystal, Tangle and Ocean', ['Sponge', 'Crystal', 'Tangle', 'Ocean'].every((n) => names.includes(n)), names.join(', '))
+  const qualities = await win.evaluate(() => {
+    const select = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === 'hd'))
+    return select ? [...select.options].map((o) => o.value) : []
+  })
+  check('visualizer has a Quality picker (Auto, Low, High, HD)', qualities.join() === 'auto,low,high,hd', qualities.join(', '))
+  // Each of the newer themes draws: a canvas with a size, and nothing thrown.
   const before = errors.length
-  for (const id of ['sponge', 'crystal', 'tangle']) {
+  for (const id of ['sponge', 'crystal', 'tangle', 'ocean']) {
     await win.evaluate((theme) => {
       const select = [...document.querySelectorAll('select')].find((s) => [...s.options].some((o) => o.value === theme))
       select.value = theme

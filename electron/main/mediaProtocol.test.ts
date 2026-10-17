@@ -33,6 +33,13 @@ describe('trackPathToMediaUrl / mediaUrlToFilePath', () => {
     expect(mediaUrlToFilePath(url, collectionFolder)).toBe(trackPath)
   })
 
+  it('ignores the version query, which only changes the URL when the file does', () => {
+    const trackPath = join(collectionFolder, 'House', 'track one.wav')
+    const url = trackPathToMediaUrl(trackPath, 1760000000123)
+    expect(url).not.toBe(trackPathToMediaUrl(trackPath, 1760000000456))
+    expect(mediaUrlToFilePath(url, collectionFolder)).toBe(trackPath)
+  })
+
   it('round-trips the collection folder root itself', () => {
     const url = trackPathToMediaUrl(collectionFolder)
     expect(mediaUrlToFilePath(url, collectionFolder)).toBe(collectionFolder)

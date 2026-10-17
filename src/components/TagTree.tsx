@@ -1,11 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCollectionStore } from '../state/store'
 import { countTracksByTag, matchesTagFilter, type TagFilterMode, type TagFilterState } from '../state/tagFilter'
 import type { Track } from '../types'
-import { TagColorPopover } from './TagColorPopover'
-import { ContextMenu } from './ContextMenu'
+import { useTagContextMenu } from './useTagContextMenu'
 import { writeStored } from '../state/stored'
-import { ipcErrorMessage } from '../ipcError'
 
 // Drops any id from `ids` that no longer exists in `existing` — e.g. after
 // deleteGenre removes a genre out from under a still-checked checkbox, so
@@ -72,8 +70,6 @@ function saveExpandedTags(expanded: Set<number>): void {
   writeStored(EXPANDED_TAGS_KEY, JSON.stringify([...expanded]))
 }
 
-type ContextMenuTarget = { kind: 'genre'; id: number; name: string } | { kind: 'subgenre'; id: number; name: string }
-
 // A short description of the ticked tags, for the chip above the table.
 function describeTagSelection(names: string[], mode: TagFilterMode): string | null {
   if (names.length === 0) return null
@@ -94,21 +90,11 @@ export function TagTree({
   const subgenres = useCollectionStore((s) => s.subgenres)
   const trackTags = useCollectionStore((s) => s.trackTags)
   const tracks = useCollectionStore((s) => s.tracks)
-  const deleteGenre = useCollectionStore((s) => s.deleteGenre)
-  const deleteSubgenre = useCollectionStore((s) => s.deleteSubgenre)
-  const renameGenre = useCollectionStore((s) => s.renameGenre)
-  const showToast = useCollectionStore((s) => s.showToast)
-  const renameSubgenre = useCollectionStore((s) => s.renameSubgenre)
-  const setGenreColor = useCollectionStore((s) => s.setGenreColor)
-  const setSubgenreColor = useCollectionStore((s) => s.setSubgenreColor)
 
   const [genreIds, setGenreIds] = useState<Set<number>>(new Set())
   const [subgenreIds, setSubgenreIds] = useState<Set<number>>(new Set())
   const [filterMode, setFilterMode] = useState<TagFilterMode>('OR')
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
-  // "Choose color…" opens this where the menu was.
-  const [colorPicker, setColorPicker] = useState<{ x: number; y: number; target: ContextMenuTarget } | null>(null)
-  const [renaming, setRenaming] = useState<ContextMenuTarget | null>(null)
+  const { openContextMenu, isRenaming, renameField, menus } = useTagContextMenu()
   const [expanded, setExpanded] = useState(loadExpandedTags)
   function updateExpanded(next: Set<number>) {
     setExpanded(next)
@@ -171,19 +157,6 @@ export function TagTree({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackTags, genres, subgenres, filterMode])
 
-  useEffect(() => {
-    if (!contextMenu) return
-    function close() {
-      setContextMenu(null)
-    }
-    window.addEventListener('click', close)
-    window.addEventListener('keydown', close)
-    return () => {
-      window.removeEventListener('click', close)
-      window.removeEventListener('keydown', close)
-    }
-  }, [contextMenu])
-
   function toggle(set: Set<number>, id: number, setter: (s: Set<number>) => void, key: 'genre' | 'subgenre') {
     const next = new Set(set)
     if (next.has(id)) next.delete(id)
@@ -194,93 +167,6 @@ export function TagTree({
       subgenreIds: intersectWithExisting(key === 'subgenre' ? next : subgenreIds, subgenres),
     }
     applyFilter(filterState, filterMode)
-  }
-
-  // Renamed in its row, like a playlist (Electron has no window.prompt).
-  // Enter and the blur that follows both commit; only the first counts.
-  const renamingRef = useRef<ContextMenuTarget | null>(null)
-  renamingRef.current = renaming
-  async function commitRename(newName: string) {
-    const target = renamingRef.current
-    renamingRef.current = null
-    setRenaming(null)
-    if (!target || !newName.trim() || newName.trim() === target.name) return
-
-    const count =
-      target.kind === 'genre'
-        ? await window.api.countTracksWithGenre(target.id)
-        : await window.api.countTracksWithSubgenre(target.id)
-
-    if (count > 0) {
-      const proceed = window.confirm(`${count} file${count === 1 ? ' is' : 's are'} affected by this change, are you sure?`)
-      if (!proceed) return
-    }
-
-    try {
-      if (target.kind === 'genre') await renameGenre(target.id, newName.trim())
-      else await renameSubgenre(target.id, newName.trim())
-    } catch (err) {
-      // A name another Tag already has, whatever its capitals.
-      showToast(ipcErrorMessage(err))
-    }
-  }
-
-  async function handleDelete(target: ContextMenuTarget) {
-    const count =
-      target.kind === 'genre'
-        ? await window.api.countTracksWithGenre(target.id)
-        : await window.api.countTracksWithSubgenre(target.id)
-
-    const label = target.kind === 'genre' ? 'tag' : 'subtag'
-    const proceed = window.confirm(
-      count > 0
-        ? `Are you sure you want to delete this ${label}? ${count} file${count === 1 ? ' is' : 's are'} tagged with it.`
-        : `Are you sure you want to delete this ${label}?`
-    )
-    if (!proceed) return
-
-    if (target.kind === 'genre') await deleteGenre(target.id)
-    else await deleteSubgenre(target.id)
-  }
-
-  function openContextMenu(e: React.MouseEvent, target: ContextMenuTarget) {
-    e.preventDefault()
-    e.stopPropagation()
-    setContextMenu({ x: e.clientX, y: e.clientY, target })
-  }
-
-  const renameField = (name: string) => (
-    <input
-      autoFocus
-      defaultValue={name}
-      aria-label={`New name for ${name}`}
-      onFocus={(e) => e.currentTarget.select()}
-      // Not the row's tick box.
-      onClick={(e) => e.preventDefault()}
-      onKeyDown={(e) => {
-        e.stopPropagation()
-        if (e.key === 'Enter') void commitRename(e.currentTarget.value)
-        if (e.key === 'Escape') {
-          renamingRef.current = null
-          setRenaming(null)
-        }
-      }}
-      onBlur={(e) => void commitRename(e.currentTarget.value)}
-      style={{ flex: 1, minWidth: 0, height: '18px', padding: '0 4px', fontSize: 'inherit' }}
-    />
-  )
-
-  const menuItemStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    width: '100%',
-    textAlign: 'left' as const,
-    background: 'none',
-    border: 'none',
-    padding: '4px 8px',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap' as const,
   }
 
   return (
@@ -376,7 +262,7 @@ export function TagTree({
                 }}
               />
             )}
-            {renaming?.kind === 'genre' && renaming.id === genre.id ? renameField(genre.name) : <span style={{ flex: 1 }}>{genre.name}</span>}
+            {isRenaming('genre', genre.id) ? renameField(genre.name) : <span style={{ flex: 1 }}>{genre.name}</span>}
             {tickedInside > 0 && (
               <span
                 title={`${tickedInside} subtag${tickedInside === 1 ? '' : 's'} ticked`}
@@ -404,7 +290,7 @@ export function TagTree({
                   onChange={() => toggle(subgenreIds, sg.id, setSubgenreIds, 'subgenre')}
                 />{' '}
                 {sg.color && <SubtagRing color={sg.color} inRow />}
-                {renaming?.kind === 'subgenre' && renaming.id === sg.id ? renameField(sg.name) : <span style={{ flex: 1 }}>{sg.name}</span>}
+                {isRenaming('subgenre', sg.id) ? renameField(sg.name) : <span style={{ flex: 1 }}>{sg.name}</span>}
                 <TagTrackCount count={trackCounts.subgenres.get(sg.id) ?? 0} />
               </label>
             ))}
@@ -412,62 +298,7 @@ export function TagTree({
         )
       })}
 
-      {contextMenu && (
-        <ContextMenu x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
-          <button
-            onClick={() => {
-              setRenaming(contextMenu.target)
-              setContextMenu(null)
-            }}
-            style={menuItemStyle}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-              edit
-            </span>
-            Rename
-          </button>
-          <button
-            onClick={() => {
-              setColorPicker({ x: contextMenu.x, y: contextMenu.y, target: contextMenu.target })
-              setContextMenu(null)
-            }}
-            style={menuItemStyle}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-              palette
-            </span>
-            Choose color…
-          </button>
-          <button
-            onClick={() => {
-              handleDelete(contextMenu.target)
-              setContextMenu(null)
-            }}
-            style={menuItemStyle}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-              delete
-            </span>
-            Delete
-          </button>
-        </ContextMenu>
-      )}
-
-      {colorPicker && (
-        <TagColorPopover
-          x={colorPicker.x}
-          y={colorPicker.y}
-          current={
-            (colorPicker.target.kind === 'genre' ? genres : subgenres).find((t) => t.id === colorPicker.target.id)?.color ?? null
-          }
-          onPick={(color) => {
-            if (colorPicker.target.kind === 'genre') setGenreColor(colorPicker.target.id, color)
-            else setSubgenreColor(colorPicker.target.id, color)
-            setColorPicker(null)
-          }}
-          onClose={() => setColorPicker(null)}
-        />
-      )}
+      {menus}
     </div>
   )
 }

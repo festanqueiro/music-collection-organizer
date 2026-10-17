@@ -1,6 +1,6 @@
 ---
 status: shipped
-updated: 2026-10-12
+updated: 2026-10-16
 adrs: [0008, 0030]
 ---
 # Tags
@@ -62,6 +62,10 @@ right-click a tag to:
 - **Delete** it — a toast offers **Undo** for 8 seconds, which recreates
   the tag (with its colour) and all its track assignments (for a genre,
   its sub-genres too).
+
+In the Subtags tab, the tags listed under a subtag have the same menu (for that tag). Both views
+get it from one hook, `useTagContextMenu` (`src/components/useTagContextMenu.tsx`); `npm run
+test:app` right-clicks a row in each.
 
 ## Filtering by tag
 

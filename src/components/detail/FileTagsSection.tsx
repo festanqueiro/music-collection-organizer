@@ -6,6 +6,7 @@ import type { Track } from '../../types'
 import { formatKey } from '../../state/harmonic'
 import { formatGain, formatLufs, gainToMatch, medianLoudness } from '../../state/loudness'
 import { guessTagsFromFilename } from '../../state/filenameTags'
+import { isAllUppercase, toTitleCase } from '../../state/titleCase'
 import { useSectionOpen, DetailSection } from './DetailSection'
 
 // Formats whose tags MCO can write (see electron/main/tagWriter.ts).
@@ -30,6 +31,58 @@ const EDIT_FIELDS: { key: keyof TagDraft; label: string }[] = [
   { key: 'genre', label: 'Genre (ID3)' },
   { key: 'year', label: 'Year' },
 ]
+
+const SUGGESTED_LABELS = { title: 'Title', artist: 'Artist', album: 'Album' } as const
+
+// A suggestion for the file's tags, above them: what it would change, and
+// Review…, which opens the editor with it filled in (never saved on its own).
+function SuggestionBox({
+  heading,
+  rows,
+  onReview,
+  disabled,
+}: {
+  heading: string
+  rows: { key: keyof typeof SUGGESTED_LABELS; value: string }[]
+  onReview: () => void
+  disabled: boolean
+}) {
+  return (
+    <div
+      style={{
+        marginTop: '8px',
+        padding: '8px',
+        borderRadius: '6px',
+        border: '1px dashed var(--color-accent)',
+        fontSize: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '4px',
+      }}
+    >
+      <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-accent)' }}>
+        <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+          auto_fix_high
+        </span>
+        {heading}
+      </span>
+      {rows.map(({ key, value }) => (
+        <span key={key}>
+          <span style={{ color: 'var(--color-text-dim)' }}>{SUGGESTED_LABELS[key]}: </span>
+          {value}
+        </span>
+      ))}
+      <button
+        onClick={onReview}
+        disabled={disabled}
+        title="Opens the editor with these filled in — nothing is saved until you press Save to file"
+        style={{ alignSelf: 'flex-start', fontSize: '12px', marginTop: '2px' }}
+      >
+        Review…
+      </button>
+    </div>
+  )
+}
 
 // The full set of ID3-derived metadata fields this app extracts.
 // Title/Artist/Album/Genre/Year can be edited, which writes them into the
@@ -79,17 +132,26 @@ export function FullId3Section({ track }: { track: Track }) {
     (key) => guess[key] && !(key === 'title' ? track.title : key === 'artist' ? track.artist : track.album)?.trim()
   )
 
+  // A Title or Artist written ALL IN CAPITALS, with normal capitals.
+  const recased = (['title', 'artist'] as const).flatMap((key) => {
+    const value = decodeHtmlEntities(track[key] ?? '')
+    return isAllUppercase(value) ? [{ key, value: toTitleCase(value) }] : []
+  })
+
   // Opens the editor from the file's tags as they are right now (the row
-  // may predate a read), optionally with suggestions filled into empty
-  // fields.
-  async function startEditing(withSuggestions: boolean) {
+  // may predate a read), optionally with a suggestion filled in: the
+  // filename's guesses into empty fields, or capitals made normal.
+  async function startEditing(suggestion: 'filename' | 'capitals' | null) {
     setOpening(true)
     setError(null)
     await refreshTrackFileTags(track.id).catch(() => {})
     const latest = useCollectionStore.getState().tracks.find((t) => t.id === track.id) ?? track
     const next = draftFor(latest)
-    if (withSuggestions) {
+    if (suggestion === 'filename') {
       for (const key of ['artist', 'title', 'album'] as const) if (!next[key].trim() && guess[key]) next[key] = guess[key]!
+    }
+    if (suggestion === 'capitals') {
+      for (const key of ['title', 'artist'] as const) if (isAllUppercase(next[key])) next[key] = toTitleCase(next[key])
     }
     setDraft(next)
     setOpening(false)
@@ -145,7 +207,7 @@ export function FullId3Section({ track }: { track: Track }) {
       actions={
         !draft && (
           <button
-            onClick={() => startEditing(false)}
+            onClick={() => startEditing(null)}
             disabled={!!editBlocked || opening}
             title={editBlocked ?? 'Edit these tags (writes them into the file)'}
             style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}
@@ -261,39 +323,20 @@ export function FullId3Section({ track }: { track: Track }) {
         </form>
       )}
       {open && !draft && track.tagsRead && suggested.length > 0 && !editBlocked && (
-        <div
-          style={{
-            marginTop: '8px',
-            padding: '8px',
-            borderRadius: '6px',
-            border: '1px dashed var(--color-accent)',
-            fontSize: '12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-          }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-accent)' }}>
-            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
-              auto_fix_high
-            </span>
-            Suggested from the filename
-          </span>
-          {suggested.map((key) => (
-            <span key={key}>
-              <span style={{ color: 'var(--color-text-dim)' }}>{key === 'title' ? 'Title' : key === 'artist' ? 'Artist' : 'Album'}: </span>
-              {guess[key]}
-            </span>
-          ))}
-          <button
-            onClick={() => startEditing(true)}
-            disabled={opening}
-            title="Opens the editor with these filled in — nothing is saved until you press Save to file"
-            style={{ alignSelf: 'flex-start', fontSize: '12px', marginTop: '2px' }}
-          >
-            Review…
-          </button>
-        </div>
+        <SuggestionBox
+          heading="Suggested from the filename"
+          rows={suggested.map((key) => ({ key, value: guess[key]! }))}
+          onReview={() => startEditing('filename')}
+          disabled={opening}
+        />
+      )}
+      {open && !draft && track.tagsRead && recased.length > 0 && !editBlocked && (
+        <SuggestionBox
+          heading="Suggested: normal capitals"
+          rows={recased}
+          onReview={() => startEditing('capitals')}
+          disabled={opening}
+        />
       )}
       {open && !draft && (
         <table style={{ marginTop: '8px', fontSize: '12px', borderCollapse: 'collapse' }}>
