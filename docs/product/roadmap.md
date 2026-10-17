@@ -1,5 +1,5 @@
 ---
-updated: 2026-10-09
+updated: 2026-10-17
 ---
 # Roadmap
 
@@ -27,6 +27,7 @@ Per-release detail is in the [changelog](../log/changelog.md).
 | **1.0.60 Waveform** | shipped (2026-10-08, PR #115) | Bar lines and three waveform styles ([ADR 0065](../adr/0065-coloured-waveforms-from-three-bands.md)), a larger player, an × on hot cues with Undo, right-click menus kept on screen, sync and analysis status in the details. |
 | **1.0.61 Half time, Bulk Operations** | shipped (2026-10-09, PR #117) | Half time settled by a slowest tempo ([ADR 0066](../adr/0066-half-time-is-a-slowest-tempo.md)), a Slow BPM filter and *Measure it again*; a **Bulk Operations** menu with *Measure Every BPM Again*; Rekordbox cues on empty pads; Sponge, Crystal and Tangle; Tag names the same whatever their capitals; the code-review fixes and `npm run test:app`. |
 | **1.0.62 Rows selected without checkboxes, safer data** | shipped (2026-10-12, PR #119) | The track table without checkboxes ([ADR 0068](../adr/0068-select-rows-without-checkboxes.md)); track counts on Tags; **Order by Harmonic Mixing**; a Bit depth column; a collection that moved keeps its tracks ([ADR 0071](../adr/0071-a-moved-collection-keeps-its-tracks.md)); Refine BPM shows the BPM it will set; an unplayable track is skipped; groups 1 and 2 of the [whole-app review](../log/2026-10-11-whole-app-review.md) (data safety, visible defects). |
+| **1.0.63 Ocean, visualizer quality** | shipped (2026-10-17, PR #122) | threejs-visualisers 0.5.0: the **Ocean** theme, Sound System's Dancing mode and Original colours, and a **Quality** picker (Auto/Low/High/HD) the second screen follows; the Visualizer and second screen share one engine hook; ID3 tags suggest normal capitals for all-caps Title/Artist; a player hang after an ID3 save fixed; right-click on a Subtag opens the Tag menu. Next: threejs-visualisers 0.6.0 ([upstream PR #10](https://github.com/festanqueiro/threejs-visualisers/pull/10)) replaces MCO's copy of the auto-quality code. |
 
 ## Next (roughly in priority order; S ≤ a day, M = a few days, L = a week+)
 1. **Smart crates (M)** — saved filter rules (tags AND/OR, BPM range, key, energy, format, date
