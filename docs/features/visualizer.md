@@ -110,8 +110,10 @@ The Mais Baixo model is exported from Blender by
 (`src/assets/system-mb.glb`).
 
 Code: `src/components/Visualizer.tsx` (overlay, render loop, picker);
+`src/components/useVisualizerEngine.ts` (engine, render loop, frame cap,
+quality and theme instance — shared with the second screen);
 `src/components/visualizerQuality.ts` (quality, option defaults and
-`when` filtering, shared with the second screen). The
+`when` filtering). The
 themes, the renderer and the spectrum/beat analysis are the
 [threejs-visualisers](https://github.com/festanqueiro/threejs-visualisers)
 package; `src/audio/audioAnalysis.ts` only tracks which track's analyser
